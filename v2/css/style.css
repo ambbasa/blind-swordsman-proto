@@ -98,7 +98,7 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 #app:has(.ov.show) #hud { opacity: 0; pointer-events: none; }
 
 
-#marks { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+#marks { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 5; pointer-events: none; }
 #onebellInk, #onebellPaper, #onebellBurst {
   position: absolute; inset: 0; z-index: 7; pointer-events: none;
   background-position: center; background-size: cover; background-repeat: no-repeat;
@@ -141,3 +141,44 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 }
 .card h1, .card h2, .card p, .card .sub, .shop-coins { color: #0E0C0A; }
 .card .ad-note { color: #3A3632; }
+
+#beatPulse {
+  position: absolute; inset: 0; pointer-events: none; z-index: 3;
+  box-shadow: inset 0 0 0 0 rgba(237, 227, 207, 0);
+  transition: box-shadow 0.08s linear;
+}
+#app.beat #beatPulse {
+  box-shadow: inset 0 0 0 5px rgba(237, 227, 207, 0.88), inset 0 0 40px rgba(237, 227, 207, 0.22);
+}
+#judgeFlash {
+  position: absolute; top: 22%; left: 50%; transform: translateX(-50%);
+  z-index: 6; pointer-events: none;
+  font: 800 28px/1.1 "Noto Serif KR", serif;
+  color: #F4E8D0;
+  text-shadow: 0 1px 0 #1a1008, 0 0 14px rgba(0,0,0,0.8);
+  letter-spacing: 0.08em;
+}
+#judgeFlash.show { animation: judgePop 0.55s ease-out both; }
+@keyframes judgePop {
+  0% { opacity: 0; transform: translateX(-50%) scale(0.7); }
+  25% { opacity: 1; transform: translateX(-50%) scale(1.08); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-12px) scale(1); }
+}
+#app.combo-burst #beatPulse {
+  box-shadow: inset 0 0 0 8px rgba(20, 12, 8, 0.85), inset 0 0 80px rgba(20, 12, 8, 0.55);
+}
+#app.combo-burst::after {
+  content: "";
+  position: absolute; inset: 0; pointer-events: none; z-index: 4;
+  background: radial-gradient(circle at 50% 55%, rgba(237,227,207,0.2), transparent 55%),
+              url(../../assets/v2/fx/onebell-ink-burst.png) center/contain no-repeat;
+  opacity: 0.85;
+  animation: comboInk 0.55s ease-out both;
+}
+@keyframes comboInk {
+  0% { opacity: 0.15; transform: scale(0.7); }
+  35% { opacity: 0.9; transform: scale(1.05); }
+  100% { opacity: 0; transform: scale(1.2); }
+}
+#comboLabel { min-width: 4.5em; }
+#comboLabel.hot { color: #8B1A1A; }

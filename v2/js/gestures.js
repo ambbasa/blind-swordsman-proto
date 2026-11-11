@@ -219,8 +219,58 @@
     return sc;
   }
 
-  var LABELS = { vline: 'ㅣ', hline: '—', vee: 'V', circle: 'O', bolt: '⚡' };
-  var COMBAT = ['vline', 'hline', 'vee', 'circle'];
+  function scoreSquare(pts, bb, L) {
+    if (Math.min(bb.w, bb.h) < 28) return 0;
+    var a = pts[0], b = pts[pts.length - 1];
+    var closure = dist(a, b) / Math.max(bb.diag, 1);
+    var aspect = bb.w / bb.h; if (aspect < 1) aspect = 1 / aspect;
+    var simple = simplify(pts, Math.max(6, bb.diag * 0.09));
+    if (simple.length >= 2 && dist(simple[0], simple[simple.length - 1]) < bb.diag * 0.16) {
+      simple = simple.slice(0, simple.length - 1);
+    }
+    var n = simple.length;
+    var c = centroid(pts);
+    var rs = radiusStats(pts, c);
+    var cover = angleSpan(pts, c);
+    var turn = Math.abs(totalTurn(pts));
+    var loops = turn / (2 * Math.PI);
+    var sc = 1;
+    sc *= clamp01((0.32 - closure) / 0.32);
+    sc *= clamp01((1.38 - aspect) / 0.38);
+    sc *= clamp01((n - 3.15) / 0.85) * clamp01((7.2 - n) / 2.4);
+    sc *= clamp01((cover - 0.68) / 0.22);
+    /* Open-path totalTurn often misses the last corner (~0.75 turns on a square). */
+    sc *= clamp01((loops - 0.45) / 0.25) * clamp01((1.5 - loops) / 0.4);
+    /* A square's radius varies (cv ~0.1); a circle's does not. */
+    sc *= clamp01((rs.cv - 0.04) / 0.07);
+    if (n >= 3) {
+      var angScore = 0, i, p0, p1, p2, a1, a2, ang;
+      for (i = 0; i < n; i++) {
+        p0 = simple[(i - 1 + n) % n]; p1 = simple[i]; p2 = simple[(i + 1) % n];
+        a1 = Math.atan2(p0.y - p1.y, p0.x - p1.x);
+        a2 = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+        ang = Math.abs((a2 - a1) * 180 / Math.PI);
+        while (ang > 180) ang = Math.abs(ang - 360);
+        ang = Math.abs(ang);
+        if (ang > 180) ang = 360 - ang;
+        angScore += clamp01(1 - Math.abs(ang - 90) / 50);
+      }
+      sc *= angScore / n;
+    }
+    if (n >= 4 && n <= 5 && sc > 0 && (bb.w / Math.max(bb.h, 1) < 1.3) && (bb.h / Math.max(bb.w, 1) < 1.3)) {
+      if (sc < 0.7) sc = Math.min(0.92, sc + 0.35);
+    }
+    return sc;
+  }
+  function isTap(pts, L, bb) {
+    if (!pts || !pts.length) return false;
+    var box = bb || bbox(pts);
+    var len = (L != null) ? L : pathLen(pts);
+    return len <= 22 && Math.max(box.w, box.h) <= 16;
+  }
+
+  var LABELS = { vline: 'ㅣ', hline: '—', vee: 'V', circle: 'O', bolt: '⚡', tap: '탭', square: 'ㅁ' };
+  var COMBAT = ['vline', 'hline', 'vee', 'circle', 'square', 'tap'];
 
   function recognize(raw, opts) {
     opts = opts || {};
@@ -232,8 +282,14 @@
       if (pts.length && dist(pts[pts.length - 1], p) < 0.8) continue;
       pts.push({ x: +p.x, y: +p.y });
     }
+    if (!pts.length) return { type: null, reason: 'short', scores: {}, label: null };
+    var L0 = pathLen(pts);
+    var bb0 = bbox(pts);
+    if (isTap(pts, L0, bb0)) {
+      return { type: 'tap', reason: null, scores: { tap: 1 }, label: LABELS.tap, best: 'tap', bestScore: 1 };
+    }
     if (pts.length < 6) return { type: null, reason: 'short', scores: {}, label: null };
-    var L = pathLen(pts);
+    var L = L0;
     if (L < 48) return { type: null, reason: 'short', scores: {}, label: null };
     var rs = resample(pts, 48);
     var bb = bbox(rs);
@@ -242,10 +298,12 @@
       hline: scoreHline(rs, bb, pathLen(rs)),
       vee: scoreVee(rs, bb, pathLen(rs)),
       circle: scoreCircle(rs, bb, pathLen(rs)),
+      square: scoreSquare(rs, bb, pathLen(rs)),
       bolt: scoreBolt(rs, bb, pathLen(rs))
     };
     var allowBolt = !!opts.allowBolt;
-    var keys = allowBolt ? COMBAT.concat(['bolt']) : COMBAT.slice();
+    var keys = ['vline', 'hline', 'vee', 'circle', 'square'];
+    if (allowBolt) keys = keys.concat(['bolt']);
     var best = null, bestS = 0, second = 0;
     for (i = 0; i < keys.length; i++) {
       var s = scores[keys[i]] || 0;
@@ -256,10 +314,13 @@
     var MARGIN = 0.05;
     if (allowBolt && (scores.bolt || 0) >= 0.55 && (scores.bolt || 0) >= bestS - 0.02) {
       best = 'bolt'; bestS = scores.bolt;
-    } else if ((scores.circle || 0) >= 0.36 && (scores.circle || 0) + 0.08 >= (scores.vee || 0) && (scores.circle || 0) >= (scores.vline || 0) && (scores.circle || 0) >= (scores.hline || 0)) {
+    } else if ((scores.square || 0) >= 0.38 && (scores.square || 0) + 0.03 >= (scores.circle || 0) && (scores.square || 0) >= (scores.vee || 0)) {
+      best = 'square'; bestS = scores.square;
+    } else if ((scores.circle || 0) >= 0.36 && (scores.circle || 0) + 0.08 >= (scores.vee || 0) && (scores.circle || 0) >= (scores.vline || 0) && (scores.circle || 0) >= (scores.hline || 0) && (scores.circle || 0) + 0.04 >= (scores.square || 0)) {
       best = 'circle'; bestS = scores.circle;
     }
-    if (!best || bestS < TH || (second > 0 && bestS - second < MARGIN && second >= TH * 0.9 && best !== 'circle')) {
+    var stable = best === 'circle' || best === 'square';
+    if (!best || bestS < TH || (second > 0 && bestS - second < MARGIN && second >= TH * 0.9 && !stable)) {
       return { type: null, reason: best ? 'ambiguous' : 'unknown', scores: scores, label: null, best: best, bestScore: bestS };
     }
     return { type: best, reason: null, scores: scores, label: LABELS[best], best: best, bestScore: bestS };

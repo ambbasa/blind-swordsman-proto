@@ -5,9 +5,10 @@ import * as Anim from './anim.js';
 
 const G = window.GPGestures;
 const SAVE_KEY = 'gesture-proto.v2';
-const SHAPE_MARK = { vline: 'ㅣ', hline: '—', vee: 'V', circle: 'O' };
-const SHAPE_KEY = { vline: 'I', hline: 'H', vee: 'V', circle: 'O' };
-const COMBAT = ['vline', 'hline', 'vee', 'circle'];
+const SHAPE_MARK = { tap: '탭', hline: '—', vline: 'ㅣ', vee: 'V', square: 'ㅁ', circle: 'O' };
+const SHAPE_KEY = { tap: 'tap', hline: 'H', vline: 'I', vee: 'V', square: 'sq', circle: 'O' };
+const SHAPE_UNLOCK = ['tap', 'hline', 'vline', 'vee', 'square', 'circle'];
+const COMBAT = SHAPE_UNLOCK.slice();
 /* v1 numbers reused where the new brief is silent. Documented as defaults. */
 const CFG = {
   hpBase: 10, dmg: 1, bossDmg: 3, iframeMs: 800,
@@ -17,8 +18,17 @@ const CFG = {
   upgradeBase: 15, atkStep: 0.08, hpStep: 3, coinStep: 0.25, maxLv: 10,
   xpBase: 5,
   dashDur: 0.28, pathRadius: 1.35, dashDmg: 1, zombieHp: 2, spiritHp: 1,
-  dashCount: 1, spawnZombieMs: 1600, spawnSpiritMs: 2800,
+  dashCount: 1, spawnZombieMs: 1250, spawnSpiritMs: 950,
+  spawnZombieMax: 16, spawnSpiritMax: 10,
+  spawnZombieMinMs: 450, spawnSpiritMinMs: 480,
+  startSpirits: 4, spiritRing: [5, 7.2], zombieRing: [7, 10.5],
   zombieSpeed: 2.15, spiritSpeed: 0.55,
+  camOff: { x: 7.2, y: 11.2, z: 7.2 }, camLookY: 1.2, fov: 40,
+  markMinCss: 40, markMaxCss: 72,
+  bpm: 100, beatWindow: 0.16, comboTimeout: 2.8,
+  perfectDmgMul: 1.5, comboBurstAt: [4, 8, 12],
+  comboBurstR: [3.2, 4.2, 5.2], comboBurstDmg: [1, 1.5, 2],
+  practiceSec: 10, practiceSpawns: 6,
   iceDur: 2.5, burnDur: 3, burnPeriod: 0.75, burnDmg: 1,
   poisonMax: 5, poisonDur: 4, poisonPeriod: 1, poisonDmgPer: 1,
   shatterDmg: 4, explodeDmg: 3, explodeR: 2.5,
@@ -53,7 +63,13 @@ function costOf(lv) { return CFG.upgradeBase * (lv + 1); }
 function atkChance() { return Math.min(CFG.maxLv, save.atkLv) * CFG.atkStep; }
 function maxHp() { return CFG.hpBase + save.hpLv * CFG.hpStep + (S && S.runHp || 0); }
 function coinMult() { return 1 + save.coinLv * CFG.coinStep + (S && S.runCoin || 0); }
-function dashDmg() { return (S && S.dashDmg || CFG.dashDmg) + (Math.random() < atkChance() ? 1 : 0); }
+function dashDmg() {
+  let d = (S && S.dashDmg) || CFG.dashDmg;
+  if (S && S.pendingPerfect) d *= (CFG.perfectDmgMul || 1.5);
+  if (S && S.combo > 1) d += Math.min(2, (S.combo - 1) * 0.1);
+  if (Math.random() < atkChance()) d += 1;
+  return d;
+}
 function pathR() { return (S && S.pathR) || CFG.pathRadius; }
 
 function loadSave() {
@@ -97,6 +113,7 @@ function renderHud() {
     $('dashLabel').textContent = '일섬 1';
     $('coinLabel').textContent = '엽전 ' + save.coins;
     $('lvlLabel').textContent = 'Lv —';
+    if ($('comboLabel')) { $('comboLabel').textContent = '콤보 0'; $('comboLabel').classList.remove('hot'); }
     $('xpFill').style.width = '0%';
     fillHp();
     return;
@@ -107,7 +124,11 @@ function renderHud() {
   $('dashLabel').textContent = '일섬 ' + S.dashCount + (elemName ? '·' + elemName : '') + bellBit;
   $('coinLabel').textContent = '엽전 ' + save.coins;
   $('lvlLabel').textContent = 'Lv ' + S.level;
-  $('stageLabel').textContent = S.boss ? '보스' : '일섬';
+  if ($('comboLabel')) {
+    $('comboLabel').textContent = '콤보 ' + (S.combo || 0);
+    $('comboLabel').classList.toggle('hot', (S.combo || 0) >= 4);
+  }
+  $('stageLabel').textContent = S.boss ? '보스' : ((S.runNo || 1) + '판');
   $('xpFill').style.width = Math.min(100, (S.xp / xpNeed(S.level)) * 100) + '%';
   fillHp();
 }
@@ -161,8 +182,8 @@ async function makeWorld() {
   scene.background = new THREE.Color(clear);
   scene.fog = new THREE.FogExp2(clear, 0.014);
 
-  const camera = new THREE.PerspectiveCamera(42, view.clientWidth / Math.max(1, view.clientHeight), 0.1, 200);
-  camera.position.set(11, 14, 11);
+  const camera = new THREE.PerspectiveCamera(CFG.fov || 38, view.clientWidth / Math.max(1, view.clientHeight), 0.1, 200);
+  camera.position.set(CFG.camOff.x, CFG.camOff.y, CFG.camOff.z);
 
   scene.add(new THREE.AmbientLight(0x3a3834, 1.0));
   const hemi = new THREE.HemisphereLight(0x6a6860, 0x1a1612, 1.0);
@@ -212,8 +233,20 @@ function startRun(opts) {
     dash: null, dashQueue: [], lastDash: null, shake: 0,
     cam: { x: 0, z: 0 },
     dashElem: null, bellT: 0, bellShape: null, slowT: 0,
-    mapId: mapIdOf(opts)
+    mapId: mapIdOf(opts),
+    runNo: 1, pool: SHAPE_UNLOCK.slice(), practiceT: 0, practiceShape: null, practiceSpawns: 0,
+    combo: 0, comboIdle: 0, comboMax: 0, pendingPerfect: false, lastJudge: null,
+    perfects: 0, misses: 0, bursts: [], lastBurst: 0,
+    beatPulse: 0, lastBeat: -1
   };
+  S.runNo = opts.sandbox ? SHAPE_UNLOCK.length : (save.runs || 1);
+  S.pool = unlockedShapes(S.runNo);
+  const fresh = !opts.sandbox && S.runNo >= 2 && S.runNo <= SHAPE_UNLOCK.length;
+  if (fresh) {
+    S.practiceShape = SHAPE_UNLOCK[S.runNo - 1];
+    S.practiceT = CFG.practiceSec;
+    S.practiceSpawns = CFG.practiceSpawns;
+  }
   const appEl = $('app');
   if (appEl) {
     appEl.classList.remove('ink-burst');
@@ -223,8 +256,12 @@ function startRun(opts) {
   if (three && three.heroSpr) { three.scene.remove(three.heroSpr); }
   three.heroSpr = addEntityVisual('hero');
   placeGroup(three.heroSpr, 0, 0);
-  three.camera.position.set(11, 14, 11);
-  three.camera.lookAt(0, 1.2, 0);
+  three.camera.position.set(CFG.camOff.x, CFG.camOff.y, CFG.camOff.z);
+  three.camera.lookAt(0, CFG.camLookY, 0);
+  applyCameraLens();
+  if (!opts.sandbox && CFG.startSpirits) {
+    for (let i = 0; i < CFG.startSpirits; i++) spawnSpirit({ r: CFG.spiritRing[0] + Math.random() * (CFG.spiritRing[1] - CFG.spiritRing[0]) });
+  }
   renderHud();
   lastTs = 0;
   if (!raf) loop(now());
@@ -240,8 +277,9 @@ function clearEntities() {
 
 function spawnSpirit(opts) {
   opts = opts || {};
-  const shape = opts.shape || COMBAT[Math.floor(Math.random() * 4)];
-  const p = opts.x != null ? { x: opts.x, z: opts.z } : ringPos(opts.r || (12 + Math.random() * 5));
+  const shape = opts.shape || leastUsedShape();
+  const ring = CFG.spiritRing || [8, 12];
+  const p = opts.x != null ? { x: opts.x, z: opts.z } : ringPos(opts.r || (ring[0] + Math.random() * (ring[1] - ring[0])));
   const isBoss = !!opts.boss;
   const e = {
     id: ++S._id, kind: 'spirit', shape: shape, x: p.x, z: p.z, r: isBoss ? 1.1 : 0.7,
@@ -256,11 +294,13 @@ function spawnSpirit(opts) {
   placeGroup(e.obj, e.x, e.z, 0.15);
   S.spirits.push(e);
   if (isBoss) { S.boss = e; S.bossSpawned = true; }
+  if (!isBoss && S.practiceSpawns > 0) S.practiceSpawns--;
   return e;
 }
 function spawnZombie(opts) {
   opts = opts || {};
-  const p = opts.x != null ? { x: opts.x, z: opts.z } : ringPos(14 + Math.random() * 5);
+  const zr = CFG.zombieRing || [10, 14];
+  const p = opts.x != null ? { x: opts.x, z: opts.z } : ringPos(zr[0] + Math.random() * (zr[1] - zr[0]));
   const e = { id: ++S._id, kind: 'zombie', x: p.x, z: p.z, r: 0.55, alive: true, hp: opts.hp != null ? opts.hp : CFG.zombieHp, frozen: 0, burn: 0, burnTick: 0, poison: 0, poisonT: 0, poisonTick: 0 };
   e.obj = addEntityVisual('zombie');
   placeGroup(e.obj, e.x, e.z);
@@ -281,9 +321,39 @@ function ringPos(r) {
   const a = Math.random() * Math.PI * 2;
   return { x: S.hero.x + Math.cos(a) * r, z: S.hero.z + Math.sin(a) * r };
 }
+function unlockedShapes(runNo) {
+  const n = clamp(runNo != null ? runNo : 1, 1, SHAPE_UNLOCK.length);
+  return SHAPE_UNLOCK.slice(0, n);
+}
+function spawnPool() {
+  if (!S) return unlockedShapes(1);
+  if (S.sandbox) return SHAPE_UNLOCK.slice();
+  if ((S.practiceT > 0 || S.practiceSpawns > 0) && S.practiceShape) return [S.practiceShape];
+  return (S.pool && S.pool.length) ? S.pool.slice() : unlockedShapes(S.runNo || 1);
+}
+function leastUsedShape() {
+  const pool = spawnPool();
+  const counts = {};
+  pool.forEach(function (sh) { counts[sh] = 0; });
+  if (S && S.spirits) {
+    S.spirits.forEach(function (s) {
+      if (!s.alive || s.isBoss) return;
+      const sh = spiritShape(s);
+      if (counts[sh] != null) counts[sh]++;
+    });
+  }
+  let min = 99, best = pool.slice();
+  pool.forEach(function (sh) {
+    const n = counts[sh] || 0;
+    if (n < min) { min = n; best = [sh]; }
+    else if (n === min) best.push(sh);
+  });
+  return best[Math.floor(Math.random() * best.length)];
+}
 function pickSeq(n) {
+  const pool = spawnPool();
   const a = [];
-  for (let i = 0; i < n; i++) a.push(COMBAT[Math.floor(Math.random() * 4)]);
+  for (let i = 0; i < n; i++) a.push(pool[Math.floor(Math.random() * pool.length)]);
   return a;
 }
 
@@ -300,8 +370,11 @@ function segDist(px, pz, ax, az, bx, bz) {
 function farthestSpirits(shape, n, from) {
   from = from || S.hero;
   const list = S.spirits.filter(function (s) { return s.alive && spiritShape(s) === shape; });
-  list.sort(function (a, b) { return dist(b, from) - dist(a, from); });
-  return list.slice(0, Math.max(0, n));
+  const boss = list.filter(function (s) { return s.isBoss; });
+  const rest = list.filter(function (s) { return !s.isBoss; });
+  rest.sort(function (a, b) { return dist(b, from) - dist(a, from); });
+  /* Run 1 is tap-only, so the boss must not lose priority to farther regular wisps. */
+  return boss.concat(rest).slice(0, Math.max(0, n));
 }
 function spiritShape(s) {
   if (S && S.bellT > 0 && S.bellShape) return S.bellShape;
@@ -309,7 +382,7 @@ function spiritShape(s) {
 }
 function startBell(shape, dur) {
   if (!S) return;
-  S.bellShape = shape || COMBAT[Math.floor(Math.random() * 4)];
+  S.bellShape = shape || spawnPool()[Math.floor(Math.random() * spawnPool().length)];
   S.bellT = dur != null ? dur : CFG.bellDur;
   S.spirits.forEach(function (s) {
     if (s.alive && s.obj) {
@@ -411,10 +484,17 @@ function clearOnebell(immediate) {
 }
 
 const _proj = { v: null };
+let lastMarkMetrics = { cssPx: 40, minCss: 40, w: 0, h: 0, marks: [] };
+function markCssSize(w) {
+  const min = CFG.markMinCss || 40;
+  const max = CFG.markMaxCss || 72;
+  return clamp(Math.round(min * Math.sqrt((w || 375) / 375)), min, max);
+}
 function updateMarks() {
   const c = $('marks');
   if (!c) return;
-  const r = c.getBoundingClientRect();
+  const host = $('app') || $('view') || c;
+  const r = host.getBoundingClientRect();
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   if (c.width !== Math.floor(r.width * dpr) || c.height !== Math.floor(r.height * dpr)) {
     c.width = Math.max(1, Math.floor(r.width * dpr));
@@ -424,30 +504,168 @@ function updateMarks() {
   const ctx = c.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, r.width, r.height);
+  const size = markCssSize(r.width);
+  lastMarkMetrics = { cssPx: size, minCss: CFG.markMinCss || 40, w: r.width, h: r.height, marks: [] };
   if (!S || !three || !S.spirits) return;
   if (!_proj.v) _proj.v = new THREE.Vector3();
-  const size = 28;
   S.spirits.forEach(function (s) {
     if (!s.alive || !s.obj) return;
     const off = s.obj.userData.bellLocal || { x: 0, y: 1.2 };
-    _proj.v.set(s.x, (s.obj.position.y || 0) + off.y, s.z).project(three.camera);
+    _proj.v.set(s.x + (off.x || 0), (s.obj.position.y || 0) + off.y, s.z).project(three.camera);
     const x = (_proj.v.x * 0.5 + 0.5) * r.width;
     const y = (-_proj.v.y * 0.5 + 0.5) * r.height;
-    if (x < -20 || y < -20 || x > r.width + 20 || y > r.height + 20) return;
-    const key = SHAPE_KEY[spiritShape(s)] || 'O';
+    const on = !(x < -20 || y < -20 || x > r.width + 20 || y > r.height + 20);
+    lastMarkMetrics.marks.push({ x: x, y: y, cssPx: size, onScreen: on, shape: spiritShape(s), boss: !!s.isBoss });
+    if (!on) return;
+    const sh = spiritShape(s);
+    const key = SHAPE_KEY[sh] || 'O';
     const im = markImgs[key];
-    if (im && im.complete && im.naturalWidth) {
+    const rad = size / 2 + 3;
+    ctx.save();
+    ctx.fillStyle = 'rgba(8,6,5,0.78)';
+    ctx.beginPath(); ctx.arc(x, y, rad, 0, 7); ctx.fill();
+    ctx.strokeStyle = paperRgba(0.95);
+    ctx.lineWidth = Math.max(2, size * 0.08);
+    ctx.beginPath(); ctx.arc(x, y, rad - 1, 0, 7); ctx.stroke();
+    if (sh === 'tap') {
+      ctx.fillStyle = '#F4E8D0';
+      ctx.beginPath(); ctx.arc(x, y, size * 0.22, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#0E0C0A'; ctx.lineWidth = Math.max(2, size * 0.06);
+      ctx.stroke();
+    } else if (sh === 'square') {
+      const q = size * 0.28;
+      ctx.strokeStyle = '#F4E8D0';
+      ctx.lineWidth = Math.max(3, size * 0.1);
+      ctx.strokeRect(x - q, y - q, q * 2, q * 2);
+      ctx.strokeStyle = '#0E0C0A';
+      ctx.lineWidth = Math.max(1.5, size * 0.05);
+      ctx.strokeRect(x - q + 1, y - q + 1, q * 2 - 2, q * 2 - 2);
+    } else if (im && im.complete && im.naturalWidth) {
       ctx.drawImage(im, x - size / 2, y - size / 2, size, size);
     } else {
-      ctx.fillStyle = paperRgba(0.95);
-      ctx.beginPath(); ctx.arc(x, y, size / 2, 0, 7); ctx.fill();
-      ctx.fillStyle = '#0E0C0A';
-      ctx.font = '700 16px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(SHAPE_MARK[spiritShape(s)] || '', x, y + 1);
+      ctx.fillStyle = '#F4E8D0';
+      ctx.font = '700 ' + Math.round(size * 0.62) + 'px serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(SHAPE_MARK[sh] || '', x, y + 1);
     }
+    ctx.restore();
   });
 }
 
+
+
+function beatInfo() {
+  const per = 60 / (CFG.bpm || 100);
+  const t = (S && S.elapsed) || 0;
+  let ph = (t / per) % 1;
+  if (ph < 0) ph += 1;
+  const dt = Math.min(ph, 1 - ph) * per;
+  return { period: per, phase: ph, dt: dt, perfect: dt <= (CFG.beatWindow || 0.16), bpm: CFG.bpm };
+}
+function showJudge(text) {
+  const el = $('judgeFlash');
+  if (!el) return;
+  el.hidden = false;
+  el.textContent = text;
+  el.classList.remove('show');
+  void el.offsetWidth;
+  el.classList.add('show');
+}
+let _audio = null;
+function playBeatBell() {
+  if (qa.mute || qa.noDelay) return;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    if (!_audio) _audio = new AC();
+    if (_audio.state === 'suspended') _audio.resume();
+    const t0 = _audio.currentTime;
+    const o = _audio.createOscillator();
+    const g = _audio.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(880, t0);
+    o.frequency.exponentialRampToValueAtTime(620, t0 + 0.12);
+    g.gain.setValueAtTime(0.07, t0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.22);
+    o.connect(g); g.connect(_audio.destination);
+    o.start(t0); o.stop(t0 + 0.24);
+  } catch (e) {}
+}
+function tickBeat(dt) {
+  if (!S) return;
+  const info = beatInfo();
+  const idx = Math.floor(((S.elapsed) / info.period) + 1e-6);
+  if (idx !== S.lastBeat && S.elapsed > 0) {
+    S.lastBeat = idx;
+    const app = $('app');
+    if (app) {
+      app.classList.add('beat');
+      setTimeout(function () { app.classList.remove('beat'); }, qa.noDelay ? 0 : 90);
+    }
+    playBeatBell();
+    /* Subtle glow pulse on living spirits. */
+    S.spirits.forEach(function (s) {
+      if (!s.alive || !s.obj || !s.obj.userData || !s.obj.userData.glow) return;
+      const g = s.obj.userData.glow;
+      if (g.material) g.material.opacity = 0.95;
+    });
+  }
+  S.spirits.forEach(function (s) {
+    if (!s.alive || !s.obj || !s.obj.userData || !s.obj.userData.glow || !s.obj.userData.glow.material) return;
+    const g = s.obj.userData.glow;
+    g.material.opacity += (0.7 - g.material.opacity) * Math.min(1, dt * 6);
+  });
+}
+function triggerComboBurst(n) {
+  if (!S) return;
+  S.lastBurst = n;
+  S.bursts.push(n);
+  S.shake = 0.5;
+  const idx = Math.max(0, (CFG.comboBurstAt || [4, 8, 12]).indexOf(n));
+  const R = (CFG.comboBurstR || [3.2, 4.2, 5.2])[idx] || 3.5;
+  const mul = (CFG.comboBurstDmg || [1, 1.5, 2])[idx] || 1;
+  const dmg = ((S.dashDmg || CFG.dashDmg) * mul);
+  S.zombies.forEach(function (z) {
+    if (!z.alive) return;
+    if (dist(z, S.hero) <= R + z.r) hurtZombie(z, dmg, 'combo-burst', S.lastDash);
+  });
+  const app = $('app');
+  if (app) {
+    app.classList.add('combo-burst');
+    setTimeout(function () { app.classList.remove('combo-burst'); }, qa.noDelay ? 0 : 560);
+  }
+  showJudge(n + '콤보!');
+  if (art && art.playFx && three) {
+    art.playFx(three.scene, 'ink-splat', S.hero.x, S.hero.z, 3.2);
+  }
+}
+function applyJudge(forced) {
+  if (!S) return 'miss';
+  let kind = forced;
+  if (!kind) {
+    if (qa.autoPerfect) kind = 'perfect';
+    else if (S.sandbox && !qa.useBeat) kind = 'miss';
+    else kind = beatInfo().perfect ? 'perfect' : 'miss';
+  }
+  if (kind !== 'perfect' && kind !== 'miss') kind = beatInfo().perfect ? 'perfect' : 'miss';
+  S.lastJudge = kind;
+  S.pendingPerfect = kind === 'perfect';
+  if (kind === 'perfect') {
+    S.combo = (S.combo || 0) + 1;
+    S.comboIdle = 0;
+    S.perfects = (S.perfects || 0) + 1;
+    if (S.combo > (S.comboMax || 0)) S.comboMax = S.combo;
+    showJudge('완벽');
+    const hits = CFG.comboBurstAt || [4, 8, 12];
+    if (hits.indexOf(S.combo) >= 0) triggerComboBurst(S.combo);
+  } else {
+    S.combo = 0;
+    S.comboIdle = 0;
+    S.misses = (S.misses || 0) + 1;
+    S.pendingPerfect = false;
+  }
+  return kind;
+}
 
 function beginDash(shape) {
   if (!S || !S.playing || S.paused || S.dash) return null;
@@ -742,14 +960,15 @@ function step(dt) {
   if (!S || !S.playing || S.paused) return;
   S.elapsed += dt; S.timeLeft -= dt;
   if (S.iframe > 0) S.iframe -= dt;
+  if (S.practiceT > 0) S.practiceT -= dt;
+  if (S.combo > 0) {
+    S.comboIdle = (S.comboIdle || 0) + dt;
+    if (S.comboIdle > (CFG.comboTimeout || 2.8)) S.combo = 0;
+  }
+  tickBeat(dt);
   if (S.bellT > 0) {
     S.bellT -= dt;
     if (S.bellT <= 0) endBell();
-  }
-  if (S.timeLeft <= 0) {
-    if (S.boss && !S.boss.alive) endRun(true, '시간을 버텼습니다.');
-    else endRun(false, '시간이 끝났습니다.');
-    return;
   }
   if (!S.sandbox && !S.bossSpawned && S.elapsed >= CFG.bossAt) {
     spawnSpirit({ boss: true, r: 16, nShapes: CFG.bossShapes });
@@ -759,13 +978,45 @@ function step(dt) {
   if (!S.sandbox) {
     S.zAcc += dt * 1000;
     S.sAcc += dt * 1000;
-    const zms = Math.max(500, CFG.spawnZombieMs / wave);
-    const sms = Math.max(900, CFG.spawnSpiritMs / wave);
-    while (S.zAcc >= zms && S.zombies.filter(function (z) { return z.alive; }).length < 18) {
+    const zms = Math.max(CFG.spawnZombieMinMs || 450, CFG.spawnZombieMs / wave);
+    const sms = Math.max(CFG.spawnSpiritMinMs || 480, CFG.spawnSpiritMs / wave);
+    while (S.zAcc >= zms && S.zombies.filter(function (z) { return z.alive; }).length < (CFG.spawnZombieMax || 16)) {
       S.zAcc -= zms; spawnZombie();
     }
-    while (S.sAcc >= sms && S.spirits.filter(function (s) { return s.alive && !s.isBoss; }).length < 8) {
+    while (S.sAcc >= sms && S.spirits.filter(function (s) { return s.alive && !s.isBoss; }).length < (CFG.spawnSpiritMax || 10)) {
       S.sAcc -= sms; spawnSpirit();
+    }
+  }
+  if (qa.autoStroke) {
+    let guard = 0;
+    const burst = (qa.timeScale && qa.timeScale > 4) ? 10 : 1;
+    while (guard < burst && S.playing && !S.paused) {
+      guard++;
+      if (S.dash) {
+        S.hero.x = S.dash.to.x;
+        S.hero.z = S.dash.to.z;
+        if (three && three.heroSpr) placeGroup(three.heroSpr, S.hero.x, S.hero.z);
+        S.dash = null;
+        startSeg();
+        if (!S.playing || S.paused) break;
+        continue;
+      }
+      if (S.dashQueue && S.dashQueue.length) { startSeg(); continue; }
+      let sh = null;
+      if (S.boss && S.boss.alive) sh = spiritShape(S.boss);
+      else {
+        const counts = {};
+        S.spirits.forEach(function (s) {
+          if (!s.alive) return;
+          const k = spiritShape(s);
+          counts[k] = (counts[k] || 0) + 1;
+        });
+        let n = 0;
+        Object.keys(counts).forEach(function (k) { if (counts[k] > n) { n = counts[k]; sh = k; } });
+      }
+      if (!sh) break;
+      beginDash(sh);
+      if (!S.dash && !(S.dashQueue && S.dashQueue.length)) break;
     }
   }
   tickStatuses(dt);
@@ -780,7 +1031,7 @@ function step(dt) {
     }
     placeGroup(z.obj, z.x, z.z);
     if (art.tickChar) {
-      const st = frozen ? 'hit' : 'walk';
+      const st = frozen ? 'frozen' : (z.burn > 0 ? 'burning' : (z.poison > 0 ? 'poisoned' : 'walk'));
       const vx = S.hero.x - z.x, vz = S.hero.z - z.z;
       art.tickChar(z.obj, 'zombie', st, Math.min(0.05, dt), vx, vz);
     }
@@ -815,6 +1066,11 @@ function step(dt) {
     placeGroup(it.obj, it.x, it.z, 0.2 + Math.sin(S.elapsed * 3 + it.id) * 0.08);
   });
   renderHud();
+  /* Check time after autoStroke/combat so a large timeScale dt cannot skip the last boss hit. */
+  if (S.playing && S.timeLeft <= 0) {
+    if (S.boss && !S.boss.alive) endRun(true, '시간을 버텼습니다.');
+    else endRun(false, '시간이 끝났습니다.');
+  }
 }
 
 function stepDash(dt) {
@@ -841,8 +1097,8 @@ function updateCam(dt) {
     const a = S.shake * 0.55;
     sx = (Math.random() - 0.5) * a; sy = (Math.random() - 0.5) * a; sz = (Math.random() - 0.5) * a;
   }
-  three.camera.position.set(S.cam.x + 11 + sx, 14 + sy, S.cam.z + 11 + sz);
-  three.camera.lookAt(S.cam.x, 1.2, S.cam.z);
+  three.camera.position.set(S.cam.x + CFG.camOff.x + sx, CFG.camOff.y + sy, S.cam.z + CFG.camOff.z + sz);
+  three.camera.lookAt(S.cam.x, CFG.camLookY, S.cam.z);
 }
 
 /* ---------- ink + input ---------- */
@@ -920,14 +1176,29 @@ function onUp(e) {
   pointers.down = false;
   finishStroke(pointers.pts);
 }
-function finishStroke(pts) {
-  lastStroke = pts.slice(); inkFade = 0.45;
+function finishStroke(pts, opts) {
+  opts = opts || {};
+  lastStroke = (pts || []).slice(); inkFade = 0.45;
   paintInk(lastStroke, 1);
   if (!S || !S.playing || S.paused) return null;
   const rec = G.recognize(pts, {});
   S.lastRec = rec;
-  if (!rec.type) { toast('잘 안 그려졌어요. ㅣ — V O 중에 그려 보세요'); return rec; }
-  beginDash(rec.type);
+  if (!rec.type) {
+    const names = (S.pool || COMBAT).map(function (s) { return SHAPE_MARK[s] || s; }).join(' ');
+    toast('잘 안 그려졌어요. ' + names + ' 중에 그려 보세요');
+    return rec;
+  }
+  if (!S.sandbox && S.pool && S.pool.indexOf(rec.type) < 0) {
+    toast('아직 그 모양은 안 나왔어요');
+    return rec;
+  }
+  applyJudge(opts.judge);
+  rec.judge = S.lastJudge;
+  rec.combo = S.combo;
+  rec.perfect = !!S.pendingPerfect;
+  const dash = beginDash(rec.type);
+  rec.targets = dash && dash.targets;
+  rec.dash = dash;
   return rec;
 }
 function syntheticPath(type, x, y, s) {
@@ -937,9 +1208,17 @@ function syntheticPath(type, x, y, s) {
     for (let i = 0; i < n; i++) { const t = i / (n - 1); p.push({ x: x1 + (x2 - x1) * t, y: y1 + (y2 - y1) * t }); }
     return p;
   }
+  if (type === 'tap') return [{ x: x, y: y }, { x: x + 0.6, y: y - 0.4 }, { x: x - 0.3, y: y + 0.3 }];
   if (type === 'vline') return line(x, y - s, x, y + s);
   if (type === 'hline') return line(x - s, y, x + s, y);
   if (type === 'vee') return line(x - s, y - s * 0.7, x, y + s * 0.8, 16).concat(line(x, y + s * 0.8, x + s, y - s * 0.7, 16).slice(1));
+  if (type === 'square') {
+    const q = s * 0.7;
+    return line(x - q, y - q, x + q, y - q, 12)
+      .concat(line(x + q, y - q, x + q, y + q, 12).slice(1),
+              line(x + q, y + q, x - q, y + q, 12).slice(1),
+              line(x - q, y + q, x - q, y - q, 12).slice(1));
+  }
   const p = []; const n = 36;
   for (let i = 0; i < n; i++) {
     const a = -Math.PI / 2 + Math.PI * 2 * 0.98 * (i / (n - 1));
@@ -947,10 +1226,10 @@ function syntheticPath(type, x, y, s) {
   }
   return p;
 }
-function strokeType(type) {
+function strokeType(type, opts) {
   const r = $('ink').getBoundingClientRect();
   const pts = syntheticPath(type, r.width * 0.5, r.height * 0.32, Math.min(80, r.width * 0.22));
-  return finishStroke(pts);
+  return finishStroke(pts, opts);
 }
 
 function idleCoins(ms) {
@@ -997,12 +1276,22 @@ function buy(stat) {
   return true;
 }
 
-function onResize() {
+function activeFov() {
+  if (!three || !three.view) return CFG.fov || 40;
+  const a = three.view.clientWidth / Math.max(1, three.view.clientHeight);
+  return a < 0.85 ? (CFG.fov || 40) + 8 : (CFG.fov || 40);
+}
+function applyCameraLens() {
   if (!three) return;
   const w = three.view.clientWidth, h = Math.max(1, three.view.clientHeight);
   three.camera.aspect = w / h;
+  three.camera.fov = activeFov();
   three.camera.updateProjectionMatrix();
-  three.renderer.setSize(w, h);
+}
+function onResize() {
+  if (!three) return;
+  applyCameraLens();
+  three.renderer.setSize(three.view.clientWidth, Math.max(1, three.view.clientHeight));
   resizeInk();
 }
 
@@ -1036,6 +1325,11 @@ function loop(ts) {
     inkFade -= raw;
     if (inkFade <= 0) { lastStroke = null; paintInk(null); }
     else paintInk(lastStroke, clamp(inkFade / 0.35, 0, 1));
+  }
+  if (S && S.paused === 'levelup' && (qa.autoStroke || (qa.noDelay && qa.timeScale > 1))) {
+    const b = document.querySelector('#levelChoices [data-up]');
+    if (b) pickUpgrade(b.getAttribute('data-up'));
+    else if (S.levelPicks && S.levelPicks[0]) pickUpgrade(S.levelPicks[0].id);
   }
   if (S && S.playing && !S.paused) step(dt);
   stepDash(dt);
@@ -1179,6 +1473,20 @@ const GPv2 = {
   getMap: function () { return three && three.map && { id: three.map.id, name: three.map.name, key: three.map.key }; },
   anim: Anim,
   strokeType: strokeType,
+  beatInfo: beatInfo,
+  shapePool: function () { return S ? (S.pool || []).slice() : []; },
+  spawnPool: spawnPool,
+  waitBeat: function (kind) {
+    kind = kind || 'on';
+    return new Promise(function (res) {
+      const t0 = now();
+      const id = setInterval(function () {
+        const b = beatInfo();
+        const ok = kind === 'on' ? b.perfect : !b.perfect;
+        if (ok || now() - t0 > 2000) { clearInterval(id); res(b); }
+      }, 8);
+    });
+  },
   strokePath: finishStroke,
   recognize: function (pts, opt) { return G.recognize(pts, opt); },
   beginDash: beginDash,
@@ -1200,6 +1508,7 @@ const GPv2 = {
   clearFps: function () { fps.samples = []; },
   showTitle: function () { showOv('ov-title'); },
   openShop: function () { refreshShop(); showOv('ov-shop'); },
+  markMetrics: function () { return lastMarkMetrics; },
   snapshot: function () {
     return {
       hero: S && { x: S.hero.x, z: S.hero.z },
@@ -1207,6 +1516,13 @@ const GPv2 = {
       zombies: S ? S.zombies.filter(function (z) { return z.alive; }).map(function (z) { return { id: z.id, x: z.x, z: z.z, hp: z.hp, frozen: z.frozen > 0, freezeLeft: z.frozen || 0, burn: z.burn > 0, burnLeft: z.burn || 0, poison: z.poison || 0 }; }) : [],
       items: S ? S.items.filter(function (i) { return i.alive; }).map(function (i) { return { id: i.id, type: i.kind, x: i.x, z: i.z }; }) : [],
       lastDash: S && S.lastDash,
+      combo: S && S.combo, comboMax: S && S.comboMax,
+      lastJudge: S && S.lastJudge, perfects: S && S.perfects, misses: S && S.misses,
+      bursts: S && (S.bursts || []).slice(),
+      runNo: S && S.runNo, pool: S && (S.pool || []).slice(),
+      practice: S && { t: S.practiceT, shape: S.practiceShape, left: S.practiceSpawns },
+      beat: beatInfo(),
+
       dashCount: S && S.dashCount,
       dashElem: S && S.dashElem,
       bell: S && { t: S.bellT, shape: S.bellShape, cinematic: !!(S.lastDash && S.lastDash.cinematic) },

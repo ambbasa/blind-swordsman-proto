@@ -177,6 +177,7 @@ export function createController(sheet, opts) {
     const fps = fpsBy[ctrl.state] != null ? fpsBy[ctrl.state] : defaultFps;
     const prevCursor = ctrl.cursor;
     const prevFrame = ctrl.frame;
+    const loop = sheet.loop !== false;
     if (fps > 0 && seq.length > 1) {
       ctrl.accum += dt;
       const step = 1 / fps;
@@ -184,11 +185,15 @@ export function createController(sheet, opts) {
       if (ctrl.accum >= step) {
         ctrl.accum -= step;
         if (ctrl.accum >= step) ctrl.accum = step * 0.999;
-        ctrl.cursor = (ctrl.cursor + 1) % seq.length;
+        if (!loop && ctrl.cursor >= seq.length - 1) {
+          ctrl.cursor = seq.length - 1;
+        } else {
+          ctrl.cursor = (ctrl.cursor + 1) % seq.length;
+        }
         ctrl.frame = seq[ctrl.cursor];
       }
     } else {
-      ctrl.frame = seq[0] || 0;
+      ctrl.frame = seq[ctrl.cursor] || seq[0] || 0;
     }
     if (ctrl.blend > 0) {
       ctrl.blend -= dt;

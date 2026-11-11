@@ -49,7 +49,7 @@ export async function buildArt(THREE) {
     opt = opt || {};
     return new Promise(function (res) {
       const l = new THREE.TextureLoader();
-      l.load(BASE + url, function (t) {
+      l.load(((opt && opt.noBase) ? url : (BASE + url)), function (t) {
         t.colorSpace = THREE.SRGBColorSpace;
         t.anisotropy = 8;
         if (opt.repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; }
@@ -87,18 +87,46 @@ export async function buildArt(THREE) {
     return t;
   }
 
+  function parsePxPerMeter() {
+    const sc = (atlas.heroAnim && atlas.heroAnim.scale) || (atlas.zombieAnim && atlas.zombieAnim.scale) || '';
+    const m = String(sc).match(/([0-9.]+)\s*px/);
+    return m ? parseFloat(m[1]) : 118.5;
+  }
+  const pxPerMeter = parsePxPerMeter();
   const unit = metersPerTile(atlas) / 1024;
-  const heroH = ((atlas.hero && atlas.hero.frame && atlas.hero.frame[1]) || 512) * unit;
+  const heroH = (atlas.heroAnim && atlas.heroAnim.cell && atlas.heroAnim.cell[1])
+    ? atlas.heroAnim.cell[1] / pxPerMeter
+    : ((atlas.hero && atlas.hero.frame && atlas.hero.frame[1]) || 512) * unit;
+  const zombieH = (atlas.zombieAnim && atlas.zombieAnim.cell && atlas.zombieAnim.cell[1])
+    ? atlas.zombieAnim.cell[1] / pxPerMeter
+    : heroH * 0.92;
+  const spiritH = (atlas.spiritAnim && atlas.spiritAnim.cell && atlas.spiritAnim.cell[1])
+    ? atlas.spiritAnim.cell[1] / pxPerMeter
+    : heroH * 1.05;
+  const bossH = (atlas.bossAnim && atlas.bossAnim.cell && atlas.bossAnim.cell[1])
+    ? atlas.bossAnim.cell[1] / pxPerMeter
+    : heroH * 1.7;
 
   const need = [];
   function want(url, opt) { if (url && need.indexOf(url) < 0) { need.push({ url: url, opt: opt || {} }); sharedUrls.push(url); } }
   function sheetFile(s) { return s && (s.file || s.file1x); }
+  /* Prefer @1x for large 8-dir action sheets so headless SW GL stays interactive. */
+  function animFile(s) { return s && (s.file1x || s.file); }
   want(sheetFile(atlas.hero));
   want(sheetFile(atlas['hero-afterimage']));
   want(sheetFile(atlas.zombie));
   want(sheetFile(atlas.spirit));
   want(sheetFile(atlas['spirit-wisp']));
   want(sheetFile(atlas.boss));
+  if (atlas.heroAnim) {
+    const ha = atlas.heroAnim.actions || {};
+    ['idle', 'walk', 'dash'].forEach(function (k) { if (ha[k]) want(animFile(ha[k])); });
+    if (atlas.heroAnim.afterimage) want(animFile(atlas.heroAnim.afterimage));
+  }
+  if (atlas.zombieAnim && atlas.zombieAnim.actions && atlas.zombieAnim.actions.walk) want(animFile(atlas.zombieAnim.actions.walk));
+  if (atlas.spiritAnim) want(animFile(atlas.spiritAnim));
+  if (atlas.bossAnim) want(animFile(atlas.bossAnim));
+  want('img/hang-bell.png', { noBase: true });
   if (atlas.marks && atlas.marks.files) Object.keys(atlas.marks.files).forEach(function (k) { want(atlas.marks.files[k]); });
   if (atlas.marks && atlas.marks.seals) Object.keys(atlas.marks.seals).forEach(function (k) { want(atlas.marks.seals[k]); });
   if (atlas.items) Object.keys(atlas.items).forEach(function (k) { want(atlas.items[k].file); });
@@ -151,11 +179,14 @@ export async function buildArt(THREE) {
     const t = cloneTex(src);
     applyUV(t, sheet, opt.frame || 0, opt.dir || 0);
     const mat = new THREE.SpriteMaterial({
-      map: t, transparent: true, depthWrite: false, alphaTest: opt.alphaTest != null ? opt.alphaTest : 0.05,
+      map: t, transparent: true, depthWrite: false, depthTest: opt.depthTest !== false,
+      alphaTest: opt.alphaTest != null ? opt.alphaTest : 0.05,
       blending: opt.add ? THREE.AdditiveBlending : THREE.NormalBlending,
       opacity: opt.opacity != null ? opt.opacity : 1
     });
     const s = new THREE.Sprite(mat);
+    if (opt.renderOrder != null) s.renderOrder = opt.renderOrder;
+    if (opt.depthTest === false) s.renderOrder = opt.renderOrder != null ? opt.renderOrder : 2;
     const fw = (sheet.frame && sheet.frame[0]) || (src && src.image && src.image.width) || 256;
     const fh = (sheet.frame && sheet.frame[1]) || (src && src.image && src.image.height) || 256;
     const H = worldH || fh * unit;
@@ -193,53 +224,216 @@ export async function buildArt(THREE) {
     return { x: (bell[0] - anc[0]) * (worldH / fh), y: (anc[1] - bell[1]) * (worldH / fh) };
   }
 
+
+  function localFromPx(sheet, worldH, px) {
+    const fw = (sheet.frame && sheet.frame[0]) || (sheet.cell && sheet.cell[0]) || 256;
+    const fh = (sheet.frame && sheet.frame[1]) || (sheet.cell && sheet.cell[1]) || 256;
+    const anc = sheet.anchor || [fw / 2, fh];
+    return { x: (px[0] - anc[0]) * (worldH / fh), y: (anc[1] - px[1]) * (worldH / fh) };
+  }
+  function rangeFrames(n) {
+    const a = [];
+    for (let i = 0; i < n; i++) a.push(i);
+    return a;
+  }
+  function spiritAnimSheet() {
+    const p = atlas.spiritAnim;
+    if (!p) return null;
+    const rows = p.rows || ['mark-I', 'mark-H', 'mark-V', 'mark-O', 'plain'];
+    const n = p.frames || 10;
+    return {
+      file: p.file || p.file1x, file1x: p.file1x,
+      frame: p.cell || p.frame || [256, 256],
+      count: n, dirs: rows.length, dirOrder: rows.slice(),
+      layout: 'frames-x-dirs-y', fps: p.fps || 10, loop: p.loop !== false,
+      states: { idle: rangeFrames(n) }, fpsByState: { idle: p.fps || 10 },
+      anchor: p.anchor, markCenter: p.markCenter, markSize: p.markSize
+    };
+  }
+  function bossActionSheet(action) {
+    const p = atlas.bossAnim;
+    if (!p) return null;
+    const act = (p.actions && (p.actions[action] || p.actions.idle)) || { row: 0, frames: 8, fps: 8, loop: true };
+    const cols = 12;
+    const rows = ['idle', 'attack', 'hit', 'dissolve'];
+    const name = action && p.actions && p.actions[action] ? action : 'idle';
+    return {
+      file: p.file || p.file1x, file1x: p.file1x,
+      frame: p.cell || [512, 512], count: cols, dirs: rows.length, dirOrder: rows,
+      layout: 'frames-x-dirs-y', fps: act.fps || 8, loop: act.loop !== false,
+      states: { idle: rangeFrames(act.frames || 8) },
+      fpsByState: { idle: act.fps || 8 },
+      anchor: p.anchor, bellCenters: act.bellCenters, markSize: p.markSize,
+      row: act.row != null ? act.row : rows.indexOf(name),
+      actionName: name
+    };
+  }
+  function packTex(sheet) {
+    return tex(animFile(sheet)) || tex(sheetFile(sheet));
+  }
+  function getHangBellTex() {
+    return tex('img/hang-bell.png');
+  }
+  function attachHangingBell(group, bodySheet, worldH, isBoss) {
+    if (isBoss) return;
+    const texBell = getHangBellTex();
+    if (!texBell) return;
+    const attachPx = [((bodySheet.anchor && bodySheet.anchor[0]) || 128), 118];
+    const attach = localFromPx(bodySheet, worldH, attachPx);
+    const pivot = new THREE.Group();
+    pivot.position.set(attach.x, attach.y, 0.04);
+    const bh = worldH * 0.27;
+    const bw = bh * (190 / 376);
+    const bell = imgSprite(texBell, bw, bh, { cx: 0.5, cy: 1, alphaTest: 0.08 });
+    bell.material.depthTest = false;
+    bell.renderOrder = 4;
+    pivot.add(bell);
+    group.add(pivot);
+    group.userData.bellHang = {
+      pivot: pivot, bell: bell, t: Math.random() * 4,
+      phase: Math.random() * Math.PI * 2,
+      amp: 0.18 + Math.random() * 0.04,
+      period: 1.45 + Math.random() * 0.3
+    };
+    /* Mark floats in the glow beside the bell rest — stable, does not follow the swing. */
+    const markPx = [attachPx[0] + 26, 122];
+    group.userData.bellLocal = localFromPx(bodySheet, worldH, markPx);
+    group.userData.bellRestLocal = localFromPx(bodySheet, worldH, [attachPx[0], 142]);
+  }
+  function swapAction(group, sheet, name) {
+    if (!group || !sheet) return;
+    const url = animFile(sheet) || sheetFile(sheet);
+    const src = tex(url);
+    if (!src) {
+      group.userData.pendingAction = name;
+      acquire(url).then(function () {
+        if (group.userData.pendingAction === name) swapAction(group, sheet, name);
+      });
+      return;
+    }
+    const spr = group.userData.sprite;
+    if (!spr || !spr.material) return;
+    const prev = spr.material.map;
+    const t = cloneTex(src);
+    const dir = (group.userData.anim && group.userData.anim.dir) || 0;
+    applyUV(t, sheet, 0, dir);
+    spr.material.map = t;
+    if (prev && prev !== src && prev.dispose) prev.dispose();
+    const worldH = group.userData.worldH;
+    if (worldH) {
+      const fw = (sheet.frame && sheet.frame[0]) || 256;
+      const fh = (sheet.frame && sheet.frame[1]) || 256;
+      const sign = spr.scale.x < 0 ? -1 : 1;
+      spr.scale.set(sign * worldH * (fw / fh), worldH, 1);
+      const anc = sheet.anchor || [fw / 2, fh];
+      spr.center.set(anc[0] / fw, 1 - anc[1] / fh);
+    }
+    spr.userData.sheet = sheet;
+    const keepDir = group.userData.anim ? group.userData.anim.dir : dir;
+    group.userData.anim = Anim.createController(sheet, { blend: 0.08 });
+    group.userData.anim.dir = keepDir || 0;
+    group.userData.action = name;
+    group.userData.pendingAction = null;
+  }
+  function facingSouth(sheet) {
+    const order = (sheet && sheet.dirOrder) || [];
+    const i = order.indexOf('s');
+    return i >= 0 ? i : 0;
+  }
+
   function makeChar(kind, shape) {
     const group = new THREE.Group();
     const itemK = ITEM_KEY[kind];
     if (kind === 'hero' || kind === 'afterimage') {
-      const sheet = kind === 'afterimage' ? atlas['hero-afterimage'] : atlas.hero;
-      const src = tex(sheetFile(sheet)) || tex(sheetFile(atlas.hero));
-      const spr = sheetSprite(sheet, src, heroH, { add: kind === 'afterimage', opacity: kind === 'afterimage' ? 0.5 : 1 });
+      const pack = atlas.heroAnim;
+      const after = kind === 'afterimage' && pack && pack.afterimage;
+      const idle = pack && pack.actions && pack.actions.idle;
+      const sheet = after || idle || (kind === 'afterimage' ? atlas['hero-afterimage'] : atlas.hero);
+      const src = packTex(sheet) || tex(sheetFile(atlas.hero));
+      const spr = sheetSprite(sheet, src, heroH, { add: kind === 'afterimage', opacity: kind === 'afterimage' ? 0.5 : 1, depthTest: false, renderOrder: 2 });
       group.add(spr);
       group.userData.sprite = spr;
+      group.userData.worldH = heroH;
+      group.userData.animPack = pack || null;
+      group.userData.action = after ? 'afterimage' : 'idle';
       group.userData.anim = Anim.createController(sheet, { blend: 0.1 });
+      group.userData.anim.dir = facingSouth(sheet);
+      group.userData.noFlip = !!(pack && (pack.mirroredFrom || (idle && idle.mirroredRows)));
       if (kind === 'hero') addShadow(group, 1.5);
     } else if (kind === 'zombie') {
-      const sheet = atlas.zombie;
-      const spr = sheetSprite(sheet, tex(sheetFile(sheet)), heroH * 0.92);
+      const pack = atlas.zombieAnim;
+      const walk = pack && pack.actions && pack.actions.walk;
+      const sheet = walk || atlas.zombie;
+      const H = walk ? zombieH : heroH * 0.92;
+      const spr = sheetSprite(sheet, packTex(sheet) || tex(sheetFile(sheet)), H, { depthTest: false, renderOrder: 2 });
       group.add(spr);
       group.userData.sprite = spr;
+      group.userData.worldH = H;
+      group.userData.animPack = pack || null;
+      group.userData.action = 'walk';
       group.userData.anim = Anim.createController(sheet, { blend: 0.08 });
+      group.userData.anim.dir = facingSouth(sheet);
+      group.userData.noFlip = !!(pack && (pack.mirroredFrom || (walk && walk.mirroredRows)));
       addShadow(group, 1.35);
-      attachStatus(group);
+      attachStatus(group, H);
     } else if (kind === 'spirit' || kind === 'boss') {
       const isBoss = kind === 'boss';
-      const bodySheet = isBoss ? atlas.boss : (atlas['spirit-wisp'] || atlas.spirit);
-      const H = isBoss ? heroH * 1.7 : heroH * 1.05;
-      const spr = sheetSprite(bodySheet, tex(sheetFile(bodySheet)), H);
+      const spiritSheet = !isBoss && spiritAnimSheet();
+      const bossSheet = isBoss && bossActionSheet('idle');
+      const bodySheet = bossSheet || spiritSheet || (isBoss ? atlas.boss : (atlas['spirit-wisp'] || atlas.spirit));
+      const H = isBoss ? bossH : (spiritSheet ? spiritH : heroH * 1.05);
+      const spr = sheetSprite(bodySheet, packTex(bodySheet) || tex(sheetFile(bodySheet)), H, { depthTest: false, renderOrder: 2 });
       group.add(spr);
       group.userData.sprite = spr;
-      if (!isBoss && bodySheet && bodySheet.fps) group.userData.anim = Anim.createController({
-        frame: bodySheet.frame, count: bodySheet.count, order: bodySheet.order, fps: bodySheet.fps,
-        states: { idle: [0, 1, 2, 3] }, fpsByState: { idle: bodySheet.fps }, anchor: bodySheet.anchor
-      }, { blend: 0 });
+      group.userData.worldH = H;
+      if (spiritSheet) {
+        group.userData.anim = Anim.createController(spiritSheet, { blend: 0 });
+        /* Always the plain row so baked tiny marks do not fight the large overlay. */
+        const plain = (spiritSheet.dirOrder || []).indexOf('plain');
+        group.userData.rowLock = plain >= 0 ? plain : Math.max(0, (spiritSheet.dirOrder || []).length - 1);
+        group.userData.anim.dir = group.userData.rowLock;
+        group.userData.noFlip = true;
+        attachHangingBell(group, spiritSheet, H, false);
+      } else if (bossSheet) {
+        group.userData.animPack = { actions: {} };
+        group.userData.bossPack = atlas.bossAnim;
+        group.userData.anim = Anim.createController(bossSheet, { blend: 0 });
+        group.userData.anim.dir = bossSheet.row || 0;
+        group.userData.action = 'idle';
+        group.userData.noFlip = true;
+        const bc = (bossSheet.bellCenters && bossSheet.bellCenters[0]) || [256, 298];
+        /* Mark sits in the glow beside the bell, not on the swinging clapper. */
+        group.userData.bellLocal = localFromPx(bossSheet, H, [bc[0] + 48, bc[1] - 10]);
+      } else if (!isBoss && bodySheet && bodySheet.fps) {
+        group.userData.anim = Anim.createController({
+          frame: bodySheet.frame, count: bodySheet.count, order: bodySheet.order, fps: bodySheet.fps,
+          states: { idle: [0, 1, 2, 3] }, fpsByState: { idle: bodySheet.fps }, anchor: bodySheet.anchor
+        }, { blend: 0 });
+        attachHangingBell(group, bodySheet, H, false);
+      }
       const glow = tex('fx/spirit-glow.png');
       if (glow) {
-        const g = imgSprite(glow, isBoss ? 3.6 : 2.6, isBoss ? 3.6 : 2.6, { cy: 0.45, add: true, opacity: 0.7 });
-        g.position.y = isBoss ? 1.6 : 0.9;
+        const g = imgSprite(glow, isBoss ? 4.2 : 2.8, isBoss ? 4.2 : 2.8, { cy: 0.45, add: true, opacity: 0.7 });
+        g.position.y = isBoss ? 2.0 : 1.0;
+        g.material.depthTest = false;
+        g.renderOrder = 1;
         group.add(g);
         group.userData.glow = g;
       }
       const auraFile = atlas.onebell && atlas.onebell.aura && String(atlas.onebell.aura).split(' ')[0];
       if (auraFile && tex(auraFile)) {
         const au = imgSprite(tex(auraFile), isBoss ? 2.4 : 1.6, isBoss ? 1.1 : 0.72, { cy: 0.5, add: true, opacity: 0 });
-        au.position.y = isBoss ? 1.5 : 0.95;
+        au.position.y = isBoss ? 1.8 : 1.0;
         au.visible = false;
+        au.material.depthTest = false;
+        au.renderOrder = 3;
         group.add(au);
         group.userData.aura = au;
       }
-      const bellSheet = isBoss ? atlas.boss : (atlas.spirit || bodySheet);
-      group.userData.bellLocal = localBell(bellSheet, H);
+      if (!group.userData.bellLocal) {
+        const bellSheet = isBoss ? atlas.boss : (atlas.spirit || bodySheet);
+        group.userData.bellLocal = localBell(bellSheet, H);
+      }
       group.userData.markShape = shape || 'circle';
       group.userData.isBoss = isBoss;
     } else if (itemK && atlas.items && atlas.items[itemK]) {
@@ -257,12 +451,13 @@ export async function buildArt(THREE) {
     return group;
   }
 
-  function attachStatus(group) {
+  function attachStatus(group, worldH) {
     const layers = {};
+    const H = worldH || zombieH || heroH * 0.92;
     [['ice', 'zombie-frozen', 0], ['fire', 'zombie-burning', 0], ['poison', 'zombie-poisoned', 0]].forEach(function (pair) {
       const sheet = el[pair[1]];
       if (!sheet) return;
-      const spr = sheetSprite(sheet, tex(sheetFile(sheet)), heroH * 0.92);
+      const spr = sheetSprite(sheet, tex(sheetFile(sheet)), H);
       spr.visible = false;
       group.add(spr);
       layers[pair[0]] = { spr: spr, sheet: sheet, anim: Anim.createController(sheet, { blend: 0 }) };
@@ -291,14 +486,19 @@ export async function buildArt(THREE) {
   }
 
   function setStatus(group, elem) {
+    if (group && group.userData) group.userData.statusElem = elem || null;
     const layers = group && group.userData && group.userData.statusLayers;
-    if (!layers) return;
-    Object.keys(layers).forEach(function (k) {
-      const show = (elem === 'ice' && k === 'ice') || (elem === 'fire' && (k === 'fire' || k === 'flame')) || (elem === 'poison' && (k === 'poison' || k === 'fog'));
-      layers[k].spr.visible = show;
-    });
-    if (group.userData.sprite) group.userData.sprite.visible = !elem;
-    if (elem === 'ice' && layers.ice) layers.ice.anim.setState(Object.keys(layers.ice.sheet.states || { frozen: [0] })[0] || 'idle');
+    const pack = group && group.userData && group.userData.animPack;
+    const mapped = { ice: 'frozen', fire: 'burning', poison: 'poisoned' }[elem];
+    const hasAnim = !!(pack && pack.actions && mapped && pack.actions[mapped]);
+    if (layers) {
+      Object.keys(layers).forEach(function (k) {
+        const show = !hasAnim && ((elem === 'ice' && k === 'ice') || (elem === 'fire' && (k === 'fire' || k === 'flame')) || (elem === 'poison' && (k === 'poison' || k === 'fog')));
+        layers[k].spr.visible = show;
+      });
+    }
+    if (group && group.userData && group.userData.sprite) group.userData.sprite.visible = hasAnim || !elem;
+    if (!hasAnim && elem === 'ice' && layers && layers.ice) layers.ice.anim.setState(Object.keys(layers.ice.sheet.states || { frozen: [0] })[0] || 'idle');
   }
 
   function tickStatus(group, dt, vx, vz) {
@@ -323,15 +523,48 @@ export async function buildArt(THREE) {
   function tickChar(group, kind, state, dt, vx, vz) {
     if (!group) return;
     const spr = group.userData && group.userData.sprite;
+    const pack = group.userData && group.userData.animPack;
+    let useState = state;
+    if (kind === 'zombie' && group.userData && group.userData.statusElem) {
+      const map = { ice: 'frozen', fire: 'burning', poison: 'poisoned' };
+      const alt = map[group.userData.statusElem];
+      if (alt && pack && pack.actions && pack.actions[alt]) useState = alt;
+    }
+    if (kind === 'boss' && group.userData && group.userData.bossPack && useState && useState !== group.userData.action) {
+      const bs = bossActionSheet(useState);
+      if (bs) {
+        swapAction(group, bs, useState);
+        if (group.userData.anim) group.userData.anim.dir = bs.row || 0;
+      }
+    } else if (pack && pack.actions && useState && useState !== group.userData.action && pack.actions[useState]) {
+      swapAction(group, pack.actions[useState], useState);
+    }
     const anim = group.userData && group.userData.anim;
     if (anim) {
-      if (state) anim.setState(state);
-      if (vx != null && vz != null) anim.setDir(vx, vz);
+      if (useState && anim.sheet && anim.sheet.states && anim.sheet.states[useState]) anim.setState(useState);
+      if (group.userData.rowLock != null) {
+        anim.dir = group.userData.rowLock;
+      } else if (kind === 'boss') {
+        /* row is the action; do not aim with velocity */
+      } else if (vx != null && vz != null) {
+        anim.setDir(vx, vz);
+      }
       const st = anim.tick(dt);
       if (spr && spr.material && spr.material.map && anim.sheet) applyUV(spr.material.map, anim.sheet, st.frame, st.dir);
-      applyFlip(spr, st.flip);
+      if (!group.userData.noFlip) applyFlip(spr, st.flip);
+      else if (spr) applyFlip(spr, false);
+      if (kind === 'boss' && anim.sheet && anim.sheet.bellCenters) {
+        const bc = anim.sheet.bellCenters[st.frame] || anim.sheet.bellCenters[0];
+        if (bc) group.userData.bellLocal = localFromPx(anim.sheet, group.userData.worldH || bossH, [bc[0] + 48, bc[1] - 10]);
+      }
     }
     tickStatus(group, dt, vx, vz);
+    const hang = group.userData && group.userData.bellHang;
+    if (hang && hang.bell) {
+      hang.t = (hang.t || 0) + dt;
+      const ang = hang.amp * Math.sin((hang.t / hang.period) * Math.PI * 2 + hang.phase);
+      hang.bell.material.rotation = ang;
+    }
     if (group.userData.aura && group.userData.aura.visible) {
       group.userData.aura.material.rotation = (group.userData.aura.material.rotation || 0) - (20 * Math.PI / 180) * dt;
     }
@@ -591,6 +824,8 @@ export async function buildArt(THREE) {
 
   return {
     atlas: atlas, pal: pal, Anim: Anim, unit: unit, heroH: heroH,
+    pxPerMeter: pxPerMeter, zombieH: zombieH, spiritH: spiritH, bossH: bossH,
+    transitions: (atlas.tiles && atlas.tiles.transitions) || null,
     night: hexColor(pal.night || pal.ground, 0x1e1c1a),
     makeChar: makeChar, makeProp: makeProp, tickChar: tickChar,
     setSpiritShape: setSpiritShape, setStatus: setStatus, setAura: setAura,
