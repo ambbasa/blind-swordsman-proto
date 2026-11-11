@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="format-detection" content="telephone=no">
+  <title>맹인 검객 일섬</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <div id="view"></div>
+    <canvas id="ink"></canvas>
+    <div id="vignette" aria-hidden="true"></div>
+    <canvas id="marks" aria-hidden="true"></canvas>
+    <div id="onebellInk" aria-hidden="true"></div>
+    <div id="onebellPaper" aria-hidden="true"></div>
+    <div id="onebellBurst" aria-hidden="true"></div>
+    <div id="inkBurst" aria-hidden="true"></div>
+    <header id="hud">
+      <div class="hud-row">
+        <span id="stageLabel">일섬</span>
+        <span id="timer">75</span>
+        <span id="dashLabel">일섬 1</span>
+        <span id="coinLabel">엽전 0</span>
+      </div>
+      <div class="hud-row">
+        <div id="hpWrap"><span id="hpPips"></span></div>
+        <div id="xpWrap"><div id="xpFill"></div></div>
+        <span id="lvlLabel">Lv 1</span>
+      </div>
+    </header>
+    <div id="toast" hidden></div>
+
+    <div id="ov-title" class="ov show">
+      <div class="card title-card">
+        <p class="seal">斬</p>
+        <h1>맹인 검객 일섬</h1>
+        <p class="sub">종에 새겨진 모양을 그려, 가장 먼 혼령에게 돌진하세요</p>
+        <p class="shapes-help" aria-hidden="true">
+          <span class="hanji-chip"><img src="../assets/v2/ui/seal-I@2x.png" alt="ㅣ" width="40" height="40"></span>
+          <span class="hanji-chip"><img src="../assets/v2/ui/seal-H@2x.png" alt="—" width="40" height="40"></span>
+          <span class="hanji-chip"><img src="../assets/v2/ui/seal-V@2x.png" alt="V" width="40" height="40"></span>
+          <span class="hanji-chip"><img src="../assets/v2/ui/seal-O@2x.png" alt="O" width="40" height="40"></span>
+        </p>
+        <button type="button" id="btnStart" class="btn primary">출전</button>
+        <button type="button" id="btnShop" class="btn">성장</button>
+      </div>
+    </div>
+    <div id="ov-shop" class="ov">
+      <div class="card">
+        <h2>성장</h2>
+        <p class="shop-coins">엽전 <strong id="shopCoins">0</strong></p>
+        <div class="shop-list">
+          <button type="button" class="btn shop-item" data-buy="atk" id="buyAtk"></button>
+          <button type="button" class="btn shop-item" data-buy="hp" id="buyHp"></button>
+          <button type="button" class="btn shop-item" data-buy="coin" id="buyCoin"></button>
+        </div>
+        <button type="button" id="btnShopClose" class="btn primary">닫기</button>
+      </div>
+    </div>
+    <div id="ov-result" class="ov">
+      <div class="card">
+        <h2 id="resultTitle">생존</h2>
+        <p id="resultBody"></p>
+        <button type="button" id="btnResultShop" class="btn">성장</button>
+        <button type="button" id="btnResultGo" class="btn primary">다시</button>
+      </div>
+    </div>
+    <div id="ov-idle" class="ov">
+      <div class="card">
+        <h2>방치 보상</h2>
+        <p id="idleBody">자리를 비운 동안 엽전이 쌓였습니다.</p>
+        <button type="button" id="btnIdleTake" class="btn primary">받기</button>
+        <button type="button" id="btnIdleDouble" class="btn ad">광고로 두 배 받기</button>
+        <p class="ad-note">실제 광고는 나오지 않습니다 (자리만).</p>
+      </div>
+    </div>
+    <div id="ov-level" class="ov">
+      <div class="card">
+        <h2>레벨 업</h2>
+        <p>강화 하나를 고르세요</p>
+        <div id="levelChoices" class="choices"></div>
+      </div>
+    </div>
+  </div>
+  <script src="js/gestures.js"></script>
+  <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
+  <script type="module" src="js/game.js"></script>
+</body>
+</html>

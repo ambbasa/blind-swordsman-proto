@@ -1,0 +1,2530 @@
+{
+ "style": "dark ink ground (먹 바탕) ink-wash + gongbi character line, 3 maps. 2026-11-11 22:18 direction; previous: assets/v2-ink-village-1111/ (hanji village), assets/v2-night-1111/ (night)",
+ "hero": {
+  "file": "sprites/hero@2x.png",
+  "file1x": "sprites/hero.png",
+  "frame": [
+   640,
+   512
+  ],
+  "frame1x": [
+   320,
+   256
+  ],
+  "count": 6,
+  "order": [
+   "idle0",
+   "idle1",
+   "windup",
+   "dash0",
+   "dash1",
+   "slash"
+  ],
+  "fps": 8,
+  "anchor": [
+   320,
+   472
+  ],
+  "anchor1x": [
+   160,
+   236
+  ],
+  "states": {
+   "idle": [
+    0,
+    1
+   ],
+   "dash": [
+    2,
+    3,
+    4
+   ],
+   "slash": [
+    2,
+    5
+   ]
+  },
+  "fpsByState": {
+   "idle": 3,
+   "dash": 18,
+   "slash": 14
+  },
+  "facing": "right (flip X for left)",
+  "line": "gongbi: 2px ink contour + 2px pale paper rim (@2x)",
+  "note": "legacy 6-frame E-facing sheet re-made from the new rig; full anim = heroAnim"
+ },
+ "hero-afterimage": {
+  "file": "sprites/hero-afterimage@2x.png",
+  "file1x": "sprites/hero-afterimage.png",
+  "frame": [
+   640,
+   512
+  ],
+  "frame1x": [
+   320,
+   256
+  ],
+  "count": 3,
+  "order": [
+   "dash0",
+   "dash1",
+   "slash"
+  ],
+  "fps": 0,
+  "anchor": [
+   320,
+   472
+  ],
+  "anchor1x": [
+   160,
+   236
+  ],
+  "note": "pale paper-white ghost on dark ground: 3-6 copies along dash, alpha .5->0. blend screen (or normal); add slash-line on top"
+ },
+ "zombie": {
+  "file": "sprites/zombie@2x.png",
+  "file1x": "sprites/zombie.png",
+  "frame": [
+   512,
+   512
+  ],
+  "frame1x": [
+   256,
+   256
+  ],
+  "count": 6,
+  "order": [
+   "walk0",
+   "walk1",
+   "walk2",
+   "hit",
+   "down",
+   "hitFlash"
+  ],
+  "fps": 6,
+  "anchor": [
+   256,
+   472
+  ],
+  "anchor1x": [
+   128,
+   236
+  ],
+  "states": {
+   "walk": [
+    0,
+    1,
+    0,
+    2
+   ],
+   "hit": [
+    5,
+    3
+   ],
+   "down": [
+    4
+   ]
+  },
+  "fpsByState": {
+   "walk": 6,
+   "hit": 12,
+   "down": 1
+  },
+  "facing": "right (flip X for left)",
+  "note": "legacy 6-frame E-facing sheet from the rig; full anim = zombieAnim"
+ },
+ "marks": {
+  "files": {
+   "I": "ui/mark-I@2x.png",
+   "H": "ui/mark-H@2x.png",
+   "V": "ui/mark-V@2x.png",
+   "O": "ui/mark-O@2x.png"
+  },
+  "size": [
+   256,
+   256
+  ],
+  "size1x": [
+   128,
+   128
+  ],
+  "labels": {
+   "I": "ㅣ",
+   "H": "—",
+   "V": "V",
+   "O": "O"
+  },
+  "seals": {
+   "I": "ui/seal-I@2x.png",
+   "H": "ui/seal-H@2x.png",
+   "V": "ui/seal-V@2x.png",
+   "O": "ui/seal-O@2x.png"
+  },
+  "note": "mark = ink + hanji halo (draw over wisp, fixed 26-32 css px). seal = red stamp (HUD / boss sequence)"
+ },
+ "spirit-wisp": {
+  "file": "sprites/spirit-wisp@2x.png",
+  "file1x": "sprites/spirit-wisp.png",
+  "frame": [
+   512,
+   512
+  ],
+  "frame1x": [
+   256,
+   256
+  ],
+  "count": 4,
+  "order": [
+   "t0",
+   "t1",
+   "t2",
+   "t3"
+  ],
+  "fps": 8,
+  "anchor": [
+   256,
+   472
+  ],
+  "anchor1x": [
+   128,
+   236
+  ],
+  "markCenter": [
+   256,
+   150
+  ],
+  "markSize": 113,
+  "note": "NEW: tail-sway loop (no mark). Draw ui/mark-* at markCenter (fixed 26-32 css px). bob y +-6px 1.6s"
+ },
+ "spirit": {
+  "file": "sprites/spirit@2x.png",
+  "file1x": "sprites/spirit.png",
+  "frame": [
+   512,
+   512
+  ],
+  "frame1x": [
+   256,
+   256
+  ],
+  "count": 5,
+  "order": [
+   "mark-I",
+   "mark-H",
+   "mark-V",
+   "mark-O",
+   "plain"
+  ],
+  "fps": 0,
+  "anchor": [
+   256,
+   472
+  ],
+  "anchor1x": [
+   128,
+   236
+  ],
+  "bellCenter": [
+   256,
+   150
+  ],
+  "bellMarkSize": 113,
+  "marks": {
+   "I": "ㅣ",
+   "H": "—",
+   "V": "V",
+   "O": "O"
+  },
+  "note": "legacy 5-variant still (new dark2 wisp art); animated: spiritAnim"
+ },
+ "boss": {
+  "file": "sprites/boss@2x.png",
+  "file1x": "sprites/boss.png",
+  "frame": [
+   1024,
+   1024
+  ],
+  "frame1x": [
+   512,
+   512
+  ],
+  "count": 1,
+  "anchor": [
+   512,
+   980
+  ],
+  "anchor1x": [
+   256,
+   490
+  ],
+  "bellCenter": [
+   502,
+   597
+  ],
+  "bellMarkSize": 129,
+  "note": "legacy still from the new boss art; animated: bossAnim"
+ },
+ "props": {
+  "palace-wall": {
+   "file": "props/palace-wall@2x.png",
+   "file1x": "props/palace-wall.png",
+   "size": [
+    288,
+    272
+   ],
+   "anchor": [
+    144,
+    262
+   ],
+   "anchorNote": "base centre",
+   "is_": "불탄 기와 담·헛간 (was 궁궐 담 / 돌담)"
+  },
+  "choga-hut": {
+   "file": "props/choga-hut@2x.png",
+   "file1x": "props/choga-hut.png",
+   "size": [
+    362,
+    352
+   ],
+   "anchor": [
+    181,
+    342
+   ],
+   "anchorNote": "base centre",
+   "is_": "불탄 기와집 (was 초가)"
+  },
+  "torch": {
+   "file": "props/torch@2x.png",
+   "file1x": "props/torch.png",
+   "size": [
+    281,
+    242
+   ],
+   "anchor": [
+    140,
+    232
+   ],
+   "anchorNote": "base centre",
+   "is_": "화톳불 잔해 (was 횃불/우물) — flameOffset·torch-glow 다시 사용",
+   "flameOffset": [
+    0,
+    -108
+   ],
+   "note": "map1: smouldering bonfire. flameOffset = fire centre -> fx/torch-glow.png (screen/add, flicker) + fx/flame-sheet optional"
+  },
+  "stone-lantern": {
+   "file": "props/stone-lantern@2x.png",
+   "file1x": "props/stone-lantern.png",
+   "size": [
+    261,
+    232
+   ],
+   "anchor": [
+    130,
+    222
+   ],
+   "anchorNote": "base centre",
+   "is_": "깨진 옹기 더미 (was 석등/장독대)"
+  },
+  "ssari-fence": {
+   "file": "props/ssari-fence@2x.png",
+   "file1x": "props/ssari-fence.png",
+   "size": [
+    302,
+    292
+   ],
+   "anchor": [
+    151,
+    282
+   ],
+   "anchorNote": "base centre",
+   "is_": "부서진 장터 좌판·차양 (was 싸리 울타리)"
+  },
+  "vegetable-patch": {
+   "file": "props/vegetable-patch@2x.png",
+   "file1x": "props/vegetable-patch.png",
+   "size": [
+    293,
+    242
+   ],
+   "anchor": [
+    146,
+    232
+   ],
+   "anchorNote": "base centre",
+   "is_": "엎어진 손수레 (was 텃밭)"
+  },
+  "reeds": {
+   "file": "props/reeds@2x.png",
+   "file1x": "props/reeds.png",
+   "size": [
+    219,
+    332
+   ],
+   "anchor": [
+    109,
+    322
+   ],
+   "anchorNote": "base centre",
+   "is_": "찢긴 상점 깃발 (was 갈대)"
+  },
+  "boulder": {
+   "file": "props/boulder@2x.png",
+   "file1x": "props/boulder.png",
+   "size": [
+    286,
+    202
+   ],
+   "anchor": [
+    143,
+    192
+   ],
+   "anchorNote": "base centre",
+   "is_": "무너진 기와 더미 (was 바위)"
+  }
+ },
+ "items": {
+  "dash-plus": {
+   "file": "items/dash-plus@2x.png",
+   "size": [
+    256,
+    256
+   ],
+   "size1x": [
+    128,
+    128
+   ],
+   "anchor": [
+    128,
+    128
+   ],
+   "drawAt": "44~60 css px",
+   "note": "dark-tone medallion (ink disc + paper rim + red seal corner); reads on dark ground. bob/glint in code"
+  },
+  "heal": {
+   "file": "items/heal@2x.png",
+   "size": [
+    256,
+    256
+   ],
+   "size1x": [
+    128,
+    128
+   ],
+   "anchor": [
+    128,
+    128
+   ],
+   "drawAt": "44~60 css px",
+   "note": "dark-tone medallion (ink disc + paper rim + red seal corner); reads on dark ground. bob/glint in code"
+  },
+  "coin": {
+   "file": "items/coin@2x.png",
+   "size": [
+    256,
+    256
+   ],
+   "size1x": [
+    128,
+    128
+   ],
+   "anchor": [
+    128,
+    128
+   ],
+   "drawAt": "44~60 css px",
+   "note": "dark-tone medallion (ink disc + paper rim + red seal corner); reads on dark ground. bob/glint in code"
+  },
+  "xp-orb": {
+   "file": "items/xp-orb@2x.png",
+   "size": [
+    256,
+    256
+   ],
+   "size1x": [
+    128,
+    128
+   ],
+   "anchor": [
+    128,
+    128
+   ],
+   "drawAt": "44~60 css px",
+   "note": "dark-tone medallion (ink disc + paper rim + red seal corner); reads on dark ground. bob/glint in code"
+  },
+  "elem-ice": {
+   "file": "items/elem-ice@2x.png",
+   "size": [
+    256,
+    256
+   ],
+   "size1x": [
+    128,
+    128
+   ],
+   "anchor": [
+    128,
+    128
+   ],
+   "drawAt": "44~60 css px",
+   "note": "dark-tone medallion (ink disc + paper rim + red seal corner); reads on dark ground. bob/glint in code"
+  },
+  "elem-fire": {
+   "file": "items/elem-fire@2x.png",
+   "size": [
+    256,
+    256
+   ],
+   "size1x": [
+    128,
+    128
+   ],
+   "anchor": [
+    128,
+    128
+   ],
+   "drawAt": "44~60 css px",
+   "note": "dark-tone medallion (ink disc + paper rim + red seal corner); reads on dark ground. bob/glint in code"
+  },
+  "elem-poison": {
+   "file": "items/elem-poison@2x.png",
+   "size": [
+    256,
+    256
+   ],
+   "size1x": [
+    128,
+    128
+   ],
+   "anchor": [
+    128,
+    128
+   ],
+   "drawAt": "44~60 css px",
+   "note": "dark-tone medallion (ink disc + paper rim + red seal corner); reads on dark ground. bob/glint in code"
+  },
+  "one-bell": {
+   "file": "items/one-bell@2x.png",
+   "size": [
+    256,
+    256
+   ],
+   "size1x": [
+    128,
+    128
+   ],
+   "anchor": [
+    128,
+    128
+   ],
+   "drawAt": "44~60 css px",
+   "note": "dark-tone medallion (ink disc + paper rim + red seal corner); reads on dark ground. bob/glint in code"
+  }
+ },
+ "tiles": {
+  "courtyard": {
+   "texture": "tiles/ground-courtyard-1024.png",
+   "texture512": "tiles/ground-courtyard-512.png",
+   "wrap": "repeat (seamless)",
+   "iso": "tiles/iso-courtyard.png",
+   "isoSize": [
+    724,
+    362
+   ],
+   "worldSize": "1 texture = 4x4 m (~ 4 hero heights)",
+   "is_": "잿빛 장터 바닥"
+  },
+  "dirt": {
+   "texture": "tiles/ground-dirt-1024.png",
+   "texture512": "tiles/ground-dirt-512.png",
+   "wrap": "repeat (seamless)",
+   "iso": "tiles/iso-dirt.png",
+   "isoSize": [
+    724,
+    362
+   ],
+   "worldSize": "1 texture = 4x4 m (~ 4 hero heights)",
+   "is_": "진흙 길(수레 자국)"
+  },
+  "stone": {
+   "texture": "tiles/ground-stone-1024.png",
+   "texture512": "tiles/ground-stone-512.png",
+   "wrap": "repeat (seamless)",
+   "iso": "tiles/iso-stone.png",
+   "isoSize": [
+    724,
+    362
+   ],
+   "worldSize": "1 texture = 4x4 m (~ 4 hero heights)",
+   "is_": "갈라진 판석"
+  },
+  "grass": {
+   "texture": "tiles/ground-grass-1024.png",
+   "texture512": "tiles/ground-grass-512.png",
+   "wrap": "repeat (seamless)",
+   "iso": "tiles/iso-grass.png",
+   "isoSize": [
+    724,
+    362
+   ],
+   "worldSize": "1 texture = 4x4 m (~ 4 hero heights)",
+   "is_": "시든 풀·재"
+  },
+  "water": {
+   "texture": "tiles/ground-water-1024.png",
+   "texture512": "tiles/ground-water-512.png",
+   "wrap": "repeat (seamless)",
+   "iso": "tiles/iso-water.png",
+   "isoSize": [
+    724,
+    362
+   ],
+   "worldSize": "1 texture = 4x4 m (~ 4 hero heights)",
+   "is_": "검은 물웅덩이"
+  },
+  "pond": {
+   "mask": "tiles/pond-mask.png",
+   "rim": "tiles/pond-rim.png",
+   "size": [
+    1024,
+    1024
+   ],
+   "use": "map1: black puddle = water texture clipped by pond-mask alpha, then pond-rim (pale grey brush edge) on top"
+  },
+  "transitions": {
+   "cell": [
+    724,
+    362
+   ],
+   "cell1x": [
+    362,
+    181
+   ],
+   "grid": [
+    4,
+    3
+   ],
+   "format": "PNG-8 (256 colours, alpha diamond)",
+   "pairs": {
+    "map1-map2": {
+     "file": "tiles/trans/map1-map2-iso.png",
+     "file1x": "tiles/trans/map1-map2-iso-1x.png",
+     "A": "tiles/ground-courtyard-1024.png",
+     "B": "tiles/map2-ground-paving-1024.png"
+    },
+    "map2-map3": {
+     "file": "tiles/trans/map2-map3-iso.png",
+     "file1x": "tiles/trans/map2-map3-iso-1x.png",
+     "A": "tiles/map2-ground-paving-1024.png",
+     "B": "tiles/map3-ground-leaves-1024.png"
+    },
+    "m1-courtyard-dirt": {
+     "file": "tiles/trans/m1-courtyard-dirt-iso.png",
+     "file1x": "tiles/trans/m1-courtyard-dirt-iso-1x.png",
+     "A": "tiles/ground-courtyard-1024.png",
+     "B": "tiles/ground-dirt-1024.png"
+    },
+    "m1-courtyard-stone": {
+     "file": "tiles/trans/m1-courtyard-stone-iso.png",
+     "file1x": "tiles/trans/m1-courtyard-stone-iso-1x.png",
+     "A": "tiles/ground-courtyard-1024.png",
+     "B": "tiles/ground-stone-1024.png"
+    },
+    "m1-courtyard-grass": {
+     "file": "tiles/trans/m1-courtyard-grass-iso.png",
+     "file1x": "tiles/trans/m1-courtyard-grass-iso-1x.png",
+     "A": "tiles/ground-courtyard-1024.png",
+     "B": "tiles/ground-grass-1024.png"
+    },
+    "m1-courtyard-water": {
+     "file": "tiles/trans/m1-courtyard-water-iso.png",
+     "file1x": "tiles/trans/m1-courtyard-water-iso-1x.png",
+     "A": "tiles/ground-courtyard-1024.png",
+     "B": "tiles/ground-water-1024.png"
+    },
+    "m2-paving-rubble": {
+     "file": "tiles/trans/m2-paving-rubble-iso.png",
+     "file1x": "tiles/trans/m2-paving-rubble-iso-1x.png",
+     "A": "tiles/map2-ground-paving-1024.png",
+     "B": "tiles/map2-ground-rubble-1024.png"
+    },
+    "m3-leaves-path": {
+     "file": "tiles/trans/m3-leaves-path-iso.png",
+     "file1x": "tiles/trans/m3-leaves-path-iso-1x.png",
+     "A": "tiles/map3-ground-leaves-1024.png",
+     "B": "tiles/map3-ground-path-1024.png"
+    }
+   },
+   "tiles": [
+    {
+     "index": 0,
+     "name": "edge-top",
+     "bSide": "NW"
+    },
+    {
+     "index": 1,
+     "name": "edge-left",
+     "bSide": "SW"
+    },
+    {
+     "index": 2,
+     "name": "edge-bottom",
+     "bSide": "SE"
+    },
+    {
+     "index": 3,
+     "name": "edge-right",
+     "bSide": "NE"
+    },
+    {
+     "index": 4,
+     "name": "outer-top-left",
+     "bSide": "W"
+    },
+    {
+     "index": 5,
+     "name": "inner-top-left",
+     "bSide": "W"
+    },
+    {
+     "index": 6,
+     "name": "outer-top-right",
+     "bSide": "N"
+    },
+    {
+     "index": 7,
+     "name": "inner-top-right",
+     "bSide": "N"
+    },
+    {
+     "index": 8,
+     "name": "outer-bottom-left",
+     "bSide": "S"
+    },
+    {
+     "index": 9,
+     "name": "inner-bottom-left",
+     "bSide": "S"
+    },
+    {
+     "index": 10,
+     "name": "outer-bottom-right",
+     "bSide": "E"
+    },
+    {
+     "index": 11,
+     "name": "inner-bottom-right",
+     "bSide": "E"
+    }
+   ],
+   "rule": "index = row*4+col. Ground A everywhere, B on the side/corner named by bSide (iso screen direction). edge = B fills that half; outer = B only in that corner; inner = A only in the opposite corner. All borders cross tile edges at the same points -> edge/outer/inner tiles fit each other and plain iso-* tiles of A/B (iso diamond 724x362 = same as tiles.*.iso)",
+   "note": "map1-map2 / map2-map3 = between maps (gate / forest entrance); m1-*/m2-*/m3-* = floor types inside one map. courtyard-water uses the pale grey pond rim instead of an ink seam"
+  }
+ },
+ "bg": {
+  "file": "bg/backdrop-palace-night.png",
+  "alias": "bg/backdrop-village.png (same image)",
+  "size": [
+   2560,
+   1440
+  ],
+  "jpg": "bg/backdrop-palace-night.jpg (1280x720)",
+  "paper": "bg/hanji-paper.png (512 light hanji, UI)",
+  "paperInk": "bg/hanji-ink.png (512 seamless dark ink-stained hanji)",
+  "use": "map1 title / far backdrop (폐허 장터). Map2/3: see maps.mapN.bg"
+ },
+ "fog": {
+  "fog-0": {
+   "file": "fx/fog-0.png",
+   "size": [
+    1024,
+    512
+   ],
+   "wrap": "repeat",
+   "scroll": "8 px/s",
+   "blend": "normal alpha .35-.6 (grey mist over dark ink); map3 use .6-.8"
+  },
+  "fog-1": {
+   "file": "fx/fog-1.png",
+   "size": [
+    1024,
+    512
+   ],
+   "wrap": "repeat",
+   "scroll": "-5 px/s",
+   "blend": "normal alpha .35-.6 (grey mist over dark ink); map3 use .6-.8"
+  }
+ },
+ "glow": {
+  "torch-glow": "fx/torch-glow.png 512 ember light — map1 bonfire/embers (screen or add, alpha .5-.8, flicker scale .9-1.1)",
+  "spirit-glow": "fx/spirit-glow.png 256 — wisp light (screen/add alpha .6-.8)",
+  "shadow": "fx/shadow.png 256x96 black (normal/multiply alpha .6, centre = anchor)",
+  "vignette": "fx/vignette.png 1080x1920 ink-black edge (normal)"
+ },
+ "fx": {
+  "slash-line": {
+   "file": "fx/slash-line.png",
+   "size": [
+    1024,
+    128
+   ],
+   "use": "일섬 = vermilion stroke with hot cream core; normal or screen/add on dark ground, life .25s"
+  },
+  "slash-arc-sheet": {
+   "file": "fx/slash-arc-sheet.png",
+   "frame": [
+    512,
+    512
+   ],
+   "count": 4,
+   "fps": 24,
+   "anchor": [
+    256,
+    256
+   ],
+   "use": "vermilion crescent at cut point, normal or screen"
+  },
+  "ink-stroke": {
+   "file": "fx/ink-stroke.png",
+   "size": [
+    1024,
+    96
+   ],
+   "use": "gesture trail ribbon = paper-white brush (호분) on dark ground"
+  },
+  "ink-stroke-lit": {
+   "file": "fx/ink-stroke-lit.png",
+   "size": [
+    1024,
+    96
+   ],
+   "use": "paper-white stroke with black ink halo — over bright wisps / fog"
+  },
+  "ink-dab": {
+   "file": "fx/ink-dab.png",
+   "size": [
+    128,
+    128
+   ],
+   "use": "paper-white dab, stamp every 3-4px along gesture path"
+  },
+  "blood-splat": {
+   "file": "fx/blood-splat.png",
+   "size": [
+    256,
+    256
+   ],
+   "use": "red dots + dark-red bleed decal on zombie hit"
+  },
+  "ink-splat": {
+   "file": "fx/ink-splat.png",
+   "size": [
+    256,
+    256
+   ],
+   "use": "pale splat: spirit death / dash start decal (normal, alpha .7)"
+  }
+ },
+ "elements": {
+  "flame": {
+   "file": "fx/flame@2x.png",
+   "file1x": "fx/flame.png",
+   "frame": [
+    256,
+    256
+   ],
+   "frame1x": [
+    128,
+    128
+   ],
+   "count": 4,
+   "order": [
+    "f0",
+    "f1",
+    "f2",
+    "f3"
+   ],
+   "fps": 12,
+   "anchor": [
+    128,
+    244
+   ],
+   "anchor1x": [
+    64,
+    122
+   ],
+   "use": "burning status / fire trail; vermilion flame tongues with warm halo (screen ok)"
+  },
+  "zombie-frozen": {
+   "file": "sprites/zombie-frozen@2x.png",
+   "file1x": "sprites/zombie-frozen.png",
+   "frame": [
+    512,
+    512
+   ],
+   "frame1x": [
+    256,
+    256
+   ],
+   "count": 2,
+   "order": [
+    "frozen",
+    "cracking"
+   ],
+   "fps": 0,
+   "anchor": [
+    256,
+    472
+   ],
+   "anchor1x": [
+    128,
+    236
+   ],
+   "use": "ice status: freeze; last .3s frame1 + 2px shake"
+  },
+  "zombie-burning": {
+   "file": "sprites/zombie-burning@2x.png",
+   "file1x": "sprites/zombie-burning.png",
+   "frame": [
+    512,
+    512
+   ],
+   "frame1x": [
+    256,
+    256
+   ],
+   "count": 4,
+   "order": [
+    "w0",
+    "w1",
+    "w0",
+    "w2"
+   ],
+   "fps": 8,
+   "anchor": [
+    256,
+    472
+   ],
+   "anchor1x": [
+    128,
+    236
+   ],
+   "use": "fire status loop"
+  },
+  "zombie-poisoned": {
+   "file": "sprites/zombie-poisoned@2x.png",
+   "file1x": "sprites/zombie-poisoned.png",
+   "frame": [
+    512,
+    512
+   ],
+   "frame1x": [
+    256,
+    256
+   ],
+   "count": 4,
+   "order": [
+    "w0",
+    "w1",
+    "w0",
+    "w2"
+   ],
+   "fps": 6,
+   "anchor": [
+    256,
+    472
+   ],
+   "anchor1x": [
+    128,
+    236
+   ],
+   "use": "poison status loop"
+  },
+  "slash-line": {
+   "files": {
+    "ice": "fx/slash-line-ice.png",
+    "fire": "fx/slash-line-fire.png",
+    "poison": "fx/slash-line-poison.png"
+   },
+   "size": [
+    1024,
+    128
+   ],
+   "use": "bright core + element colour wash; ice=angular spikes, fire=flame tongues, poison=round bubbles. normal or screen/add on dark ground",
+   "colors": {
+    "ice": "#5FC4FF",
+    "fire": "#FF6A1E",
+    "poison": "#7FDB4A"
+   }
+  },
+  "fire-trail": {
+   "file": "fx/fire-trail.png",
+   "size": [
+    1024,
+    256
+   ],
+   "anchor": "bottom edge = path line, u=0 old .. 1 hero end",
+   "use": "불 잔상, life 1.2s"
+  },
+  "ice-shatter": {
+   "file": "fx/ice-shatter@2x.png",
+   "file1x": "fx/ice-shatter.png",
+   "frame": [
+    512,
+    512
+   ],
+   "frame1x": [
+    256,
+    256
+   ],
+   "count": 6,
+   "order": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "fps": 18,
+   "anchor": [
+    256,
+    300
+   ],
+   "anchor1x": [
+    128,
+    150
+   ],
+   "use": "ice+fire combo; shake 6px .15s"
+  },
+  "poison-burst": {
+   "file": "fx/poison-burst@2x.png",
+   "file1x": "fx/poison-burst.png",
+   "frame": [
+    512,
+    512
+   ],
+   "frame1x": [
+    256,
+    256
+   ],
+   "count": 6,
+   "order": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "fps": 16,
+   "anchor": [
+    256,
+    256
+   ],
+   "anchor1x": [
+    128,
+    128
+   ],
+   "use": "poison+fire combo explosion; shake 8px .2s"
+  },
+  "poison-fog": {
+   "file": "fx/poison-fog@2x.png",
+   "file1x": "fx/poison-fog.png",
+   "frame": [
+    512,
+    256
+   ],
+   "frame1x": [
+    256,
+    128
+   ],
+   "count": 3,
+   "order": [
+    0,
+    1,
+    2
+   ],
+   "fps": 4,
+   "anchor": [
+    256,
+    128
+   ],
+   "anchor1x": [
+    128,
+    64
+   ],
+   "use": "독안개 ground patch; ink ring bubbles = colour-blind cue"
+  }
+ },
+ "onebell": {
+  "inkFrames": [
+   "fx/onebell-ink-0.png",
+   "fx/onebell-ink-1.png",
+   "fx/onebell-ink-2.png",
+   "fx/onebell-ink-3.png"
+  ],
+  "inkSize": [
+   1080,
+   1920
+  ],
+  "paperFrames": [
+   "fx/onebell-paper-0.png",
+   "fx/onebell-paper-1.png",
+   "fx/onebell-paper-2.png"
+  ],
+  "burst": "fx/onebell-ink-burst.png (1024)",
+  "aura": "fx/onebell-aura.png (256, brush ensō + red seal under every wisp while active; rotate 20deg/s)",
+  "shader": "fx/onebell.frag.glsl",
+  "cssFallback": "world filter saturate(.25) brightness(.8) + onebell-ink-N (black ink closes in) ; onebell-paper-N = short pale flash (alpha .2) at start; vivid accents (marks, seals, slash colours) stay on top",
+  "note": "dark-ground version: burst/aura are paper-white (호분)"
+ },
+ "maps": {
+  "map1": {
+   "name": "폐허 장터·불탄 기와집",
+   "key": "market",
+   "bg": "bg/backdrop-palace-night.png",
+   "bgJpg": "bg/backdrop-palace-night.jpg",
+   "tiles": {
+    "courtyard": "tiles.courtyard",
+    "dirt": "tiles.dirt",
+    "stone": "tiles.stone",
+    "grass": "tiles.grass",
+    "water": "tiles.water"
+   },
+   "pond": "tiles.pond",
+   "props": [
+    "palace-wall",
+    "choga-hut",
+    "torch",
+    "stone-lantern",
+    "ssari-fence",
+    "vegetable-patch",
+    "reeds",
+    "boulder"
+   ],
+   "lights": [
+    "torch (bonfire) + fx/torch-glow.png"
+   ],
+   "fog": "fog-0/1 alpha .35-.5",
+   "note": "uses the ORIGINAL file names (tiles/ground-*, tiles/iso-*, props/*, bg/backdrop-palace-night.*) -> existing code keeps working"
+  },
+  "map2": {
+   "name": "무너진 성문·성곽",
+   "key": "fortress",
+   "bg": "bg/map2-backdrop.png",
+   "bgJpg": "bg/map2-backdrop.jpg",
+   "tiles": {
+    "paving": {
+     "texture": "tiles/map2-ground-paving-1024.png",
+     "texture512": "tiles/map2-ground-paving-512.png",
+     "wrap": "repeat (seamless)",
+     "iso": "tiles/map2-iso-paving.png",
+     "isoSize": [
+      724,
+      362
+     ],
+     "worldSize": "1 texture = 4x4 m (~ 4 hero heights)",
+     "is_": "성곽 마당 박석"
+    },
+    "rubble": {
+     "texture": "tiles/map2-ground-rubble-1024.png",
+     "texture512": "tiles/map2-ground-rubble-512.png",
+     "wrap": "repeat (seamless)",
+     "iso": "tiles/map2-iso-rubble.png",
+     "isoSize": [
+      724,
+      362
+     ],
+     "worldSize": "1 texture = 4x4 m (~ 4 hero heights)",
+     "is_": "성돌 자갈·흙"
+    }
+   },
+   "props": {
+    "map2-gate": {
+     "file": "props/map2-gate@2x.png",
+     "file1x": "props/map2-gate.png",
+     "size": [
+      520,
+      392
+     ],
+     "anchor": [
+      260,
+      382
+     ],
+     "anchorNote": "base centre",
+     "is_": "무너진 성문 누각"
+    },
+    "map2-wall": {
+     "file": "props/map2-wall@2x.png",
+     "file1x": "props/map2-wall.png",
+     "size": [
+      397,
+      272
+     ],
+     "anchor": [
+      198,
+      262
+     ],
+     "anchorNote": "base centre",
+     "is_": "성곽 조각(대각선)"
+    },
+    "map2-rubble": {
+     "file": "props/map2-rubble@2x.png",
+     "file1x": "props/map2-rubble.png",
+     "size": [
+      336,
+      222
+     ],
+     "anchor": [
+      168,
+      212
+     ],
+     "anchorNote": "base centre",
+     "is_": "성돌 무더기"
+    },
+    "map2-banner": {
+     "file": "props/map2-banner@2x.png",
+     "file1x": "props/map2-banner.png",
+     "size": [
+      277,
+      332
+     ],
+     "anchor": [
+      138,
+      322
+     ],
+     "anchorNote": "base centre",
+     "is_": "찢긴 붉은 군기"
+    },
+    "map2-barricade": {
+     "file": "props/map2-barricade@2x.png",
+     "file1x": "props/map2-barricade.png",
+     "size": [
+      211,
+      212
+     ],
+     "anchor": [
+      105,
+      202
+     ],
+     "anchorNote": "base centre",
+     "is_": "목책(마름쇠)"
+    },
+    "map2-haetae": {
+     "file": "props/map2-haetae@2x.png",
+     "file1x": "props/map2-haetae.png",
+     "size": [
+      262,
+      262
+     ],
+     "anchor": [
+      131,
+      252
+     ],
+     "anchorNote": "base centre",
+     "is_": "부서진 해태상"
+    }
+   },
+   "fog": "fog-0/1 alpha .4-.55",
+   "suggestedGround": {
+    "base": "paving",
+    "patches": "rubble"
+   }
+  },
+  "map3": {
+   "name": "대나무 숲·서낭당·장승·안개 다리",
+   "key": "bamboo",
+   "bg": "bg/map3-backdrop.png",
+   "bgJpg": "bg/map3-backdrop.jpg",
+   "tiles": {
+    "leaves": {
+     "texture": "tiles/map3-ground-leaves-1024.png",
+     "texture512": "tiles/map3-ground-leaves-512.png",
+     "wrap": "repeat (seamless)",
+     "iso": "tiles/map3-iso-leaves.png",
+     "isoSize": [
+      724,
+      362
+     ],
+     "worldSize": "1 texture = 4x4 m (~ 4 hero heights)",
+     "is_": "댓잎 깔린 숲 바닥"
+    },
+    "path": {
+     "texture": "tiles/map3-ground-path-1024.png",
+     "texture512": "tiles/map3-ground-path-512.png",
+     "wrap": "repeat (seamless)",
+     "iso": "tiles/map3-iso-path.png",
+     "isoSize": [
+      724,
+      362
+     ],
+     "worldSize": "1 texture = 4x4 m (~ 4 hero heights)",
+     "is_": "이끼 디딤돌 길"
+    }
+   },
+   "props": {
+    "map3-bamboo": {
+     "file": "props/map3-bamboo@2x.png",
+     "file1x": "props/map3-bamboo.png",
+     "size": [
+      375,
+      432
+     ],
+     "anchor": [
+      187,
+      422
+     ],
+     "anchorNote": "base centre",
+     "is_": "대나무 덤불"
+    },
+    "map3-jangseung": {
+     "file": "props/map3-jangseung@2x.png",
+     "file1x": "props/map3-jangseung.png",
+     "size": [
+      262,
+      342
+     ],
+     "anchor": [
+      131,
+      332
+     ],
+     "anchorNote": "base centre",
+     "is_": "장승 한 쌍"
+    },
+    "map3-seonangdang": {
+     "file": "props/map3-seonangdang@2x.png",
+     "file1x": "props/map3-seonangdang.png",
+     "size": [
+      301,
+      352
+     ],
+     "anchor": [
+      150,
+      342
+     ],
+     "anchorNote": "base centre",
+     "is_": "서낭당(돌무더기+신목+천 조각)"
+    },
+    "map3-bridge": {
+     "file": "props/map3-bridge@2x.png",
+     "file1x": "props/map3-bridge.png",
+     "size": [
+      384,
+      232
+     ],
+     "anchor": [
+      192,
+      222
+     ],
+     "anchorNote": "base centre",
+     "is_": "돌 홍예다리(대각선)"
+    },
+    "map3-rock": {
+     "file": "props/map3-rock@2x.png",
+     "file1x": "props/map3-rock.png",
+     "size": [
+      346,
+      212
+     ],
+     "anchor": [
+      173,
+      202
+     ],
+     "anchorNote": "base centre",
+     "is_": "이끼 바위·고사리"
+    },
+    "map3-cairn": {
+     "file": "props/map3-cairn@2x.png",
+     "file1x": "props/map3-cairn.png",
+     "size": [
+      218,
+      242
+     ],
+     "anchor": [
+      109,
+      232
+     ],
+     "anchorNote": "base centre",
+     "is_": "돌탑+붉은 천"
+    }
+   },
+   "fog": "fog-0/1 alpha .6-.8 (안개 다리)",
+   "suggestedGround": {
+    "base": "leaves",
+    "patches": "path"
+   }
+  }
+ },
+ "palette": {
+  "paper": "#EDE3CF",
+  "paperDeep": "#D9CBB0",
+  "ink": "#0E0C0A",
+  "inkWash": "#4A4540",
+  "sepia": "#8A6E4B",
+  "seal": "#C8321F",
+  "wisp": "#CFEFEA",
+  "wispCore": "#F7FFFD",
+  "blood": "#C8281E",
+  "ice": "#5FC4FF",
+  "fire": "#FF6A1E",
+  "poison": "#7FDB4A",
+  "ground": "#1E1C1A",
+  "groundHi": "#3A3632",
+  "paperRim": "#E9DFC8",
+  "vermilion": "#E8432A",
+  "vermilionHi": "#FFE2C8",
+  "iceHi": "#F2FBFF",
+  "fireHi": "#FFF0C8",
+  "poisonHi": "#F0FFD8",
+  "ember": "#FF8A3A",
+  "night": "#1E1C1A",
+  "navy": "#3A3632",
+  "torch": "#FF8A3A",
+  "torchHi": "#FFD08A",
+  "spirit": "#CFEFEA",
+  "spiritCore": "#F7FFFD",
+  "bone": "#EDE3CF",
+  "rim": "#E9DFC8"
+ },
+ "heroAnim": {
+  "cell": [
+   432,
+   312
+  ],
+  "cell1x": [
+   216,
+   156
+  ],
+  "anchor": [
+   216,
+   224
+  ],
+  "anchor1x": [
+   108,
+   112
+  ],
+  "drawnDirs": [
+   "S",
+   "SE",
+   "E",
+   "NE",
+   "N"
+  ],
+  "dirOrder": [
+   "e",
+   "ne",
+   "n",
+   "nw",
+   "w",
+   "sw",
+   "s",
+   "se"
+  ],
+  "layout": "frames-x-dirs-y",
+  "rows": "8 rows top->bottom = dirOrder (e, ne, n, nw, w, sw, s, se), columns = frames. Drawn: s, se, e, ne, n; nw/w/sw rows are flipX copies of ne/e/se",
+  "mirroredFrom": {
+   "nw": "ne",
+   "w": "e",
+   "sw": "se"
+  },
+  "facingNote": "s = facing camera (screen down), e = screen right, n = away; row index = round(atan2(-vz, vx)/45deg) like v2/js/anim.js chooseDir. Already baked: no flip needed",
+  "scale": "1 m = 118.5 px @2x (hero ~1.8 m tall incl. gat = ~215 px @2x)",
+  "actions": {
+   "idle": {
+    "file": "sprites/hero/hero-idle@2x.png",
+    "file1x": "sprites/hero/hero-idle.png",
+    "frames": 10,
+    "fps": 8,
+    "loop": true,
+    "frame": [
+     432,
+     312
+    ],
+    "frame1x": [
+     216,
+     156
+    ],
+    "count": 10,
+    "anchor": [
+     216,
+     224
+    ],
+    "anchor1x": [
+     108,
+     112
+    ],
+    "dirs": 8,
+    "dirOrder": [
+     "e",
+     "ne",
+     "n",
+     "nw",
+     "w",
+     "sw",
+     "s",
+     "se"
+    ],
+    "layout": "frames-x-dirs-y",
+    "states": {
+     "idle": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+     ]
+    },
+    "fpsByState": {
+     "idle": 8
+    },
+    "mirroredRows": [
+     "nw",
+     "w",
+     "sw"
+    ]
+   },
+   "walk": {
+    "file": "sprites/hero/hero-walk@2x.png",
+    "file1x": "sprites/hero/hero-walk.png",
+    "frames": 12,
+    "fps": 12,
+    "loop": true,
+    "frame": [
+     432,
+     312
+    ],
+    "frame1x": [
+     216,
+     156
+    ],
+    "count": 12,
+    "anchor": [
+     216,
+     224
+    ],
+    "anchor1x": [
+     108,
+     112
+    ],
+    "dirs": 8,
+    "dirOrder": [
+     "e",
+     "ne",
+     "n",
+     "nw",
+     "w",
+     "sw",
+     "s",
+     "se"
+    ],
+    "layout": "frames-x-dirs-y",
+    "states": {
+     "walk": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+     ]
+    },
+    "fpsByState": {
+     "walk": 12
+    },
+    "mirroredRows": [
+     "nw",
+     "w",
+     "sw"
+    ],
+    "moveSpeed": 166
+   },
+   "windup": {
+    "file": "sprites/hero/hero-windup@2x.png",
+    "file1x": "sprites/hero/hero-windup.png",
+    "frames": 8,
+    "fps": 16,
+    "loop": false,
+    "frame": [
+     432,
+     312
+    ],
+    "frame1x": [
+     216,
+     156
+    ],
+    "count": 8,
+    "anchor": [
+     216,
+     224
+    ],
+    "anchor1x": [
+     108,
+     112
+    ],
+    "dirs": 8,
+    "dirOrder": [
+     "e",
+     "ne",
+     "n",
+     "nw",
+     "w",
+     "sw",
+     "s",
+     "se"
+    ],
+    "layout": "frames-x-dirs-y",
+    "states": {
+     "windup": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+     ]
+    },
+    "fpsByState": {
+     "windup": 16
+    },
+    "mirroredRows": [
+     "nw",
+     "w",
+     "sw"
+    ],
+    "note": "hold last frame while charging"
+   },
+   "dash": {
+    "file": "sprites/hero/hero-dash@2x.png",
+    "file1x": "sprites/hero/hero-dash.png",
+    "frames": 8,
+    "fps": 18,
+    "loop": true,
+    "frame": [
+     432,
+     312
+    ],
+    "frame1x": [
+     216,
+     156
+    ],
+    "count": 8,
+    "anchor": [
+     216,
+     224
+    ],
+    "anchor1x": [
+     108,
+     112
+    ],
+    "dirs": 8,
+    "dirOrder": [
+     "e",
+     "ne",
+     "n",
+     "nw",
+     "w",
+     "sw",
+     "s",
+     "se"
+    ],
+    "layout": "frames-x-dirs-y",
+    "states": {
+     "dash": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+     ]
+    },
+    "fpsByState": {
+     "dash": 18
+    },
+    "mirroredRows": [
+     "nw",
+     "w",
+     "sw"
+    ],
+    "note": "loop while moving; slash line drawn by game",
+    "moveSpeed": 635
+   },
+   "slash": {
+    "file": "sprites/hero/hero-slash@2x.png",
+    "file1x": "sprites/hero/hero-slash.png",
+    "frames": 10,
+    "fps": 20,
+    "loop": false,
+    "frame": [
+     432,
+     312
+    ],
+    "frame1x": [
+     216,
+     156
+    ],
+    "count": 10,
+    "anchor": [
+     216,
+     224
+    ],
+    "anchor1x": [
+     108,
+     112
+    ],
+    "dirs": 8,
+    "dirOrder": [
+     "e",
+     "ne",
+     "n",
+     "nw",
+     "w",
+     "sw",
+     "s",
+     "se"
+    ],
+    "layout": "frames-x-dirs-y",
+    "states": {
+     "slash": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+     ]
+    },
+    "fpsByState": {
+     "slash": 20
+    },
+    "mirroredRows": [
+     "nw",
+     "w",
+     "sw"
+    ],
+    "events": {
+     "drawBlade": 1,
+     "cut": 4,
+     "recover": 7
+    }
+   },
+   "hit": {
+    "file": "sprites/hero/hero-hit@2x.png",
+    "file1x": "sprites/hero/hero-hit.png",
+    "frames": 8,
+    "fps": 14,
+    "loop": false,
+    "frame": [
+     432,
+     312
+    ],
+    "frame1x": [
+     216,
+     156
+    ],
+    "count": 8,
+    "anchor": [
+     216,
+     224
+    ],
+    "anchor1x": [
+     108,
+     112
+    ],
+    "dirs": 8,
+    "dirOrder": [
+     "e",
+     "ne",
+     "n",
+     "nw",
+     "w",
+     "sw",
+     "s",
+     "se"
+    ],
+    "layout": "frames-x-dirs-y",
+    "states": {
+     "hit": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+     ]
+    },
+    "fpsByState": {
+     "hit": 14
+    },
+    "mirroredRows": [
+     "nw",
+     "w",
+     "sw"
+    ],
+    "note": "tint frames 0-1 in code if a flash is wanted"
+   },
+   "down": {
+    "file": "sprites/hero/hero-down@2x.png",
+    "file1x": "sprites/hero/hero-down.png",
+    "frames": 10,
+    "fps": 12,
+    "loop": false,
+    "frame": [
+     432,
+     312
+    ],
+    "frame1x": [
+     216,
+     156
+    ],
+    "count": 10,
+    "anchor": [
+     216,
+     224
+    ],
+    "anchor1x": [
+     108,
+     112
+    ],
+    "dirs": 8,
+    "dirOrder": [
+     "e",
+     "ne",
+     "n",
+     "nw",
+     "w",
+     "sw",
+     "s",
+     "se"
+    ],
+    "layout": "frames-x-dirs-y",
+    "states": {
+     "down": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+     ]
+    },
+    "fpsByState": {
+     "down": 12
+    },
+    "mirroredRows": [
+     "nw",
+     "w",
+     "sw"
+    ],
+    "note": "hold last frame"
+   }
+  },
+  "method": "3D cut-out rig (Blender, primitives on joint empties) -> flat albedo/normal/id passes -> ink post (gongbi contour + wash + hanji grain + paper rim)",
+  "afterimage": {
+   "dirs": 8,
+   "dirOrder": [
+    "e",
+    "ne",
+    "n",
+    "nw",
+    "w",
+    "sw",
+    "s",
+    "se"
+   ],
+   "layout": "frames-x-dirs-y",
+   "count": 3,
+   "frame": [
+    432,
+    312
+   ],
+   "anchor": [
+    216,
+    224
+   ],
+   "file": "sprites/hero/hero-afterimage-dirs@2x.png",
+   "file1x": "sprites/hero/hero-afterimage-dirs.png",
+   "frames": 3,
+   "order": [
+    "dash2",
+    "dash6",
+    "slash4"
+   ],
+   "blend": "screen, alpha .5->0"
+  },
+  "moveSpeedNote": "px/s @2x (halve for 1x) that matches the stride (no foot sliding): walk 1.4 m/s, dash 5.4 m/s; 1 m = 118.5 px @2x"
+ },
+ "zombieAnim": {
+  "cell": [
+   320,
+   384
+  ],
+  "cell1x": [
+   160,
+   192
+  ],
+  "anchor": [
+   160,
+   248
+  ],
+  "anchor1x": [
+   80,
+   124
+  ],
+  "drawnDirs": [
+   "S",
+   "SE",
+   "E",
+   "NE",
+   "N"
+  ],
+  "dirOrder": [
+   "e",
+   "ne",
+   "n",
+   "nw",
+   "w",
+   "sw",
+   "s",
+   "se"
+  ],
+  "layout": "frames-x-dirs-y",
+  "rows": "8 rows top->bottom = dirOrder (e, ne, n, nw, w, sw, s, se), columns = frames. Drawn: s, se, e, ne, n; nw/w/sw rows are flipX copies of ne/e/se",
+  "mirroredFrom": {
+   "nw": "ne",
+   "w": "e",
+   "sw": "se"
+  },
+  "facingNote": "s = facing camera (screen down), e = screen right, n = away; row index = round(atan2(-vz, vx)/45deg) like v2/js/anim.js chooseDir. Already baked: no flip needed",
+  "scale": "1 m = 118.5 px @2x (hero ~1.8 m tall incl. gat = ~215 px @2x)",
+  "actions": {
+   "walk": {
+    "file": "sprites/zombie/zombie-walk@2x.png",
+    "file1x": "sprites/zombie/zombie-walk.png",
+    "frames": 12,
+    "fps": 8,
+    "loop": true,
+    "frame": [
+     320,
+     384
+    ],
+    "frame1x": [
+     160,
+     192
+    ],
+    "count": 12,
+    "anchor": [
+     160,
+     248
+    ],
+    "anchor1x": [
+     80,
+     124
+    ],
+    "dirs": 8,
+    "dirOrder": [
+     "e",
+     "ne",
+     "n",
+     "nw",
+     "w",
+     "sw",
+     "s",
+     "se"
+    ],
+    "layout": "frames-x-dirs-y",
+    "states": {
+     "walk": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+     ]
+    },
+    "fpsByState": {
+     "walk": 8
+    },
+    "mirroredRows": [
+     "nw",
+     "w",
+     "sw"
+    ],
+    "moveSpeed": 80
+   },
+   "hit": {
+    "file": "sprites/zombie/zombie-hit@2x.png",
+    "file1x": "sprites/zombie/zombie-hit.png",
+    "frames": 8,
+    "fps": 14,
+    "loop": false,
+    "frame": [
+     320,
+     384
+    ],
+    "frame1x": [
+     160,
+     192
+    ],
+    "count": 8,
+    "anchor": [
+     160,
+     248
+    ],
+    "anchor1x": [
+     80,
+     124
+    ],
+    "dirs": 8,
+    "dirOrder": [
+     "e",
+     "ne",
+     "n",
+     "nw",
+     "w",
+     "sw",
+     "s",
+     "se"
+    ],
+    "layout": "frames-x-dirs-y",
+    "states": {
+     "hit": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+     ]
+    },
+    "fpsByState": {
+     "hit": 14
+    },
+    "mirroredRows": [
+     "nw",
+     "w",
+     "sw"
+    ],
+    "note": "frame 0 = paper-white flash baked in"
+   },
+   "down": {
+    "file": "sprites/zombie/zombie-down@2x.png",
+    "file1x": "sprites/zombie/zombie-down.png",
+    "frames": 10,
+    "fps": 12,
+    "loop": false,
+    "frame": [
+     320,
+     384
+    ],
+    "frame1x": [
+     160,
+     192
+    ],
+    "count": 10,
+    "anchor": [
+     160,
+     248
+    ],
+    "anchor1x": [
+     80,
+     124
+    ],
+    "dirs": 8,
+    "dirOrder": [
+     "e",
+     "ne",
+     "n",
+     "nw",
+     "w",
+     "sw",
+     "s",
+     "se"
+    ],
+    "layout": "frames-x-dirs-y",
+    "states": {
+     "down": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9
+     ]
+    },
+    "fpsByState": {
+     "down": 12
+    },
+    "mirroredRows": [
+     "nw",
+     "w",
+     "sw"
+    ],
+    "note": "face down; hold last frame .6s then fade .4s"
+   },
+   "frozen": {
+    "file": "sprites/zombie/zombie-frozen-dirs@2x.png",
+    "file1x": "sprites/zombie/zombie-frozen-dirs.png",
+    "frames": 2,
+    "fps": 0,
+    "loop": false,
+    "order": [
+     "frozen",
+     "cracking"
+    ],
+    "note": "cracking = last .3s + 2px shake, then ice-shatter fx",
+    "frame": [
+     320,
+     384
+    ],
+    "frame1x": [
+     160,
+     192
+    ],
+    "count": 2,
+    "anchor": [
+     160,
+     248
+    ],
+    "anchor1x": [
+     80,
+     124
+    ],
+    "dirs": 8,
+    "dirOrder": [
+     "e",
+     "ne",
+     "n",
+     "nw",
+     "w",
+     "sw",
+     "s",
+     "se"
+    ],
+    "layout": "frames-x-dirs-y",
+    "states": {
+     "frozen": [
+      0
+     ],
+     "cracking": [
+      1
+     ]
+    },
+    "fpsByState": {
+     "frozen": 1,
+     "cracking": 1
+    },
+    "mirroredRows": [
+     "nw",
+     "w",
+     "sw"
+    ]
+   },
+   "burning": {
+    "file": "sprites/zombie/zombie-burning-dirs@2x.png",
+    "file1x": "sprites/zombie/zombie-burning-dirs.png",
+    "frames": 12,
+    "fps": 12,
+    "loop": true,
+    "note": "walk cycle with status overlay; same anchor",
+    "frame": [
+     320,
+     384
+    ],
+    "frame1x": [
+     160,
+     192
+    ],
+    "count": 12,
+    "anchor": [
+     160,
+     248
+    ],
+    "anchor1x": [
+     80,
+     124
+    ],
+    "dirs": 8,
+    "dirOrder": [
+     "e",
+     "ne",
+     "n",
+     "nw",
+     "w",
+     "sw",
+     "s",
+     "se"
+    ],
+    "layout": "frames-x-dirs-y",
+    "states": {
+     "burning": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+     ]
+    },
+    "fpsByState": {
+     "burning": 12
+    },
+    "mirroredRows": [
+     "nw",
+     "w",
+     "sw"
+    ]
+   },
+   "poisoned": {
+    "file": "sprites/zombie/zombie-poisoned-dirs@2x.png",
+    "file1x": "sprites/zombie/zombie-poisoned-dirs.png",
+    "frames": 12,
+    "fps": 10,
+    "loop": true,
+    "note": "walk cycle with status overlay; same anchor",
+    "frame": [
+     320,
+     384
+    ],
+    "frame1x": [
+     160,
+     192
+    ],
+    "count": 12,
+    "anchor": [
+     160,
+     248
+    ],
+    "anchor1x": [
+     80,
+     124
+    ],
+    "dirs": 8,
+    "dirOrder": [
+     "e",
+     "ne",
+     "n",
+     "nw",
+     "w",
+     "sw",
+     "s",
+     "se"
+    ],
+    "layout": "frames-x-dirs-y",
+    "states": {
+     "poisoned": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+     ]
+    },
+    "fpsByState": {
+     "poisoned": 10
+    },
+    "mirroredRows": [
+     "nw",
+     "w",
+     "sw"
+    ]
+   }
+  },
+  "method": "3D cut-out rig (Blender, primitives on joint empties) -> flat albedo/normal/id passes -> ink post (gongbi contour + wash + hanji grain + paper rim)",
+  "moveSpeedNote": "px/s @2x (limp shamble ~0.67 m/s)"
+ },
+ "spiritAnim": {
+  "file": "sprites/spirit/spirit-anim@2x.png",
+  "file1x": "sprites/spirit/spirit-anim.png",
+  "cell": [
+   256,
+   256
+  ],
+  "cell1x": [
+   128,
+   128
+  ],
+  "anchor": [
+   128,
+   236
+  ],
+  "anchor1x": [
+   64,
+   118
+  ],
+  "rows": [
+   "mark-I",
+   "mark-H",
+   "mark-V",
+   "mark-O",
+   "plain"
+  ],
+  "frames": 10,
+  "fps": 10,
+  "loop": true,
+  "markCenter": [
+   128,
+   75
+  ],
+  "markSize": 56,
+  "dirs": "none (floating spirit, symmetric; flipX allowed for variety)",
+  "note": "flame flicker (head glow pulse) + tail sway + bell pendulum (lags tail). Same mark position every frame (readability). plain row = draw ui/mark-* yourself at markCenter. bob y +-3px 1.6s in code (not baked)"
+ },
+ "bossAnim": {
+  "cell": [
+   512,
+   512
+  ],
+  "cell1x": [
+   256,
+   256
+  ],
+  "anchor": [
+   256,
+   495
+  ],
+  "anchor1x": [
+   128,
+   247
+  ],
+  "rows": "one row per action (order below), columns = frames",
+  "actions": {
+   "idle": {
+    "row": 0,
+    "frames": 8,
+    "fps": 8,
+    "loop": true,
+    "bellCenters": [
+     [
+      251,
+      298
+     ],
+     [
+      255,
+      299
+     ],
+     [
+      259,
+      298
+     ],
+     [
+      261,
+      298
+     ],
+     [
+      261,
+      298
+     ],
+     [
+      257,
+      299
+     ],
+     [
+      253,
+      298
+     ],
+     [
+      250,
+      298
+     ]
+    ]
+   },
+   "attack": {
+    "row": 1,
+    "frames": 10,
+    "fps": 12,
+    "loop": false,
+    "bellCenters": [
+     [
+      256,
+      299
+     ],
+     [
+      247,
+      294
+     ],
+     [
+      230,
+      282
+     ],
+     [
+      222,
+      274
+     ],
+     [
+      298,
+      270
+     ],
+     [
+      267,
+      282
+     ],
+     [
+      232,
+      284
+     ],
+     [
+      237,
+      290
+     ],
+     [
+      261,
+      297
+     ],
+     [
+      266,
+      298
+     ]
+    ],
+    "events": {
+     "ring": 4
+    }
+   },
+   "hit": {
+    "row": 2,
+    "frames": 6,
+    "fps": 14,
+    "loop": false,
+    "bellCenters": [
+     [
+      245,
+      296
+     ],
+     [
+      264,
+      297
+     ],
+     [
+      250,
+      298
+     ],
+     [
+      259,
+      298
+     ],
+     [
+      254,
+      299
+     ],
+     [
+      256,
+      299
+     ]
+    ]
+   },
+   "dissolve": {
+    "row": 3,
+    "frames": 12,
+    "fps": 10,
+    "loop": false,
+    "bellCenters": [
+     [
+      256,
+      299
+     ],
+     [
+      263,
+      297
+     ],
+     [
+      264,
+      295
+     ],
+     [
+      257,
+      294
+     ],
+     [
+      249,
+      292
+     ],
+     [
+      247,
+      291
+     ],
+     [
+      253,
+      290
+     ],
+     [
+      262,
+      288
+     ],
+     [
+      264,
+      286
+     ],
+     [
+      259,
+      285
+     ],
+     [
+      251,
+      283
+     ],
+     [
+      247,
+      282
+     ]
+    ],
+    "note": "play once on defeat; mark fades with alpha = 1 - frame/11"
+   }
+  },
+  "markSize": 64,
+  "note": "new art: calm closed-eye spirit mask (no monster eye holes) + bronze bell on red cord. Draw the current ui/mark-* (or seal-*) at bellCenters[frame] (cell px @2x). bob in code optional",
+  "file": "sprites/boss/boss-anim@2x.png",
+  "file1x": "sprites/boss/boss-anim.png"
+ }
+}
