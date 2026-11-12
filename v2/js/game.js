@@ -44,29 +44,41 @@ const CFG = {
   idlePerMin: 4, idleMaxHours: 8,
   upgradeBase: 15, atkStep: 0.08, hpStep: 3, coinStep: 0.25, maxLv: 10,
   xpBase: 5,
-  dashDur: 0.28, pathRadius: 1.35, dashDmg: 1, zombieHp: 2, spiritHp: 1,
+  dashDur: 0.28, pathRadius: 1.35, dashDmg: 2, zombieHp: 2, spiritHp: 1,
+  perfectPathBonus: 0.4,
   dashCount: 1, spawnZombieMs: 1250, spawnSpiritMs: 950,
-  spawnZombieMax: 16, spawnSpiritMax: 10,
+  spawnZombieMax: 16, spawnSpiritMax: 0,
   spawnZombieMinMs: 450, spawnSpiritMinMs: 480,
   spawnZombieDelay: 12, practiceZombieMs: 3200, practiceZombieMax: 2, earlyZombieMax: 4, earlyZombieUntil: 25,
-  startSpirits: 4, spiritRing: [5, 7.2], zombieRing: [7, 10.5],
+  startSpirits: 1, spiritMax: 4, markedMax: 4, markedStart: 0, sameShapeMax: 2,
+  ringScreenFrac: 0.70, ringMaxFrac: 0.90, ringBoost: 0.14, ringLvMax: 4,
+  spiritOmega: 2.8, spiritAvoidMax: 0.30, spiritAvoidOmega: 8, lockKeep: 3.0, lockRelinquish: 1.85,
+  dashThroughMul: 1.5, dashPastTarget: 0.8, playBound: 28,
+  landBounce: 0.28, landBounceT: 0.16, landRippleDur: 0.45,
+  landIframe: 0.25, landShockR: 1.6, landPush: 1.2, landStun: 0.3, landPast: 1.0,
+  slideNear: 1.4, slideExtra: 1.5,
+  hitstopKill: 0.06, hitstopKillMax: 0.12, hitHitstop: 0.08, hitKnock: 0.6,
+  recoilU: 0.12, recoilT: 0.12, hurtVignette: 0.3,
+  aimConeCos: 0.5, aimNearW: 0.35, telegraphRange: 3.2,
+  spiritRing: [5, 7.2], zombieRing: [7, 10.5],
   zombieSpeed: 2.15, spiritSpeed: 0.55,
-  camOff: { x: 7.2, y: 11.2, z: 7.2 }, camLookY: 1.2, fov: 40,
+  camOff: { x: 7.2, y: 11.2, z: 7.2 }, camLookY: 1.2, fov: 62,
   markMinCss: 40, markMaxCss: 72,
-  bpm: 100, beatWindow: 0.16, comboTimeout: 2.8,
-  perfectDmgMul: 1.5, comboBurstAt: [4, 8, 12],
+  bpm: 100, beatWindow: 0.09, beatGood: 0.18, comboTimeout: 2.8,
+  perfectDmgMul: 1, comboBurstAt: [4, 8, 12],
   comboBurstR: [3.2, 4.2, 5.2], comboBurstDmg: [1, 1.5, 2],
   practiceSec: 10, practiceSpawns: 6, comboBurstMs: 220,
   iceDur: 2.5, burnDur: 3, burnPeriod: 0.75, burnDmg: 1,
   poisonMax: 5, poisonDur: 4, poisonPeriod: 1, poisonDmgPer: 1,
   shatterDmg: 4, explodeDmg: 3, explodeR: 2.5,
   bellDur: 8, slowDur: 0.9, slowScale: 0.35,
-  parryRange: 1.9, parrySlow: 1.4, sightWaveDur: 0.7
+  parryRange: 3.2, parrySlow: 0.6, sightWaveDur: 0.45
 };
 const RUN_UPGRADES = [
   { id: 'dmg', name: '돌진 데미지', desc: '일섬이 좀비에게 더 큰 상처를 남깁니다.' },
   { id: 'width', name: '경로 폭', desc: '베기 선이 넓어져 더 많은 것을 스칩니다.' },
-  { id: 'dash', name: '일섬 횟수', desc: '같은 모양 혼령에게 한 번 더 이어 돌진합니다.' },
+  { id: 'dash', name: '일섬 횟수', desc: '같은 모양 혼령 방향으로 한 번 더 이어 돌진합니다.' },
+  { id: 'ring', name: '푸른 원 반경', desc: '심안 원이 넓어져 혼령이 더 멀리 돕니다.' },
   { id: 'heal', name: '체력 회복', desc: '체력을 회복하고 이번 판 최대 체력이 조금 늘어납니다.' },
   { id: 'wealth', name: '엽전 주머니', desc: '이번 판 코인 획득이 늘어납니다.' },
   { id: 'ice', name: '일섬·얼음', desc: '경로에 맞은 좀비가 일정 시간 얼어붙습니다.' },
@@ -95,12 +107,16 @@ function maxHp() { return CFG.hpBase + save.hpLv * CFG.hpStep + (S && S.runHp ||
 function coinMult() { return 1 + save.coinLv * CFG.coinStep + (S && S.runCoin || 0); }
 function dashDmg() {
   let d = (S && S.dashDmg) || CFG.dashDmg;
-  if (S && S.pendingPerfect) d *= (CFG.perfectDmgMul || 1.5);
   if (S && S.combo > 1) d += Math.min(2, (S.combo - 1) * 0.1);
-  if (Math.random() < atkChance()) d += 1;
+  const roll = (qa && typeof qa.atkRoll === 'function') ? qa.atkRoll() : Math.random();
+  if (roll < atkChance()) d += 1;
   return d;
 }
-function pathR() { return (S && S.pathR) || CFG.pathRadius; }
+function pathR() {
+  let r = (S && S.pathR) || CFG.pathRadius;
+  if (S && (S.pendingPerfect || (S.dash && S.dash.perfect))) r += (CFG.perfectPathBonus || 0.4);
+  return r;
+}
 
 function loadSave() {
   try {
@@ -289,7 +305,9 @@ function startRun(opts) {
     combo: 0, comboIdle: 0, comboMax: 0, pendingPerfect: false, lastJudge: null,
     perfects: 0, misses: 0, bursts: [], lastBurst: 0,
     beatPulse: 0, lastBeat: -1,
-    sightWave: 0, parryT: 0, lastParry: null, lastStrokeDir: null
+    sightWave: 0, parryT: 0, lastParry: null, lastStrokeDir: null,
+    hitstop: 0, hurtFlash: 0, aimTarget: null, bellPans: [], recoil: null,
+    ringR: 0, ringLv: 0, bounce: null, landRipple: null
   };
   S.runNo = opts.sandbox ? SHAPE_UNLOCK.length : (save.runs || 1);
   S.pool = unlockedShapes(S.runNo);
@@ -312,8 +330,10 @@ function startRun(opts) {
   three.camera.position.set(CFG.camOff.x, CFG.camOff.y, CFG.camOff.z);
   three.camera.lookAt(0, CFG.camLookY, 0);
   applyCameraLens();
-  if (!opts.sandbox && CFG.startSpirits) {
-    for (let i = 0; i < CFG.startSpirits; i++) spawnSpirit({ r: CFG.spiritRing[0] + Math.random() * (CFG.spiritRing[1] - CFG.spiritRing[0]) });
+  applyRingBoost();
+  if (!opts.sandbox) {
+    const n0 = CFG.startSpirits || 1;
+    for (let i = 0; i < n0; i++) spawnSpirit({ angle: (Math.PI * 2 * i) / Math.max(1, n0) });
   }
   renderHud();
   lastTs = 0;
@@ -336,36 +356,383 @@ function clearEntities() {
   three.slashes = [];
 }
 
+function livingMarks() {
+  if (!S) return [];
+  return (S.spirits || []).filter(function (s) { return s.alive; });
+}
+function refreshSpirits() {
+  return livingMarks();
+}
+function worldPerCss() {
+  if (!S || !S.hero || !three || !three.camera) return 50;
+  const a = projectXZ(S.hero.x, S.hero.z, 0.2);
+  const bx = projectXZ(S.hero.x + 1, S.hero.z, 0.2);
+  const bz = projectXZ(S.hero.x, S.hero.z + 1, 0.2);
+  const sx = Math.hypot(bx.x - a.x, bx.y - a.y);
+  const sz = Math.hypot(bz.x - a.x, bz.y - a.y);
+  return Math.max(8, (sx + sz) * 0.5);
+}
+function groundCirclePts(R, y0) {
+  const pts = [];
+  if (!S || !S.hero) return pts;
+  const n = 64;
+  y0 = y0 == null ? 0 : y0;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    pts.push(projectXZ(S.hero.x + Math.cos(a) * R, S.hero.z + Math.sin(a) * R, y0));
+  }
+  return pts;
+}
+function groundCircleWidth(R, y0) {
+  const pts = groundCirclePts(R, y0);
+  let minX = 1e9, maxX = -1e9;
+  pts.forEach(function (p) { if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x; });
+  return Math.max(0, maxX - minX);
+}
+function fitGroundRingR() {
+  if (!S || !S.hero || !three || !three.camera) return 3.2;
+  const target = screenRingPx() * 2;
+  let lo = 1.2, hi = 12;
+  for (let i = 0; i < 18; i++) {
+    const mid = (lo + hi) / 2;
+    if (groundCircleWidth(mid, 0) < target) lo = mid; else hi = mid;
+  }
+  return Math.max(1.4, hi);
+}
+function worldRingRFromScreen() { return fitGroundRingR(); }
+function baseRingR() { return fitGroundRingR(); }
+function capRingR(r) { return Math.max(1.4, r); }
+function ringR() {
+  if (S && S.ringR > 0) return S.ringR;
+  return baseRingR();
+}
+function applyRingBoost() {
+  if (!S) return ringR();
+  S.ringPx = screenRingPx();
+  S.ringR = fitGroundRingR();
+  refreshRingPoly();
+  return S.ringR;
+}
+function refreshRingPoly(force) {
+  if (!S) return [];
+  const h = S.hero || { x: 0, z: 0 };
+  const R = ringR();
+  const cam = three && three.camera;
+  const key = (h.x || 0).toFixed(3) + ',' + (h.z || 0).toFixed(3) + ',' + (R || 0).toFixed(3)
+    + ',' + (cam ? cam.fov : 0) + ',' + (typeof innerWidth === 'number' ? innerWidth : 0);
+  if (!force && S.ringPoly && S.ringPoly.length && S._ringKey === key) return S.ringPoly;
+  S._ringKey = key;
+  S.ringPoly = groundCirclePts(R, 0);
+  return S.ringPoly;
+}
+function ringScreenPts() {
+  if (S && S.ringPoly && S.ringPoly.length) return S.ringPoly;
+  return refreshRingPoly();
+}
+function distToSeg(px, py, ax, ay, bx, by) {
+  const abx = bx - ax, aby = by - ay;
+  const t = clamp(((px - ax) * abx + (py - ay) * aby) / (abx * abx + aby * aby || 1), 0, 1);
+  return Math.hypot(px - (ax + abx * t), py - (ay + aby * t));
+}
+function rimErrorPx(sx, sy) {
+  const pts = ringScreenPts();
+  if (!pts || pts.length < 2) return 999;
+  let best = 1e9;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length];
+    const d = distToSeg(sx, sy, a.x, a.y, b.x, b.y);
+    if (d < best) best = d;
+  }
+  return best;
+}
+function ellipseScreenAt(theta, from) {
+  from = from || heroScreen();
+  if (!S || !S.hero) return { x: from.x, y: from.y, t: 0 };
+  const R = ringR();
+  const ux = Math.cos(theta || 0), uy = Math.sin(theta || 0);
+  function worldD(t) {
+    const p = unprojectToY(from.x + ux * t, from.y + uy * t, 0);
+    return dist(p, S.hero);
+  }
+  let lo = 0, hi = Math.max(48, (S.ringPx || 80));
+  while (worldD(hi) < R && hi < 900) hi *= 1.5;
+  if (worldD(hi) < R) {
+    /* Fallback: nearest screen-angle point on the projected ground circle. */
+    const pts = ringScreenPts();
+    let best = pts[0] || from, bestD = 1e9;
+    pts.forEach(function (p) {
+      const d = Math.abs(angDiff(theta, screenAngleTo(p.x, p.y, from)));
+      if (d < bestD) { bestD = d; best = p; }
+    });
+    return { x: best.x, y: best.y, t: Math.hypot(best.x - from.x, best.y - from.y) };
+  }
+  for (let i = 0; i < 18; i++) {
+    const mid = (lo + hi) / 2;
+    if (worldD(mid) < R) lo = mid; else hi = mid;
+  }
+  return { x: from.x + ux * hi, y: from.y + uy * hi, t: hi };
+}
+function bellFootY(s) {
+  const ud = s && s.obj && s.obj.userData;
+  if (ud && ud.bellFootY != null) return ud.bellFootY;
+  const bh = (ud && ud.bellH) != null ? ud.bellH : 0.4;
+  if (ud && ud.bellAttachY != null) return ud.bellAttachY - bh;
+  const off = (ud && ud.bellLocal) || { y: 1 };
+  return Math.max(0.02, (off.y || 1) - bh * 0.15);
+}
+function bellFootScreen(s) {
+  const y = bellFootY(s);
+  const offx = (s && s.obj && s.obj.userData && s.obj.userData.bellLocal && s.obj.userData.bellLocal.x) || 0;
+  return projectXZ((s && s.x || 0) + offx, s && s.z || 0, y);
+}
+function angNorm(a) {
+  while (a > Math.PI) a -= Math.PI * 2;
+  while (a < -Math.PI) a += Math.PI * 2;
+  return a;
+}
+function angDiff(a, b) { return angNorm(b - a); }
+function angStep(a, b, maxStep) {
+  const d = angDiff(a, b);
+  if (Math.abs(d) <= maxStep) return angNorm(a + d);
+  return angNorm(a + (d < 0 ? -1 : 1) * maxStep);
+}
+function angleOf(x, z, from) {
+  from = from || (S && S.hero) || { x: 0, z: 0 };
+  return Math.atan2((x - from.x), (z - from.z));
+}
+function placeSpiritOnRing(s) {
+  if (!S || !s) return;
+  if (!(S.ringR > 0)) applyRingBoost();
+  else refreshRingPoly();
+  const h = heroScreen();
+  const ang = (s.angle || 0) + (s.avoid || 0);
+  const sp = ellipseScreenAt(ang, h);
+  const offx = (s.obj && s.obj.userData && s.obj.userData.bellLocal && s.obj.userData.bellLocal.x) || 0;
+  const p = unprojectToY(sp.x, sp.y, bellFootY(s));
+  s.x = p.x - offx;
+  s.z = p.z;
+  if (s.obj) placeGroup(s.obj, s.x, s.z, 0);
+}
+function shapeCount(sh) {
+  return livingMarks().filter(function (s) { return spiritShape(s) === sh; }).length;
+}
+function screenOf(ent) {
+  const y = (ent.obj && ent.obj.position && ent.obj.position.y) || 0.8;
+  const off = (ent.obj && ent.obj.userData && ent.obj.userData.bellLocal) || { x: 0, y: 1.2 };
+  return projectXZ(ent.x + (off.x || 0), ent.z, y + (off.y || 0));
+}
+function isOnScreen(ent, margin) {
+  const host = $('app') || $('ink');
+  const r = host ? host.getBoundingClientRect() : { width: 375, height: 667 };
+  const p = screenOf(ent);
+  const m = margin == null ? 20 : margin;
+  return !(p.x < -m || p.y < -m || p.x > r.width + m || p.y > r.height + m);
+}
+function livingThreats() {
+  if (!S) return [];
+  return (S.zombies || []).filter(function (z) { return z.alive; });
+}
+function lockStillGood(s, z) {
+  if (!z || !z.alive) return false;
+  const d = dist(z, S.hero);
+  const R = ringR();
+  const others = livingThreats().filter(function (q) { return q !== z; });
+  let near = 1e9;
+  others.forEach(function (q) { near = Math.min(near, dist(q, S.hero)); });
+  if (near < 1e8 && d > Math.max((CFG.lockKeep || 3) * R, near * (CFG.lockRelinquish || 1.85)) && d > near * 1.5) return false;
+  return true;
+}
+function assignSpiritTargets() {
+  if (!S) return;
+  const zs = livingThreats().slice();
+  zs.sort(function (a, b) {
+    if (a.isBoss && !b.isBoss) return -1;
+    if (b.isBoss && !a.isBoss) return 1;
+    return dist(a, S.hero) - dist(b, S.hero);
+  });
+  const used = {};
+  livingMarks().forEach(function (s) {
+    if (s.target && lockStillGood(s, s.target) && !used[s.target.id]) {
+      used[s.target.id] = true;
+    } else {
+      s.target = null;
+    }
+  });
+  livingMarks().forEach(function (s) {
+    if (s.target) return;
+    for (let i = 0; i < zs.length; i++) {
+      if (used[zs[i].id]) continue;
+      s.target = zs[i];
+      used[zs[i].id] = true;
+      break;
+    }
+  });
+}
+function zombieScreenBody(z) {
+  const top = projectXZ(z.x, z.z, 1.45);
+  const bot = projectXZ(z.x, z.z, 0);
+  return {
+    x: (top.x + bot.x) * 0.5,
+    y: (top.y + bot.y) * 0.5,
+    r: Math.max(16, Math.hypot(top.x - bot.x, top.y - bot.y) * 0.42)
+  };
+}
+function spiritAvoidWant(s) {
+  if (!S || !s) return 0;
+  const hs = heroScreen();
+  const R = ringR();
+  const px = (S.ringPx > 0) ? S.ringPx : screenRingPx();
+  if (!(R > 0.5) || !(px > 8)) return 0;
+  const base = s.angle || 0;
+  const on = ellipseScreenAt(base, hs);
+  const sx = on.x, sy = on.y;
+  const sprR = 18;
+  const cap = CFG.spiritAvoidMax || 0.30;
+  let push = 0;
+  livingThreats().forEach(function (z) {
+    /* Inside the ground-circle orbit, not merely standing just outside the rim. */
+    if (dist(z, S.hero) >= R - 0.12) return;
+    const zb = zombieScreenBody(z);
+    const d = Math.hypot(zb.x - sx, zb.y - sy);
+    const need = sprR + zb.r + 6;
+    if (d >= need) return;
+    const zAng = screenAngleTo(zb.x, zb.y, hs);
+    let side = -Math.sign(angDiff(base, zAng));
+    if (!side) side = (s.id % 2) ? 1 : -1;
+    const ang = clamp((need - d) / Math.max(24, px), 0, cap);
+    const signed = side * ang;
+    if (Math.abs(signed) > Math.abs(push)) push = signed;
+  });
+  return clamp(push, -cap, cap);
+}
+function stepSpiritAvoid(s, dt, snap) {
+  const want = spiritAvoidWant(s);
+  if (snap || qa.noDelay) {
+    s.avoid = want;
+    return;
+  }
+  const cur = s.avoid || 0;
+  const step = (CFG.spiritAvoidOmega || 8) * (dt || 0);
+  const d = want - cur;
+  s.avoid = (Math.abs(d) <= step) ? want : cur + Math.sign(d) * step;
+}
+function snapSpiritsToTargets() {
+  if (!S) return;
+  assignSpiritTargets();
+  if (!(S.ringPx > 0) || !(S.ringR > 0)) applyRingBoost();
+  const hs = heroScreen();
+  livingMarks().forEach(function (s) {
+    if (s.target && s.target.alive) {
+      const tp = projectXZ(s.target.x, s.target.z, 0.8);
+      s.angle = screenAngleTo(tp.x, tp.y, hs);
+    }
+    stepSpiritAvoid(s, 0, true);
+    placeSpiritOnRing(s);
+  });
+}
+function stepSpirits(dt) {
+  if (!S) return;
+  if (!(S.ringPx > 0) || !(S.ringR > 0)) applyRingBoost();
+  assignSpiritTargets();
+  const maxW = (qa.noDelay ? 20 : 1) * (CFG.spiritOmega || 2.8);
+  const hs = heroScreen();
+  livingMarks().forEach(function (s) {
+    let want = s.angle;
+    if (s.target && s.target.alive) {
+      const tp = projectXZ(s.target.x, s.target.z, 0.8);
+      want = screenAngleTo(tp.x, tp.y, hs);
+    }
+    if (qa.noDelay) s.angle = angNorm(want);
+    else s.angle = angStep(s.angle || 0, want, maxW * dt);
+    stepSpiritAvoid(s, dt, false);
+  });
+  livingMarks().forEach(function (s) {
+    placeSpiritOnRing(s);
+    if (art.tickChar) art.tickChar(s.obj, 'spirit', 'idle', Math.min(0.05, dt), 0, 0);
+  });
+}
+function addSpirit(opts) {
+  opts = opts || {};
+  if (!S) return null;
+  if (!opts.force && livingMarks().length >= (CFG.spiritMax || 4)) return null;
+  return spawnSpirit(opts);
+}
+function setSpiritCount(n) {
+  if (!S) return [];
+  n = clamp(n | 0, 0, CFG.spiritMax || 4);
+  while (livingMarks().length > n) {
+    const s = S.spirits[S.spirits.length - 1];
+    s.alive = false;
+    if (s.obj && three) three.scene.remove(s.obj);
+    S.spirits.pop();
+  }
+  while (livingMarks().length < n) spawnSpirit({ force: true });
+  if (qa.noDelay) snapSpiritsToTargets();
+  else assignSpiritTargets();
+  return livingMarks();
+}
 function spawnSpirit(opts) {
   opts = opts || {};
+  if (opts.boss) return spawnBoss(opts);
+  if (!S) return null;
   const shape = opts.shape || leastUsedShape();
-  const ring = CFG.spiritRing || [8, 12];
-  const p = opts.x != null ? { x: opts.x, z: opts.z } : ringPos(opts.r || (ring[0] + Math.random() * (ring[1] - ring[0])));
-  const isBoss = !!opts.boss;
+  let angle;
+  if (opts.angle != null) angle = opts.angle;
+  else if (opts.x != null && opts.z != null) {
+    const hs = heroScreen();
+    const tp = projectXZ(opts.x, opts.z, 0.8);
+    angle = screenAngleTo(tp.x, tp.y, hs);
+  } else {
+    const n = livingMarks().length;
+    angle = (n * 1.134) + Math.random() * 0.4;
+  }
   const e = {
-    id: ++S._id, kind: 'spirit', shape: shape, x: p.x, z: p.z, r: isBoss ? 1.1 : 0.7,
-    alive: true, hp: 1, isBoss: isBoss,
-    seq: isBoss ? (opts.seq || pickSeq(opts.nShapes || CFG.bossShapes)) : null,
-    seqI: 0
+    id: ++S._id, kind: 'spirit', shape: shape, angle: angNorm(angle),
+    x: 0, z: 0, r: 0.7, alive: true, hp: 1, isBoss: false, target: null, avoid: 0
   };
-  if (isBoss) e.shape = e.seq[0];
   const vis = (S.bellT > 0 && S.bellShape) ? S.bellShape : e.shape;
-  e.obj = addEntityVisual(isBoss ? 'boss' : 'spirit', vis);
+  e.obj = addEntityVisual('spirit', vis);
   if (S.bellT > 0 && art.setAura) art.setAura(e.obj, true);
-  placeGroup(e.obj, e.x, e.z, 0.15);
+  placeSpiritOnRing(e);
   S.spirits.push(e);
-  if (isBoss) { S.boss = e; S.bossSpawned = true; }
-  if (!isBoss && S.practiceSpawns > 0) S.practiceSpawns--;
+  if (S.practiceSpawns > 0 && S.practiceShape && e.shape === S.practiceShape) S.practiceSpawns--;
+  assignSpiritTargets();
+  return e;
+}
+function spawnBoss(opts) {
+  opts = opts || {};
+  const ring = CFG.zombieRing || [10, 14];
+  const p = opts.x != null ? { x: opts.x, z: opts.z } : ringPos(opts.r || 16);
+  const seq = opts.seq || pickSeq(opts.nShapes || CFG.bossShapes);
+  const e = {
+    id: ++S._id, kind: 'zombie', shape: seq[0], x: p.x, z: p.z, r: 1.1,
+    alive: true, hp: opts.hp != null ? opts.hp : 99,
+    frozen: 0, burn: 0, burnTick: 0, poison: 0, poisonT: 0, poisonTick: 0, stun: 0,
+    marked: false, isBoss: true, seq: seq, seqI: 0
+  };
+  const vis = e.shape;
+  e.obj = addEntityVisual('boss', vis);
+  placeGroup(e.obj, e.x, e.z);
+  S.zombies.push(e);
+  S.boss = e; S.bossSpawned = true;
+  assignSpiritTargets();
   return e;
 }
 function spawnZombie(opts) {
   opts = opts || {};
   const zr = CFG.zombieRing || [10, 14];
-  const p = opts.x != null ? { x: opts.x, z: opts.z } : ringPos(zr[0] + Math.random() * (zr[1] - zr[0]));
-  const e = { id: ++S._id, kind: 'zombie', x: p.x, z: p.z, r: 0.55, alive: true, hp: opts.hp != null ? opts.hp : CFG.zombieHp, frozen: 0, burn: 0, burnTick: 0, poison: 0, poisonT: 0, poisonTick: 0 };
+  const p = opts.x != null ? { x: opts.x, z: opts.z } : ringPos(opts.r != null ? opts.r : (zr[0] + Math.random() * (zr[1] - zr[0])));
+  const e = {
+    id: ++S._id, kind: 'zombie', x: p.x, z: p.z, r: 0.55, alive: true,
+    hp: opts.hp != null ? opts.hp : CFG.zombieHp,
+    frozen: 0, burn: 0, burnTick: 0, poison: 0, poisonT: 0, poisonTick: 0, stun: 0,
+    marked: false, shape: null, isBoss: false
+  };
   e.obj = addEntityVisual('zombie');
   placeGroup(e.obj, e.x, e.z);
   S.zombies.push(e);
+  if (qa.noDelay) snapSpiritsToTargets();
+  else assignSpiritTargets();
   return e;
 }
 function spawnItem(opts) {
@@ -412,8 +779,8 @@ function refreshTitleHelp() {
   el.innerHTML = pool.map(titleChip).join('');
   const sub = $('titleSub');
   if (sub) {
-    if (pool.length === 1 && pool[0] === 'tap') sub.textContent = '1판은 탭만 나옵니다. 점을 찍거나 짧게 눌러 혼령에게 다가가세요.';
-    else sub.textContent = '종에 새겨진 모양을 그려, 그은 방향의 혼령에게 돌진하세요';
+    if (pool.length === 1 && pool[0] === 'tap') sub.textContent = '1판은 탭만 나옵니다. 점을 찍거나 짧게 눌러 원 위 혼령에게 다가가세요.';
+    else sub.textContent = '주인공 둘레 푸른 원 위의 종 모양을 그려, 그 혼령 방향으로 돌진하세요';
   }
   return { run: run, pool: pool, html: el.innerHTML };
 }
@@ -427,13 +794,11 @@ function leastUsedShape() {
   const pool = spawnPool();
   const counts = {};
   pool.forEach(function (sh) { counts[sh] = 0; });
-  if (S && S.spirits) {
-    S.spirits.forEach(function (s) {
-      if (!s.alive || s.isBoss) return;
-      const sh = spiritShape(s);
-      if (counts[sh] != null) counts[sh]++;
-    });
-  }
+  livingMarks().forEach(function (s) {
+    if (s.isBoss) return;
+    const sh = spiritShape(s);
+    if (counts[sh] != null) counts[sh]++;
+  });
   let min = 99, best = pool.slice();
   pool.forEach(function (sh) {
     const n = counts[sh] || 0;
@@ -467,6 +832,56 @@ function projectXZ(x, z, y) {
   _proj.v.set(x, y || 0.4, z).project(three.camera);
   return { x: (_proj.v.x * 0.5 + 0.5) * r.width, y: (-_proj.v.y * 0.5 + 0.5) * r.height };
 }
+function viewBox() {
+  const host = $('app') || $('ink');
+  return host ? host.getBoundingClientRect() : { width: 375, height: 667, left: 0, top: 0 };
+}
+function heroScreen() {
+  const y = (three && three.heroSpr && three.heroSpr.userData && three.heroSpr.userData.worldH)
+    ? three.heroSpr.userData.worldH * 0.45 : 0.85;
+  return projectXZ(S.hero.x, S.hero.z, y);
+}
+function screenRingPx() {
+  const box = viewBox();
+  const lv = (S && S.ringLv) || 0;
+  let frac = (CFG.ringScreenFrac || 0.70) * (1 + (CFG.ringBoost || 0.14) * lv);
+  const capFrac = CFG.ringMaxFrac || 0.90;
+  const diam = Math.min(box.width * frac, Math.min(box.width, box.height) * capFrac);
+  return Math.max(40, diam / 2);
+}
+function unprojectToY(sx, sy, y0) {
+  if (!three || !three.camera) return { x: S && S.hero ? S.hero.x : 0, z: S && S.hero ? S.hero.z : 0 };
+  const box = viewBox();
+  if (!_proj.a) { _proj.a = new THREE.Vector3(); _proj.b = new THREE.Vector3(); }
+  const ndcX = (sx / Math.max(1, box.width)) * 2 - 1;
+  const ndcY = -(sy / Math.max(1, box.height)) * 2 + 1;
+  _proj.a.set(ndcX, ndcY, 0).unproject(three.camera);
+  _proj.b.set(ndcX, ndcY, 1).unproject(three.camera);
+  const dx = _proj.b.x - _proj.a.x, dy = _proj.b.y - _proj.a.y, dz = _proj.b.z - _proj.a.z;
+  if (Math.abs(dy) < 1e-6) return { x: S.hero.x, z: S.hero.z };
+  const k = (y0 - _proj.a.y) / dy;
+  return { x: _proj.a.x + dx * k, z: _proj.a.z + dz * k };
+}
+function bellWorld(s) {
+  const hang = s && s.obj && s.obj.userData && s.obj.userData.bellHang;
+  if (hang && hang.bell) {
+    if (!_proj.c) _proj.c = new THREE.Vector3();
+    const bh = (s.obj.userData.bellH != null) ? s.obj.userData.bellH : 0.4;
+    _proj.c.set(0, bh * 0.52, 0);
+    hang.bell.updateWorldMatrix(true, false);
+    _proj.c.applyMatrix4(hang.bell.matrixWorld);
+    return { x: _proj.c.x, y: _proj.c.y, z: _proj.c.z };
+  }
+  const off = (s && s.obj && s.obj.userData && s.obj.userData.bellLocal) || { x: 0, y: 1 };
+  return { x: s.x, y: off.y || 1, z: s.z };
+}
+function bellScreen(s) {
+  const b = bellWorld(s);
+  return projectXZ(b.x, b.z, b.y);
+}
+function screenAngleTo(sx, sy, from) {
+  return Math.atan2(sy - from.y, sx - from.x);
+}
 function strokeScreenDir(pts) {
   if (!pts || pts.length < 2) return null;
   const a = pts[0], b = pts[pts.length - 1];
@@ -475,43 +890,88 @@ function strokeScreenDir(pts) {
   if (L < 8) return null;
   return { x: dx / L, y: dy / L };
 }
-function pickSpirits(shape, n, from, dir, exclude) {
-  from = from || (S && S.hero);
-  const skip = exclude || [];
-  const list = S.spirits.filter(function (s) { return s.alive && spiritShape(s) === shape && skip.indexOf(s) < 0; });
-  const boss = list.filter(function (s) { return s.isBoss; });
-  const rest = list.filter(function (s) { return !s.isBoss; });
-  const heroScr = projectXZ(from.x, from.z);
-  if (dir && (dir.x || dir.y)) {
-    rest.sort(function (a, b) {
-      const va = projectXZ(a.x, a.z), vb = projectXZ(b.x, b.z);
-      const da = Math.hypot(va.x - heroScr.x, va.y - heroScr.y) || 1;
-      const db = Math.hypot(vb.x - heroScr.x, vb.y - heroScr.y) || 1;
-      const sa = ((va.x - heroScr.x) / da) * dir.x + ((va.y - heroScr.y) / da) * dir.y;
-      const sb = ((vb.x - heroScr.x) / db) * dir.x + ((vb.y - heroScr.y) / db) * dir.y;
-      if (Math.abs(sb - sa) > 0.08) return sb - sa;
-      return dist(b, from) - dist(a, from);
-    });
-  } else {
-    /* Tap (or no direction): nearest first. */
-    rest.sort(function (a, b) { return dist(a, from) - dist(b, from); });
+function strokeAimDir(pts, type) {
+  if (!pts || pts.length < 2) return null;
+  if (type === 'vee') {
+    let vi = 0, bestY = -1e9;
+    for (let i = 0; i < pts.length; i++) if (pts[i].y > bestY) { bestY = pts[i].y; vi = i; }
+    const v = pts[vi], mid = { x: (pts[0].x + pts[pts.length - 1].x) * 0.5, y: (pts[0].y + pts[pts.length - 1].y) * 0.5 };
+    const dx = v.x - mid.x, dy = v.y - mid.y, L = Math.hypot(dx, dy);
+    if (L < 8) return strokeScreenDir(pts);
+    return { x: dx / L, y: dy / L };
   }
-  /* Living boss of the same shape stays first so play-to-boss is reliable. */
+  if (type === 'square' || type === 'circle') return null;
+  return strokeScreenDir(pts);
+}
+function strokeCentroid(pts) {
+  if (!pts || !pts.length) return null;
+  let x = 0, y = 0;
+  pts.forEach(function (p) { x += p.x; y += p.y; });
+  return { x: x / pts.length, y: y / pts.length };
+}
+function pickSpirits(shape, n, from, dir, exclude, opts) {
+  from = from || (S && S.hero);
+  opts = opts || {};
+  const skip = exclude || [];
+  const list = livingMarks().filter(function (s) { return spiritShape(s) === shape && skip.indexOf(s) < 0; });
+  const boss = list.filter(function (s) { return s.isBoss; });
+  let rest = list.filter(function (s) { return !s.isBoss; });
+  const on = rest.filter(function (s) { return isOnScreen(s, 20); });
+  const off = rest.filter(function (s) { return !isOnScreen(s, 20); });
+  if (on.length) rest = on;
+  const heroScr = projectXZ(from.x, from.z);
+  const screenAt = opts.screenAt;
+  function sortRest(arr) {
+    const copy = arr.slice();
+    if (screenAt) {
+      copy.sort(function (a, b) {
+        const va = screenOf(a), vb = screenOf(b);
+        return Math.hypot(va.x - screenAt.x, va.y - screenAt.y) - Math.hypot(vb.x - screenAt.x, vb.y - screenAt.y);
+      });
+    } else if (dir && (dir.x || dir.y)) {
+      const dMax = copy.reduce(function (m, s) { return Math.max(m, dist(s, from)); }, 1) || 1;
+      const cone = CFG.aimConeCos || 0.5;
+      const wN = CFG.aimNearW == null ? 0.35 : CFG.aimNearW;
+      const scored = copy.map(function (s) {
+        const va = projectXZ(s.x, s.z);
+        const da = Math.hypot(va.x - heroScr.x, va.y - heroScr.y) || 1;
+        const cos = ((va.x - heroScr.x) / da) * dir.x + ((va.y - heroScr.y) / da) * dir.y;
+        const score = cos - wN * (dist(s, from) / dMax);
+        return { s: s, cos: cos, score: score };
+      });
+      let pick = scored.filter(function (o) { return o.cos >= cone; });
+      if (!pick.length) {
+        copy.sort(function (a, b) { return dist(a, from) - dist(b, from); });
+        return copy;
+      }
+      pick.sort(function (a, b) { return b.score - a.score; });
+      return pick.map(function (o) { return o.s; });
+    } else {
+      copy.sort(function (a, b) { return dist(a, from) - dist(b, from); });
+    }
+    return copy;
+  }
+  rest = sortRest(rest);
+  if (rest.length < n && off.length) rest = rest.concat(sortRest(off));
   return boss.concat(rest).slice(0, Math.max(0, n));
 }
 function farthestSpirits(shape, n, from) {
   return pickSpirits(shape, n, from, S && S.lastStrokeDir);
 }
 function spiritShape(s) {
+  if (!s) return null;
   if (S && S.bellT > 0 && S.bellShape) return S.bellShape;
+  if (s.kind === 'spirit' && s.target && s.target.isBoss && s.target.alive && s.target.seq) {
+    return s.target.seq[s.target.seqI] || s.shape;
+  }
   return s.isBoss ? s.seq[s.seqI] : s.shape;
 }
 function startBell(shape, dur) {
   if (!S) return;
   S.bellShape = shape || spawnPool()[Math.floor(Math.random() * spawnPool().length)];
   S.bellT = dur != null ? dur : CFG.bellDur;
-  S.spirits.forEach(function (s) {
-    if (s.alive && s.obj) {
+  livingMarks().forEach(function (s) {
+    if (s.obj) {
       if (art.setSpiritShape) art.setSpiritShape(s.obj, S.bellShape);
       if (art.setAura) art.setAura(s.obj, true);
     }
@@ -523,8 +983,8 @@ function startBell(shape, dur) {
 function endBell() {
   if (!S) return;
   S.bellT = 0; S.bellShape = null;
-  S.spirits.forEach(function (s) {
-    if (s.alive && s.obj) {
+  livingMarks().forEach(function (s) {
+    if (s.obj) {
       if (art.setSpiritShape) art.setSpiritShape(s.obj, s.isBoss ? s.seq[s.seqI] : s.shape);
       if (art.setAura) art.setAura(s.obj, false);
     }
@@ -617,29 +1077,57 @@ function markCssSize(w) {
   return clamp(Math.round(min * Math.sqrt((w || 375) / 375)), min, max);
 }
 
-function drawTapGlyph(ctx, x, y, size) {
-  /* Finger-tap / ink droplet — pointed, not a hollow O. */
-  const s = size * 0.42;
+function inkGlyphPath(ctx, shape, size) {
+  const s = size * 0.38;
+  ctx.beginPath();
+  if (shape === 'tap') {
+    const d = s * 1.05;
+    ctx.moveTo(0, -d * 1.05);
+    ctx.bezierCurveTo(d * 0.55, -d * 0.35, d * 0.78, d * 0.15, d * 0.72, d * 0.55);
+    ctx.bezierCurveTo(d * 0.62, d * 1.05, d * 0.32, d * 1.22, 0, d * 1.22);
+    ctx.bezierCurveTo(-d * 0.32, d * 1.22, -d * 0.62, d * 1.05, -d * 0.72, d * 0.55);
+    ctx.bezierCurveTo(-d * 0.78, d * 0.15, -d * 0.55, -d * 0.35, 0, -d * 1.05);
+    ctx.closePath();
+  } else if (shape === 'hline') {
+    ctx.moveTo(-s * 1.15, 0); ctx.lineTo(s * 1.15, 0);
+  } else if (shape === 'vline') {
+    ctx.moveTo(0, -s * 1.15); ctx.lineTo(0, s * 1.15);
+  } else if (shape === 'vee') {
+    ctx.moveTo(-s * 1.05, -s * 0.85); ctx.lineTo(0, s * 1.05); ctx.lineTo(s * 1.05, -s * 0.85);
+  } else if (shape === 'square') {
+    const q = s * 0.85;
+    ctx.rect(-q, -q, q * 2, q * 2);
+  } else {
+    ctx.arc(0, 0, s * 0.95, 0, Math.PI * 2);
+    ctx.closePath();
+  }
+}
+function drawInkGlyph(ctx, shape, x, y, size, lit) {
+  /* Tight ink engraved on the bell — no light-blob / button halo. */
   ctx.save();
-  ctx.translate(x, y - size * 0.04);
-  ctx.beginPath();
-  ctx.moveTo(0, -s * 1.05);
-  ctx.bezierCurveTo(s * 0.55, -s * 0.35, s * 0.78, s * 0.15, s * 0.72, s * 0.55);
-  ctx.bezierCurveTo(s * 0.62, s * 1.05, s * 0.32, s * 1.22, 0, s * 1.22);
-  ctx.bezierCurveTo(-s * 0.32, s * 1.22, -s * 0.62, s * 1.05, -s * 0.72, s * 0.55);
-  ctx.bezierCurveTo(-s * 0.78, s * 0.15, -s * 0.55, -s * 0.35, 0, -s * 1.05);
-  ctx.closePath();
-  ctx.fillStyle = '#F4E8D0';
-  ctx.fill();
-  ctx.strokeStyle = '#0E0C0A';
-  ctx.lineWidth = Math.max(2, size * 0.055);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.arc(0, s * 1.55, s * 0.72, 0.12 * Math.PI, 0.88 * Math.PI);
-  ctx.strokeStyle = '#F4E8D0';
-  ctx.lineWidth = Math.max(1.6, size * 0.05);
+  ctx.translate(x, y);
   ctx.lineCap = 'round';
-  ctx.stroke();
+  ctx.lineJoin = 'round';
+  const w = Math.max(2.2, size * 0.14);
+  const ink = '#120E0B';
+  const paper = lit ? '#F0D48A' : '#F6EBD4';
+  if (shape === 'tap') {
+    inkGlyphPath(ctx, shape, size);
+    ctx.fillStyle = paper;
+    ctx.fill();
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = Math.max(1.8, size * 0.07);
+    ctx.stroke();
+  } else {
+    inkGlyphPath(ctx, shape, size);
+    ctx.strokeStyle = ink;
+    ctx.lineWidth = w + 1.8;
+    ctx.stroke();
+    inkGlyphPath(ctx, shape, size);
+    ctx.strokeStyle = paper;
+    ctx.lineWidth = w;
+    ctx.stroke();
+  }
   ctx.restore();
 }
 function updateMarks() {
@@ -658,21 +1146,92 @@ function updateMarks() {
   ctx.clearRect(0, 0, r.width, r.height);
   const size = markCssSize(r.width);
   lastMarkMetrics = { cssPx: size, minCss: CFG.markMinCss || 40, w: r.width, h: r.height, marks: [] };
-  if (!S || !three || !S.spirits) return;
+  if (!S || !three) return;
   if (!_proj.v) _proj.v = new THREE.Vector3();
+  if (S.playing && S.hero) {
+    if (!(S.ringR > 0)) applyRingBoost();
+    else refreshRingPoly();
+  }
+  const hs = (S.playing && S.hero) ? heroScreen() : { x: r.width * 0.5, y: r.height * 0.55 };
+  const ringPx = (S.playing && S.hero) ? ((S.ringPx > 0) ? S.ringPx : screenRingPx()) : 0;
+  if (S.playing && S.hero && ringPx > 0) {
+    if (!(S.ringR > 0) || !S.ringPoly) applyRingBoost();
+    const pts = ringScreenPts();
+    let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+    if (pts.length) {
+      ctx.beginPath();
+      pts.forEach(function (p, i) { if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); });
+      ctx.closePath();
+      ctx.strokeStyle = 'rgba(150, 210, 240, 0.34)';
+      ctx.lineWidth = 1.8;
+      ctx.shadowColor = 'rgba(120, 200, 240, 0.28)';
+      ctx.shadowBlur = 5;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      pts.forEach(function (p) {
+        if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+      });
+    }
+    const diam = (maxX > minX) ? (maxX - minX) : ringPx * 2;
+    lastMarkMetrics.ring = {
+      r: ringR(), px: diam / 2, rx: diam / 2, ry: (maxY > minY) ? (maxY - minY) / 2 : 0,
+      cx: hs.x, cy: hs.y, diamPx: diam, frac: r.width ? diam / r.width : 0,
+      ringLv: S.ringLv || 0, pts: pts, kind: 'ellipse'
+    };
+  }
   const placed = [];
-  S.spirits.forEach(function (s) {
-    if (!s.alive || !s.obj) return;
-    const off = s.obj.userData.bellLocal || { x: 0, y: 1.2 };
-    _proj.v.set(s.x + (off.x || 0), (s.obj.position.y || 0) + off.y, s.z).project(three.camera);
+  const arrows = [];
+  const aimId = S.aimTarget && S.aimTarget.alive ? S.aimTarget.id : null;
+  if (S.boss && S.boss.alive && S.boss.obj) {
+    const b = S.boss;
+    const off = (b.obj.userData && b.obj.userData.bellLocal) || { x: 0, y: 2.2 };
+    _proj.v.set(b.x + (off.x || 0), (b.obj.position.y || 0) + (off.y || 2.2), b.z).project(three.camera);
     const ox = (_proj.v.x * 0.5 + 0.5) * r.width;
     const oy = (-_proj.v.y * 0.5 + 0.5) * r.height;
+    placed.push({
+      x: ox, y: oy, ox: ox, oy: oy, cssPx: size, onScreen: true,
+      shape: spiritShape(b), boss: true, id: b.id, aim: false,
+      seq: (b.seq || []).slice(), seqI: b.seqI || 0, seqOnly: true
+    });
+  }
+  livingMarks().forEach(function (s) {
+    if (!s.obj) return;
+    const bp = bellScreen(s);
+    const ox = bp.x, oy = bp.y;
+    const bh = (s.obj.userData && s.obj.userData.bellH) || 0.4;
+    const bodyH = (s.obj.userData && s.obj.userData.bodyH) || 1.5;
+    const bellTop = projectXZ(s.x, s.z, ((s.obj.userData.bellLocal || {}).y || bh) + bh * 0.5);
+    const bellBot = projectXZ(s.x, s.z, ((s.obj.userData.bellLocal || {}).y || bh) - bh * 0.5);
+    const bellPx = Math.max(16, Math.hypot(bellTop.x - bellBot.x, bellTop.y - bellBot.y));
+    const bodyTop = projectXZ(s.x, s.z, bodyH);
+    const bodyBot = projectXZ(s.x, s.z, 0);
+    const bodyPx = Math.max(16, Math.hypot(bodyTop.x - bodyBot.x, bodyTop.y - bodyBot.y));
+    const glyphPx = clamp(Math.round(bellPx * 0.82), 28, 80);
     const on = !(ox < -20 || oy < -20 || ox > r.width + 20 || oy > r.height + 20);
-    const item = { x: ox, y: oy, ox: ox, oy: oy, cssPx: size, onScreen: on, shape: spiritShape(s), boss: !!s.isBoss };
+    const item = {
+      x: ox, y: oy, ox: ox, oy: oy, cssPx: glyphPx, onScreen: on,
+      shape: spiritShape(s), boss: !!s.isBoss, id: s.id, aim: s.id === aimId,
+      seq: s.isBoss ? (s.seq || []).slice() : null, seqI: s.seqI || 0,
+      bellPx: bellPx, bodyPx: bodyPx, glyph: !!s.isBoss, bellTex: (s.obj.userData.bellHang && s.obj.userData.bellHang.bell && s.obj.userData.bellHang.bell.userData && s.obj.userData.bellHang.bell.userData.bellTex) || null
+    };
     lastMarkMetrics.marks.push(item);
     if (on) placed.push(item);
+    if (s.target && s.target.alive && !isOnScreen(s.target, 20)) {
+      const tp = projectXZ(s.target.x, s.target.z, 0.8);
+      const m = 18;
+      arrows.push({
+        x: clamp(tp.x, m, r.width - m), y: clamp(tp.y, m, r.height - m),
+        ox: tp.x, oy: tp.y, id: s.target.id, shape: item.shape
+      });
+    }
   });
-  const minD = size + 10;
+  lastMarkMetrics.arrows = arrows;
+  livingMarks().forEach(function (s) {
+    if (art.setBellAim) art.setBellAim(s.obj, !!(aimId && s.id === aimId));
+  });
+  const minD = 8;
+  /* Separate overlapping glyphs enough to read; stay near the bell when already apart. */
   for (let iter = 0; iter < 8; iter++) {
     for (let i = 0; i < placed.length; i++) {
       for (let j = i + 1; j < placed.length; j++) {
@@ -680,19 +1239,15 @@ function updateMarks() {
         let dx = b.x - a.x, dy = b.y - a.y;
         let d = Math.hypot(dx, dy);
         if (d < 0.01) { dx = 1; dy = 0; d = 1; }
-        if (d < minD) {
-          const push = (minD - d) * 0.5;
+        const need = Math.max(a.cssPx || size, b.cssPx || size) * 0.85 + 0.05;
+        if (d < need) {
+          const push = (need - d) * 0.5;
           a.x -= dx / d * push; a.y -= dy / d * push;
           b.x += dx / d * push; b.y += dy / d * push;
         }
       }
     }
   }
-  const maxOff = size * 1.25;
-  placed.forEach(function (m) {
-    const odx = m.x - m.ox, ody = m.y - m.oy, ol = Math.hypot(odx, ody);
-    if (ol > maxOff) { m.x = m.ox + odx / ol * maxOff; m.y = m.oy + ody / ol * maxOff; }
-  });
   let minSep = 9999;
   for (let i = 0; i < placed.length; i++) {
     for (let j = i + 1; j < placed.length; j++) {
@@ -701,43 +1256,64 @@ function updateMarks() {
   }
   lastMarkMetrics.minSep = placed.length > 1 ? minSep : minD;
   lastMarkMetrics.tapStyle = 'droplet';
+  lastMarkMetrics.markStyle = 'bell-tex';
+  lastMarkMetrics.glyphOn = 'boss-only';
+  if (placed.length) {
+    lastMarkMetrics.cssPx = placed.reduce(function (m, p) { return Math.max(m, p.cssPx || 0); }, 0) || size;
+    lastMarkMetrics.bellPx = placed.reduce(function (m, p) { return Math.max(m, p.bellPx || 0); }, 0);
+    lastMarkMetrics.bodyPx = placed.reduce(function (m, p) { return Math.max(m, p.bodyPx || 0); }, 0);
+  }
   placed.forEach(function (m) {
     const x = m.x, y = m.y, sh = m.shape;
-    const key = SHAPE_KEY[sh] || 'O';
-    const im = markImgs[key];
     const pulse = (S && S.beatPulse) ? S.beatPulse : 0;
-    const rad = size / 2 + 3 + pulse * 4;
+    const gsize = m.cssPx || size;
+    const rad = gsize / 2 + pulse * 2;
     ctx.save();
-    if (Math.hypot(x - m.ox, y - m.oy) > 3) {
-      ctx.strokeStyle = 'rgba(244,232,208,0.65)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.moveTo(m.ox, m.oy); ctx.lineTo(x, y); ctx.stroke();
-    }
-    ctx.fillStyle = 'rgba(8,6,5,0.78)';
-    ctx.beginPath(); ctx.arc(x, y, rad, 0, 7); ctx.fill();
-    ctx.strokeStyle = paperRgba(0.95);
-    ctx.lineWidth = Math.max(2, size * 0.08);
-    ctx.beginPath(); ctx.arc(x, y, rad - 1, 0, 7); ctx.stroke();
-    if (sh === 'tap') {
-      drawTapGlyph(ctx, x, y, size);
-    } else if (sh === 'square') {
-      const q = size * 0.28;
-      ctx.strokeStyle = '#F4E8D0';
-      ctx.lineWidth = Math.max(3, size * 0.1);
-      ctx.strokeRect(x - q, y - q, q * 2, q * 2);
-      ctx.strokeStyle = '#0E0C0A';
-      ctx.lineWidth = Math.max(1.5, size * 0.05);
-      ctx.strokeRect(x - q + 1, y - q + 1, q * 2 - 2, q * 2 - 2);
-    } else if (im && im.complete && im.naturalWidth) {
-      ctx.drawImage(im, x - size / 2, y - size / 2, size, size);
-    } else {
-      ctx.fillStyle = '#F4E8D0';
-      ctx.font = '700 ' + Math.round(size * 0.62) + 'px serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(SHAPE_MARK[sh] || '', x, y + 1);
+    if (m.boss) drawInkGlyph(ctx, sh, x, y, gsize, !!m.aim);
+    if (m.boss && m.seq && m.seq.length) {
+      const gap = size * 0.38;
+      const rowY = y - rad - 10;
+      const rowX = x - ((m.seq.length - 1) * gap) * 0.5;
+      m.seq.forEach(function (seqSh, i) {
+        const done = i < m.seqI;
+        const cur = i === m.seqI;
+        const px = rowX + i * gap;
+        ctx.beginPath(); ctx.arc(px, rowY, cur ? 7 : 5, 0, 7);
+        ctx.fillStyle = done ? 'rgba(80,70,60,0.7)' : (cur ? '#E8C04A' : 'rgba(244,232,208,0.85)');
+        ctx.fill();
+        ctx.fillStyle = '#0E0C0A';
+        ctx.font = '700 9px serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(SHAPE_MARK[seqSh] || '', px, rowY + 0.5);
+      });
     }
     ctx.restore();
   });
+  arrows.forEach(function (a) {
+    const dx = a.ox - a.x, dy = a.oy - a.y, L = Math.hypot(dx, dy) || 1;
+    const ux = dx / L, uy = dy / L;
+    ctx.save();
+    ctx.translate(a.x, a.y);
+    ctx.rotate(Math.atan2(uy, ux));
+    ctx.fillStyle = 'rgba(232,192,74,0.92)';
+    ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(-7, 6); ctx.lineTo(-7, -6); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  });
+  if (aimId && S.hero && three && three.camera) {
+    const tgt = livingMarks().filter(function (s) { return s.id === aimId; })[0];
+    if (tgt) {
+      _proj.v.set(S.hero.x, 0.4, S.hero.z).project(three.camera);
+      const hx = (_proj.v.x * 0.5 + 0.5) * r.width;
+      const hy = (-_proj.v.y * 0.5 + 0.5) * r.height;
+      const tscr = screenOf(tgt);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(232,192,74,0.6)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(tscr.x, tscr.y); ctx.stroke();
+      ctx.restore();
+    }
+  }
   if (S && S.playing && S.hero && three && three.camera) {
     _proj.v.set(S.hero.x, 0.05, S.hero.z).project(three.camera);
     const hx = (_proj.v.x * 0.5 + 0.5) * r.width;
@@ -776,13 +1352,22 @@ function updateMarks() {
 
 
 
+function beatClock() {
+  if (audio && audio.info && !qa.noDelay && (qa.timeScale || 1) === 1) {
+    const inf = audio.info();
+    if (inf && inf.clock != null) return inf.clock;
+  }
+  return (S && S.elapsed) || 0;
+}
 function beatInfo() {
   const per = 60 / (CFG.bpm || 100);
-  const t = (S && S.elapsed) || 0;
+  const t = beatClock();
   let ph = (t / per) % 1;
   if (ph < 0) ph += 1;
   const dt = Math.min(ph, 1 - ph) * per;
-  return { period: per, phase: ph, dt: dt, perfect: dt <= (CFG.beatWindow || 0.16), bpm: CFG.bpm };
+  const perf = CFG.beatWindow || 0.09;
+  const good = CFG.beatGood || 0.18;
+  return { period: per, phase: ph, dt: dt, perfect: dt <= perf, good: dt <= good && dt > perf, bpm: CFG.bpm };
 }
 
 function failHint() {
@@ -791,8 +1376,7 @@ function failHint() {
     return SHAPE_HINT[S.practiceShape];
   }
   const counts = {};
-  (S.spirits || []).forEach(function (s) {
-    if (!s.alive) return;
+  livingMarks().forEach(function (s) {
     const k = spiritShape(s);
     counts[k] = (counts[k] || 0) + 1;
   });
@@ -817,10 +1401,20 @@ function showJudge(text) {
 }
 let _audio = null;
 function playBeatBell() {
-  if (audio) {
-    audio.setQuiet(qa.mute, qa.noDelay);
-    audio.bell();
-  }
+  if (!audio) return;
+  audio.setQuiet(qa.mute, qa.noDelay);
+  const host = $('app') || $('ink');
+  const w = host ? host.getBoundingClientRect().width : 375;
+  const pans = [];
+  livingMarks().forEach(function (s) {
+    const scr = screenOf(s);
+    const pan = Math.max(-1, Math.min(1, (scr.x / Math.max(1, w)) * 2 - 1));
+    pans.push({ id: s.id, pan: pan, x: s.x, z: s.z });
+    audio.bell(pan);
+  });
+  if (!pans.length) audio.bell(0);
+  if (S) S.bellPans = pans;
+  if (audio.setLastPans) audio.setLastPans(pans);
 }
 function tickBeat(dt) {
   if (!S) return;
@@ -837,15 +1431,14 @@ function tickBeat(dt) {
     }
     playBeatBell();
     triggerSightWave();
-    /* Subtle glow pulse on living spirits. */
-    S.spirits.forEach(function (s) {
-      if (!s.alive || !s.obj || !s.obj.userData || !s.obj.userData.glow) return;
+    livingMarks().forEach(function (s) {
+      if (!s.obj || !s.obj.userData || !s.obj.userData.glow) return;
       const g = s.obj.userData.glow;
       if (g.material) g.material.opacity = 0.95;
     });
   }
-  S.spirits.forEach(function (s) {
-    if (!s.alive || !s.obj || !s.obj.userData || !s.obj.userData.glow || !s.obj.userData.glow.material) return;
+  livingMarks().forEach(function (s) {
+    if (!s.obj || !s.obj.userData || !s.obj.userData.glow || !s.obj.userData.glow.material) return;
     const g = s.obj.userData.glow;
     g.material.opacity += (0.7 - g.material.opacity) * Math.min(1, dt * 6);
   });
@@ -896,34 +1489,41 @@ function applyJudge(forced) {
   if (!kind) {
     if (qa.autoPerfect) kind = 'perfect';
     else if (S.sandbox && !qa.useBeat) kind = 'miss';
-    else kind = beatInfo().perfect ? 'perfect' : 'miss';
+    else {
+      const b = beatInfo();
+      kind = b.perfect ? 'perfect' : (b.good ? 'good' : 'miss');
+    }
   }
-  if (kind !== 'perfect' && kind !== 'miss') kind = beatInfo().perfect ? 'perfect' : 'miss';
+  if (kind !== 'perfect' && kind !== 'miss' && kind !== 'good') {
+    const b = beatInfo();
+    kind = b.perfect ? 'perfect' : (b.good ? 'good' : 'miss');
+  }
   S.lastJudge = kind;
   S.pendingPerfect = kind === 'perfect';
-  if (kind === 'perfect') {
+  if (kind === 'perfect' || kind === 'good') {
     S.combo = (S.combo || 0) + 1;
     S.comboIdle = 0;
-    S.perfects = (S.perfects || 0) + 1;
+    if (kind === 'perfect') S.perfects = (S.perfects || 0) + 1;
     if (S.combo > (S.comboMax || 0)) S.comboMax = S.combo;
-    showJudge('완벽');
+    showJudge(kind === 'perfect' ? '완벽' : '좋음');
     const hits = CFG.comboBurstAt || [4, 8, 12];
     if (hits.indexOf(S.combo) >= 0) triggerComboBurst(S.combo);
   } else {
-    S.combo = 0;
+    S.combo = Math.floor((S.combo || 0) / 2);
     S.comboIdle = 0;
     S.misses = (S.misses || 0) + 1;
     S.pendingPerfect = false;
+    if (S.combo <= 0) S.combo = 0;
   }
   return kind;
 }
 
 function closeZombie() {
   if (!S) return null;
-  const R = CFG.parryRange || 1.9;
+  const R = CFG.parryRange || 3.2;
   let best = null, bestD = R;
   S.zombies.forEach(function (z) {
-    if (!z.alive) return;
+    if (!z.alive || z.isBoss) return;
     const d = dist(z, S.hero);
     if (d <= bestD) { bestD = d; best = z; }
   });
@@ -931,19 +1531,15 @@ function closeZombie() {
 }
 function doParry(z) {
   if (!S || !z) return;
-  S.slowT = Math.max(S.slowT || 0, CFG.parrySlow || 1.4);
-  S.iframe = Math.max(S.iframe || 0, 0.65);
+  S.slowT = Math.max(S.slowT || 0, CFG.parrySlow || 0.6);
   S.parryT = 1.2;
   S.lastParry = { id: z.id, t: now() };
-  const d = dist(z, S.hero) || 0.001;
-  z.x += (z.x - S.hero.x) / d * 1.15;
-  z.z += (z.z - S.hero.z) / d * 1.15;
-  if (z.obj) placeGroup(z.obj, z.x, z.z);
   S.shake = Math.max(S.shake || 0, 0.22);
   if (audio) audio.parry();
   triggerSightWave();
   showJudge('패링');
-  toast('지금입니다. 모양을 그어 일섬하세요');
+  /* Success auto-일섬 to the parried 귀물. */
+  return beginDashTo(z, { parry: true });
 }
 function triggerSightWave() {
   if (!S) return;
@@ -956,12 +1552,69 @@ function triggerSightWave() {
     setTimeout(function () { app.classList.remove('sight-wave'); }, qa.noDelay ? 0 : 700);
   }
 }
+function dashDirOf(tgt, from) {
+  from = from || (S && S.hero) || { x: 0, z: 0 };
+  if (!tgt) return { x: 0, z: 1 };
+  if (tgt.kind === 'spirit' || (tgt.angle != null && tgt.kind !== 'zombie')) {
+    if (tgt.target && tgt.target.alive) {
+      const dx = tgt.target.x - from.x, dz = tgt.target.z - from.z, L = Math.hypot(dx, dz) || 1;
+      return { x: dx / L, z: dz / L };
+    }
+    const dx = (tgt.x != null ? tgt.x : from.x) - from.x;
+    const dz = (tgt.z != null ? tgt.z : from.z) - from.z;
+    const L = Math.hypot(dx, dz);
+    if (L > 0.05) return { x: dx / L, z: dz / L };
+    return { x: 0, z: 1 };
+  }
+  const dx = tgt.x - from.x, dz = tgt.z - from.z, L = Math.hypot(dx, dz) || 1;
+  return { x: dx / L, z: dz / L };
+}
+function safeLand(from, to) {
+  const bound = CFG.playBound || 28;
+  let x = to.x, z = to.z;
+  const ro = Math.hypot(x, z);
+  if (ro > bound) { x *= bound / ro; z *= bound / ro; }
+  const dx = x - from.x, dz = z - from.z, L = Math.hypot(dx, dz) || 1;
+  function blocked(px, pz) {
+    if (Math.hypot(px, pz) > bound + 0.01) return true;
+    let hit = false;
+    (S.zombies || []).forEach(function (q) {
+      if (!q.alive) return;
+      if (Math.hypot(px - q.x, pz - q.z) < (q.r || 0.55) + 0.5) hit = true;
+    });
+    return hit;
+  }
+  if (!blocked(x, z)) return { x: x, z: z };
+  const minU = 0.45;
+  for (let u = 0.92; u >= minU; u -= 0.04) {
+    const px = from.x + dx * u, pz = from.z + dz * u;
+    if (!blocked(px, pz)) return { x: px, z: pz };
+  }
+  return { x: from.x + dx / L * Math.max(1, L * minU), z: from.z + dz / L * Math.max(1, L * minU) };
+}
+function clipBound(p) {
+  const bound = CFG.playBound || 28;
+  const ro = Math.hypot(p.x, p.z);
+  if (ro <= bound) return { x: p.x, z: p.z };
+  return { x: p.x * bound / ro, z: p.z * bound / ro };
+}
+function dashEndPoint(from, tgt) {
+  const dir = dashDirOf(tgt, from);
+  const R = ringR();
+  let len = R * (CFG.dashThroughMul || 1.5);
+  const lock = tgt && (tgt.target && tgt.target.alive ? tgt.target : (tgt.kind === 'zombie' ? tgt : null));
+  if (lock) len = Math.max(len, dist(from, lock) + (CFG.dashPastTarget || 0.8));
+  const raw = clipBound({ x: from.x + dir.x * len, z: from.z + dir.z * len });
+  const land = safeLand(from, raw);
+  return { x: land.x, z: land.z, raw: raw };
+}
 function beginDash(shape, opts) {
   opts = opts || {};
   if (!S || !S.playing || S.paused || S.dash) return null;
   const n = S.dashCount;
   const dir = opts.dir || S.lastStrokeDir || null;
-  const targets = pickSpirits(shape, n, S.hero, dir);
+  const pickOpts = opts.screenAt ? { screenAt: opts.screenAt } : {};
+  const targets = pickSpirits(shape, n, S.hero, dir, null, pickOpts);
   if (!targets.length) { toast('화면에 그 모양이 없어요'); return { type: shape, targets: [], hits: [], items: [] }; }
   const rec = { type: shape, targets: targets.map(function (t) { return t.id; }), hits: [], items: [], t0: now(), segs: [], elem: S.dashElem, cinematic: false };
   S.lastDash = rec;
@@ -970,27 +1623,86 @@ function beginDash(shape, opts) {
   startSeg();
   return rec;
 }
+function beginDashTo(target, opts) {
+  opts = opts || {};
+  if (!S || !S.playing || S.paused || S.dash || !target) return null;
+  const rec = { type: opts.type || 'parry', targets: [target.id], hits: [], items: [], t0: now(), segs: [], elem: S.dashElem, cinematic: false, parry: !!opts.parry };
+  S.lastDash = rec;
+  S.dashQueue = [target];
+  startSeg();
+  return rec;
+}
 function startSeg() {
   if (!S.dashQueue.length) { S.dash = null; maybeEnd(); return; }
   const tgt = S.dashQueue.shift();
   if (!tgt.alive) { startSeg(); return; }
   const from = { x: S.hero.x, z: S.hero.z };
-  const to = { x: tgt.x, z: tgt.z };
-  const slash = makeSlash(from, to);
-  S.dash = { from: from, to: to, t: 0, dur: CFG.dashDur, target: tgt, slash: slash };
+  const end = dashEndPoint(from, tgt);
+  const to = { x: end.x, z: end.z };
+  const raw = end.raw ? { x: end.raw.x, z: end.raw.z } : to;
+  const slash = makeSlash(from, raw);
+  S.dash = { from: from, to: to, raw: raw, t: 0, dur: CFG.dashDur, target: tgt, slash: slash, judged: false, perfect: !!S.pendingPerfect };
+  S.iframe = Math.max(S.iframe || 0, CFG.dashDur + 0.05);
   S.shake = 0.28;
-  S.lastDash.segs.push({ from: from, to: to, r: pathR() });
+  S.lastDash.segs.push({ from: from, to: raw, r: pathR() });
   S.lastDash.vfxAt = S.lastDash.vfxAt || now();
-  applyPath(from, to, S.lastDash);
-  cutSpirit(tgt);
   afterimages(from, to);
   if (audio) audio.slash();
   triggerSightWave();
 }
-function applyPath(from, to, rec) {
+function resolveDash(d) {
+  if (!d || d.judged) return;
+  d.judged = true;
+  const hitTo = d.raw || d.to;
+  applyPath(d.from, hitTo, S.lastDash, null);
+  const boss = S && S.boss;
+  if (boss && boss.alive && segDist(boss.x, boss.z, d.from.x, d.from.z, hitTo.x, hitTo.z) <= pathR() + boss.r) {
+    cutBoss(boss);
+  }
+}
+function landDash(d) {
+  S.iframe = Math.max(S.iframe || 0, CFG.landIframe || 0.25);
+  landingShock(d.to);
+  const dx = d.to.x - d.from.x, dz = d.to.z - d.from.z, L = Math.hypot(dx, dz) || 1;
+  const ux = dx / L, uz = dz / L;
+  S.recoil = { x: ux, z: uz, t: CFG.recoilT || 0.12, dur: CFG.recoilT || 0.12, amp: CFG.recoilU || 0.12 };
+  S.shake = Math.max(S.shake || 0, 0.22);
+  const back = CFG.landBounce || 0.28;
+  S.bounce = {
+    from: { x: d.to.x, z: d.to.z },
+    to: { x: d.to.x - ux * back, z: d.to.z - uz * back },
+    t: 0, dur: CFG.landBounceT || 0.16
+  };
+  S.landRipple = { x: d.to.x, z: d.to.z, t: 1, dur: CFG.landRippleDur || 0.45 };
+  triggerSightWave();
+  if (three && three.ink && three.ink.hit) {
+    three.ink.hit(d.to.x, d.to.z, ux, uz);
+    fxinkStat.hits++;
+  }
+}
+function landingShock(at) {
+  if (!S) return;
+  const R = CFG.landShockR || 1.6, push = CFG.landPush || 1.2, stun = CFG.landStun || 0.3;
+  S.zombies.forEach(function (z) {
+    if (!z.alive) return;
+    const d = dist(z, at);
+    if (d > R + (z.r || 0)) return;
+    const k = d < 1e-3 ? 1 : 1;
+    const ux = d < 1e-3 ? 1 : (z.x - at.x) / d;
+    const uz = d < 1e-3 ? 0 : (z.z - at.z) / d;
+    z.x += ux * push;
+    z.z += uz * push;
+    z.stun = Math.max(z.stun || 0, stun);
+    if (z.obj) placeGroup(z.obj, z.x, z.z);
+  });
+  if (S.lastDash) S.lastDash.shock = { x: at.x, z: at.z, r: R, push: push };
+}
+function applyPath(from, to, rec, skip) {
   const r = pathR(), dmg = dashDmg();
   S.zombies.forEach(function (z) {
     if (!z.alive) return;
+    if (skip && z === skip) return;
+    if (z.isBoss || z.marked) return;
     if (segDist(z.x, z.z, from.x, from.z, to.x, to.z) <= r + z.r) {
       hurtZombie(z, dmg, 'slash', rec);
       if (z.alive) applyElement(z, S.dashElem, rec);
@@ -1077,6 +1789,7 @@ function tintZombie(z) {
 function tickStatuses(dt) {
   S.zombies.forEach(function (z) {
     if (!z.alive) return;
+    if (z.stun > 0) { z.stun -= dt; if (z.stun < 0) z.stun = 0; }
     if (z.frozen > 0) { z.frozen -= dt; if (z.frozen < 0) z.frozen = 0; }
     if (z.burn > 0) {
       z.burn -= dt;
@@ -1149,31 +1862,48 @@ function afterimages(from, to) {
     three.fx.push({ mesh: g, life: 0.16 + i * 0.03, max: 0.22 });
   }
 }
+function cutBoss(s) { cutSpirit(s); }
 function cutSpirit(s) {
+  if (!s || !s.alive) return;
+  if (s.kind === 'spirit') return;
   if (s.isBoss) {
     s.seqI++;
-    if (s.seqI >= s.seq.length) { destroySpirit(s); grantKill(); }
+    addHitstop(CFG.hitstopKill || 0.06);
+    if (s.seqI >= s.seq.length) { killZombie(s, S && S.lastDash); }
     else {
       s.shape = s.seq[s.seqI];
       if (s.obj && art.setSpiritShape) art.setSpiritShape(s.obj, spiritShape(s));
     }
-  } else { destroySpirit(s); grantKill(); }
+    return;
+  }
 }
 function destroySpirit(s) {
+  if (!s || s.kind !== 'spirit') return;
   s.alive = false;
-  if (s.obj) three.scene.remove(s.obj);
-  if (Math.random() < 0.45) spawnItem({ type: dropType(), x: s.x, z: s.z });
+  if (s.obj && three) three.scene.remove(s.obj);
+  if (S) S.spirits = (S.spirits || []).filter(function (q) { return q.alive; });
+}
+function addHitstop(sec) {
+  if (!S) return;
+  const cap = CFG.hitstopKillMax || 0.12;
+  S.hitstop = Math.min(cap, (S.hitstop || 0) + (sec || 0));
 }
 function killZombie(z, rec) {
+  if (!z || !z.alive) return;
   z.alive = false;
+  if (S && S.spirits) S.spirits.forEach(function (s) { if (s.target === z) s.target = null; });
+  assignSpiritTargets();
+  z.marked = false;
   if (z.obj) three.scene.remove(z.obj);
   if (three && three.ink) {
     const d = inkDir(rec || (S && S.lastDash), z);
     three.ink.kill(z.x, z.z, d.x, d.z);
     fxinkStat.kills++;
   }
+  if (rec && rec.hits && rec.hits.some(function (h) { return h.id === z.id && h.why === 'slash'; })) addHitstop(CFG.hitstopKill || 0.06);
   grantKill();
   if (Math.random() < 0.35) spawnItem({ type: dropType(), x: z.x, z: z.z });
+  refreshSpirits();
 }
 function dropType() {
   const r = Math.random();
@@ -1219,6 +1949,7 @@ function gainXp(n) {
   while (S.xp >= xpNeed(S.level)) {
     S.xp -= xpNeed(S.level);
     S.level++;
+    if (livingMarks().length < (CFG.spiritMax || 4)) addSpirit({ force: true });
     openLevelUp();
   }
 }
@@ -1229,6 +1960,10 @@ function openLevelUp() {
   for (let i = 0; i < 3 && pool.length; i++) {
     const k = Math.floor(Math.random() * pool.length);
     picks.push(pool.splice(k, 1)[0]);
+  }
+  if ((S.ringLv || 0) < (CFG.ringLvMax || 4) && !picks.some(function (u) { return u.id === 'ring'; })) {
+    const ringUp = RUN_UPGRADES.filter(function (u) { return u.id === 'ring'; })[0];
+    if (ringUp) picks[picks.length ? picks.length - 1 : 0] = ringUp;
   }
   S.levelPicks = picks;
   const boxEl = $('levelChoices'); boxEl.innerHTML = '';
@@ -1246,6 +1981,7 @@ function pickUpgrade(id) {
   if (id === 'dmg') S.dashDmg += 1;
   else if (id === 'width') S.pathR += 0.55;
   else if (id === 'dash') S.dashCount += 1;
+  else if (id === 'ring') { S.ringLv = (S.ringLv || 0) + 1; applyRingBoost(); }
   else if (id === 'heal') { S.runHp += 2; S.hp = Math.min(maxHp(), S.hp + 5); }
   else if (id === 'wealth') S.runCoin += 0.25;
   else if (id === 'ice' || id === 'fire' || id === 'poison') setDashElem(id);
@@ -1276,6 +2012,27 @@ function step(dt) {
   if (!S || !S.playing || S.paused) return;
   S.elapsed += dt; S.timeLeft -= dt;
   if (S.iframe > 0) S.iframe -= dt;
+  if (S.landRipple && S.landRipple.t > 0) {
+    S.landRipple.t -= dt / (S.landRipple.dur || 0.45);
+    if (S.landRipple.t <= 0) S.landRipple = null;
+  }
+  if (S.bounce && !S.dash) {
+    S.bounce.t += dt;
+    const u = clamp(S.bounce.t / (S.bounce.dur || 0.16), 0, 1);
+    const k = 1 - (1 - u) * (1 - u);
+    S.hero.x = S.bounce.from.x + (S.bounce.to.x - S.bounce.from.x) * k;
+    S.hero.z = S.bounce.from.z + (S.bounce.to.z - S.bounce.from.z) * k;
+    if (three && three.heroSpr) placeGroup(three.heroSpr, S.hero.x, S.hero.z);
+    if (u >= 1) S.bounce = null;
+  }
+  if (S.hurtFlash > 0) {
+    S.hurtFlash -= dt;
+    if (S.hurtFlash <= 0) {
+      S.hurtFlash = 0;
+      const app = $('app');
+      if (app) app.classList.remove('hurt');
+    }
+  }
   if (S.practiceT > 0) S.practiceT -= dt;
   if (S.sightWave > 0 && !qa.freezeWave) S.sightWave = Math.max(0, S.sightWave - dt / (CFG.sightWaveDur || 0.7));
   if (S.parryT > 0) S.parryT = Math.max(0, S.parryT - dt);
@@ -1289,8 +2046,8 @@ function step(dt) {
     if (S.bellT <= 0) endBell();
   }
   if (!S.sandbox && !S.bossSpawned && S.elapsed >= CFG.bossAt) {
-    spawnSpirit({ boss: true, r: 16, nShapes: CFG.bossShapes });
-    toast('큰 종을 든 혼령이 나타났어요');
+    spawnBoss({ r: 16, nShapes: CFG.bossShapes });
+    toast('큰 종을 든 귀물이 나타났어요');
   }
   const wave = 1 + 0.7 * clamp(S.elapsed / CFG.timeLimit, 0, 1);
   if (!S.sandbox) {
@@ -1305,35 +2062,31 @@ function step(dt) {
     else if (practicing) { zMax = CFG.practiceZombieMax || 2; zBase = CFG.practiceZombieMs || 3200; }
     else if (early) { zMax = CFG.earlyZombieMax || 4; zBase = Math.max(zBase, 2000); }
     const zms = Math.max(CFG.spawnZombieMinMs || 450, zBase / (practicing || delayed ? 1 : wave));
-    const sms = Math.max(CFG.spawnSpiritMinMs || 480, CFG.spawnSpiritMs / wave);
-    while (zMax > 0 && S.zAcc >= zms && S.zombies.filter(function (z) { return z.alive; }).length < zMax) {
+    while (zMax > 0 && S.zAcc >= zms && S.zombies.filter(function (z) { return z.alive && !z.isBoss; }).length < zMax) {
       S.zAcc -= zms; spawnZombie();
     }
-    while (S.sAcc >= sms && S.spirits.filter(function (s) { return s.alive && !s.isBoss; }).length < (CFG.spawnSpiritMax || 10)) {
-      S.sAcc -= sms; spawnSpirit();
-    }
+    stepSpirits(dt);
+  } else {
+    stepSpirits(dt);
   }
   if (qa.autoStroke) {
     let guard = 0;
-    const burst = (qa.timeScale && qa.timeScale > 4) ? 10 : 1;
+    const burst = (qa.timeScale && qa.timeScale > 4) ? 32 : 1;
     while (guard < burst && S.playing && !S.paused) {
       guard++;
       if (S.dash) {
-        S.hero.x = S.dash.to.x;
-        S.hero.z = S.dash.to.z;
-        if (three && three.heroSpr) placeGroup(three.heroSpr, S.hero.x, S.hero.z);
-        S.dash = null;
-        startSeg();
+        finishCurrentDash();
         if (!S.playing || S.paused) break;
         continue;
       }
       if (S.dashQueue && S.dashQueue.length) { startSeg(); continue; }
       let sh = null;
-      if (S.boss && S.boss.alive) sh = spiritShape(S.boss);
-      else {
+      if (S.boss && S.boss.alive) {
+        const lock = livingMarks().filter(function (s) { return s.target && s.target.isBoss; })[0];
+        sh = lock ? spiritShape(lock) : (S.boss.seq && S.boss.seq[S.boss.seqI]);
+      } else {
         const counts = {};
-        S.spirits.forEach(function (s) {
-          if (!s.alive) return;
+        livingMarks().forEach(function (s) {
           const k = spiritShape(s);
           counts[k] = (counts[k] || 0) + 1;
         });
@@ -1350,22 +2103,32 @@ function step(dt) {
   S.zombies.forEach(function (z) {
     if (!z.alive) return;
     const d = dist(z, S.hero) || 0.001;
-    const frozen = z.frozen > 0;
-    if (!qa.noMove && !frozen) {
+    const frozen = z.frozen > 0 || (z.stun || 0) > 0;
+    if (!qa.noMove && !frozen && !z.isBoss) {
       z.x += (S.hero.x - z.x) / d * zsp * dt;
       z.z += (S.hero.z - z.z) / d * zsp * dt;
     }
     placeGroup(z.obj, z.x, z.z);
     if (art.tickChar) {
-      const st = frozen ? 'frozen' : (z.burn > 0 ? 'burning' : (z.poison > 0 ? 'poisoned' : 'walk'));
+      const kind = z.isBoss ? 'boss' : 'zombie';
+      const st = z.isBoss ? 'idle' : (frozen ? 'frozen' : (z.burn > 0 ? 'burning' : (z.poison > 0 ? 'poisoned' : 'walk')));
       const vx = S.hero.x - z.x, vz = S.hero.z - z.z;
-      art.tickChar(z.obj, 'zombie', st, Math.min(0.05, dt), vx, vz);
+      art.tickChar(z.obj, kind, st, Math.min(0.05, dt), vx, vz);
     }
-    if (art.setTelegraph) art.setTelegraph(z.obj, !frozen && d < 2.6);
-    if (d < z.r + 0.55) {
-      if (S.iframe <= 0) {
+    if (art.setTelegraph && !z.isBoss) art.setTelegraph(z.obj, !frozen && d < (CFG.telegraphRange || 3.2));
+    if (!z.isBoss && d < z.r + 0.55) {
+      if ((S.iframe || 0) <= 0 && !S.dash) {
         S.hp -= CFG.dmg;
         S.iframe = CFG.iframeMs / 1000;
+        S.hitstop = Math.max(S.hitstop || 0, CFG.hitHitstop || 0.08);
+        S.hurtFlash = CFG.hurtVignette || 0.3;
+        const app = $('app');
+        if (app) app.classList.add('hurt');
+        const kn = CFG.hitKnock || 0.6;
+        S.hero.x += (S.hero.x - z.x) / d * kn;
+        S.hero.z += (S.hero.z - z.z) / d * kn;
+        if (three && three.heroSpr) placeGroup(three.heroSpr, S.hero.x, S.hero.z);
+        if (audio && audio.drum) audio.drum();
         renderHud();
         if (S.hp <= 0) { endRun(false, '좀비에게 닿았습니다.'); return; }
       }
@@ -1374,20 +2137,7 @@ function step(dt) {
       z.z = S.hero.z - (S.hero.z - z.z) / d * push;
     }
   });
-  S.spirits.forEach(function (s) {
-    if (!s.alive) return;
-    const u = art.unit || 0.0039;
-    const amp = (s.isBoss ? 10 : 6) * u;
-    const per = s.isBoss ? 2.4 : 1.6;
-    const bob = 0.12 + Math.sin((S.elapsed / per) * Math.PI * 2 + s.id) * amp;
-    if (!s.isBoss && !qa.noMove) {
-      const d = dist(s, S.hero) || 1;
-      s.x += (S.hero.x - s.x) / d * CFG.spiritSpeed * dt * 0.4;
-      s.z += (S.hero.z - s.z) / d * CFG.spiritSpeed * dt * 0.4;
-    }
-    placeGroup(s.obj, s.x, s.z, bob);
-    if (art.tickChar) art.tickChar(s.obj, s.isBoss ? 'boss' : 'spirit', 'idle', Math.min(0.05, dt), 0, 0);
-  });
+  refreshSpirits();
   S.items.forEach(function (it) {
     if (!it.alive) return;
     placeGroup(it.obj, it.x, it.z, 0.2 + Math.sin(S.elapsed * 3 + it.id) * 0.08);
@@ -1400,6 +2150,16 @@ function step(dt) {
   }
 }
 
+function finishCurrentDash() {
+  if (!S || !S.dash) return;
+  const d = S.dash;
+  S.hero.x = d.to.x; S.hero.z = d.to.z;
+  if (three && three.heroSpr) placeGroup(three.heroSpr, S.hero.x, S.hero.z);
+  resolveDash(d);
+  landDash(d);
+  S.dash = null;
+  startSeg();
+}
 function stepDash(dt) {
   if (!S || !S.dash) return;
   const d = S.dash;
@@ -1408,8 +2168,9 @@ function stepDash(dt) {
   const k = u * u * (3 - 2 * u);
   S.hero.x = d.from.x + (d.to.x - d.from.x) * k;
   S.hero.z = d.from.z + (d.to.z - d.from.z) * k;
-  placeGroup(three.heroSpr, S.hero.x, S.hero.z);
-  if (u >= 1) startSeg();
+  if (three && three.heroSpr) placeGroup(three.heroSpr, S.hero.x, S.hero.z);
+  if (u >= 0.85) resolveDash(d);
+  if (u >= 1) { landDash(d); S.dash = null; startSeg(); }
 }
 
 function updateCam(dt) {
@@ -1419,10 +2180,18 @@ function updateCam(dt) {
   S.cam.x += (targetX - S.cam.x) * Math.min(1, dt * 6);
   S.cam.z += (targetZ - S.cam.z) * Math.min(1, dt * 6);
   let sx = 0, sy = 0, sz = 0;
+  if (S.recoil && S.recoil.t > 0) {
+    S.recoil.t -= dt;
+    const u = Math.max(0, S.recoil.t / (S.recoil.dur || 0.12));
+    const a = (S.recoil.amp || 0.12) * u;
+    sx += (S.recoil.x || 0) * a;
+    sz += (S.recoil.z || 0) * a;
+    if (S.recoil.t <= 0) S.recoil = null;
+  }
   if (S.shake > 0) {
     S.shake -= dt;
     const a = S.shake * 0.55;
-    sx = (Math.random() - 0.5) * a; sy = (Math.random() - 0.5) * a; sz = (Math.random() - 0.5) * a;
+    sx += (Math.random() - 0.5) * a; sy = (Math.random() - 0.5) * a; sz += (Math.random() - 0.5) * a;
   }
   three.camera.position.set(S.cam.x + CFG.camOff.x + sx, CFG.camOff.y + sy, S.cam.z + CFG.camOff.z + sz);
   three.camera.lookAt(S.cam.x, CFG.camLookY, S.cam.z);
@@ -1520,6 +2289,15 @@ function onMove(e) {
   const p = localPts(e), last = pointers.pts[pointers.pts.length - 1];
   if (!last || Math.hypot(p.x - last.x, p.y - last.y) >= 1) pointers.pts.push(p);
   paintInk(pointers.pts, 1);
+  if (S && S.playing && !S.paused && pointers.pts.length >= 3 && G && G.recognize) {
+    const rec = G.recognize(pointers.pts, {});
+    if (rec && rec.type && (S.sandbox || !S.pool || S.pool.indexOf(rec.type) >= 0)) {
+      const dir = rec.type === 'tap' ? null : strokeAimDir(pointers.pts, rec.type);
+      const opts = (rec.type === 'square' || rec.type === 'circle') ? { screenAt: strokeCentroid(pointers.pts) } : {};
+      S.aimTarget = pickSpirits(rec.type, 1, S.hero, dir, null, opts)[0] || null;
+    } else S.aimTarget = null;
+    updateMarks();
+  }
 }
 function onUp(e) {
   if (!pointers.down || (e.pointerId != null && e.pointerId !== pointers.id)) return;
@@ -1533,19 +2311,22 @@ function finishStroke(pts, opts) {
   if (!S || !S.playing || S.paused) return null;
   const rec = G.recognize(pts, {});
   S.lastRec = rec;
+  S.aimTarget = null;
+  const read = (G.readMessage && G.readMessage(rec)) || '';
+  rec.readMessage = read;
   if (!rec.type) {
     inkFade = 0.16;
-    toast('잘 안 그려졌어요. ' + failHint());
+    toast((read ? read + ' ' : '잘 안 그려졌어요. ') + failHint());
     setTimeout(clearInk, qa.noDelay ? 80 : 160);
     return rec;
   }
   if (!S.sandbox && S.pool && S.pool.indexOf(rec.type) < 0) {
-    toast('지금은 ' + failHint());
+    toast((read ? read + ' ' : '') + '지금은 ' + failHint());
     inkFade = 0.16;
     setTimeout(clearInk, qa.noDelay ? 80 : 160);
     return rec;
   }
-  const dir = strokeScreenDir(pts);
+  const dir = rec.type === 'tap' ? null : strokeAimDir(pts, rec.type);
   S.lastStrokeDir = dir;
   rec.dir = dir;
   if (rec.type === 'tap') {
@@ -1557,7 +2338,9 @@ function finishStroke(pts, opts) {
       rec.perfect = !!S.pendingPerfect;
       rec.parry = true;
       rec.parryId = threat.id;
-      doParry(threat);
+      const dash = doParry(threat);
+      rec.targets = dash && dash.targets;
+      rec.dash = dash;
       return rec;
     }
   }
@@ -1565,7 +2348,10 @@ function finishStroke(pts, opts) {
   rec.judge = S.lastJudge;
   rec.combo = S.combo;
   rec.perfect = !!S.pendingPerfect;
-  const dash = beginDash(rec.type, { dir: rec.type === 'tap' ? null : dir });
+  const dash = beginDash(rec.type, {
+    dir: rec.type === 'tap' ? null : dir,
+    screenAt: (rec.type === 'square' || rec.type === 'circle') ? strokeCentroid(pts) : null
+  });
   rec.targets = dash && dash.targets;
   rec.dash = dash;
   return rec;
@@ -1648,7 +2434,7 @@ function buy(stat) {
 function activeFov() {
   if (!three || !three.view) return CFG.fov || 40;
   const a = three.view.clientWidth / Math.max(1, three.view.clientHeight);
-  return a < 0.85 ? (CFG.fov || 40) + 8 : (CFG.fov || 40);
+  return CFG.fov || 62;
 }
 function applyCameraLens() {
   if (!three) return;
@@ -1664,6 +2450,7 @@ function onResize() {
   three.renderer.setSize(w, h);
   if (three.bloom && three.bloom.setSize) three.bloom.setSize(w, h);
   resizeInk();
+  if (S && S.playing) applyRingBoost();
 }
 
 function fadeFx(obj, a) {
@@ -1747,26 +2534,25 @@ function drawSightFog() {
   grd.addColorStop(1, 'rgba(4,3,2,' + edgeA.toFixed(3) + ')');
   fog.fillStyle = grd;
   fog.fillRect(0, 0, w, h);
-  const ringR = Math.min(w, h) * (0.18 + 0.7 * (1 - wave));
-  if (wave > 0.02) {
-    fog.save();
-    fog.globalCompositeOperation = 'destination-out';
-    fog.lineWidth = 40;
-    fog.strokeStyle = 'rgba(0,0,0,1)';
-    fog.beginPath();
-    fog.arc(cx, cy, ringR, 0, Math.PI * 2);
-    fog.stroke();
-    fog.restore();
-  }
-  punchAtmoRing(cx, cy, ringR, wave);
   const ringCtx = sc ? sc.getContext('2d') : fog;
   if (sc) ringCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  /* Module fades by min(1, wave*1.25); compensate so an early wide ring stays opaque. */
-  const k = Math.max(0.2, Math.min(1, wave * 1.25));
-  drawSonarRing2D(ringCtx, w, h, wave, {
-    r: ringR, cx: cx, cy: cy,
-    coreAlpha: 1 / k, haloAlpha: 0.9 / k, coreWidth: 5.2, glowAlpha: 0.3 / k
-  });
+  /* 4차: 심안 파동은 안개 구멍을 열기만 하고, 궤도 안의 두 번째 동심원 획은 그리지 않음. */
+  if (wave > 0.04 && S.hero) {
+    const holePx = Math.min(w, h) * (0.12 + 0.28 * wave);
+    punchAtmoRing(cx, cy, holePx, wave);
+  } else {
+    punchAtmoRing(0, 0, 0, 0);
+  }
+  if (S && S.landRipple && S.landRipple.t > 0) {
+    const lp = projectXZ(S.landRipple.x, S.landRipple.z, 0.15);
+    const lt = S.landRipple.t;
+    const lr = 28 + (1 - lt) * 70;
+    const lk = Math.max(0.25, Math.min(1, lt * 1.4));
+    drawSonarRing2D(ringCtx, w, h, Math.max(0.22, lt), {
+      r: lr, cx: lp.x, cy: lp.y,
+      coreAlpha: 1 / lk, haloAlpha: 0.85 / lk, coreWidth: 3.6, glowAlpha: 0.28 / lk
+    });
+  }
 }
 function loop(ts) {
   raf = requestAnimationFrame(loop);
@@ -1806,8 +2592,13 @@ function loop(ts) {
     if (b) pickUpgrade(b.getAttribute('data-up'));
     else if (S.levelPicks && S.levelPicks[0]) pickUpgrade(S.levelPicks[0].id);
   }
-  if (S && S.playing && !S.paused) step(dt);
-  stepDash(dt);
+  if (S && S.hitstop > 0) {
+    S.hitstop -= raw;
+    if (S.hitstop < 0) S.hitstop = 0;
+  } else {
+    if (S && S.playing && !S.paused) step(dt);
+    stepDash(dt);
+  }
   updateCam(dt);
   if (three) {
     (three.torches || []).forEach(function (t, i) {
@@ -1961,7 +2752,30 @@ const GPv2 = {
   setQa: function (o) { Object.keys(o || {}).forEach(function (k) { qa[k] = o[k]; }); if (audio) audio.setQuiet(qa.mute, qa.noDelay); },
   startRun: startRun,
   spawnSpirit: function (o) { return spawnSpirit(o); },
+  spawnBoss: function (o) { return spawnBoss(o); },
   spawnZombie: function (o) { return spawnZombie(o); },
+  addSpirit: function (o) { return addSpirit(o || { force: true }); },
+  setSpiritCount: function (n) { return setSpiritCount(n); },
+  ringInfo: function () { updateMarks(); const rg = lastMarkMetrics && lastMarkMetrics.ring; return { r: ringR(), px: (rg && rg.px) || (S && S.ringPx), rx: rg && rg.rx, ry: rg && rg.ry, cx: rg && rg.cx, cy: rg && rg.cy, lv: S && (S.ringLv || 0), frac: rg && rg.frac, fov: (three && three.camera && three.camera.fov) || (CFG.fov), max: CFG.spiritMax, cssPx: lastMarkMetrics && lastMarkMetrics.cssPx, bellPx: lastMarkMetrics && lastMarkMetrics.bellPx, bodyPx: lastMarkMetrics && lastMarkMetrics.bodyPx, kind: rg && rg.kind, pts: rg && rg.pts, markStyle: lastMarkMetrics && lastMarkMetrics.markStyle }; },
+  heroScreen: function () { return S && S.hero ? heroScreen() : { x: 0, y: 0 }; },
+  unproject: function (sx, sy, y0) { return unprojectToY(sx, sy, y0 == null ? 0.2 : y0); },
+  ellipseAt: function (theta) { if (!(S && S.ringR > 0)) applyRingBoost(); return ellipseScreenAt(theta, heroScreen()); },
+  rimErrorPx: function (sx, sy) { if (!(S && S.ringR > 0)) applyRingBoost(); return rimErrorPx(sx, sy); },
+  despawnZombie: function (id) {
+    if (!S) return false;
+    const z = (S.zombies || []).filter(function (q) { return q.id === id; })[0];
+    if (!z) return false;
+    z.alive = false;
+    if (z.obj && three) three.scene.remove(z.obj);
+    if (qa.noDelay) snapSpiritsToTargets();
+    else assignSpiritTargets();
+    return true;
+  },
+
+
+  markedList: livingMarks,
+  bellPans: function () { return (S && S.bellPans) || (audio && audio.lastPans && audio.lastPans()) || []; },
+  readMessage: function (rec) { return (G.readMessage && G.readMessage(rec)) || ''; },
   spawnItem: function (o) { return spawnItem(o); },
   setHero: function (x, z) { if (!S) return; S.hero.x = x; S.hero.z = z; S.cam.x = x; S.cam.z = z; if (three.heroSpr) placeGroup(three.heroSpr, x, z); },
   setDashCount: function (n) { if (S) S.dashCount = n; renderHud(); },
@@ -2095,8 +2909,26 @@ const GPv2 = {
   snapshot: function () {
     return {
       hero: S && { x: S.hero.x, z: S.hero.z },
-      spirits: S ? S.spirits.filter(function (s) { return s.alive; }).map(function (s) { return { id: s.id, shape: spiritShape(s), x: s.x, z: s.z, boss: s.isBoss, seqI: s.seqI, seq: s.seq }; }) : [],
-      zombies: S ? S.zombies.filter(function (z) { return z.alive; }).map(function (z) { return { id: z.id, x: z.x, z: z.z, hp: z.hp, frozen: z.frozen > 0, freezeLeft: z.frozen || 0, burn: z.burn > 0, burnLeft: z.burn || 0, poison: z.poison || 0, hasRim: !!(z.obj && z.obj.userData && (z.obj.userData.rim || z.obj.userData.bakedRim)), tele: !!(z.obj && z.obj.userData && z.obj.userData.teleOn) }; }) : [],
+      spirits: S ? livingMarks().map(function (s) {
+        const fs = bellFootScreen(s);
+        const hs = heroScreen();
+        let tscr = null;
+        if (s.target && s.target.alive) tscr = projectXZ(s.target.x, s.target.z, 0.8);
+        const hang = s.obj && s.obj.userData && s.obj.userData.bellHang;
+        const bellTex = hang && hang.bell && hang.bell.userData && hang.bell.userData.bellTex;
+        return {
+          id: s.id, shape: spiritShape(s), x: s.x, z: s.z, angle: s.angle, avoid: s.avoid || 0,
+          sx: fs.x, sy: fs.y, screenAngle: screenAngleTo(fs.x, fs.y, hs),
+          rimErr: rimErrorPx(fs.x, fs.y), bellTex: bellTex || null,
+          targetId: s.target && s.target.alive ? s.target.id : null,
+          targetSx: tscr && tscr.x, targetSy: tscr && tscr.y,
+          targetScreenAngle: tscr ? screenAngleTo(tscr.x, tscr.y, hs) : null,
+          boss: false
+        };
+      }) : [],
+      marked: S ? livingMarks().map(function (s) { return { id: s.id, shape: spiritShape(s), x: s.x, z: s.z, angle: s.angle, targetId: s.target && s.target.alive ? s.target.id : null }; }) : [],
+      ring: S ? { r: ringR(), px: (lastMarkMetrics && lastMarkMetrics.ring && lastMarkMetrics.ring.px) || S.ringPx || 0, rx: lastMarkMetrics && lastMarkMetrics.ring && lastMarkMetrics.ring.rx, ry: lastMarkMetrics && lastMarkMetrics.ring && lastMarkMetrics.ring.ry, cx: lastMarkMetrics && lastMarkMetrics.ring && lastMarkMetrics.ring.cx, cy: lastMarkMetrics && lastMarkMetrics.ring && lastMarkMetrics.ring.cy, lv: S.ringLv || 0, frac: (lastMarkMetrics && lastMarkMetrics.ring && lastMarkMetrics.ring.frac) || 0, kind: lastMarkMetrics && lastMarkMetrics.ring && lastMarkMetrics.ring.kind, fov: (three && three.camera && three.camera.fov) || CFG.fov, bounce: !!(S.bounce), ripple: !!(S.landRipple && S.landRipple.t > 0) } : null,
+      zombies: S ? S.zombies.filter(function (z) { return z.alive; }).map(function (z) { return { id: z.id, x: z.x, z: z.z, hp: z.hp, frozen: z.frozen > 0, freezeLeft: z.frozen || 0, burn: z.burn > 0, burnLeft: z.burn || 0, poison: z.poison || 0, stun: z.stun || 0, marked: !!z.marked, shape: z.marked || z.isBoss ? spiritShape(z) : null, isBoss: !!z.isBoss, seqI: z.isBoss ? z.seqI : 0, hasRim: !!(z.obj && z.obj.userData && (z.obj.userData.rim || z.obj.userData.bakedRim)), tele: !!(z.obj && z.obj.userData && z.obj.userData.teleOn) }; }) : [],
       items: S ? S.items.filter(function (i) { return i.alive; }).map(function (i) { return { id: i.id, type: i.kind, x: i.x, z: i.z }; }) : [],
       lastDash: S && S.lastDash,
       combo: S && S.combo, comboMax: S && S.comboMax,
@@ -2105,6 +2937,9 @@ const GPv2 = {
       runNo: S && S.runNo, pool: S && (S.pool || []).slice(),
       practice: S && { t: S.practiceT, shape: S.practiceShape, left: S.practiceSpawns },
       sightWave: S && S.sightWave, parryT: S && S.parryT, lastParry: S && S.lastParry,
+      iframe: S && S.iframe, hitstop: S && S.hitstop, hurtFlash: S && S.hurtFlash,
+      bellPans: S && (S.bellPans || []).slice(),
+      lastRec: S && S.lastRec && { type: S.lastRec.type, best: S.lastRec.best, readMessage: S.lastRec.readMessage, reason: S.lastRec.reason },
       telegraphs: S ? S.zombies.filter(function (z) { return z.alive && z.obj && z.obj.userData && z.obj.userData.teleOn; }).map(function (z) { return z.id; }) : [],
       beat: beatInfo(),
 
@@ -2113,7 +2948,7 @@ const GPv2 = {
       bell: S && { t: S.bellT, shape: S.bellShape, cinematic: !!(S.lastDash && S.lastDash.cinematic) },
       map: three && three.map && { id: three.map.id, name: three.map.name, key: three.map.key },
       hp: S && S.hp, coins: save.coins, playing: !!(S && S.playing), paused: S && S.paused,
-      timeLeft: S && S.timeLeft, boss: !!(S && S.boss), bossAlive: !!(S && S.boss && S.boss.alive),
+      timeLeft: S && S.timeLeft, boss: !!(S && S.boss), bossAlive: !!(S && S.boss && S.boss.alive), bossSeqI: S && S.boss && S.boss.alive ? S.boss.seqI : null,
       fps: fpsReport(),
       touchAction: getComputedStyle(document.body).touchAction,
       overscroll: getComputedStyle(document.body).overscrollBehavior,

@@ -110,10 +110,10 @@
     var aspect = bb.w / bb.h;
     if (bb.h < 24) return 0;
     var sc = 1;
-    sc *= clamp01((ny - 0.62) / 0.28);
-    sc *= clamp01((0.50 - nx) / 0.50);
+    sc *= clamp01((ny - 0.55) / 0.30);
+    sc *= clamp01((0.72 - nx) / 0.35);
     sc *= clamp01((s - 0.70) / 0.20);
-    sc *= clamp01((0.70 - aspect) / 0.70);
+    sc *= clamp01((1.05 - aspect) / 0.55);
     sc *= clamp01((0.28 - dev) / 0.28);
     return sc;
   }
@@ -124,10 +124,10 @@
     var aspect = bb.h / bb.w;
     if (bb.w < 24) return 0;
     var sc = 1;
-    sc *= clamp01((nx - 0.62) / 0.28);
-    sc *= clamp01((0.50 - ny) / 0.50);
+    sc *= clamp01((nx - 0.55) / 0.30);
+    sc *= clamp01((0.72 - ny) / 0.35);
     sc *= clamp01((s - 0.70) / 0.20);
-    sc *= clamp01((0.70 - aspect) / 0.70);
+    sc *= clamp01((1.05 - aspect) / 0.55);
     sc *= clamp01((0.28 - dev) / 0.28);
     return sc;
   }
@@ -159,16 +159,16 @@
     for (i = 0; i < pts.length; i++) if ((v.y - pts[i].y) / bb.h < 0.18) near++;
     if (near / pts.length > 0.28) return 0;
     var sc = 1;
-    sc *= clamp01((dropA - 0.22) / 0.35);
-    sc *= clamp01((dropB - 0.22) / 0.35);
-    sc *= clamp01((0.55 - closeY) / 0.55);
+    sc *= clamp01((dropA - 0.15) / 0.35);
+    sc *= clamp01((dropB - 0.15) / 0.35);
+    sc *= clamp01((0.75 - closeY) / 0.75);
     sc *= clamp01((spread - 0.22) / 0.4);
     sc *= clamp01((sL - 0.68) / 0.22);
     sc *= clamp01((sR - 0.68) / 0.22);
     sc *= clamp01((deg - 24) / 30) * clamp01((155 - deg) / 40);
     sc *= clamp01((down / (left.length - 1) - 0.55) / 0.35);
     sc *= clamp01((up / (right.length - 1) - 0.55) / 0.35);
-    sc *= clamp01((bb.w / bb.h - 0.24) / 0.35);
+    sc *= clamp01((bb.w / bb.h - 0.15) / 0.35);
     return sc;
   }
   function scoreCircle(pts, bb, L) {
@@ -349,14 +349,35 @@
     return { type: best, reason: null, scores: scores, label: LABELS[best], best: best, bestScore: bestS };
   }
 
+  var NAMES = { vline: '세로선', hline: '가로선', vee: 'V자', circle: '동그라미', square: '네모', tap: '탭', bolt: '번개' };
+  var TIPS = {
+    hline: '가로로 길게 그어 보세요.',
+    vline: '세로로 길게 그어 보세요.',
+    vee: 'V는 꼭짓점을 더 깊게 그려 보세요.',
+    square: '네모는 네 변을 닫아 보세요.',
+    circle: '동그라미는 더 둥글게 닫아 보세요.',
+    tap: '점을 찍거나 짧게 눌러 보세요.'
+  };
+  function readMessage(rec) {
+    if (!rec) return '';
+    var key = rec.best || rec.type;
+    if (!key) return '';
+    var name = NAMES[key] || key;
+    var glyph = LABELS[key] || '';
+    var tip = TIPS[key] || '';
+    return name + (glyph ? '(' + glyph + ')' : '') + '으로 읽었어요. ' + tip;
+  }
+
   var API = {
     recognize: recognize,
+    readMessage: readMessage,
     resample: resample,
     densify: densify,
     pathLen: pathLen,
     bbox: bbox,
     simplify: simplify,
     LABELS: LABELS,
+    NAMES: NAMES,
     COMBAT: COMBAT
   };
   root.GPGestures = API;

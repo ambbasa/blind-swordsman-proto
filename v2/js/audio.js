@@ -79,24 +79,43 @@ export function createAudio() {
     o.start(t0); o.stop(t0 + dur + 0.03);
   }
 
-  function bell() {
+  let lastPans = [];
+
+  function bell(pan) {
     if (quiet) return;
     const c = resume(); if (!c) return;
     const t0 = c.currentTime;
+    const pv = pan == null ? 0 : Math.max(-1, Math.min(1, pan));
+    let dest = sfxGain;
+    if (c.createStereoPanner) {
+      const panN = c.createStereoPanner();
+      panN.pan.setValueAtTime(pv, t0);
+      panN.connect(sfxGain);
+      dest = panN;
+    }
     BELL_PARTIALS.forEach(function (f, i) {
       const o = c.createOscillator();
       const g = c.createGain();
       o.type = 'sine';
       o.frequency.setValueAtTime(f * (1 + (Math.random() - 0.5) * 0.004), t0);
-      const peak = (i === 0 ? 0.22 : 0.12 / (i + 1));
+      const peak = (i === 0 ? 0.22 : 0.12 / (i + 1)) * (pan == null ? 1 : 0.7);
       g.gain.setValueAtTime(0.0001, t0);
       g.gain.exponentialRampToValueAtTime(peak, t0 + 0.008);
       g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.7 + i * 0.15);
-      o.connect(g); g.connect(sfxGain);
+      o.connect(g); g.connect(dest);
       o.start(t0); o.stop(t0 + 1.2);
     });
-    /* wooden clapper click */
     noise(t0, 0.03, 'highpass', 2000, 0.5, 0.08);
+  }
+
+  function setLastPans(list) { lastPans = (list || []).slice(); }
+
+  function drum() {
+    if (quiet) return;
+    const c = resume(); if (!c) return;
+    const t0 = c.currentTime;
+    tone(t0, 72, 0.22, 0.38, 'sine', sfxGain, 36);
+    noise(t0, 0.1, 'lowpass', 420, 0.7, 0.22);
   }
 
   function slash() {
@@ -228,6 +247,9 @@ export function createAudio() {
     hit: hit,
     explode: explode,
     parry: parry,
+    drum: drum,
+    setLastPans: setLastPans,
+    lastPans: function () { return lastPans.slice(); },
     startBgm: startBgm,
     stopBgm: stopBgm,
     tick: tick,
@@ -235,10 +257,11 @@ export function createAudio() {
       return {
         synth: true,
         bpm: 100,
-        kinds: ['slash', 'hit', 'explode', 'bell', 'bgm-daegeum-buk'],
+        kinds: ['slash', 'hit', 'explode', 'bell', 'drum', 'bgm-daegeum-buk'],
         muted: muted,
         bgmOn: bgmOn,
-        source: 'original-webaudio'
+        source: 'original-webaudio',
+        lastPans: lastPans.slice()
       };
     }
   };

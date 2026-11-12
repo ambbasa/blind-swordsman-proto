@@ -152,6 +152,9 @@ export async function buildArt(THREE) {
   if (atlas.spiritAnim) want(animFile(atlas.spiritAnim));
   if (atlas.bossAnim) want(animFile(atlas.bossAnim));
   want('img/hang-bell.png', { noBase: true });
+  ['tap', 'hline', 'vline', 'vee', 'square', 'circle', 'bolt', 'plain'].forEach(function (k) {
+    want('bells/bell-' + k + '@2x.png');
+  });
   if (atlas.marks && atlas.marks.files) Object.keys(atlas.marks.files).forEach(function (k) { want(atlas.marks.files[k]); });
   if (atlas.marks && atlas.marks.seals) Object.keys(atlas.marks.seals).forEach(function (k) { want(atlas.marks.seals[k]); });
   if (atlas.items) Object.keys(atlas.items).forEach(function (k) { want(atlas.items[k].file); });
@@ -354,22 +357,50 @@ export async function buildArt(THREE) {
   function packTex(sheet) {
     return tex(animFile(sheet)) || tex(sheetFile(sheet));
   }
-  function getHangBellTex() {
-    return tex('img/hang-bell.png');
+  function bellTexUrl(shape) {
+    const k = shape || 'plain';
+    return 'bells/bell-' + k + '@2x.png';
   }
-  function attachHangingBell(group, bodySheet, worldH, isBoss) {
+  function getHangBellTex(shape) {
+    return (shape && tex(bellTexUrl(shape))) || tex(bellTexUrl('plain')) || tex('img/hang-bell.png');
+  }
+  function applyBellMap(bell, shape) {
+    if (!bell || !bell.material) return;
+    const t = getHangBellTex(shape);
+    if (!t) return;
+    if (bell.material.map !== t) {
+      bell.material.map = t;
+      bell.material.needsUpdate = true;
+    }
+    bell.userData = bell.userData || {};
+    bell.userData.bellTex = shape ? bellTexUrl(shape) : 'img/hang-bell.png';
+    bell.userData.bellShape = shape || 'plain';
+  }
+  function attachHangingBell(group, bodySheet, worldH, isBoss, opts) {
     if (isBoss) return;
-    const texBell = getHangBellTex();
+    opts = opts || {};
+    const attachPx = [((bodySheet && bodySheet.anchor && bodySheet.anchor[0]) || 128), 118];
+    if (bodySheet && worldH) {
+      try {
+        const markPx = [attachPx[0] + 26, 122];
+        group.userData.bellLocal = localFromPx(bodySheet, worldH, markPx);
+        group.userData.bellRestLocal = localFromPx(bodySheet, worldH, [attachPx[0], 142]);
+      } catch (err) {}
+    }
+    if (!group.userData.bellLocal) group.userData.bellLocal = { x: 0, y: (worldH || 1.6) * 0.95 };
+    const shape = opts.shape || group.userData.markShape || null;
+    const texBell = getHangBellTex(shape);
     if (!texBell) return;
-    const attachPx = [((bodySheet.anchor && bodySheet.anchor[0]) || 128), 118];
     const attach = localFromPx(bodySheet, worldH, attachPx);
     const pivot = new THREE.Group();
     pivot.position.set(attach.x, attach.y, 0.04);
-    const bh = worldH * 0.27;
+    const bh = opts.bellH != null ? opts.bellH : worldH * 0.27 * (opts.bellScale || 1);
     const bw = bh * (190 / 376);
-    const bell = imgSprite(texBell, bw, bh, { cx: 0.5, cy: 1, alphaTest: 0.08 });
+    /* cy:1 = hang from the top (same as hang-bell.png). alphaTest 0.02 keeps the soft blue aura. */
+    const bell = imgSprite(texBell, bw, bh, { cx: 0.5, cy: 1, alphaTest: 0.02 });
     bell.material.depthTest = false;
     bell.renderOrder = 4;
+    applyBellMap(bell, shape);
     pivot.add(bell);
     group.add(pivot);
     group.userData.bellHang = {
@@ -378,10 +409,14 @@ export async function buildArt(THREE) {
       amp: 0.18 + Math.random() * 0.04,
       period: 1.45 + Math.random() * 0.3
     };
-    /* Mark floats in the glow beside the bell rest — stable, does not follow the swing. */
-    const markPx = [attachPx[0] + 26, 122];
-    group.userData.bellLocal = localFromPx(bodySheet, worldH, markPx);
-    group.userData.bellRestLocal = localFromPx(bodySheet, worldH, [attachPx[0], 142]);
+    group.userData.bellH = bh;
+    group.userData.bellW = bw;
+    group.userData.bellAttachY = attach.y;
+    /* Bottom of the hanging bell (floor/contact point on the rim). */
+    group.userData.bellFootY = attach.y - bh;
+    group.userData.bellLocal = { x: attach.x, y: attach.y - bh };
+    group.userData.bellRestLocal = { x: attach.x, y: attach.y - bh };
+    group.userData.markShape = shape;
   }
   function swapAction(group, sheet, name) {
     if (!group || !sheet) return;
@@ -471,12 +506,16 @@ export async function buildArt(THREE) {
       addRim(group, 0x3ec8c0, 1.12);
       addTelegraph(group, H);
       attachStatus(group, H);
+      attachHangingBell(group, sheet, H, false);
     } else if (kind === 'spirit' || kind === 'boss') {
       const isBoss = kind === 'boss';
       const spiritSheet = !isBoss && spiritAnimSheet();
       const bossSheet = isBoss && bossActionSheet('idle');
       const bodySheet = bossSheet || spiritSheet || (isBoss ? atlas.boss : (atlas['spirit-wisp'] || atlas.spirit));
-      const H = isBoss ? bossH : (spiritSheet ? spiritH : heroH * 1.05);
+      const spiritBodyK = isBoss ? 1 : 0.7;
+      const H = isBoss ? bossH : (spiritSheet ? spiritH : heroH * 1.05) * spiritBodyK;
+      group.userData.bodyScale = spiritBodyK;
+      group.userData.bodyH = H;
       const spr = sheetSprite(bodySheet, packTex(bodySheet) || tex(sheetFile(bodySheet)), H, { depthTest: false, renderOrder: 2 });
       group.add(spr);
       group.userData.sprite = spr;
@@ -488,7 +527,7 @@ export async function buildArt(THREE) {
         group.userData.rowLock = plain >= 0 ? plain : Math.max(0, (spiritSheet.dirOrder || []).length - 1);
         group.userData.anim.dir = group.userData.rowLock;
         group.userData.noFlip = true;
-        attachHangingBell(group, spiritSheet, H, false);
+        attachHangingBell(group, spiritSheet, H, false, { bellH: spiritH * 0.27 * 1.5, shape: shape });
       } else if (bossSheet) {
         group.userData.animPack = { actions: {} };
         group.userData.bossPack = atlas.bossAnim;
@@ -504,12 +543,12 @@ export async function buildArt(THREE) {
           frame: bodySheet.frame, count: bodySheet.count, order: bodySheet.order, fps: bodySheet.fps,
           states: { idle: [0, 1, 2, 3] }, fpsByState: { idle: bodySheet.fps }, anchor: bodySheet.anchor
         }, { blend: 0 });
-        attachHangingBell(group, bodySheet, H, false);
+        attachHangingBell(group, bodySheet, H, false, { bellH: (heroH * 1.05) * 0.27 * 1.5, shape: shape });
       }
       const glow = tex('fx/spirit-glow.png');
       if (glow) {
-        const g = imgSprite(glow, isBoss ? 4.2 : 2.8, isBoss ? 4.2 : 2.8, { cy: 0.45, add: true, opacity: 0.7 });
-        g.position.y = isBoss ? 2.0 : 1.0;
+        const g = imgSprite(glow, isBoss ? 4.2 : 1.05, isBoss ? 4.2 : 1.05, { cy: 0.45, add: true, opacity: isBoss ? 0.7 : 0.22 });
+        g.position.y = isBoss ? 2.0 : 0.55;
         g.material.depthTest = false;
         g.renderOrder = 1;
         group.add(g);
@@ -669,6 +708,14 @@ export async function buildArt(THREE) {
   function setSpiritShape(group, shape) {
     if (!group || !group.userData) return;
     group.userData.markShape = shape;
+    const hang = group.userData.bellHang;
+    if (hang && hang.bell) applyBellMap(hang.bell, shape);
+  }
+  function setBellAim(group, on) {
+    const hang = group && group.userData && group.userData.bellHang;
+    if (!hang || !hang.bell || !hang.bell.material || !hang.bell.material.color) return;
+    if (on) hang.bell.material.color.setRGB(1.25, 1.1, 0.8);
+    else hang.bell.material.color.setRGB(1, 1, 1);
   }
   function setAura(group, on) {
     if (!group || !group.userData || !group.userData.aura) return;
@@ -925,7 +972,7 @@ export async function buildArt(THREE) {
     transitions: (atlas.tiles && atlas.tiles.transitions) || null,
     night: hexColor(pal.night || pal.ground, 0x1e1c1a),
     makeChar: makeChar, makeProp: makeProp, tickChar: tickChar,
-    setSpiritShape: setSpiritShape, setStatus: setStatus, setAura: setAura, setTelegraph: setTelegraph,
+    setSpiritShape: setSpiritShape, setBellAim: setBellAim, getHangBellTex: getHangBellTex, bellTexUrl: bellTexUrl, setStatus: setStatus, setAura: setAura, setTelegraph: setTelegraph,
     applyMap: applyMap, slashTex: slashTex, playFx: playFx,
     trailTex: tex(el['fire-trail'] && el['fire-trail'].file),
     torchGlow: tex('fx/torch-glow.png'),
