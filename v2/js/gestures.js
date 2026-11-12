@@ -108,7 +108,7 @@
     var ny = Math.abs(b.y - a.y) / L, nx = Math.abs(b.x - a.x) / L;
     var dev = lineDev(pts, a, b) / L;
     var aspect = bb.w / bb.h;
-    if (bb.h < 32) return 0;
+    if (bb.h < 24) return 0;
     var sc = 1;
     sc *= clamp01((ny - 0.62) / 0.28);
     sc *= clamp01((0.50 - nx) / 0.50);
@@ -122,7 +122,7 @@
     var ny = Math.abs(b.y - a.y) / L, nx = Math.abs(b.x - a.x) / L;
     var dev = lineDev(pts, a, b) / L;
     var aspect = bb.h / bb.w;
-    if (bb.w < 32) return 0;
+    if (bb.w < 24) return 0;
     var sc = 1;
     sc *= clamp01((nx - 0.62) / 0.28);
     sc *= clamp01((0.50 - ny) / 0.50);
@@ -262,6 +262,25 @@
     }
     return sc;
   }
+
+  function densify(pts, step) {
+    step = step || 10;
+    if (!pts || pts.length < 2) return (pts || []).slice();
+    var out = [{ x: pts[0].x, y: pts[0].y }], i, k, n, a, b, d, t;
+    for (i = 1; i < pts.length; i++) {
+      a = out[out.length - 1];
+      b = pts[i];
+      d = dist(a, b);
+      if (d < 0.5) continue;
+      n = Math.max(1, Math.ceil(d / step));
+      for (k = 1; k <= n; k++) {
+        t = k / n;
+        out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+      }
+    }
+    return out;
+  }
+
   function isTap(pts, L, bb) {
     if (!pts || !pts.length) return false;
     var box = bb || bbox(pts);
@@ -288,9 +307,13 @@
     if (isTap(pts, L0, bb0)) {
       return { type: 'tap', reason: null, scores: { tap: 1 }, label: LABELS.tap, best: 'tap', bestScore: 1 };
     }
-    if (pts.length < 6) return { type: null, reason: 'short', scores: {}, label: null };
+    /* Fast flicks often arrive with 2–5 samples. Densify first, then judge by length/shape. */
+    pts = densify(pts, 10);
+    L0 = pathLen(pts);
+    bb0 = bbox(pts);
+    if (pts.length < 2) return { type: null, reason: 'short', scores: {}, label: null };
     var L = L0;
-    if (L < 48) return { type: null, reason: 'short', scores: {}, label: null };
+    if (L < 36) return { type: null, reason: 'short', scores: {}, label: null };
     var rs = resample(pts, 48);
     var bb = bbox(rs);
     var scores = {
@@ -329,6 +352,7 @@
   var API = {
     recognize: recognize,
     resample: resample,
+    densify: densify,
     pathLen: pathLen,
     bbox: bbox,
     simplify: simplify,

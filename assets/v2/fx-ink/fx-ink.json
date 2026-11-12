@@ -1,0 +1,425 @@
+{
+ "version": "fx-ink 2026-11-12 (designer) — Realm-of-Ink tone pass. Read with fetch('../assets/v2/fx-ink/fx-ink.json'). Paths are relative to assets/v2/fx-ink/",
+ "quality": {
+  "high": {
+   "bloom": true,
+   "fogLayers": 2,
+   "moonRays": true,
+   "maxParticles": 160,
+   "particlesPerHit": 14,
+   "particlesPerKill": 22,
+   "particlesPerSlash": 7,
+   "maxDecals": 24,
+   "maxBursts": 6,
+   "rimSheets": "rim (baked)"
+  },
+  "low": {
+   "bloom": false,
+   "fogLayers": 1,
+   "moonRays": false,
+   "maxParticles": 60,
+   "particlesPerHit": 6,
+   "particlesPerKill": 9,
+   "particlesPerSlash": 3,
+   "maxDecals": 10,
+   "maxBursts": 3,
+   "rimSheets": "rim (baked, same cost)"
+  },
+  "autoLow": "switch to low when the 2s rolling avg fps < 40 for 3s (or 1% low < 20); never switch back up during a run. URL ?fx=low forces low"
+ },
+ "slash": {
+  "replaces": "game.js makeSlash() additive strip (slash-line-*.png)",
+  "layers": [
+   {
+    "id": "ink",
+    "file": "slash/slash-ink-ribbon-512.png",
+    "file2x": "slash/slash-ink-ribbon.png",
+    "size": [
+     128,
+     512
+    ],
+    "blend": "normal",
+    "depthWrite": false,
+    "renderOrder": 5,
+    "widthMul": 1.2,
+    "note": "v=0 (image top) = press end at dash START, dry split tail at dash END. Stretch along length is safe (bristle streaks run lengthwise)"
+   },
+   {
+    "id": "core",
+    "file": "slash/slash-core-{elem}.png",
+    "size": [
+     128,
+     1024
+    ],
+    "blend": "additive",
+    "renderOrder": 6,
+    "widthMul": 0.55,
+    "lift": 0.01
+   },
+   {
+    "id": "bloom",
+    "file": "slash/slash-bloom.png",
+    "size": [
+     64,
+     256
+    ],
+    "blend": "additive",
+    "tint": "elemColor",
+    "opacity": 0.5,
+    "widthMul": 1.6,
+    "lengthMul": 1.05,
+    "lowMode": "off"
+   },
+   {
+    "id": "press",
+    "file": "slash/slash-press-splat.png",
+    "size": [
+     256,
+     256
+    ],
+    "blend": "normal",
+    "at": "dash start",
+    "sizeMul": 0.9
+   }
+  ],
+  "dissolve": {
+   "mask": "slash/slash-dissolve-mask.png",
+   "size": [
+    128,
+    512
+   ],
+   "rule": "discard if mask < 1 - clamp(opacity*1.18,0,1); alpha *= smoothstep(th, th+0.08, mask)",
+   "effect": "ink dries from the tail back to the press point"
+  },
+  "life": 0.55,
+  "curves": {
+   "ink.opacity": "1 until 25% then linear to 0",
+   "core.opacity": "1.3 for first 6%, then 1 - u/0.45",
+   "bloom.opacity": "0.5*(1 - u/0.35)",
+   "press.opacity": "1 until 40% then to 0"
+  },
+  "geometry": "PlaneGeometry(pathR*1.6*widthMul, len) on the ground, y=0.05, rotation (-PI/2, 0, atan2(dx, dz)) so local +Y points from 'to' back to 'from' (press at from)",
+  "elemColor": {
+   "jade": "#2EE6A6",
+   "fire": "#FF2E4A",
+   "lightning": "#FFC83A",
+   "poison": "#B04DFF",
+   "ice": "#8EE8FF"
+  },
+  "elemMap": {
+   "null": "jade (기본 비취)",
+   "fire": "fire (진홍)",
+   "lightning": "lightning (금)",
+   "poison": "poison (자색)",
+   "ice": "ice (옥빛)"
+  }
+ },
+ "particles": {
+  "sheet": "particles/ink-particles.png",
+  "sheet2x": "particles/ink-particles@2x.png",
+  "grid": [
+   8,
+   4
+  ],
+  "cell": [
+   64,
+   64
+  ],
+  "cell2x": [
+   128,
+   128
+  ],
+  "rows": {
+   "0": "ink drops (tail points +x = travel dir)",
+   "1": "ink shards/flecks",
+   "2": "crimson-ink drops (zombie)",
+   "3": "crimson shards"
+  },
+  "blend": "normal",
+  "renderOrder": 7,
+  "draw": "ONE THREE.Points (custom shader: gl_PointCoord rotated by aRot, frame from aFrame) — 1 draw call for all particles",
+  "emit": {
+   "speed": [
+    2.5,
+    7.0
+   ],
+   "spreadRad": 1.8,
+   "up": [
+    2,
+    5
+   ],
+   "startY": [
+    0.6,
+    1.4
+   ],
+   "gravity": -14,
+   "life": [
+    0.35,
+    0.65
+   ],
+   "size_m": [
+    0.18,
+    0.4
+   ],
+   "spin": [
+    -3,
+    3
+   ],
+   "dropVsShard": 0.65
+  },
+  "fade": "alpha = min(1, lifeLeft/(0.3*life))",
+  "onGround": "y<0.03 -> stop (x/z *0.3), 15% chance to leave a small decal (0.45 m), die within 0.08s",
+  "hitBurst": {
+   "sheet": "particles/ink-hit-burst.png",
+   "sheet2x": "particles/ink-hit-burst@2x.png",
+   "frames": 6,
+   "cell": [
+    128,
+    128
+   ],
+   "cell2x": [
+    256,
+    256
+   ],
+   "life": 0.36,
+   "size_m": 1.35,
+   "y": 1.0,
+   "blend": "normal",
+   "billboard": true
+  }
+ },
+ "decals": {
+  "sheet": "particles/ink-decal-sheet.png",
+  "sheet2x": "particles/ink-decal-sheet@2x.png",
+  "grid": [
+   6,
+   4
+  ],
+  "cell": [
+   128,
+   128
+  ],
+  "cell2x": [
+   256,
+   256
+  ],
+  "rows": "4 variants (random)",
+  "cols": "stage 0-2 spread, 3-5 soak",
+  "stageTimes": [
+   0,
+   0.05,
+   0.12,
+   1.2,
+   2.0,
+   2.8
+  ],
+  "fadeOut": "after 3.4s opacity 0.9 -> 0 over 0.6s",
+  "size_m": {
+   "kill": 2.2,
+   "hit": 1.4,
+   "drop": 0.45
+  },
+  "geometry": "PlaneGeometry(size,size) y=0.025, rotation (-PI/2,0,random), renderOrder 1 (above ground, below characters), depthWrite false",
+  "pool": "oldest decal recycled when maxDecals reached"
+ },
+ "rim": {
+  "rule": "same layout/cell/anchor as the original sheet; just swap the URL. *-rim.png = baked (outline + inner moon rim + haze). *-rimmask.png = RGB mask (R outer line, G inner rim, B haze) for a shader tint if wanted",
+  "hero": {
+   "line": "#A9E6DE",
+   "innerRim": "#F2FFFD",
+   "haze": "#6FCFC2",
+   "feel": "cold jade / blue-white"
+  },
+  "zombie": {
+   "line": "#B81E3A",
+   "innerRim": "#FF9FB0",
+   "haze": "#7426B8",
+   "feel": "crimson line + violet 귀기 haze"
+  },
+  "files": "see rim-meta.json (key per atlas action) and route-map.json (original path -> new path)"
+ },
+ "atmosphere": {
+  "order": "z: #view(0) < fxinkAtmo(2: moonRays, fogInk, fogMist) < #vignette(3) / #sightFog(3) < #ink(4) < #marks(6) < HUD(8). Marks are ALWAYS above fog/rays.",
+  "fogInk": {
+   "file": "atmo/fog-ink-{map}.png",
+   "size": [
+    1024,
+    512
+   ],
+   "wrap": "repeat",
+   "drawSize_css": {
+    "phone(<600px)": [
+     512,
+     256
+    ],
+    "pc": [
+     1024,
+     512
+    ]
+   },
+   "scroll": "-50% of a 200%-wide layer per 64s (≈16 css px/s at 1024)",
+   "opacity": 0.95,
+   "blend": "normal",
+   "mask": "top 0-30% and bottom 68-100% only (atmo/fog-edge-mask.png or CSS mask-image gradient)"
+  },
+  "fogMist": {
+   "file": "atmo/fog-mist-{map}.png",
+   "size": [
+    1024,
+    512
+   ],
+   "scroll": "reverse, 41s",
+   "opacity": 0.75,
+   "blend": "normal",
+   "mask": "same edge mask",
+   "lowMode": "off"
+  },
+  "moonRays": {
+   "file": "atmo/moonrays-{map}.png",
+   "size": [
+    768,
+    768
+   ],
+   "place": "top-right, 90% of the view, CSS mask radial from top-left",
+   "anim": "opacity .32<->.55 + 2% drift, 9s alternate",
+   "blend": "normal (pale colour on dark = screen-like, cheaper than mix-blend)",
+   "lowMode": "off"
+  },
+  "lanternGlow": {
+   "file": "atmo/glow-lantern-{map}.png",
+   "sheet": "atmo/glow-lantern-{map}-sheet.png (4 flicker frames, 256)",
+   "dropIn": "atmo/torch-glow-{map}.png (512, same as fx/torch-glow.png)",
+   "blend": "additive",
+   "flicker": "frame 4fps random + scale .95-1.05",
+   "use": "map1 bonfire, map2 gate braziers, map3 seonangdang paper lanterns (초롱)"
+  },
+  "maps": {
+   "map1": {
+    "name": "폐허 장터",
+    "ink": "#0B0908",
+    "mist": "#8C7A66",
+    "moon": "#F1E2C2",
+    "glow": "#FF8A3A"
+   },
+   "map2": {
+    "name": "성문·성곽",
+    "ink": "#07090C",
+    "mist": "#6F7C8C",
+    "moon": "#D8E6F4",
+    "glow": "#FF6A2A"
+   },
+   "map3": {
+    "name": "대숲·서낭당",
+    "ink": "#060A08",
+    "mist": "#6F8670",
+    "moon": "#E4F2DC",
+    "glow": "#FFB04A"
+   }
+  }
+ },
+ "code": {
+  "note": "11/12 2차: 코드 모듈 assets/v2/fx-ink/code/*.js (three r170, import * as THREE from \"three\"). 이 값들은 모듈 안 기본값과 같음.",
+  "bloom": {
+   "threshold": 1.0,
+   "high": {
+    "res": 0.5,
+    "samples": 0,
+    "strength": 0.6,
+    "radius": 0.45
+   },
+   "low": {
+    "res": 0.25,
+    "samples": 0,
+    "strength": 0.5,
+    "radius": 0.3
+   },
+   "off": null,
+   "msaaOptionDesktop": {
+    "samples": 4
+   }
+  },
+  "inkSlash": {
+   "life": 0.55,
+   "widthMul": 1.2,
+   "coreGain": {
+    "bloom": 1.6,
+    "noBloom": 1.2
+   },
+   "inkAlpha": 0.95,
+   "y": 0.05,
+   "renderOrder": 5,
+   "rotation": "(-PI/2, 0, atan2(dx,dz))",
+   "elemColors": {
+    "jade": "#2EE6A6",
+    "fire": "#FF2E4A",
+    "lightning": "#FFC83A",
+    "poison": "#B04DFF",
+    "ice": "#8EE8FF"
+   }
+  },
+  "inkParticles": {
+   "drawCalls": 3,
+   "high": {
+    "maxDrops": 160,
+    "maxBursts": 6,
+    "maxDecals": 24,
+    "perSlash": 7,
+    "perHit": 14,
+    "perKill": 22
+   },
+   "low": {
+    "maxDrops": 60,
+    "maxBursts": 3,
+    "maxDecals": 10,
+    "perSlash": 3,
+    "perHit": 6,
+    "perKill": 9
+   }
+  },
+  "sonarRing2D": {
+   "before": {
+    "core": "rgba(237,227,207,0.55*wave) 2.5px",
+    "inner": "rgba(30,24,18,0.35*wave) 6px @0.72r"
+   },
+   "after": {
+    "core": [
+     246,
+     238,
+     219
+    ],
+    "coreAlpha": "0.95*min(1,1.25*wave)",
+    "coreWidth": 4.5,
+    "halo": [
+     6,
+     5,
+     4
+    ],
+    "haloAlpha": 0.6,
+    "haloWidth": 12,
+    "glow": [
+     46,
+     230,
+     166
+    ],
+    "glowAlpha": 0.2,
+    "glowWidth": 8,
+    "glowOffset": 6,
+    "inner": "paper 2px a0.45 @0.72r",
+    "segments": 48,
+    "gap": 0.16
+   }
+  },
+  "sonarRing3D": {
+   "gain": 1.15,
+   "maxRadius": 9,
+   "optional": true
+  },
+  "autoQuality": {
+   "lowFps": 40,
+   "low1": 20,
+   "holdSec": 3,
+   "windowSec": 2,
+   "steps": "high->low->off, never back up within a run"
+  }
+ }
+}

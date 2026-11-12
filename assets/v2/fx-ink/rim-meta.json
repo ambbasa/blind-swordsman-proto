@@ -1,0 +1,84 @@
+{
+ "heroAnim": {
+  "idle": {
+   "baked": "rim/hero-idle-rim@2x.png",
+   "baked1x": "rim/hero-idle-rim.png",
+   "mask1x": "rim/hero-idle-rimmask.png",
+   "sameLayoutAs": "sprites/hero/hero-idle.png"
+  },
+  "walk": {
+   "baked": "rim/hero-walk-rim@2x.png",
+   "baked1x": "rim/hero-walk-rim.png",
+   "mask1x": "rim/hero-walk-rimmask.png",
+   "sameLayoutAs": "sprites/hero/hero-walk.png"
+  },
+  "windup": {
+   "baked": "rim/hero-windup-rim@2x.png",
+   "baked1x": "rim/hero-windup-rim.png",
+   "mask1x": "rim/hero-windup-rimmask.png",
+   "sameLayoutAs": "sprites/hero/hero-windup.png"
+  },
+  "dash": {
+   "baked": "rim/hero-dash-rim@2x.png",
+   "baked1x": "rim/hero-dash-rim.png",
+   "mask1x": "rim/hero-dash-rimmask.png",
+   "sameLayoutAs": "sprites/hero/hero-dash.png"
+  },
+  "slash": {
+   "baked": "rim/hero-slash-rim@2x.png",
+   "baked1x": "rim/hero-slash-rim.png",
+   "mask1x": "rim/hero-slash-rimmask.png",
+   "sameLayoutAs": "sprites/hero/hero-slash.png"
+  },
+  "hit": {
+   "baked": "rim/hero-hit-rim@2x.png",
+   "baked1x": "rim/hero-hit-rim.png",
+   "mask1x": "rim/hero-hit-rimmask.png",
+   "sameLayoutAs": "sprites/hero/hero-hit.png"
+  },
+  "down": {
+   "baked": "rim/hero-down-rim@2x.png",
+   "baked1x": "rim/hero-down-rim.png",
+   "mask1x": "rim/hero-down-rimmask.png",
+   "sameLayoutAs": "sprites/hero/hero-down.png"
+  }
+ },
+ "zombieAnim": {
+  "walk": {
+   "baked": "rim/zombie-walk-rim@2x.png",
+   "baked1x": "rim/zombie-walk-rim.png",
+   "mask1x": "rim/zombie-walk-rimmask.png",
+   "sameLayoutAs": "sprites/zombie/zombie-walk.png"
+  },
+  "hit": {
+   "baked": "rim/zombie-hit-rim@2x.png",
+   "baked1x": "rim/zombie-hit-rim.png",
+   "mask1x": "rim/zombie-hit-rimmask.png",
+   "sameLayoutAs": "sprites/zombie/zombie-hit.png"
+  },
+  "down": {
+   "baked": "rim/zombie-down-rim@2x.png",
+   "baked1x": "rim/zombie-down-rim.png",
+   "mask1x": "rim/zombie-down-rimmask.png",
+   "sameLayoutAs": "sprites/zombie/zombie-down.png"
+  },
+  "frozen": {
+   "baked": "rim/zombie-frozen-dirs-rim@2x.png",
+   "baked1x": "rim/zombie-frozen-dirs-rim.png",
+   "mask1x": "rim/zombie-frozen-dirs-rimmask.png",
+   "sameLayoutAs": "sprites/zombie/zombie-frozen-dirs.png"
+  },
+  "burning": {
+   "baked": "rim/zombie-burning-dirs-rim@2x.png",
+   "baked1x": "rim/zombie-burning-dirs-rim.png",
+   "mask1x": "rim/zombie-burning-dirs-rimmask.png",
+   "sameLayoutAs": "sprites/zombie/zombie-burning-dirs.png"
+  },
+  "poisoned": {
+   "baked": "rim/zombie-poisoned-dirs-rim@2x.png",
+   "baked1x": "rim/zombie-poisoned-dirs-rim.png",
+   "mask1x": "rim/zombie-poisoned-dirs-rimmask.png",
+   "sameLayoutAs": "sprites/zombie/zombie-poisoned-dirs.png"
+  }
+ }
+}

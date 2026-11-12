@@ -40,10 +40,35 @@ function hexColor(s, fb) {
 }
 
 export async function buildArt(THREE) {
+  let bakedRim = false;
   const atlas = await loadAtlas();
+  try {
+    const rr = await fetch(BASE + 'fx-ink/route-map.json');
+    if (rr.ok) {
+      const route = await rr.json();
+      function remapSheet(s) {
+        if (!s) return;
+        if (s.file && route[s.file]) s.file = 'fx-ink/' + route[s.file];
+        if (s.file1x && route[s.file1x]) s.file1x = 'fx-ink/' + route[s.file1x];
+      }
+      const ha = atlas.heroAnim && atlas.heroAnim.actions;
+      if (ha) Object.keys(ha).forEach(function (k) { remapSheet(ha[k]); });
+      const za = atlas.zombieAnim && atlas.zombieAnim.actions;
+      if (za) Object.keys(za).forEach(function (k) { remapSheet(za[k]); });
+      const sample = (ha && (ha.idle || ha.walk)) || (za && za.walk);
+      bakedRim = !!(sample && ((sample.file1x && String(sample.file1x).indexOf('fx-ink/rim/') >= 0) || (sample.file && String(sample.file).indexOf('fx-ink/rim/') >= 0)));
+    }
+  } catch (e) { /* keep original sheets if the pack is missing */ }
   const pal = atlas.palette || {};
   const cache = new Map();
   const sharedUrls = [];
+  let currentMapId = 'map1';
+  function torchGlowUrl(id) {
+    return 'fx-ink/atmo/torch-glow-' + (id || currentMapId || 'map1') + '.png';
+  }
+  function torchGlowTex(id) {
+    return tex(torchGlowUrl(id)) || tex('fx/torch-glow.png');
+  }
 
   function loadOne(url, opt) {
     opt = opt || {};
@@ -151,6 +176,7 @@ export async function buildArt(THREE) {
     Object.keys(el['slash-line'].files).forEach(function (k) { want(el['slash-line'].files[k]); });
   }
   want('fx/torch-glow.png');
+  ['map1', 'map2', 'map3'].forEach(function (id) { want('fx-ink/atmo/torch-glow-' + id + '.png'); });
   want('fx/spirit-glow.png');
   want('fx/shadow.png');
   if (atlas.fog) {
@@ -214,6 +240,63 @@ export async function buildArt(THREE) {
     const sh = imgSprite(shTex, width || 1.4, (width || 1.4) * 96 / 256, { cy: 0.5, opacity: 0.65 });
     sh.position.y = 0.02;
     group.add(sh);
+  }
+  function addRim(group, hex, scale) {
+    if (bakedRim) { if (group && group.userData) group.userData.bakedRim = true; return; }
+    const spr = group.userData && group.userData.sprite;
+    if (!spr || !spr.material) return;
+    const mat = new THREE.SpriteMaterial({
+      map: spr.material.map, color: hex || 0x3ec8c0,
+      transparent: true, depthWrite: false, depthTest: false,
+      blending: THREE.AdditiveBlending, opacity: 0.42
+    });
+    const rim = new THREE.Sprite(mat);
+    const sx = Math.abs(spr.scale.x), sy = Math.abs(spr.scale.y);
+    const k = scale || 1.12;
+    rim.scale.set(sx * k, sy * k, 1);
+    rim.center.copy(spr.center);
+    rim.renderOrder = 1;
+    rim.position.z = -0.03;
+    group.add(rim);
+    group.userData.rim = rim;
+  }
+  function addTelegraph(group, worldH) {
+    const glow = tex('fx/spirit-glow.png') || tex('fx/torch-glow.png');
+    if (!glow) return;
+    const eye = imgSprite(glow, 0.85, 0.55, { cy: 0.5, add: true, opacity: 0 });
+    eye.position.y = (worldH || 2) * 0.78;
+    eye.position.z = 0.04;
+    eye.visible = false;
+    eye.material.color = new THREE.Color(0xc8281e);
+    eye.material.depthTest = false;
+    eye.renderOrder = 5;
+    group.add(eye);
+    group.userData.tele = eye;
+  }
+  function setTelegraph(group, on) {
+    if (!group || !group.userData) return;
+    const tele = group.userData.tele;
+    if (tele) {
+      tele.visible = !!on;
+      if (tele.material) tele.material.opacity = on ? 0.85 : 0;
+    }
+    const rim = group.userData.rim;
+    if (rim && rim.material && rim.material.color) {
+      rim.material.color.setHex(on ? 0xc8281e : 0x3ec8c0);
+      rim.material.opacity = on ? 0.7 : 0.42;
+    }
+    group.userData.teleOn = !!on;
+  }
+  function syncRim(group) {
+    const spr = group && group.userData && group.userData.sprite;
+    const rim = group && group.userData && group.userData.rim;
+    if (!spr || !rim || !spr.material) return;
+    if (rim.material && spr.material.map) rim.material.map = spr.material.map;
+    const k = 1.12;
+    const sx = Math.abs(spr.scale.x), sy = Math.abs(spr.scale.y);
+    const sign = spr.scale.x < 0 ? -1 : 1;
+    rim.scale.set(sign * sx * k, sy * k, 1);
+    if (spr.center) rim.center.copy(spr.center);
   }
   function localBell(sheet, worldH) {
     const fw = (sheet.frame && sheet.frame[0]) || 512;
@@ -317,8 +400,13 @@ export async function buildArt(THREE) {
     const t = cloneTex(src);
     const dir = (group.userData.anim && group.userData.anim.dir) || 0;
     applyUV(t, sheet, 0, dir);
+    t.needsUpdate = true;
     spr.material.map = t;
-    if (prev && prev !== src && prev.dispose) prev.dispose();
+    spr.material.opacity = 1;
+    spr.visible = true;
+    if (prev && prev !== src && prev !== t && prev.dispose) {
+      setTimeout(function () { try { prev.dispose(); } catch (e) {} }, 0);
+    }
     const worldH = group.userData.worldH;
     if (worldH) {
       const fw = (sheet.frame && sheet.frame[0]) || 256;
@@ -334,6 +422,11 @@ export async function buildArt(THREE) {
     group.userData.anim.dir = keepDir || 0;
     group.userData.action = name;
     group.userData.pendingAction = null;
+    if (group.userData.anim && sheet.states && sheet.states[name]) {
+      group.userData.anim.setState(name);
+      const st0 = group.userData.anim.tick(0);
+      applyUV(t, sheet, st0.frame, st0.dir);
+    }
   }
   function facingSouth(sheet) {
     const order = (sheet && sheet.dirOrder) || [];
@@ -359,7 +452,7 @@ export async function buildArt(THREE) {
       group.userData.anim = Anim.createController(sheet, { blend: 0.1 });
       group.userData.anim.dir = facingSouth(sheet);
       group.userData.noFlip = !!(pack && (pack.mirroredFrom || (idle && idle.mirroredRows)));
-      if (kind === 'hero') addShadow(group, 1.5);
+      if (kind === 'hero') { addShadow(group, 1.5); addRim(group, 0xe9dfc8, 1.08); }
     } else if (kind === 'zombie') {
       const pack = atlas.zombieAnim;
       const walk = pack && pack.actions && pack.actions.walk;
@@ -375,6 +468,8 @@ export async function buildArt(THREE) {
       group.userData.anim.dir = facingSouth(sheet);
       group.userData.noFlip = !!(pack && (pack.mirroredFrom || (walk && walk.mirroredRows)));
       addShadow(group, 1.35);
+      addRim(group, 0x3ec8c0, 1.12);
+      addTelegraph(group, H);
       attachStatus(group, H);
     } else if (kind === 'spirit' || kind === 'boss') {
       const isBoss = kind === 'boss';
@@ -553,6 +648,7 @@ export async function buildArt(THREE) {
       if (spr && spr.material && spr.material.map && anim.sheet) applyUV(spr.material.map, anim.sheet, st.frame, st.dir);
       if (!group.userData.noFlip) applyFlip(spr, st.flip);
       else if (spr) applyFlip(spr, false);
+      if (group.userData.rim) syncRim(group);
       if (kind === 'boss' && anim.sheet && anim.sheet.bellCenters) {
         const bc = anim.sheet.bellCenters[st.frame] || anim.sheet.bellCenters[0];
         if (bc) group.userData.bellLocal = localFromPx(anim.sheet, group.userData.worldH || bossH, [bc[0] + 48, bc[1] - 10]);
@@ -596,8 +692,8 @@ export async function buildArt(THREE) {
     g.add(spr);
     g.userData.prop = def;
     g.userData.sprite = spr;
-    if (def.flameOffset && tex('fx/torch-glow.png')) {
-      const glo = imgSprite(tex('fx/torch-glow.png'), 2.4, 2.4, { cy: 0.5, add: true, opacity: 0.7 });
+    if (def.flameOffset && torchGlowTex()) {
+      const glo = imgSprite(torchGlowTex(), 2.4, 2.4, { cy: 0.5, add: true, opacity: 0.7 });
       glo.position.set(def.flameOffset[0] * unit, -def.flameOffset[1] * unit, 0.01);
       g.add(glo);
       g.userData.glow = glo;
@@ -692,6 +788,7 @@ export async function buildArt(THREE) {
   async function applyMap(scene, mapId, prev) {
     if (prev && prev.dispose) prev.dispose();
     const id = (atlas.maps && atlas.maps[mapId]) ? mapId : 'map1';
+    currentMapId = id;
     const M = atlas.maps[id];
     const urls = [];
     const group = new THREE.Group();
@@ -828,10 +925,12 @@ export async function buildArt(THREE) {
     transitions: (atlas.tiles && atlas.tiles.transitions) || null,
     night: hexColor(pal.night || pal.ground, 0x1e1c1a),
     makeChar: makeChar, makeProp: makeProp, tickChar: tickChar,
-    setSpiritShape: setSpiritShape, setStatus: setStatus, setAura: setAura,
+    setSpiritShape: setSpiritShape, setStatus: setStatus, setAura: setAura, setTelegraph: setTelegraph,
     applyMap: applyMap, slashTex: slashTex, playFx: playFx,
     trailTex: tex(el['fire-trail'] && el['fire-trail'].file),
     torchGlow: tex('fx/torch-glow.png'),
+    torchGlowUrl: torchGlowUrl,
+    torchGlowTex: torchGlowTex,
     glowTex: tex('fx/spirit-glow.png'),
     shadowTex: tex('fx/shadow.png'),
     images: {
@@ -847,6 +946,7 @@ export async function buildArt(THREE) {
       paper: atlas.bg && atlas.bg.paper && String(atlas.bg.paper).split(' ')[0]
     },
     BASE: BASE,
+    bakedRim: function () { return bakedRim; },
     used: { atlas: BASE + 'atlas.json' }
   };
 }

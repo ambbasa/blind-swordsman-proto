@@ -11,8 +11,12 @@
 <body>
   <div id="app">
     <div id="view"></div>
+    <div id="fxinkAtmo" aria-hidden="true"></div>
     <canvas id="ink"></canvas>
     <div id="vignette" aria-hidden="true"></div>
+    <canvas id="sightFog" aria-hidden="true"></canvas>
+    <div id="mindWave" aria-hidden="true"></div>
+    <canvas id="sonarRing" aria-hidden="true"></canvas>
     <canvas id="marks" aria-hidden="true"></canvas>
     <div id="onebellInk" aria-hidden="true"></div>
     <div id="onebellPaper" aria-hidden="true"></div>
@@ -40,13 +44,8 @@
       <div class="card title-card">
         <p class="seal">斬</p>
         <h1>맹인 검객 일섬</h1>
-        <p class="sub">종에 새겨진 모양을 그려, 가장 먼 혼령에게 돌진하세요</p>
-        <p class="shapes-help" aria-hidden="true">
-          <span class="hanji-chip"><img src="../assets/v2/ui/seal-I@2x.png" alt="ㅣ" width="40" height="40"></span>
-          <span class="hanji-chip"><img src="../assets/v2/ui/seal-H@2x.png" alt="—" width="40" height="40"></span>
-          <span class="hanji-chip"><img src="../assets/v2/ui/seal-V@2x.png" alt="V" width="40" height="40"></span>
-          <span class="hanji-chip"><img src="../assets/v2/ui/seal-O@2x.png" alt="O" width="40" height="40"></span>
-        </p>
+        <p class="sub" id="titleSub">종에 새겨진 모양을 그려, 그은 방향의 혼령에게 돌진하세요</p>
+        <p class="shapes-help" id="titleShapes" aria-hidden="true"></p>
         <button type="button" id="btnStart" class="btn primary">출전</button>
         <button type="button" id="btnShop" class="btn">성장</button>
       </div>

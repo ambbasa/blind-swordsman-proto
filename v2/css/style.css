@@ -15,7 +15,7 @@ html, body, #app, canvas { touch-action: none; }
 #view canvas { display: block; width: 100%; height: 100%; }
 #ink { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; }
 #hud {
-  position: absolute; left: 0; right: 0; top: 0; z-index: 5; pointer-events: none;
+  position: absolute; left: 0; right: 0; top: 0; z-index: 8; pointer-events: none;
   padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 8px;
   background: linear-gradient(to bottom, rgba(8,8,12,.72), rgba(8,8,12,0));
   text-shadow: 0 1px 2px #000;
@@ -98,7 +98,7 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 #app:has(.ov.show) #hud { opacity: 0; pointer-events: none; }
 
 
-#marks { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 5; pointer-events: none; }
+#marks { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 6; pointer-events: none; }
 #onebellInk, #onebellPaper, #onebellBurst {
   position: absolute; inset: 0; z-index: 7; pointer-events: none;
   background-position: center; background-size: cover; background-repeat: no-repeat;
@@ -145,10 +145,15 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 #beatPulse {
   position: absolute; inset: 0; pointer-events: none; z-index: 3;
   box-shadow: inset 0 0 0 0 rgba(237, 227, 207, 0);
-  transition: box-shadow 0.08s linear;
+  transition: box-shadow 0.06s linear;
 }
 #app.beat #beatPulse {
-  box-shadow: inset 0 0 0 5px rgba(237, 227, 207, 0.88), inset 0 0 40px rgba(237, 227, 207, 0.22);
+  box-shadow: inset 0 0 0 8px rgba(244, 232, 208, 0.95), inset 0 0 36px rgba(244, 232, 208, 0.28);
+  animation: beatFlash 0.2s ease-out;
+}
+@keyframes beatFlash {
+  0% { box-shadow: inset 0 0 0 10px rgba(244, 232, 208, 1), inset 0 0 48px rgba(244, 232, 208, 0.4); }
+  100% { box-shadow: inset 0 0 0 3px rgba(244, 232, 208, 0.15), inset 0 0 16px rgba(244, 232, 208, 0); }
 }
 #judgeFlash {
   position: absolute; top: 22%; left: 50%; transform: translateX(-50%);
@@ -165,20 +170,68 @@ h2 { margin: 0 0 8px; font-size: 20px; }
   100% { opacity: 0; transform: translateX(-50%) translateY(-12px) scale(1); }
 }
 #app.combo-burst #beatPulse {
-  box-shadow: inset 0 0 0 8px rgba(20, 12, 8, 0.85), inset 0 0 80px rgba(20, 12, 8, 0.55);
+  /* Keep the beat rim; do not darken the field or cover marks. */
+  box-shadow: inset 0 0 0 6px rgba(244, 232, 208, 0.55);
 }
 #app.combo-burst::after {
   content: "";
-  position: absolute; inset: 0; pointer-events: none; z-index: 4;
-  background: radial-gradient(circle at 50% 55%, rgba(237,227,207,0.2), transparent 55%),
-              url(../../assets/v2/fx/onebell-ink-burst.png) center/contain no-repeat;
-  opacity: 0.85;
-  animation: comboInk 0.55s ease-out both;
+  position: absolute; inset: 12% 18%; pointer-events: none; z-index: 3;
+  background: url(../../assets/v2/fx/onebell-ink-burst.png) center/contain no-repeat;
+  opacity: 0.4;
+  animation: comboInk 0.22s ease-out both;
 }
 @keyframes comboInk {
-  0% { opacity: 0.15; transform: scale(0.7); }
-  35% { opacity: 0.9; transform: scale(1.05); }
-  100% { opacity: 0; transform: scale(1.2); }
+  0% { opacity: 0.18; transform: scale(0.88); }
+  40% { opacity: 0.42; transform: scale(1.02); }
+  100% { opacity: 0; transform: scale(1.1); }
 }
 #comboLabel { min-width: 4.5em; }
 #comboLabel.hot { color: #8B1A1A; }
+
+#sightFog { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; }
+#sonarRing { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; }
+#mindWave {
+  position: absolute; inset: 0; pointer-events: none; z-index: 3;
+  background: radial-gradient(circle at 50% 58%, rgba(237,227,207,0.0) 0%, rgba(237,227,207,0.0) 40%, transparent 70%);
+  opacity: 0;
+}
+#app.sight-wave #mindWave {
+  animation: mindWave 0.7s ease-out both;
+}
+@keyframes mindWave {
+  0% { opacity: 0.55; transform: scale(0.35); background: radial-gradient(circle at 50% 58%, rgba(237,227,207,0.2) 0%, rgba(14,12,10,0.15) 28%, transparent 62%); }
+  55% { opacity: 0.4; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.35); }
+}
+.shapes-help .hanji-chip {
+  width: 48px; height: 48px; border: 0; background: url(../../assets/v2/bg/hanji-paper.png) center/cover no-repeat;
+  color: #0E0C0A; line-height: normal; font-size: 16px; border-radius: 50%;
+}
+.tap-drop, .tap-drop-svg { display: block; margin: 0 auto; }
+.tap-drop {
+  width: 14px; height: 20px;
+  background: #0E0C0A;
+  border-radius: 70% 70% 70% 70% / 55% 55% 70% 70%;
+  transform: rotate(180deg);
+  clip-path: path("M8 0 C3 7, 0 11, 0 14 a8 8 0 1 0 16 0 C16 11, 13 7, 8 0z");
+  position: relative;
+}
+.hanji-chip.tap-chip {
+  overflow: visible;
+  width: 56px; height: 66px;
+  border-radius: 14px;
+  flex-direction: column;
+  gap: 2px;
+  color: #0E0C0A;
+  font-weight: 800;
+}
+.tap-caption { font-style: normal; font-size: 11px; letter-spacing: 0.04em; color: #0E0C0A; line-height: 1; }
+
+#fxinkAtmo{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
+#fxinkAtmo .lay{position:absolute;left:0;top:0;width:200%;height:100%;background-repeat:repeat;will-change:transform}
+#fxinkAtmo .edge{-webkit-mask-image:linear-gradient(#000 0%,rgba(0,0,0,.85) 14%,transparent 30%,transparent 68%,rgba(0,0,0,.85) 86%,#000 100%);mask-image:linear-gradient(#000 0%,rgba(0,0,0,.85) 14%,transparent 30%,transparent 68%,rgba(0,0,0,.85) 86%,#000 100%)}
+#fxinkAtmo .a{animation:fxinkScroll 64s linear infinite;opacity:.95}
+#fxinkAtmo .b{animation:fxinkScroll 41s linear infinite reverse;opacity:.75}
+#fxinkAtmo .rays{position:absolute;inset:-10% -10% auto auto;width:90%;height:90%;background-size:cover;opacity:.5;animation:fxinkRays 9s ease-in-out infinite alternate;-webkit-mask-image:radial-gradient(ellipse at 20% 0%,#000 30%,transparent 75%)}
+@keyframes fxinkScroll{from{transform:translate3d(0,0,0)}to{transform:translate3d(-50%,0,0)}}
+@keyframes fxinkRays{from{opacity:.32;transform:translate3d(0,0,0)}to{opacity:.55;transform:translate3d(-2%,1%,0)}}
