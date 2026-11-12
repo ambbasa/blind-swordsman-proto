@@ -102,6 +102,32 @@
     return idx;
   }
   function clamp01(n) { return n < 0 ? 0 : n > 1 ? 1 : n; }
+  /* V in any orientation: the vertex is the point farthest from the chord of the two ends. */
+  function veeApex(pts) {
+    var a = pts[0], b = pts[pts.length - 1], i, best = -1, idx = 0;
+    var dx = b.x - a.x, dy = b.y - a.y, L = Math.hypot(dx, dy) || 1;
+    for (i = 0; i < pts.length; i++) {
+      var d = Math.abs((pts[i].x - a.x) * dy - (pts[i].y - a.y) * dx) / L;
+      if (d > best) { best = d; idx = i; }
+    }
+    var mx = (a.x + b.x) * 0.5, my = (a.y + b.y) * 0.5;
+    var ux = pts[idx].x - mx, uy = pts[idx].y - my, ul = Math.hypot(ux, uy);
+    return { index: idx, depth: best, dir: ul > 1e-6 ? { x: ux / ul, y: uy / ul } : null };
+  }
+  function rotateApexDown(pts, dir) {
+    var t = Math.PI / 2 - Math.atan2(dir.y, dir.x), c = Math.cos(t), s = Math.sin(t), out = [], i;
+    for (i = 0; i < pts.length; i++) out.push({ x: pts[i].x * c - pts[i].y * s, y: pts[i].x * s + pts[i].y * c });
+    var bb = bbox(out);
+    for (i = 0; i < out.length; i++) { out[i].x -= bb.x; out[i].y -= bb.y; }
+    return out;
+  }
+  function scoreVeeAny(pts, bb, L) {
+    var up = scoreVee(pts, bb, L);
+    var ap = veeApex(pts);
+    if (!ap.dir) return up;
+    var r = rotateApexDown(pts, ap.dir);
+    return Math.max(up, scoreVee(r, bbox(r), L));
+  }
 
   function scoreVline(pts, bb, L) {
     var a = pts[0], b = pts[pts.length - 1], s = straightness(pts);
@@ -319,7 +345,7 @@
     var scores = {
       vline: scoreVline(rs, bb, pathLen(rs)),
       hline: scoreHline(rs, bb, pathLen(rs)),
-      vee: scoreVee(rs, bb, pathLen(rs)),
+      vee: scoreVeeAny(rs, bb, pathLen(rs)),
       circle: scoreCircle(rs, bb, pathLen(rs)),
       square: scoreSquare(rs, bb, pathLen(rs)),
       bolt: scoreBolt(rs, bb, pathLen(rs))
@@ -370,6 +396,7 @@
 
   var API = {
     recognize: recognize,
+    veeApex: veeApex,
     readMessage: readMessage,
     resample: resample,
     densify: densify,

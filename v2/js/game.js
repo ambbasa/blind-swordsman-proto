@@ -44,13 +44,13 @@ const CFG = {
   coinPerKill: 3, comboExtra: 2,
   idlePerMin: 4, idleMaxHours: 8,
   upgradeBase: 15, atkStep: 0.08, hpStep: 3, coinStep: 0.25, maxLv: 10,
-  xpBase: 5,
+  xpBase: 5, xpPerKill: 1,
   dashDur: 0.28, pathRadius: 1.35, dashDmg: 2, zombieHp: 2, spiritHp: 1,
   perfectPathBonus: 0.4,
   dashCount: 1, spawnZombieMs: 1250, spawnSpiritMs: 950,
   spawnZombieMax: 16, spawnSpiritMax: 0,
   spawnZombieMinMs: 450, spawnSpiritMinMs: 480,
-  spawnZombieDelay: 12, practiceZombieMs: 3200, practiceZombieMax: 2, earlyZombieMax: 4, earlyZombieUntil: 25,
+  spawnZombieDelay: 5, practiceZombieMs: 3200, practiceZombieMax: 2, earlyZombieMax: 4, earlyZombieUntil: 25,
   startSpirits: 1, spiritMax: 4, markedMax: 4, markedStart: 0, sameShapeMax: 2,
   ringScreenFrac: 0.70, ringMaxFrac: 0.90, ringBoost: 0.14, ringLvMax: 4,
   spiritOmega: 2.8, spiritAvoidMax: 0.30, spiritAvoidOmega: 8, lockKeep: 3.0, lockRelinquish: 1.85,
@@ -896,12 +896,9 @@ function strokeScreenDir(pts) {
 function strokeAimDir(pts, type) {
   if (!pts || pts.length < 2) return null;
   if (type === 'vee') {
-    let vi = 0, bestY = -1e9;
-    for (let i = 0; i < pts.length; i++) if (pts[i].y > bestY) { bestY = pts[i].y; vi = i; }
-    const v = pts[vi], mid = { x: (pts[0].x + pts[pts.length - 1].x) * 0.5, y: (pts[0].y + pts[pts.length - 1].y) * 0.5 };
-    const dx = v.x - mid.x, dy = v.y - mid.y, L = Math.hypot(dx, dy);
-    if (L < 8) return strokeScreenDir(pts);
-    return { x: dx / L, y: dy / L };
+    const ap = G.veeApex(pts);
+    if (!ap.dir || ap.depth < 8) return strokeScreenDir(pts);
+    return ap.dir;
   }
   if (type === 'square' || type === 'circle') return null;
   return strokeScreenDir(pts);
@@ -1912,6 +1909,7 @@ function killZombie(z, rec) {
   }
   if (rec && rec.hits && rec.hits.some(function (h) { return h.id === z.id && h.why === 'slash'; })) addHitstop(CFG.hitstopKill || 0.06);
   grantKill();
+  gainXp(CFG.xpPerKill);
   if (Math.random() < 0.35) spawnItem({ type: dropType(), x: z.x, z: z.z });
   refreshSpirits();
 }
@@ -2339,7 +2337,9 @@ function finishStroke(pts, opts) {
   const dir = rec.type === 'tap' ? null : strokeAimDir(pts, rec.type);
   S.lastStrokeDir = dir;
   rec.dir = dir;
-  if (rec.type === 'tap') {
+  /* A boss waiting on a tap takes the tap; otherwise nearby zombies would always turn it into a parry. */
+  const bossWantsTap = rec.type === 'tap' && S.boss && S.boss.alive && S.boss.seq && S.boss.seq[S.boss.seqI] === 'tap';
+  if (rec.type === 'tap' && !bossWantsTap) {
     const threat = closeZombie();
     if (threat) {
       applyJudge(opts.judge);
