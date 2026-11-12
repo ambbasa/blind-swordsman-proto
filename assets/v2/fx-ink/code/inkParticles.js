@@ -14,6 +14,7 @@ export const INK_QUALITY = {
 };
 export const INK_PARAMS = {
   speed: [2.5, 7.0], spread: 1.8, up: [2, 5], startY: [0.6, 1.4], gravity: -14, life: [0.35, 0.65], size: [0.18, 0.40], spin: 3, dropShare: 0.65,
+  tint: [0.42, 0.018, 0.022],   // 진홍 먹: 먹색 바닥에서도 보이도록 (null이면 원래 먹색)
   burst: { life: 0.36, size: 1.35, y: 1.0 },
   decal: { stageTimes: [0, 0.05, 0.12, 1.2, 2.0, 2.8], fadeAt: 3.4, fadeDur: 0.6, opacity: 0.9, kill: 2.2, hit: 1.4, drop: 0.45, dropChance: 0.15, y: 0.025 },
 };
@@ -31,8 +32,10 @@ void main() {
   if (iSize <= 0.0) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);   // dead slot: off-screen
 }`;
 const FRAG = /* glsl */`
-uniform sampler2D map; varying vec2 vUv; varying float vA;
-void main() { vec4 t = texture2D(map, vUv); t.a *= vA; if (t.a < 0.01) discard; gl_FragColor = t;
+uniform sampler2D map; uniform vec3 uTint; uniform float uTintOn; varying vec2 vUv; varying float vA;
+void main() { vec4 t = texture2D(map, vUv); t.a *= vA; if (t.a < 0.01) discard;
+  float l = dot(t.rgb, vec3(0.2126, 0.7152, 0.0722));
+  t.rgb = mix(t.rgb, uTint * (0.55 + 1.2 * l), uTintOn); gl_FragColor = t;
   #include <colorspace_fragment>
 }`;
 
@@ -44,7 +47,7 @@ class Batch {
     const add = (n, arr, k) => { const a = new THREE.InstancedBufferAttribute(arr, k); a.setUsage(THREE.DynamicDrawUsage); g.setAttribute(n, a); return a; };
     this.attrs = [add('iPos', this.pos, 3), add('iSize', this.size, 1), add('iRot', this.rot, 1), add('iFrame', this.frame, 1), add('iAlpha', this.alpha, 1)];
     g.instanceCount = cap;
-    this.mat = new THREE.ShaderMaterial({ uniforms: { map: { value: tex }, uGrid: { value: new THREE.Vector2(grid[0], grid[1]) }, uGround: { value: ground ? 1 : 0 } },
+    this.mat = new THREE.ShaderMaterial({ uniforms: { map: { value: tex }, uTint: { value: new THREE.Vector3().fromArray(INK_PARAMS.tint || [0, 0, 0]) }, uTintOn: { value: INK_PARAMS.tint ? 1 : 0 }, uGrid: { value: new THREE.Vector2(grid[0], grid[1]) }, uGround: { value: ground ? 1 : 0 } },
       vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, depthTest: true, side: THREE.DoubleSide });
     this.mesh = new THREE.Mesh(g, this.mat); this.mesh.frustumCulled = false; this.mesh.renderOrder = renderOrder; this.geo = g; this.base = base;
   }

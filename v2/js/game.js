@@ -7,6 +7,7 @@ import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/ink
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
 import { drawSonarRing2D } from '../../assets/v2/fx-ink/code/sonarRing.js';
+import { createInkWashPass } from './inkwash.js';
 
 const G = window.GPGestures;
 const SAVE_KEY = 'gesture-proto.v2';
@@ -250,7 +251,7 @@ async function makeWorld() {
   const map = await art.applyMap(scene, 'map1', null);
   const world = { renderer: renderer, scene: scene, camera: camera, map: map, torches: map.lights || [], fx: [], slashes: [], view: view, fxForced: fxQForced };
   try {
-    world.bloom = setupBloom(renderer, scene, camera, { quality: fxQ });
+    world.bloom = setupBloom(renderer, scene, camera, { quality: fxQ, post: function () { return [createInkWashPass()]; } });
   } catch (e) { world.bloom = null; }
   try {
     world.ink = new InkParticles(scene, { base: FXINK_BASE, quality: fxQ === 'high' ? 'high' : 'low' });

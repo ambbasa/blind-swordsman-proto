@@ -22,10 +22,10 @@ export const BLOOM_PRESETS = {
   off: null,   // plain renderer.render — use on very weak devices (slash core then uses uCoreGain 1.2)
 };
 
-export function setupBloom(renderer, scene, camera, { quality = 'high', override = null } = {}) {
+export function setupBloom(renderer, scene, camera, { quality = 'high', override = null, post = null } = {}) {
   const size = renderer.getSize(new THREE.Vector2()); let q = quality;
   const preset = (k) => (BLOOM_PRESETS[k] && override ? Object.assign({}, BLOOM_PRESETS[k], override) : BLOOM_PRESETS[k]); let P = preset(q);
-  let composer = null, bloom = null, rt = null;
+  let composer = null, bloom = null, rt = null, extra = [];
   function build() {
     dispose();
     if (!P) return;
@@ -36,14 +36,17 @@ export function setupBloom(renderer, scene, camera, { quality = 'high', override
     bloom = new UnrealBloomPass(new THREE.Vector2(size.x * P.res * 2, size.y * P.res * 2), P.strength, P.radius, P.threshold);
     const base = bloom.setSize.bind(bloom); bloom.setSize = (w, h) => base(Math.max(2, w * P.res * 2), Math.max(2, h * P.res * 2));   // UnrealBloomPass halves internally
     composer.addPass(bloom);
+    extra = post ? post() : [];
+    extra.forEach((p) => composer.addPass(p));
     composer.addPass(new OutputPass());   // linear HDR -> renderer.outputColorSpace (sRGB) with renderer.toneMapping (NoToneMapping in v2)
     composer.setSize(size.x, size.y);
   }
-  function dispose() { if (composer) { composer.passes.forEach((p) => p.dispose && p.dispose()); composer.dispose(); } composer = null; bloom = null; rt = null; }
+  function dispose() { if (composer) { composer.passes.forEach((p) => p.dispose && p.dispose()); composer.dispose(); } composer = null; bloom = null; rt = null; extra = []; }
   build();
   return {
     get quality() { return q; }, get composer() { return composer; }, get bloomPass() { return bloom; },
-    render(dt) { if (composer) composer.render(dt); else renderer.render(scene, camera); },
+    render(dt) { extra.forEach((p) => p.tick && p.tick(dt)); if (composer) composer.render(dt); else renderer.render(scene, camera); },
+    get post() { return extra; },
     setSize(w, h) { size.set(w, h); if (composer) composer.setSize(w, h); },
     setQuality(nq) { if (nq === q || !(nq in BLOOM_PRESETS)) return; q = nq; P = preset(q); build(); },
     setStrength(s) { if (bloom) bloom.strength = s; },   // e.g. combo burst: 1.4 for 0.3 s, then back

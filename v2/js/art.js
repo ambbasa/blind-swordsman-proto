@@ -1,6 +1,7 @@
 /* Atlas-driven art. Reads ../assets/v2/atlas.json (or window.ART_V2_ATLAS / GP_V2_ATLAS).
  * Never writes into assets/v2. Sizes, anchors, bell centers, flameOffset, palette come from the atlas. */
 import * as Anim from './anim.js';
+import { createInkGroundMaterial } from './inkground.js';
 
 const BASE = '../assets/v2/';
 const ITEM_KEY = {
@@ -553,7 +554,10 @@ export async function buildArt(THREE) {
         g.renderOrder = 1;
         group.add(g);
         group.userData.glow = g;
+        /* 비취 혼령: HDR 색이라 블룸에 번진다. */
+        if (!isBoss) { g.material.color.setRGB(0.45, 1.7, 1.15); g.material.opacity = 0.5; }
       }
+      if (!isBoss && spr.material && spr.material.color) spr.material.color.setRGB(0.75, 1.45, 1.15);
       const auraFile = atlas.onebell && atlas.onebell.aura && String(atlas.onebell.aura).split(' ')[0];
       if (auraFile && tex(auraFile)) {
         const au = imgSprite(tex(auraFile), isBoss ? 2.4 : 1.6, isBoss ? 1.1 : 0.72, { cy: 0.5, add: true, opacity: 0 });
@@ -856,7 +860,7 @@ export async function buildArt(THREE) {
     if (groundPack.tex && groundPack.tex.repeat && !groundPack.composed) groundPack.tex.repeat.set(30, 30);
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(120, 120, 1, 1),
-      new THREE.MeshBasicMaterial({ map: groundPack.tex, color: 0xffffff })
+      createInkGroundMaterial(id, groundPack.tex)
     );
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
