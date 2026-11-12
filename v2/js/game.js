@@ -1161,15 +1161,27 @@ function updateMarks() {
     const pts = ringScreenPts();
     let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
     if (pts.length) {
+      ctx.save();
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       ctx.beginPath();
       pts.forEach(function (p, i) { if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); });
       ctx.closePath();
-      ctx.strokeStyle = 'rgba(150, 210, 240, 0.34)';
-      ctx.lineWidth = 1.8;
-      ctx.shadowColor = 'rgba(120, 200, 240, 0.28)';
-      ctx.shadowBlur = 5;
+      ctx.strokeStyle = 'rgba(6, 5, 4, 0.42)';
+      ctx.lineWidth = 7;
       ctx.stroke();
-      ctx.shadowBlur = 0;
+      ctx.strokeStyle = 'rgba(46, 230, 166, 0.10)';
+      ctx.lineWidth = 12;
+      ctx.stroke();
+      for (let i = 0; i < pts.length; i++) {
+        const hsh = Math.abs(Math.sin(i * 127.1 + 7 * 311.7) * 43758.5453) % 1;
+        if (hsh < 0.14) continue;
+        const a = pts[i], b = pts[(i + 1) % pts.length];
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+        ctx.strokeStyle = 'rgba(214, 236, 240, ' + (0.5 + 0.25 * hsh).toFixed(3) + ')';
+        ctx.lineWidth = 1.6 + 1.2 * hsh;
+        ctx.stroke();
+      }
+      ctx.restore();
       pts.forEach(function (p) {
         if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
         if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
@@ -1329,11 +1341,6 @@ function updateMarks() {
     ctx.arc(hx, hy, rad0, 0, 7);
     ctx.strokeStyle = nowCue ? 'rgba(244,232,208,0.95)' : 'rgba(244,232,208,' + (0.35 + pulse * 0.55).toFixed(2) + ')';
     ctx.lineWidth = nowCue ? 4 : 2 + pulse * 3;
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(hx, hy, rad0 * 0.62, 0, 7);
-    ctx.strokeStyle = nowCue ? 'rgba(201,162,74,0.9)' : 'rgba(201,162,74,' + (0.2 + pulse * 0.5).toFixed(2) + ')';
-    ctx.lineWidth = 2;
     ctx.stroke();
     if (pulse > 0.45 || (nowCue && pulse > 0.15)) {
       ctx.font = '800 13px sans-serif';
@@ -2525,7 +2532,10 @@ function drawSightFog() {
   fog.setTransform(dpr, 0, 0, dpr, 0, 0);
   /* Edge ink-fog. The wave opens a clearer disc so enemies and bells show through. */
   const hole = 0.16 + 0.58 * wave;
-  const cx = w * 0.5, cy = h * 0.58;
+  const hs = S.hero ? heroScreen() : { x: w * 0.5, y: h * 0.5 };
+  const cx = hs.x, cy = hs.y;
+  host.style.setProperty('--hero-x', cx.toFixed(1) + 'px');
+  host.style.setProperty('--hero-y', cy.toFixed(1) + 'px');
   const edgeA = 0.92 * (1 - wave * 0.18);
   const midA = (0.55 * (1 - wave) + 0.12);
   const grd = fog.createRadialGradient(cx, cy, Math.min(w, h) * hole * 0.28, cx, cy, Math.max(w, h) * 0.82);
@@ -2549,10 +2559,9 @@ function drawSightFog() {
     const lp = projectXZ(S.landRipple.x, S.landRipple.z, 0.15);
     const lt = S.landRipple.t;
     const lr = 28 + (1 - lt) * 70;
-    const lk = Math.max(0.25, Math.min(1, lt * 1.4));
-    drawSonarRing2D(ringCtx, w, h, Math.max(0.22, lt), {
+    drawSonarRing2D(ringCtx, w, h, lt, {
       r: lr, cx: lp.x, cy: lp.y,
-      coreAlpha: 1 / lk, haloAlpha: 0.85 / lk, coreWidth: 3.6, glowAlpha: 0.28 / lk
+      coreAlpha: 0.8, coreWidth: 2.4, haloAlpha: 0.35, haloWidth: 6, glowAlpha: 0.12, innerAlpha: 0
     });
   }
 }
@@ -2865,7 +2874,8 @@ const GPv2 = {
     const host = $('app') || $('sightFog');
     const r = host ? host.getBoundingClientRect() : { width: 375, height: 667 };
     const w = r.width, h = r.height;
-    return { cx: w * 0.5, cy: h * 0.58, r: Math.min(w, h) * (0.18 + 0.7 * (1 - (wave == null ? ((S && S.sightWave) || 0) : wave))), w: w, h: h, wave: wave == null ? ((S && S.sightWave) || 0) : wave };
+    const hs = (S && S.hero) ? heroScreen() : { x: w * 0.5, y: h * 0.5 };
+    return { cx: hs.x, cy: hs.y, r: Math.min(w, h) * (0.18 + 0.7 * (1 - (wave == null ? ((S && S.sightWave) || 0) : wave))), w: w, h: h, wave: wave == null ? ((S && S.sightWave) || 0) : wave };
   },
   heroVisible: function () {
     const g = three && three.heroSpr;
