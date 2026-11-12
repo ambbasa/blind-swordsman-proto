@@ -527,7 +527,7 @@ export async function buildArt(THREE) {
         group.userData.rowLock = plain >= 0 ? plain : Math.max(0, (spiritSheet.dirOrder || []).length - 1);
         group.userData.anim.dir = group.userData.rowLock;
         group.userData.noFlip = true;
-        attachHangingBell(group, spiritSheet, H, false, { bellH: spiritH * 0.27 * 1.5, shape: shape });
+        attachHangingBell(group, spiritSheet, H, false, { bellH: spiritH * 0.27 * 2.5, shape: shape });
       } else if (bossSheet) {
         group.userData.animPack = { actions: {} };
         group.userData.bossPack = atlas.bossAnim;

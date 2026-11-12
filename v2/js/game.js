@@ -391,6 +391,8 @@ function groundCircleWidth(R, y0) {
 }
 function fitGroundRingR() {
   if (!S || !S.hero || !three || !three.camera) return 3.2;
+  /* project() reads matrixWorldInverse, which is stale until the next render after the camera moves. */
+  three.camera.updateMatrixWorld();
   const target = screenRingPx() * 2;
   let lo = 1.2, hi = 12;
   for (let i = 0; i < 18; i++) {
@@ -829,7 +831,7 @@ function projectXZ(x, z, y) {
   const host = $('app') || $('ink');
   const r = host.getBoundingClientRect();
   if (!_proj.v) _proj.v = new THREE.Vector3();
-  _proj.v.set(x, y || 0.4, z).project(three.camera);
+  _proj.v.set(x, y == null ? 0.4 : y, z).project(three.camera);
   return { x: (_proj.v.x * 0.5 + 0.5) * r.width, y: (-_proj.v.y * 0.5 + 0.5) * r.height };
 }
 function viewBox() {
