@@ -1,4 +1,5 @@
 /* 수묵 귀물(보스): 캔버스에 붓 획으로 그린다. 종 없이, 먹 번짐 몸통·해진 소매·긴 손톱·진홍 눈·흘러내리는 먹 연기. */
+import { rng, brush, curve } from './inkbrush.js';
 
 /** Sheet layout and look of the code-drawn boss; cell and anchor match the old boss sheet. */
 export const INK_BOSS = {
@@ -6,43 +7,6 @@ export const INK_BOSS = {
   ink: '#07060a', wash: 'rgba(40,34,38,', rim: 'rgba(200,40,30,', eye: '#ff3a24', claw: '#d9cdb4',
   sway: 0.035, breathe: 0.025, seed: 1913
 };
-
-function rng(seed) {
-  let s = seed >>> 0;
-  return function () { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
-}
-
-/* Dry-brush stroke (飛白): many thin hairs along a polyline, each drying out at its own point. */
-function brush(ctx, pts, width, color, alpha, rnd, hairs) {
-  hairs = hairs || 14;
-  for (let h = 0; h < hairs; h++) {
-    const off = (h / (hairs - 1) - 0.5) * width;
-    const dry = 0.55 + rnd() * 0.45;
-    ctx.beginPath();
-    for (let i = 0; i < pts.length; i++) {
-      const t = i / (pts.length - 1);
-      if (t > dry) break;
-      const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)];
-      const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1;
-      const taper = Math.sin(Math.PI * Math.min(1, t * 1.1 + 0.05));
-      const x = pts[i][0] - dy / L * off * taper + (rnd() - 0.5) * 1.2;
-      const y = pts[i][1] + dx / L * off * taper + (rnd() - 0.5) * 1.2;
-      if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
-    }
-    ctx.strokeStyle = color + (alpha * (0.5 + rnd() * 0.5)).toFixed(3) + ')';
-    ctx.lineWidth = 0.8 + rnd() * 1.8;
-    ctx.stroke();
-  }
-}
-
-function curve(p0, p1, p2, n) {
-  const out = [];
-  for (let i = 0; i <= n; i++) {
-    const t = i / n, u = 1 - t;
-    out.push([u * u * p0[0] + 2 * u * t * p1[0] + t * t * p2[0], u * u * p0[1] + 2 * u * t * p1[1] + t * t * p2[1]]);
-  }
-  return out;
-}
 
 function drawFrame(ctx, f, P) {
   const T = (f / P.frames) * Math.PI * 2;

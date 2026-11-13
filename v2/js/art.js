@@ -3,6 +3,7 @@
 import * as Anim from './anim.js';
 import { createInkGroundMaterial } from './inkground.js';
 import { drawInkBossSheet } from './inkboss.js';
+import { drawHeroSheets, drawZombieSheets, drawSpiritSheet } from './inkchars.js';
 
 const BASE = '../assets/v2/';
 const ITEM_KEY = {
@@ -42,25 +43,7 @@ function hexColor(s, fb) {
 }
 
 export async function buildArt(THREE) {
-  let bakedRim = false;
   const atlas = await loadAtlas();
-  try {
-    const rr = await fetch(BASE + 'fx-ink/route-map.json');
-    if (rr.ok) {
-      const route = await rr.json();
-      function remapSheet(s) {
-        if (!s) return;
-        if (s.file && route[s.file]) s.file = 'fx-ink/' + route[s.file];
-        if (s.file1x && route[s.file1x]) s.file1x = 'fx-ink/' + route[s.file1x];
-      }
-      const ha = atlas.heroAnim && atlas.heroAnim.actions;
-      if (ha) Object.keys(ha).forEach(function (k) { remapSheet(ha[k]); });
-      const za = atlas.zombieAnim && atlas.zombieAnim.actions;
-      if (za) Object.keys(za).forEach(function (k) { remapSheet(za[k]); });
-      const sample = (ha && (ha.idle || ha.walk)) || (za && za.walk);
-      bakedRim = !!(sample && ((sample.file1x && String(sample.file1x).indexOf('fx-ink/rim/') >= 0) || (sample.file && String(sample.file).indexOf('fx-ink/rim/') >= 0)));
-    }
-  } catch (e) { /* keep original sheets if the pack is missing */ }
   const pal = atlas.palette || {};
   const cache = new Map();
   const sharedUrls = [];
@@ -141,18 +124,6 @@ export async function buildArt(THREE) {
   function sheetFile(s) { return s && (s.file || s.file1x); }
   /* Prefer @1x for large 8-dir action sheets so headless SW GL stays interactive. */
   function animFile(s) { return s && (s.file1x || s.file); }
-  want(sheetFile(atlas.hero));
-  want(sheetFile(atlas['hero-afterimage']));
-  want(sheetFile(atlas.zombie));
-  want(sheetFile(atlas.spirit));
-  want(sheetFile(atlas['spirit-wisp']));
-  if (atlas.heroAnim) {
-    const ha = atlas.heroAnim.actions || {};
-    ['idle', 'walk', 'dash'].forEach(function (k) { if (ha[k]) want(animFile(ha[k])); });
-    if (atlas.heroAnim.afterimage) want(animFile(atlas.heroAnim.afterimage));
-  }
-  if (atlas.zombieAnim && atlas.zombieAnim.actions && atlas.zombieAnim.actions.walk) want(animFile(atlas.zombieAnim.actions.walk));
-  if (atlas.spiritAnim) want(animFile(atlas.spiritAnim));
   want('img/hang-bell.png', { noBase: true });
   ['hline', 'vline', 'vee', 'bolt', 'plain'].forEach(function (k) {
     want('bells/bell-' + k + '@2x.png');
@@ -169,14 +140,9 @@ export async function buildArt(THREE) {
     if (atlas.fx['ink-splat']) want(atlas.fx['ink-splat'].file);
   }
   const el = atlas.elements || {};
-  if (el.flame) want(sheetFile(el.flame));
-  if (el['zombie-frozen']) want(sheetFile(el['zombie-frozen']));
-  if (el['zombie-burning']) want(sheetFile(el['zombie-burning']));
-  if (el['zombie-poisoned']) want(sheetFile(el['zombie-poisoned']));
   if (el['fire-trail']) want(el['fire-trail'].file);
   if (el['ice-shatter']) want(sheetFile(el['ice-shatter']));
   if (el['poison-burst']) want(sheetFile(el['poison-burst']));
-  if (el['poison-fog']) want(sheetFile(el['poison-fog']));
   if (el['slash-line'] && el['slash-line'].files) {
     Object.keys(el['slash-line'].files).forEach(function (k) { want(el['slash-line'].files[k]); });
   }
@@ -247,7 +213,6 @@ export async function buildArt(THREE) {
     group.add(sh);
   }
   function addRim(group, hex, scale) {
-    if (bakedRim) { if (group && group.userData) group.userData.bakedRim = true; return; }
     const spr = group.userData && group.userData.sprite;
     if (!spr || !spr.material) return;
     const mat = new THREE.SpriteMaterial({
@@ -319,24 +284,23 @@ export async function buildArt(THREE) {
     const anc = sheet.anchor || [fw / 2, fh];
     return { x: (px[0] - anc[0]) * (worldH / fh), y: (anc[1] - px[1]) * (worldH / fh) };
   }
-  function rangeFrames(n) {
-    const a = [];
-    for (let i = 0; i < n; i++) a.push(i);
-    return a;
-  }
-  function spiritAnimSheet() {
-    const p = atlas.spiritAnim;
-    if (!p) return null;
-    const rows = p.rows || ['mark-I', 'mark-H', 'mark-V', 'mark-O', 'plain'];
-    const n = p.frames || 10;
-    return {
-      file: p.file || p.file1x, file1x: p.file1x,
-      frame: p.cell || p.frame || [256, 256],
-      count: n, dirs: rows.length, dirOrder: rows.slice(),
-      layout: 'frames-x-dirs-y', fps: p.fps || 10, loop: p.loop !== false,
-      states: { idle: rangeFrames(n) }, fpsByState: { idle: p.fps || 10 },
-      anchor: p.anchor, markCenter: p.markCenter, markSize: p.markSize
+  /* Code-drawn ink characters: each sheet carries its own canvas texture (sheet.tex). */
+  let inkCharPack = null;
+  function inkChars() {
+    if (inkCharPack) return inkCharPack;
+    function bake(r) {
+      const t = new THREE.CanvasTexture(r.canvas);
+      t.colorSpace = THREE.SRGBColorSpace;
+      r.sheet.tex = t;
+      return r.sheet;
+    }
+    const h = drawHeroSheets(), z = drawZombieSheets();
+    inkCharPack = {
+      hero: { actions: { idle: bake(h.idle), dash: bake(h.dash) }, afterimage: bake(h.afterimage) },
+      zombie: { actions: { walk: bake(z.walk), frozen: bake(z.frozen), burning: bake(z.burning), poisoned: bake(z.poisoned) } },
+      spirit: bake(drawSpiritSheet())
     };
+    return inkCharPack;
   }
   let inkBossPack = null;
   function inkBoss() {
@@ -349,6 +313,7 @@ export async function buildArt(THREE) {
     return inkBossPack;
   }
   function packTex(sheet) {
+    if (sheet && sheet.tex) return sheet.tex;
     return tex(animFile(sheet)) || tex(sheetFile(sheet));
   }
   function bellTexUrl(shape) {
@@ -415,7 +380,7 @@ export async function buildArt(THREE) {
   function swapAction(group, sheet, name) {
     if (!group || !sheet) return;
     const url = animFile(sheet) || sheetFile(sheet);
-    const src = tex(url);
+    const src = sheet.tex || tex(url);
     if (!src) {
       group.userData.pendingAction = name;
       acquire(url).then(function () {
@@ -447,8 +412,10 @@ export async function buildArt(THREE) {
     }
     spr.userData.sheet = sheet;
     const keepDir = group.userData.anim ? group.userData.anim.dir : dir;
+    const keepFlip = group.userData.anim ? group.userData.anim.flip : false;
     group.userData.anim = Anim.createController(sheet, { blend: 0.08 });
     group.userData.anim.dir = keepDir || 0;
+    group.userData.anim.flip = keepFlip;
     group.userData.action = name;
     group.userData.pendingAction = null;
     if (group.userData.anim && sheet.states && sheet.states[name]) {
@@ -457,69 +424,51 @@ export async function buildArt(THREE) {
       applyUV(t, sheet, st0.frame, st0.dir);
     }
   }
-  function facingSouth(sheet) {
-    const order = (sheet && sheet.dirOrder) || [];
-    const i = order.indexOf('s');
-    return i >= 0 ? i : 0;
-  }
-
   function makeChar(kind, shape) {
     const group = new THREE.Group();
     const itemK = ITEM_KEY[kind];
     if (kind === 'hero' || kind === 'afterimage') {
-      const pack = atlas.heroAnim;
-      const after = kind === 'afterimage' && pack && pack.afterimage;
-      const idle = pack && pack.actions && pack.actions.idle;
-      const sheet = after || idle || (kind === 'afterimage' ? atlas['hero-afterimage'] : atlas.hero);
-      const src = packTex(sheet) || tex(sheetFile(atlas.hero));
-      const spr = sheetSprite(sheet, src, heroH, { add: kind === 'afterimage', opacity: kind === 'afterimage' ? 0.5 : 1, depthTest: false, renderOrder: 2 });
+      const pack = inkChars().hero;
+      const after = kind === 'afterimage';
+      const sheet = after ? pack.afterimage : pack.actions.idle;
+      const spr = sheetSprite(sheet, sheet.tex, sheet.worldH, { add: after, opacity: after ? 0.5 : 1, depthTest: false, renderOrder: 2 });
       group.add(spr);
       group.userData.sprite = spr;
-      group.userData.worldH = heroH;
-      group.userData.animPack = pack || null;
+      group.userData.worldH = sheet.worldH;
+      group.userData.animPack = pack;
       group.userData.action = after ? 'afterimage' : 'idle';
       group.userData.anim = Anim.createController(sheet, { blend: 0.1 });
-      group.userData.anim.dir = facingSouth(sheet);
-      group.userData.noFlip = !!(pack && (pack.mirroredFrom || (idle && idle.mirroredRows)));
-      if (kind === 'hero') { addShadow(group, 1.5); addRim(group, 0xe9dfc8, 1.08); }
+      if (kind === 'hero') addShadow(group, 1.5);
     } else if (kind === 'zombie') {
-      const pack = atlas.zombieAnim;
-      const walk = pack && pack.actions && pack.actions.walk;
-      const sheet = walk || atlas.zombie;
-      const H = walk ? zombieH : heroH * 0.92;
-      const spr = sheetSprite(sheet, packTex(sheet) || tex(sheetFile(sheet)), H, { depthTest: false, renderOrder: 2 });
+      const pack = inkChars().zombie;
+      const sheet = pack.actions.walk;
+      const H = sheet.worldH;
+      const spr = sheetSprite(sheet, sheet.tex, H, { depthTest: false, renderOrder: 2 });
       group.add(spr);
       group.userData.sprite = spr;
       group.userData.worldH = H;
-      group.userData.animPack = pack || null;
+      group.userData.animPack = pack;
       group.userData.action = 'walk';
       group.userData.anim = Anim.createController(sheet, { blend: 0.08 });
-      group.userData.anim.dir = facingSouth(sheet);
-      group.userData.noFlip = !!(pack && (pack.mirroredFrom || (walk && walk.mirroredRows)));
       addShadow(group, 1.35);
       addRim(group, 0x3ec8c0, 1.12);
       addTelegraph(group, H);
-      attachStatus(group, H);
     } else if (kind === 'spirit' || kind === 'boss') {
       const isBoss = kind === 'boss';
-      const spiritSheet = !isBoss && spiritAnimSheet();
+      const spiritSheet = !isBoss && inkChars().spirit;
       const ib = isBoss ? inkBoss() : null;
       const bossSheet = ib && ib.sheet;
-      const bodySheet = bossSheet || spiritSheet || (isBoss ? atlas.boss : (atlas['spirit-wisp'] || atlas.spirit));
+      const bodySheet = bossSheet || spiritSheet;
       const spiritBodyK = isBoss ? 1 : 0.7 * SPIRIT_VIEW_SCALE;
-      const H = isBoss ? bossH * 1.5 : (spiritSheet ? spiritH : heroH * 1.05) * spiritBodyK;
+      const H = isBoss ? bossH * 1.5 : spiritSheet.worldH * spiritBodyK;
       group.userData.bodyScale = spiritBodyK;
       group.userData.bodyH = H;
-      const spr = sheetSprite(bodySheet, ib ? ib.tex : (packTex(bodySheet) || tex(sheetFile(bodySheet))), H, { depthTest: false, renderOrder: 2 });
+      const spr = sheetSprite(bodySheet, ib ? ib.tex : bodySheet.tex, H, { depthTest: false, renderOrder: 2 });
       group.add(spr);
       group.userData.sprite = spr;
       group.userData.worldH = H;
       if (spiritSheet) {
         group.userData.anim = Anim.createController(spiritSheet, { blend: 0 });
-        /* Always the plain row so baked tiny marks do not fight the large overlay. */
-        const plain = (spiritSheet.dirOrder || []).indexOf('plain');
-        group.userData.rowLock = plain >= 0 ? plain : Math.max(0, (spiritSheet.dirOrder || []).length - 1);
-        group.userData.anim.dir = group.userData.rowLock;
         group.userData.noFlip = true;
         attachHangingBell(group, spiritSheet, H, false, { bellH: spiritH * 0.27 * 2.5 * SPIRIT_VIEW_SCALE, shape: shape });
       } else if (bossSheet) {
@@ -527,12 +476,6 @@ export async function buildArt(THREE) {
         group.userData.action = 'idle';
         group.userData.noFlip = true;
         group.userData.bellLocal = localFromPx(bossSheet, H, ib.eyes[0].map(function (v, i) { return i ? v : 256; }));
-      } else if (!isBoss && bodySheet && bodySheet.fps) {
-        group.userData.anim = Anim.createController({
-          frame: bodySheet.frame, count: bodySheet.count, order: bodySheet.order, fps: bodySheet.fps,
-          states: { idle: [0, 1, 2, 3] }, fpsByState: { idle: bodySheet.fps }, anchor: bodySheet.anchor
-        }, { blend: 0 });
-        attachHangingBell(group, bodySheet, H, false, { bellH: (heroH * 1.05) * 0.27 * 1.5, shape: shape });
       }
       const glow = tex('fx/spirit-glow.png');
       if (glow) {
@@ -580,67 +523,8 @@ export async function buildArt(THREE) {
     return group;
   }
 
-  function attachStatus(group, worldH) {
-    const layers = {};
-    const H = worldH || zombieH || heroH * 0.92;
-    [['ice', 'zombie-frozen', 0], ['fire', 'zombie-burning', 0], ['poison', 'zombie-poisoned', 0]].forEach(function (pair) {
-      const sheet = el[pair[1]];
-      if (!sheet) return;
-      const spr = sheetSprite(sheet, tex(sheetFile(sheet)), H);
-      spr.visible = false;
-      group.add(spr);
-      layers[pair[0]] = { spr: spr, sheet: sheet, anim: Anim.createController(sheet, { blend: 0 }) };
-    });
-    if (el.flame && tex(sheetFile(el.flame))) {
-      const fl = sheetSprite(el.flame, tex(sheetFile(el.flame)), 0.9, { add: true });
-      fl.visible = false;
-      fl.position.y = 0.3;
-      group.add(fl);
-      layers.flame = { spr: fl, sheet: el.flame, anim: Anim.createController({
-        frame: el.flame.frame, count: el.flame.count, fps: el.flame.fps,
-        states: { idle: [0, 1, 2, 3] }, fpsByState: { idle: el.flame.fps }, anchor: el.flame.anchor
-      }, { blend: 0 }) };
-    }
-    if (el['poison-fog'] && tex(sheetFile(el['poison-fog']))) {
-      const pf = sheetSprite(el['poison-fog'], tex(sheetFile(el['poison-fog'])), 1.2);
-      pf.visible = false;
-      pf.position.y = 0.15;
-      group.add(pf);
-      layers.fog = { spr: pf, sheet: el['poison-fog'], anim: Anim.createController({
-        frame: el['poison-fog'].frame, count: el['poison-fog'].count, fps: el['poison-fog'].fps,
-        states: { idle: [0, 1, 2] }, fpsByState: { idle: el['poison-fog'].fps }, anchor: el['poison-fog'].anchor
-      }, { blend: 0 }) };
-    }
-    group.userData.statusLayers = layers;
-  }
-
   function setStatus(group, elem) {
     if (group && group.userData) group.userData.statusElem = elem || null;
-    const layers = group && group.userData && group.userData.statusLayers;
-    const pack = group && group.userData && group.userData.animPack;
-    const mapped = { ice: 'frozen', fire: 'burning', poison: 'poisoned' }[elem];
-    const hasAnim = !!(pack && pack.actions && mapped && pack.actions[mapped]);
-    if (layers) {
-      Object.keys(layers).forEach(function (k) {
-        const show = !hasAnim && ((elem === 'ice' && k === 'ice') || (elem === 'fire' && (k === 'fire' || k === 'flame')) || (elem === 'poison' && (k === 'poison' || k === 'fog')));
-        layers[k].spr.visible = show;
-      });
-    }
-    if (group && group.userData && group.userData.sprite) group.userData.sprite.visible = hasAnim || !elem;
-    if (!hasAnim && elem === 'ice' && layers && layers.ice) layers.ice.anim.setState(Object.keys(layers.ice.sheet.states || { frozen: [0] })[0] || 'idle');
-  }
-
-  function tickStatus(group, dt, vx, vz) {
-    const layers = group && group.userData && group.userData.statusLayers;
-    if (!layers) return;
-    Object.keys(layers).forEach(function (k) {
-      const L = layers[k];
-      if (!L.spr.visible || !L.anim) return;
-      if (vx != null) L.anim.setDir(vx, vz);
-      const st = L.anim.tick(dt);
-      applyUV(L.spr.material.map, L.sheet, st.frame, st.dir);
-      applyFlip(L.spr, st.flip);
-    });
   }
 
   function applyFlip(spr, flip) {
@@ -670,7 +554,9 @@ export async function buildArt(THREE) {
       } else if (kind === 'boss') {
         /* row is the action; do not aim with velocity */
       } else if (vx != null && vz != null) {
-        anim.setDir(vx, vz);
+        /* One-row sheets face screen right; the camera sits on +x +z, so screen x follows vx - vz. */
+        if (anim.sheet && anim.sheet.screenFlip) anim.setDir(vx - vz, 0);
+        else anim.setDir(vx, vz);
       }
       const st = anim.tick(dt);
       if (spr && spr.material && spr.material.map && anim.sheet) applyUV(spr.material.map, anim.sheet, st.frame, st.dir);
@@ -678,7 +564,6 @@ export async function buildArt(THREE) {
       else if (spr) applyFlip(spr, false);
       if (group.userData.rim) syncRim(group);
     }
-    tickStatus(group, dt, vx, vz);
     const hang = group.userData && group.userData.bellHang;
     if (hang && hang.bell) {
       hang.t = (hang.t || 0) + dt;
@@ -978,7 +863,6 @@ export async function buildArt(THREE) {
       paper: atlas.bg && atlas.bg.paper && String(atlas.bg.paper).split(' ')[0]
     },
     BASE: BASE,
-    bakedRim: function () { return bakedRim; },
     used: { atlas: BASE + 'atlas.json' }
   };
 }
