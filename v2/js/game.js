@@ -58,7 +58,7 @@ const CFG = {
   spawnZombieMax: 16, spawnSpiritMax: 0,
   spawnZombieMinMs: 450, spawnSpiritMinMs: 480,
   spawnZombieDelay: 3, practiceZombieMs: 3200, practiceZombieMax: 2, earlyZombieMax: 4, earlyZombieUntil: 15, earlyZombieMinMs: 1400,
-  spiritStreamAlpha: 0.7, spiritFadeIn: 0.4, spiritAlpha: 0.9, spiritHover: 0.85, spiritCapStart: 1, spiritMax: 4, sameShapeMax: 2, spiritGlowAlpha: 0.5,
+  spiritStreamAlpha: 0.7, spiritFadeIn: 0.4, spiritAlpha: 0.9, spiritHover: 1.05, spiritCapStart: 1, spiritMax: 4, sameShapeMax: 2, spiritGlowAlpha: 0.5,
   ringScreenFrac: 0.70, ringMaxFrac: 0.90, ringBoost: 0.14, ringLvMax: 4,
   spiritOmega: 2.8, spiritAvoidMax: 0.30, spiritAvoidOmega: 8, bossSpeed: 1.0, bossCatchUp: 0.3, bossSpawnR: 11,
   dashThroughMul: 1.5, dashPastTarget: 0.8, dashPastBodyMul: 1.5, playBound: 28,
@@ -1105,18 +1105,37 @@ function drawSoulStreams(ctx) {
     ctx.restore();
   });
 }
-/* The shape mark is drawn on the 2D layer over the spirit's orb, so bloom and the ink pass cannot blur it. */
+/* The shape mark, written like a brush stroke on the 2D layer over the spirit's orb (bloom cannot blur it):
+   each stroke presses in heavy, thins out and lifts off; a faint paper glow behind keeps it readable. */
+function brushStrokeAlong(ctx, pts, w, color) {
+  const seg = [];
+  let total = 0;
+  for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); seg.push(d); total += d; }
+  const n = Math.max(8, Math.ceil(total / 0.7));
+  ctx.fillStyle = color;
+  let si = 0, acc = 0;
+  for (let k = 0; k <= n; k++) {
+    const want = (k / n) * total;
+    while (si < seg.length - 1 && acc + seg[si] < want) { acc += seg[si]; si++; }
+    const u = Math.min(1, (want - acc) / (seg[si] || 1));
+    const a = pts[si], b = pts[si + 1];
+    const t = k / n;
+    const r = w * (t < 0.08 ? 1.25 - t * 2 : 1.1 - 0.75 * Math.pow(t, 1.6));
+    ctx.beginPath(); ctx.arc(a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, Math.max(0.4, r), 0, Math.PI * 2); ctx.fill();
+  }
+}
 function drawMarkGlyph(ctx, shape, x, y, size) {
-  const k = { hline: [[[-1, 0], [1, 0]]], vline: [[[0, -1], [0, 1]]], vee: [[[-1, -0.75], [0, 0.85], [1, -0.75]]], bolt: [[[0.45, -1], [-0.45, -0.05], [0.45, 0.05], [-0.4, 1]]] }[shape];
+  const k = { hline: [[[-1, 0.08], [0.05, -0.04], [1, 0.02]]], vline: [[[0.04, -1], [-0.03, 0.1], [0.02, 1]]], vee: [[[-0.95, -0.7], [0, 0.85]], [[0, 0.85], [0.95, -0.8]]], bolt: [[[0.45, -1], [-0.45, -0.05]], [[-0.45, -0.05], [0.45, 0.05]], [[0.45, 0.05], [-0.4, 1]]] }[shape];
   if (!k) return;
-  const h = size * 0.42;
+  const h = size * 0.45, w = Math.max(1.1, size * 0.085);
   ctx.save();
-  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const g = ctx.createRadialGradient(x, y, 0, x, y, size * 0.75);
+  g.addColorStop(0, 'rgba(244,236,214,0.55)'); g.addColorStop(1, 'rgba(244,236,214,0)');
+  ctx.fillStyle = g; ctx.fillRect(x - size, y - size, size * 2, size * 2);
   k.forEach(function (line) {
-    ctx.beginPath();
-    line.forEach(function (q, i) { const px = x + q[0] * h, py = y + q[1] * h; if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); });
-    ctx.strokeStyle = 'rgba(244,236,214,0.95)'; ctx.lineWidth = Math.max(4, size * 0.26); ctx.stroke();
-    ctx.strokeStyle = 'rgba(10,9,12,1)'; ctx.lineWidth = Math.max(2.2, size * 0.14); ctx.stroke();
+    const p = line.map(function (q) { return [x + q[0] * h, y + q[1] * h]; });
+    brushStrokeAlong(ctx, p, w * 1.9, 'rgba(244,236,214,0.5)');
+    brushStrokeAlong(ctx, p, w, 'rgba(10,9,12,0.95)');
   });
   ctx.restore();
 }
@@ -1260,7 +1279,7 @@ function updateMarks() {
     const gsize = m.cssPx || size;
     const rad = gsize / 2;
     ctx.save();
-    drawMarkGlyph(ctx, m.shape, x, y, clamp((m.bellPx || 16) * 1.3, 18, 28));
+    drawMarkGlyph(ctx, m.shape, x, y, clamp((m.bellPx || 16) * 1.0, 14, 20));
     if (m.seq && m.seq.length) {
       const gap = size * 0.38;
       const rowW = (m.seq.length - 1) * gap;

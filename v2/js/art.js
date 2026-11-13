@@ -118,7 +118,7 @@ export async function buildArt(THREE) {
   /* Spirits are small will-o'-wisps over zombies; the shape mark sits in the orb, a rattle at the side. */
   const SPIRIT_VIEW_SCALE = 1.2;
   const SPIRIT_MARK_K = 0.42;
-  const SPIRIT_RATTLE_K = 0.42;
+  const SPIRIT_RATTLE_K = 0.34;
   let rattleTexCache = null;
   function rattleTex() {
     if (!rattleTexCache) { rattleTexCache = new THREE.CanvasTexture(drawRattle()); rattleTexCache.colorSpace = THREE.SRGBColorSpace; }
@@ -136,14 +136,14 @@ export async function buildArt(THREE) {
     applyBellMap(mark, shape);
     group.add(mark);
     const rh = worldH * SPIRIT_RATTLE_K;
-    const rt = imgSprite(rattleTex(), rh * (96 / 168), rh, { cx: 0.5, cy: 0, alphaTest: 0.02 });
+    const rt = imgSprite(rattleTex(), rh * (96 / 168), rh, { cx: 0.5, cy: 1, alphaTest: 0.02 });
     rt.material.depthTest = false;
     rt.renderOrder = 4;
-    const at = localFromPx(sheet, worldH, [204, 168]);
+    const at = localFromPx(sheet, worldH, [214, 92]);
     rt.position.set(at.x, at.y, 0.04);
     group.add(rt);
     group.userData.bellHang = { pivot: null, bell: mark, t: 0, phase: 0, amp: 0, period: 1.5 };
-    group.userData.rattle = { sprite: rt, t: Math.random() * 4, amp: 0.35, period: 0.9 + Math.random() * 0.3 };
+    group.userData.rattle = { sprite: rt, t: Math.random() * 4, amp: 0.22, period: 1.3 + Math.random() * 0.3 };
     group.userData.bellH = size;
     group.userData.bellW = size;
     group.userData.bellAttachY = c.y + size / 2;

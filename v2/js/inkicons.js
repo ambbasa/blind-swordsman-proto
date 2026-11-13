@@ -142,28 +142,28 @@ export function drawGlyph(shape) {
   return c;
 }
 
-/** A shaman's rattle (무당방울): a short red handle, tiers of small brass bells, five-colour ribbons. Handle end at the bottom centre. */
+/** A shaman's rattle (무당방울), hanging: the red handle on top (its end at the top centre), tiers of small brass bells below, five-colour ribbons trailing down. */
 export function drawRattle() {
   const W = 96, H = 168, c = canvas(W, H), ctx = c.getContext('2d');
   const rnd = rng(INK_ICONS.seed + 401);
   const cx = W / 2;
+  stroke(ctx, [[cx, 4], [cx, 92]], 9, 'rgba(150,40,30,1)');
+  brush(ctx, [[cx - 2, 8], [cx - 2, 88]], 2, PAPER, 0.4, rnd, 2);
   const cols = [RED, GOLD, 'rgba(46,120,200,', PAPER, 'rgba(40,140,90,'];
   cols.forEach(function (col, i) {
-    const x = cx - 10 + i * 5;
-    stroke(ctx, curve([cx, H - 30], [x - 6, H - 14], [x - 12 + (rnd() - 0.5) * 6, H - 2], 8), 4, col + '0.95)');
+    const x = cx - 14 + i * 7;
+    stroke(ctx, curve([cx, 18], [x - 8, 80], [x - 4 + (rnd() - 0.5) * 8, H - 4], 10), 4, col + '0.9)');
   });
-  stroke(ctx, [[cx, H - 4], [cx, 70]], 9, 'rgba(150,40,30,1)');
-  brush(ctx, [[cx - 2, H - 6], [cx - 2, 72]], 2, PAPER, 0.4, rnd, 2);
-  /* Tiers of bells: 1 on top, then 2, then 4. */
-  const tiers = [[1, 16], [2, 38], [4, 60]];
+  /* Bells hanging under the handle: 4, then 2, then 1. */
+  const tiers = [[4, 104], [2, 128], [1, 150]];
   tiers.forEach(function (t) {
     for (let i = 0; i < t[0]; i++) {
       const x = cx + (i - (t[0] - 1) / 2) * 20, y = t[1];
+      stroke(ctx, [[cx, 92], [x, y - 8]], 2.5, 'rgba(90,70,40,0.9)');
       const gg = ctx.createRadialGradient(x - 3, y - 3, 1, x, y, 10);
       gg.addColorStop(0, 'rgba(255,236,170,1)'); gg.addColorStop(0.6, GOLD + '1)'); gg.addColorStop(1, 'rgba(110,80,30,1)');
       ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.fillStyle = gg; ctx.fill();
       ctx.beginPath(); ctx.moveTo(x - 5, y + 2); ctx.lineTo(x + 5, y + 2); ctx.strokeStyle = 'rgba(40,28,10,0.9)'; ctx.lineWidth = 2; ctx.stroke();
-      stroke(ctx, [[x, y + 9], [cx, 70]], 2.5, 'rgba(90,70,40,0.9)');
     }
   });
   return c;
