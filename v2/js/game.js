@@ -80,7 +80,7 @@ const CFG = {
   iceDur: 2.5, burnDur: 3, burnPeriod: 0.75, burnDmg: 1,
   poisonMax: 5, poisonDur: 4, poisonPeriod: 1, poisonDmgPer: 1,
   shatterDmg: 4, explodeDmg: 3, explodeR: 2.5,
-  bellDur: 8, slowDur: 0.9, slowScale: 0.35,
+  bellDur: 8, slowDur: 0.45, slowScale: 0.35,
   sightWaveDur: 0.45
 };
 const RUN_UPGRADES = [
@@ -963,6 +963,7 @@ function startBell(shape, dur) {
   if (!S) return;
   S.bellShape = shape || spawnPool()[Math.floor(Math.random() * spawnPool().length)];
   S.bellT = dur != null ? dur : CFG.bellDur;
+  S.bellCine = false;
   livingMarks().forEach(function (s) {
     if (s.obj) {
       if (art.setSpiritShape) art.setSpiritShape(s.obj, S.bellShape);
@@ -1509,7 +1510,8 @@ function beginDash(shape, opts) {
   const rec = { type: shape, targets: targets.map(function (t) { return t.id; }), hits: [], items: [], t0: now(), segs: [], elem: S.dashElem, cinematic: false };
   S.lastDash = rec;
   S.dashQueue = targets.slice();
-  if (S.bellT > 0 && S.bellShape === shape && targets.length) triggerCinematic();
+  /* Only the first cut of a one-bell spell is the slow cinematic; later cuts run at full speed. */
+  if (S.bellT > 0 && S.bellShape === shape && targets.length && !S.bellCine) { S.bellCine = true; triggerCinematic(); }
   startSeg();
   return rec;
 }

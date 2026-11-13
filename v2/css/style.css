@@ -110,10 +110,10 @@ h2 { margin: 0 0 8px; font-size: 20px; }
   background-position: center; background-size: cover; background-repeat: no-repeat;
   opacity: 0; transition: opacity 0.2s linear;
 }
-#app.onebell-ink-0 #onebellInk { opacity: 1; background-image: url(../../assets/v2/fx/onebell-ink-0.png); }
-#app.onebell-ink-1 #onebellInk { opacity: 1; background-image: url(../../assets/v2/fx/onebell-ink-1.png); }
-#app.onebell-ink-2 #onebellInk { opacity: 1; background-image: url(../../assets/v2/fx/onebell-ink-2.png); }
-#app.onebell-ink-3 #onebellInk { opacity: 1; background-image: url(../../assets/v2/fx/onebell-ink-3.png); }
+#app.onebell-ink-0 #onebellInk { opacity: 0.6; background-image: url(../../assets/v2/fx/onebell-ink-0.png); }
+#app.onebell-ink-1 #onebellInk { opacity: 0.6; background-image: url(../../assets/v2/fx/onebell-ink-1.png); }
+#app.onebell-ink-2 #onebellInk { opacity: 0.6; background-image: url(../../assets/v2/fx/onebell-ink-2.png); }
+#app.onebell-ink-3 #onebellInk { opacity: 0.6; background-image: url(../../assets/v2/fx/onebell-ink-3.png); }
 #app.onebell-paper #onebellPaper {
   opacity: 0.22; background-image: url(../../assets/v2/fx/onebell-paper-0.png);
 }
@@ -126,7 +126,6 @@ h2 { margin: 0 0 8px; font-size: 20px; }
   from { transform: scale(0.6); opacity: 0.85; }
   to { transform: scale(1.1); opacity: 0; }
 }
-#app.onebell-hold #view { filter: saturate(0.22) brightness(0.82) contrast(1.08); }
 #hud .hud-row span, #hud #lvlLabel {
   background: url(../../assets/v2/bg/hanji-paper.png) center/cover no-repeat;
   color: #0E0C0A; padding: 2px 8px; border-radius: 10px;
