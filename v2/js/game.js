@@ -24,17 +24,16 @@ const fxQForced = (function () {
 })();
 let fxQ = fxQualityFromUrl();
 const fxinkStat = { slashes: 0, hits: 0, kills: 0 };
-const SHAPE_MARK = { tap: '탭', hline: '—', vline: 'ㅣ', vee: 'V', square: 'ㅁ', circle: 'O' };
-const SHAPE_KEY = { tap: 'tap', hline: 'H', vline: 'I', vee: 'V', square: 'sq', circle: 'O' };
-const SHAPE_UNLOCK = ['tap', 'hline', 'vline', 'vee', 'square', 'circle'];
+const SHAPE_MARK = { hline: '—', vline: 'ㅣ', vee: 'V', bolt: '⚡', circle: 'O' };
+const SHAPE_KEY = { hline: 'H', vline: 'I', vee: 'V', bolt: 'Z', circle: 'O' };
+const SHAPE_UNLOCK = ['hline', 'vline', 'vee', 'bolt', 'circle'];
 const COMBAT = SHAPE_UNLOCK.slice();
 
 const SHAPE_HINT = {
-  tap: '점을 찍거나 짧게 눌러 보세요',
   hline: '가로로 길게 그어 보세요',
   vline: '세로로 길게 그어 보세요',
   vee: 'V자를 그려 보세요',
-  square: '네모를 그려 보세요',
+  bolt: '번개(⚡)처럼 지그재그로 그어 보세요',
   circle: '동그라미를 그려 보세요'
 };
 /* v1 numbers reused where the new brief is silent. Documented as defaults. */
@@ -73,7 +72,7 @@ const CFG = {
   poisonMax: 5, poisonDur: 4, poisonPeriod: 1, poisonDmgPer: 1,
   shatterDmg: 4, explodeDmg: 3, explodeR: 2.5,
   bellDur: 8, slowDur: 0.9, slowScale: 0.35,
-  parryRange: 3.2, parrySlow: 0.6, sightWaveDur: 0.45
+  sightWaveDur: 0.45
 };
 const RUN_UPGRADES = [
   { id: 'dmg', name: '돌진 데미지', desc: '일섬이 좀비에게 더 큰 상처를 남깁니다.' },
@@ -306,7 +305,7 @@ function startRun(opts) {
     combo: 0, comboIdle: 0, comboMax: 0, pendingPerfect: false, lastJudge: null,
     perfects: 0, misses: 0, bursts: [], lastBurst: 0,
     beatPulse: 0, lastBeat: -1,
-    sightWave: 0, parryT: 0, lastParry: null, lastStrokeDir: null,
+    sightWave: 0, lastStrokeDir: null,
     hitstop: 0, hurtFlash: 0, aimTarget: null, bellPans: [], recoil: null,
     ringR: 0, ringLv: 0, bounce: null, landRipple: null,
     spiritCap: CFG.spiritCapStart
@@ -757,16 +756,13 @@ function upcomingRun() {
   return (save.runs || 0) + 1;
 }
 function titleChip(shape) {
-  if (shape === 'tap') {
-    return '<span class="hanji-chip tap-chip" data-shape="tap" title="탭"><svg class="tap-drop-svg" viewBox="0 0 32 40" width="26" height="32" aria-hidden="true"><path d="M16 1.2C10.5 9.2 6.2 16.8 6.2 24a9.8 9.8 0 1 0 19.6 0C25.8 16.8 21.5 9.2 16 1.2z" fill="#0E0C0A"/><path d="M8.5 36.5q7.5 6.2 15 0" fill="none" stroke="#0E0C0A" stroke-width="2.2" stroke-linecap="round"/></svg><em class="tap-caption">탭</em></span>';
-  }
-  const seals = { hline: 'H', vline: 'I', vee: 'V', circle: 'O', square: 'sq' };
   const alt = SHAPE_MARK[shape] || shape;
-  if (shape === 'square') {
-    return '<span class="hanji-chip" data-shape="square" title="네모"><span style="font-weight:800;font-size:18px;color:#0E0C0A">ㅁ</span></span>';
+  if (shape === 'bolt') {
+    return '<span class="hanji-chip" data-shape="bolt" title="번개"><svg viewBox="0 0 32 40" width="26" height="32" aria-hidden="true"><path d="M20 2 L9 20 L19 20 L12 38" fill="none" stroke="#0E0C0A" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
   }
+  const seals = { hline: 'H', vline: 'I', vee: 'V', circle: 'O' };
   const k = seals[shape];
-  if (k && k !== 'sq') {
+  if (k) {
     return '<span class="hanji-chip" data-shape="' + shape + '" title="' + alt + '"><img src="../assets/v2/ui/seal-' + k + '@2x.png" alt="' + alt + '" width="40" height="40"></span>';
   }
   return '<span class="hanji-chip" data-shape="' + shape + '">' + alt + '</span>';
@@ -779,7 +775,7 @@ function refreshTitleHelp() {
   el.innerHTML = pool.map(titleChip).join('');
   const sub = $('titleSub');
   if (sub) {
-    if (pool.length === 1 && pool[0] === 'tap') sub.textContent = '1판은 탭만 나옵니다. 점을 찍거나 짧게 눌러 원 위 혼령에게 다가가세요.';
+    if (pool.length === 1) sub.textContent = '1판은 가로선만 나옵니다. 원 위 혼령 쪽으로 가로로 길게 그어 돌진하세요.';
     else sub.textContent = '주인공 둘레 푸른 원 위의 종 모양을 그려, 그 혼령 방향으로 돌진하세요';
   }
   return { run: run, pool: pool, html: el.innerHTML };
@@ -897,7 +893,7 @@ function strokeAimDir(pts, type) {
     if (!ap.dir || ap.depth < 8) return strokeScreenDir(pts);
     return ap.dir;
   }
-  if (type === 'square' || type === 'circle') return null;
+  if (type === 'circle') return null;
   return strokeScreenDir(pts);
 }
 function strokeCentroid(pts) {
@@ -1077,23 +1073,14 @@ function markCssSize(w) {
 function inkGlyphPath(ctx, shape, size) {
   const s = size * 0.38;
   ctx.beginPath();
-  if (shape === 'tap') {
-    const d = s * 1.05;
-    ctx.moveTo(0, -d * 1.05);
-    ctx.bezierCurveTo(d * 0.55, -d * 0.35, d * 0.78, d * 0.15, d * 0.72, d * 0.55);
-    ctx.bezierCurveTo(d * 0.62, d * 1.05, d * 0.32, d * 1.22, 0, d * 1.22);
-    ctx.bezierCurveTo(-d * 0.32, d * 1.22, -d * 0.62, d * 1.05, -d * 0.72, d * 0.55);
-    ctx.bezierCurveTo(-d * 0.78, d * 0.15, -d * 0.55, -d * 0.35, 0, -d * 1.05);
-    ctx.closePath();
-  } else if (shape === 'hline') {
+  if (shape === 'hline') {
     ctx.moveTo(-s * 1.15, 0); ctx.lineTo(s * 1.15, 0);
   } else if (shape === 'vline') {
     ctx.moveTo(0, -s * 1.15); ctx.lineTo(0, s * 1.15);
   } else if (shape === 'vee') {
     ctx.moveTo(-s * 1.05, -s * 0.85); ctx.lineTo(0, s * 1.05); ctx.lineTo(s * 1.05, -s * 0.85);
-  } else if (shape === 'square') {
-    const q = s * 0.85;
-    ctx.rect(-q, -q, q * 2, q * 2);
+  } else if (shape === 'bolt') {
+    ctx.moveTo(s * 0.45, -s * 1.15); ctx.lineTo(-s * 0.5, s * 0.05); ctx.lineTo(s * 0.5, s * 0.05); ctx.lineTo(-s * 0.4, s * 1.15);
   } else {
     ctx.arc(0, 0, s * 0.95, 0, Math.PI * 2);
     ctx.closePath();
@@ -1108,23 +1095,14 @@ function drawInkGlyph(ctx, shape, x, y, size, lit) {
   const w = Math.max(2.2, size * 0.14);
   const ink = '#120E0B';
   const paper = lit ? '#F0D48A' : '#F6EBD4';
-  if (shape === 'tap') {
-    inkGlyphPath(ctx, shape, size);
-    ctx.fillStyle = paper;
-    ctx.fill();
-    ctx.strokeStyle = ink;
-    ctx.lineWidth = Math.max(1.8, size * 0.07);
-    ctx.stroke();
-  } else {
-    inkGlyphPath(ctx, shape, size);
-    ctx.strokeStyle = ink;
-    ctx.lineWidth = w + 1.8;
-    ctx.stroke();
-    inkGlyphPath(ctx, shape, size);
-    ctx.strokeStyle = paper;
-    ctx.lineWidth = w;
-    ctx.stroke();
-  }
+  inkGlyphPath(ctx, shape, size);
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = w + 1.8;
+  ctx.stroke();
+  inkGlyphPath(ctx, shape, size);
+  ctx.strokeStyle = paper;
+  ctx.lineWidth = w;
+  ctx.stroke();
   ctx.restore();
 }
 function updateMarks() {
@@ -1264,7 +1242,6 @@ function updateMarks() {
     }
   }
   lastMarkMetrics.minSep = placed.length > 1 ? minSep : minD;
-  lastMarkMetrics.tapStyle = 'droplet';
   lastMarkMetrics.markStyle = 'bell-tex';
   lastMarkMetrics.glyphOn = 'boss-only';
   if (placed.length) {
@@ -1512,29 +1489,6 @@ function applyJudge(forced) {
   return kind;
 }
 
-function closeZombie() {
-  if (!S) return null;
-  const R = CFG.parryRange || 3.2;
-  let best = null, bestD = R;
-  S.zombies.forEach(function (z) {
-    if (!z.alive || z.isBoss) return;
-    const d = dist(z, S.hero);
-    if (d <= bestD) { bestD = d; best = z; }
-  });
-  return best;
-}
-function doParry(z) {
-  if (!S || !z) return;
-  S.slowT = Math.max(S.slowT || 0, CFG.parrySlow || 0.6);
-  S.parryT = 1.2;
-  S.lastParry = { id: z.id, t: now() };
-  S.shake = Math.max(S.shake || 0, 0.22);
-  if (audio) audio.parry();
-  triggerSightWave();
-  showJudge('패링');
-  /* Success auto-일섬 to the parried 귀물. */
-  return beginDashTo(z, { parry: true });
-}
 function triggerSightWave() {
   if (!S) return;
   S.sightWave = 1;
@@ -1614,15 +1568,6 @@ function beginDash(shape, opts) {
   S.lastDash = rec;
   S.dashQueue = targets.slice();
   if (S.bellT > 0 && S.bellShape === shape && targets.length) triggerCinematic();
-  startSeg();
-  return rec;
-}
-function beginDashTo(target, opts) {
-  opts = opts || {};
-  if (!S || !S.playing || S.paused || S.dash || !target) return null;
-  const rec = { type: opts.type || 'parry', targets: [target.id], hits: [], items: [], t0: now(), segs: [], elem: S.dashElem, cinematic: false, parry: !!opts.parry };
-  S.lastDash = rec;
-  S.dashQueue = [target];
   startSeg();
   return rec;
 }
@@ -2030,7 +1975,6 @@ function step(dt) {
   }
   if (S.practiceT > 0) S.practiceT -= dt;
   if (S.sightWave > 0 && !qa.freezeWave) S.sightWave = Math.max(0, S.sightWave - dt / (CFG.sightWaveDur || 0.7));
-  if (S.parryT > 0) S.parryT = Math.max(0, S.parryT - dt);
   if (S.combo > 0) {
     S.comboIdle = (S.comboIdle || 0) + dt;
     if (S.comboIdle > (CFG.comboTimeout || 2.8)) S.combo = 0;
@@ -2286,10 +2230,10 @@ function onMove(e) {
   if (!last || Math.hypot(p.x - last.x, p.y - last.y) >= 1) pointers.pts.push(p);
   paintInk(pointers.pts, 1);
   if (S && S.playing && !S.paused && pointers.pts.length >= 3 && G && G.recognize) {
-    const rec = G.recognize(pointers.pts, {});
+    const rec = G.recognize(pointers.pts, { allowBolt: true });
     if (rec && rec.type && (S.sandbox || !S.pool || S.pool.indexOf(rec.type) >= 0)) {
-      const dir = rec.type === 'tap' ? null : strokeAimDir(pointers.pts, rec.type);
-      const opts = (rec.type === 'square' || rec.type === 'circle') ? { screenAt: strokeCentroid(pointers.pts) } : {};
+      const dir = strokeAimDir(pointers.pts, rec.type);
+      const opts = rec.type === 'circle' ? { screenAt: strokeCentroid(pointers.pts) } : {};
       S.aimTarget = pickSpirits(rec.type, 1, S.hero, dir, null, opts)[0] || null;
     } else S.aimTarget = null;
     updateMarks();
@@ -2305,7 +2249,7 @@ function finishStroke(pts, opts) {
   lastStroke = (pts || []).slice(); inkFade = 0.28;
   paintInk(lastStroke, 1);
   if (!S || !S.playing || S.paused) return null;
-  const rec = G.recognize(pts, {});
+  const rec = G.recognize(pts, { allowBolt: true });
   S.lastRec = rec;
   S.aimTarget = null;
   const read = (G.readMessage && G.readMessage(rec)) || '';
@@ -2322,34 +2266,16 @@ function finishStroke(pts, opts) {
     setTimeout(clearInk, qa.noDelay ? 80 : 160);
     return rec;
   }
-  const dir = rec.type === 'tap' ? null : strokeAimDir(pts, rec.type);
+  const dir = strokeAimDir(pts, rec.type);
   S.lastStrokeDir = dir;
   rec.dir = dir;
-  /* A boss waiting on a tap takes the tap; otherwise nearby zombies would always turn it into a parry. */
-  const bossWantsTap = rec.type === 'tap' && S.boss && S.boss.alive && S.boss.seq && S.boss.seq[S.boss.seqI] === 'tap'
-    && livingMarks().some(function (m) { return m.target === S.boss; });
-  if (rec.type === 'tap' && !bossWantsTap) {
-    const threat = closeZombie();
-    if (threat) {
-      applyJudge(opts.judge);
-      rec.judge = S.lastJudge;
-      rec.combo = S.combo;
-      rec.perfect = !!S.pendingPerfect;
-      rec.parry = true;
-      rec.parryId = threat.id;
-      const dash = doParry(threat);
-      rec.targets = dash && dash.targets;
-      rec.dash = dash;
-      return rec;
-    }
-  }
   applyJudge(opts.judge);
   rec.judge = S.lastJudge;
   rec.combo = S.combo;
   rec.perfect = !!S.pendingPerfect;
   const dash = beginDash(rec.type, {
-    dir: rec.type === 'tap' ? null : dir,
-    screenAt: (rec.type === 'square' || rec.type === 'circle') ? strokeCentroid(pts) : null
+    dir: dir,
+    screenAt: rec.type === 'circle' ? strokeCentroid(pts) : null
   });
   rec.targets = dash && dash.targets;
   rec.dash = dash;
@@ -2362,16 +2288,13 @@ function syntheticPath(type, x, y, s) {
     for (let i = 0; i < n; i++) { const t = i / (n - 1); p.push({ x: x1 + (x2 - x1) * t, y: y1 + (y2 - y1) * t }); }
     return p;
   }
-  if (type === 'tap') return [{ x: x, y: y }, { x: x + 0.6, y: y - 0.4 }, { x: x - 0.3, y: y + 0.3 }];
   if (type === 'vline') return line(x, y - s, x, y + s);
   if (type === 'hline') return line(x - s, y, x + s, y);
   if (type === 'vee') return line(x - s, y - s * 0.7, x, y + s * 0.8, 16).concat(line(x, y + s * 0.8, x + s, y - s * 0.7, 16).slice(1));
-  if (type === 'square') {
-    const q = s * 0.7;
-    return line(x - q, y - q, x + q, y - q, 12)
-      .concat(line(x + q, y - q, x + q, y + q, 12).slice(1),
-              line(x + q, y + q, x - q, y + q, 12).slice(1),
-              line(x - q, y + q, x - q, y - q, 12).slice(1));
+  if (type === 'bolt') {
+    return line(x + s * 0.35, y - s, x - s * 0.35, y - s * 0.15, 10)
+      .concat(line(x - s * 0.35, y - s * 0.15, x + s * 0.35, y + s * 0.15, 10).slice(1),
+              line(x + s * 0.35, y + s * 0.15, x - s * 0.35, y + s, 10).slice(1));
   }
   const p = []; const n = 36;
   for (let i = 0; i < n; i++) {
@@ -2938,7 +2861,7 @@ const GPv2 = {
       bursts: S && (S.bursts || []).slice(),
       runNo: S && S.runNo, pool: S && (S.pool || []).slice(),
       practice: S && { t: S.practiceT, shape: S.practiceShape, left: S.practiceSpawns },
-      sightWave: S && S.sightWave, parryT: S && S.parryT, lastParry: S && S.lastParry,
+      sightWave: S && S.sightWave,
       iframe: S && S.iframe, hitstop: S && S.hitstop, hurtFlash: S && S.hurtFlash,
       bellPans: S && (S.bellPans || []).slice(),
       lastRec: S && S.lastRec && { type: S.lastRec.type, best: S.lastRec.best, readMessage: S.lastRec.readMessage, reason: S.lastRec.reason },

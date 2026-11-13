@@ -121,6 +121,14 @@
     for (i = 0; i < out.length; i++) { out[i].x -= bb.x; out[i].y -= bb.y; }
     return out;
   }
+  /* Bolt in any direction: turn the stroke so it runs top to bottom, then score the zigzag. */
+  function scoreBoltAny(pts, bb, L) {
+    var up = scoreBolt(pts, bb, L);
+    var a = pts[0], b = pts[pts.length - 1], dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy);
+    if (d < 1e-6) return up;
+    var r = rotateApexDown(pts, { x: dx / d, y: dy / d });
+    return Math.max(up, scoreBolt(r, bbox(r), L));
+  }
   function scoreVeeAny(pts, bb, L) {
     var up = scoreVee(pts, bb, L);
     var ap = veeApex(pts);
@@ -348,7 +356,7 @@
       vee: scoreVeeAny(rs, bb, pathLen(rs)),
       circle: scoreCircle(rs, bb, pathLen(rs)),
       square: scoreSquare(rs, bb, pathLen(rs)),
-      bolt: scoreBolt(rs, bb, pathLen(rs))
+      bolt: scoreBoltAny(rs, bb, pathLen(rs))
     };
     var allowBolt = !!opts.allowBolt;
     var keys = ['vline', 'hline', 'vee', 'circle', 'square'];

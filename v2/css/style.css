@@ -214,25 +214,6 @@ h2 { margin: 0 0 8px; font-size: 20px; }
   width: 48px; height: 48px; border: 0; background: url(../../assets/v2/bg/hanji-paper.png) center/cover no-repeat;
   color: #0E0C0A; line-height: normal; font-size: 16px; border-radius: 50%;
 }
-.tap-drop, .tap-drop-svg { display: block; margin: 0 auto; }
-.tap-drop {
-  width: 14px; height: 20px;
-  background: #0E0C0A;
-  border-radius: 70% 70% 70% 70% / 55% 55% 70% 70%;
-  transform: rotate(180deg);
-  clip-path: path("M8 0 C3 7, 0 11, 0 14 a8 8 0 1 0 16 0 C16 11, 13 7, 8 0z");
-  position: relative;
-}
-.hanji-chip.tap-chip {
-  overflow: visible;
-  width: 56px; height: 66px;
-  border-radius: 14px;
-  flex-direction: column;
-  gap: 2px;
-  color: #0E0C0A;
-  font-weight: 800;
-}
-.tap-caption { font-style: normal; font-size: 11px; letter-spacing: 0.04em; color: #0E0C0A; line-height: 1; }
 
 #fxinkAtmo{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden;opacity:.3}
 #fxinkAtmo .lay{position:absolute;left:0;top:0;width:200%;height:100%;background-repeat:repeat;will-change:transform}
