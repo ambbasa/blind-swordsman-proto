@@ -2,6 +2,7 @@
  * Never writes into assets/v2. Sizes, anchors, bell centers, flameOffset, palette come from the atlas. */
 import * as Anim from './anim.js';
 import { createInkGroundMaterial } from './inkground.js';
+import { drawInkBossSheet } from './inkboss.js';
 
 const BASE = '../assets/v2/';
 const ITEM_KEY = {
@@ -145,7 +146,6 @@ export async function buildArt(THREE) {
   want(sheetFile(atlas.zombie));
   want(sheetFile(atlas.spirit));
   want(sheetFile(atlas['spirit-wisp']));
-  want(sheetFile(atlas.boss));
   if (atlas.heroAnim) {
     const ha = atlas.heroAnim.actions || {};
     ['idle', 'walk', 'dash'].forEach(function (k) { if (ha[k]) want(animFile(ha[k])); });
@@ -153,9 +153,8 @@ export async function buildArt(THREE) {
   }
   if (atlas.zombieAnim && atlas.zombieAnim.actions && atlas.zombieAnim.actions.walk) want(animFile(atlas.zombieAnim.actions.walk));
   if (atlas.spiritAnim) want(animFile(atlas.spiritAnim));
-  if (atlas.bossAnim) want(animFile(atlas.bossAnim));
   want('img/hang-bell.png', { noBase: true });
-  ['tap', 'hline', 'vline', 'vee', 'square', 'circle', 'bolt', 'plain'].forEach(function (k) {
+  ['hline', 'vline', 'vee', 'circle', 'bolt', 'plain'].forEach(function (k) {
     want('bells/bell-' + k + '@2x.png');
   });
   if (atlas.marks && atlas.marks.files) Object.keys(atlas.marks.files).forEach(function (k) { want(atlas.marks.files[k]); });
@@ -339,23 +338,15 @@ export async function buildArt(THREE) {
       anchor: p.anchor, markCenter: p.markCenter, markSize: p.markSize
     };
   }
-  function bossActionSheet(action) {
-    const p = atlas.bossAnim;
-    if (!p) return null;
-    const act = (p.actions && (p.actions[action] || p.actions.idle)) || { row: 0, frames: 8, fps: 8, loop: true };
-    const cols = 12;
-    const rows = ['idle', 'attack', 'hit', 'dissolve'];
-    const name = action && p.actions && p.actions[action] ? action : 'idle';
-    return {
-      file: p.file || p.file1x, file1x: p.file1x,
-      frame: p.cell || [512, 512], count: cols, dirs: rows.length, dirOrder: rows,
-      layout: 'frames-x-dirs-y', fps: act.fps || 8, loop: act.loop !== false,
-      states: { idle: rangeFrames(act.frames || 8) },
-      fpsByState: { idle: act.fps || 8 },
-      anchor: p.anchor, bellCenters: act.bellCenters, markSize: p.markSize,
-      row: act.row != null ? act.row : rows.indexOf(name),
-      actionName: name
-    };
+  let inkBossPack = null;
+  function inkBoss() {
+    if (!inkBossPack) {
+      const r = drawInkBossSheet();
+      const t = new THREE.CanvasTexture(r.canvas);
+      t.colorSpace = THREE.SRGBColorSpace;
+      inkBossPack = { tex: t, sheet: r.sheet, eyes: r.eyes };
+    }
+    return inkBossPack;
   }
   function packTex(sheet) {
     return tex(animFile(sheet)) || tex(sheetFile(sheet));
@@ -512,13 +503,14 @@ export async function buildArt(THREE) {
     } else if (kind === 'spirit' || kind === 'boss') {
       const isBoss = kind === 'boss';
       const spiritSheet = !isBoss && spiritAnimSheet();
-      const bossSheet = isBoss && bossActionSheet('idle');
+      const ib = isBoss ? inkBoss() : null;
+      const bossSheet = ib && ib.sheet;
       const bodySheet = bossSheet || spiritSheet || (isBoss ? atlas.boss : (atlas['spirit-wisp'] || atlas.spirit));
       const spiritBodyK = isBoss ? 1 : 0.7 * SPIRIT_VIEW_SCALE;
-      const H = isBoss ? bossH : (spiritSheet ? spiritH : heroH * 1.05) * spiritBodyK;
+      const H = isBoss ? bossH * 1.5 : (spiritSheet ? spiritH : heroH * 1.05) * spiritBodyK;
       group.userData.bodyScale = spiritBodyK;
       group.userData.bodyH = H;
-      const spr = sheetSprite(bodySheet, packTex(bodySheet) || tex(sheetFile(bodySheet)), H, { depthTest: false, renderOrder: 2 });
+      const spr = sheetSprite(bodySheet, ib ? ib.tex : (packTex(bodySheet) || tex(sheetFile(bodySheet))), H, { depthTest: false, renderOrder: 2 });
       group.add(spr);
       group.userData.sprite = spr;
       group.userData.worldH = H;
@@ -531,15 +523,10 @@ export async function buildArt(THREE) {
         group.userData.noFlip = true;
         attachHangingBell(group, spiritSheet, H, false, { bellH: spiritH * 0.27 * 2.5 * SPIRIT_VIEW_SCALE, shape: shape });
       } else if (bossSheet) {
-        group.userData.animPack = { actions: {} };
-        group.userData.bossPack = atlas.bossAnim;
         group.userData.anim = Anim.createController(bossSheet, { blend: 0 });
-        group.userData.anim.dir = bossSheet.row || 0;
         group.userData.action = 'idle';
         group.userData.noFlip = true;
-        const bc = (bossSheet.bellCenters && bossSheet.bellCenters[0]) || [256, 298];
-        /* Mark sits in the glow beside the bell, not on the swinging clapper. */
-        group.userData.bellLocal = localFromPx(bossSheet, H, [bc[0] + 48, bc[1] - 10]);
+        group.userData.bellLocal = localFromPx(bossSheet, H, ib.eyes[0].map(function (v, i) { return i ? v : 256; }));
       } else if (!isBoss && bodySheet && bodySheet.fps) {
         group.userData.anim = Anim.createController({
           frame: bodySheet.frame, count: bodySheet.count, order: bodySheet.order, fps: bodySheet.fps,
@@ -549,15 +536,16 @@ export async function buildArt(THREE) {
       }
       const glow = tex('fx/spirit-glow.png');
       if (glow) {
-        const gs = isBoss ? 4.2 : 1.05 * SPIRIT_VIEW_SCALE;
-        const g = imgSprite(glow, gs, gs, { cy: 0.45, add: true, opacity: isBoss ? 0.7 : 0.22 });
-        g.position.y = isBoss ? 2.0 : 0.55 * SPIRIT_VIEW_SCALE;
+        const gs = isBoss ? H * 0.5 : 1.05 * SPIRIT_VIEW_SCALE;
+        const g = imgSprite(glow, gs, gs, { cy: 0.5, add: true, opacity: isBoss ? 0.45 : 0.22 });
+        g.position.y = isBoss ? group.userData.bellLocal.y : 0.55 * SPIRIT_VIEW_SCALE;
         g.material.depthTest = false;
         g.renderOrder = 1;
         group.add(g);
         group.userData.glow = g;
         /* 비취 혼령: HDR 색이라 블룸에 번진다. */
         if (!isBoss) { g.material.color.setRGB(0.45, 1.7, 1.15); g.material.opacity = 0.5; }
+        else g.material.color.setRGB(1.7, 0.22, 0.14);
       }
       if (!isBoss && spr.material && spr.material.color) spr.material.color.setRGB(0.75, 1.45, 1.15);
       const auraFile = atlas.onebell && atlas.onebell.aura && String(atlas.onebell.aura).split(' ')[0];
@@ -671,13 +659,7 @@ export async function buildArt(THREE) {
       const alt = map[group.userData.statusElem];
       if (alt && pack && pack.actions && pack.actions[alt]) useState = alt;
     }
-    if (kind === 'boss' && group.userData && group.userData.bossPack && useState && useState !== group.userData.action) {
-      const bs = bossActionSheet(useState);
-      if (bs) {
-        swapAction(group, bs, useState);
-        if (group.userData.anim) group.userData.anim.dir = bs.row || 0;
-      }
-    } else if (pack && pack.actions && useState && useState !== group.userData.action && pack.actions[useState]) {
+    if (pack && pack.actions && useState && useState !== group.userData.action && pack.actions[useState]) {
       swapAction(group, pack.actions[useState], useState);
     }
     const anim = group.userData && group.userData.anim;
@@ -695,10 +677,6 @@ export async function buildArt(THREE) {
       if (!group.userData.noFlip) applyFlip(spr, st.flip);
       else if (spr) applyFlip(spr, false);
       if (group.userData.rim) syncRim(group);
-      if (kind === 'boss' && anim.sheet && anim.sheet.bellCenters) {
-        const bc = anim.sheet.bellCenters[st.frame] || anim.sheet.bellCenters[0];
-        if (bc) group.userData.bellLocal = localFromPx(anim.sheet, group.userData.worldH || bossH, [bc[0] + 48, bc[1] - 10]);
-      }
     }
     tickStatus(group, dt, vx, vz);
     const hang = group.userData && group.userData.bellHang;

@@ -1070,41 +1070,6 @@ function markCssSize(w) {
   return clamp(Math.round(min * Math.sqrt((w || 375) / 375)), min, max);
 }
 
-function inkGlyphPath(ctx, shape, size) {
-  const s = size * 0.38;
-  ctx.beginPath();
-  if (shape === 'hline') {
-    ctx.moveTo(-s * 1.15, 0); ctx.lineTo(s * 1.15, 0);
-  } else if (shape === 'vline') {
-    ctx.moveTo(0, -s * 1.15); ctx.lineTo(0, s * 1.15);
-  } else if (shape === 'vee') {
-    ctx.moveTo(-s * 1.05, -s * 0.85); ctx.lineTo(0, s * 1.05); ctx.lineTo(s * 1.05, -s * 0.85);
-  } else if (shape === 'bolt') {
-    ctx.moveTo(s * 0.45, -s * 1.15); ctx.lineTo(-s * 0.5, s * 0.05); ctx.lineTo(s * 0.5, s * 0.05); ctx.lineTo(-s * 0.4, s * 1.15);
-  } else {
-    ctx.arc(0, 0, s * 0.95, 0, Math.PI * 2);
-    ctx.closePath();
-  }
-}
-function drawInkGlyph(ctx, shape, x, y, size, lit) {
-  /* Tight ink engraved on the bell — no light-blob / button halo. */
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  const w = Math.max(2.2, size * 0.14);
-  const ink = '#120E0B';
-  const paper = lit ? '#F0D48A' : '#F6EBD4';
-  inkGlyphPath(ctx, shape, size);
-  ctx.strokeStyle = ink;
-  ctx.lineWidth = w + 1.8;
-  ctx.stroke();
-  inkGlyphPath(ctx, shape, size);
-  ctx.strokeStyle = paper;
-  ctx.lineWidth = w;
-  ctx.stroke();
-  ctx.restore();
-}
 function updateMarks() {
   const c = $('marks');
   if (!c) return;
@@ -1170,18 +1135,8 @@ function updateMarks() {
   const placed = [];
   const arrows = [];
   const aimId = S.aimTarget && S.aimTarget.alive ? S.aimTarget.id : null;
-  if (S.boss && S.boss.alive && S.boss.obj) {
-    const b = S.boss;
-    const off = (b.obj.userData && b.obj.userData.bellLocal) || { x: 0, y: 2.2 };
-    _proj.v.set(b.x + (off.x || 0), (b.obj.position.y || 0) + (off.y || 2.2), b.z).project(three.camera);
-    const ox = (_proj.v.x * 0.5 + 0.5) * r.width;
-    const oy = (-_proj.v.y * 0.5 + 0.5) * r.height;
-    placed.push({
-      x: ox, y: oy, ox: ox, oy: oy, cssPx: size, onScreen: true,
-      shape: spiritShape(b), boss: true, id: b.id, aim: false,
-      seq: (b.seq || []).slice(), seqI: b.seqI || 0, seqOnly: true
-    });
-  }
+  /* The boss's shape order rides on its spirit's bell; the boss itself carries no mark. */
+  const bossSpirit = (S.boss && S.boss.alive) ? livingMarks().filter(function (s) { return s.target === S.boss; })[0] : null;
   livingMarks().forEach(function (s) {
     if (!s.obj) return;
     const bp = bellScreen(s);
@@ -1199,7 +1154,7 @@ function updateMarks() {
     const item = {
       x: ox, y: oy, ox: ox, oy: oy, cssPx: glyphPx, onScreen: on,
       shape: spiritShape(s), boss: !!s.isBoss, id: s.id, aim: s.id === aimId,
-      seq: s.isBoss ? (s.seq || []).slice() : null, seqI: s.seqI || 0,
+      seq: s === bossSpirit ? (S.boss.seq || []).slice() : null, seqI: s === bossSpirit ? (S.boss.seqI || 0) : 0,
       bellPx: bellPx, bodyPx: bodyPx, glyph: !!s.isBoss, bellTex: (s.obj.userData.bellHang && s.obj.userData.bellHang.bell && s.obj.userData.bellHang.bell.userData && s.obj.userData.bellHang.bell.userData.bellTex) || null
     };
     lastMarkMetrics.marks.push(item);
@@ -1250,16 +1205,16 @@ function updateMarks() {
     lastMarkMetrics.bodyPx = placed.reduce(function (m, p) { return Math.max(m, p.bodyPx || 0); }, 0);
   }
   placed.forEach(function (m) {
-    const x = m.x, y = m.y, sh = m.shape;
+    const x = m.x, y = m.y;
     const pulse = (S && S.beatPulse) ? S.beatPulse : 0;
     const gsize = m.cssPx || size;
     const rad = gsize / 2 + pulse * 2;
     ctx.save();
-    if (m.boss) drawInkGlyph(ctx, sh, x, y, gsize, !!m.aim);
-    if (m.boss && m.seq && m.seq.length) {
+    if (m.seq && m.seq.length) {
       const gap = size * 0.38;
-      const rowY = y - rad - 10;
-      const rowX = x - ((m.seq.length - 1) * gap) * 0.5;
+      const rowW = (m.seq.length - 1) * gap;
+      const rowX = clamp(x - rowW * 0.5, 10, r.width - 10 - rowW);
+      const rowY = clamp(y - rad - 10, 90, r.height - 10);
       m.seq.forEach(function (seqSh, i) {
         const done = i < m.seqI;
         const cur = i === m.seqI;
@@ -1934,7 +1889,7 @@ function pickUpgrade(id) {
 function maybeEnd() {
   if (!S || S.won || S.lost || !S.playing) return;
   if (S.hp <= 0) { endRun(false, '좀비에게 닿았습니다.'); return; }
-  if (S.boss && !S.boss.alive) endRun(true, '큰 종을 베었습니다.');
+  if (S.boss && !S.boss.alive) endRun(true, '귀물을 베었습니다.');
 }
 function endRun(win, msg) {
   if (!S || S.won || S.lost) return;
@@ -1986,7 +1941,7 @@ function step(dt) {
   }
   if (!S.sandbox && !S.bossSpawned && S.elapsed >= CFG.bossAt) {
     spawnBoss({ r: CFG.bossSpawnR, nShapes: CFG.bossShapes });
-    toast('큰 종을 든 귀물이 나타났어요');
+    toast('부적을 단 귀물이 다가옵니다');
   }
   const wave = 1 + 0.7 * clamp(S.elapsed / CFG.timeLimit, 0, 1);
   if (!S.sandbox) {
