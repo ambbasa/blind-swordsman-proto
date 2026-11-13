@@ -6,9 +6,12 @@ export function createAudio() {
   let muted = true, quiet = true;
 
   const PENTA = [262, 294, 330, 392, 440, 523, 587, 659]; /* C D E G A, daegeum-ish range later shifted */
-  /* Small hand-bell: inharmonic partial ratios, higher ones fade first. Pitch per shape on the pentatonic scale. */
-  const BELL = { ratios: [1, 2.756, 5.404, 8.933], gains: [1, 0.34, 0.14, 0.05], decays: [2.8, 1.5, 0.8, 0.45], peak: 0.12, detuneCents: 3, reverbSec: 2.2, reverbMix: 0.45 };
-  const BELL_PITCH = { hline: 784, vline: 880, vee: 1047, bolt: 1175 };
+  /* Shaman's rattle (무당방울): a few shakes, each a cluster of tiny brass bells clinking a few ms apart.
+     The cluster's centre pitch differs per shape so the ear can tell them apart. */
+  const BELL = { shakes: [0, 0.15, 0.31], shakeGain: [1, 0.72, 0.48], bellsPerShake: 6, spreadSec: 0.045,
+    ratios: [1, 2.42, 3.93], gains: [1, 0.45, 0.2], decay: [0.22, 0.12, 0.07], peak: 0.06, pitchSpread: 0.35,
+    clink: 0.035, reverbSec: 1.4, reverbMix: 0.28 };
+  const BELL_PITCH = { hline: 2600, vline: 2950, vee: 3350, bolt: 3800 };
   let reverb = null;
 
   function ac() {
@@ -107,7 +110,7 @@ export function createAudio() {
     if (quiet) return;
     const c = resume(); if (!c) return;
     const t0 = c.currentTime + 0.005;
-    const f0 = BELL_PITCH[shape] || 880;
+    const f0 = BELL_PITCH[shape] || 3000;
     const out = c.createGain();
     out.gain.value = 1;
     if (c.createStereoPanner) {
@@ -117,19 +120,26 @@ export function createAudio() {
     } else {
       out.connect(sfxGain); out.connect(bellReverb(c));
     }
-    BELL.ratios.forEach(function (r, i) {
-      [-1, 1].forEach(function (side) {
-        const o = c.createOscillator();
-        const g = c.createGain();
-        o.type = 'sine';
-        o.frequency.setValueAtTime(f0 * r * Math.pow(2, side * BELL.detuneCents / 1200), t0);
-        const peak = BELL.peak * BELL.gains[i] * 0.5;
-        g.gain.setValueAtTime(0.0001, t0);
-        g.gain.linearRampToValueAtTime(peak, t0 + 0.004 + i * 0.002);
-        g.gain.exponentialRampToValueAtTime(0.0001, t0 + BELL.decays[i]);
-        o.connect(g); g.connect(out);
-        o.start(t0); o.stop(t0 + BELL.decays[i] + 0.05);
-      });
+    BELL.shakes.forEach(function (st, si) {
+      const sg = BELL.shakeGain[si];
+      for (let b = 0; b < BELL.bellsPerShake; b++) {
+        const tb = t0 + st + Math.random() * BELL.spreadSec;
+        const f = f0 * (1 + (Math.random() - 0.5) * BELL.pitchSpread);
+        BELL.ratios.forEach(function (r, i) {
+          const o = c.createOscillator();
+          const g = c.createGain();
+          o.type = 'sine';
+          o.frequency.setValueAtTime(f * r, tb);
+          const peak = BELL.peak * sg * BELL.gains[i] * (0.6 + Math.random() * 0.4);
+          const dec = BELL.decay[i] * (0.8 + Math.random() * 0.5);
+          g.gain.setValueAtTime(0.0001, tb);
+          g.gain.linearRampToValueAtTime(peak, tb + 0.002);
+          g.gain.exponentialRampToValueAtTime(0.0001, tb + dec);
+          o.connect(g); g.connect(out);
+          o.start(tb); o.stop(tb + dec + 0.02);
+        });
+      }
+      noise(t0 + st, 0.02, 'bandpass', 6500, 2.5, BELL.clink * sg, out);
     });
   }
 

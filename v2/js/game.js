@@ -80,7 +80,9 @@ const CFG = {
   poisonMax: 5, poisonDur: 4, poisonPeriod: 1, poisonDmgPer: 1,
   shatterDmg: 4, explodeDmg: 3, explodeR: 2.5,
   bellDur: 8, slowDur: 0.45, slowScale: 0.35,
-  sightWaveDur: 0.45
+  sightWaveDur: 0.45,
+  /* Fog outside the mind's-eye ring: clear inside fogInner x ring, fully fogged at fogOuter x ring. */
+  fogColor: [7, 6, 8], fogAlpha: 0.9, fogInner: 0.86, fogOuter: 1.16, fogWisps: 44, fogWispAlpha: 0.09
 };
 const RUN_UPGRADES = [
   { id: 'dmg', name: '돌진 데미지', desc: '일섬이 좀비에게 더 큰 상처를 남깁니다.' },
@@ -1168,27 +1170,6 @@ function updateMarks() {
     const pts = ringScreenPts();
     let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
     if (pts.length) {
-      ctx.save();
-      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      ctx.beginPath();
-      pts.forEach(function (p, i) { if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); });
-      ctx.closePath();
-      ctx.strokeStyle = 'rgba(6, 5, 4, 0.42)';
-      ctx.lineWidth = 7;
-      ctx.stroke();
-      ctx.strokeStyle = 'rgba(46, 230, 166, 0.10)';
-      ctx.lineWidth = 12;
-      ctx.stroke();
-      for (let i = 0; i < pts.length; i++) {
-        const hsh = Math.abs(Math.sin(i * 127.1 + 7 * 311.7) * 43758.5453) % 1;
-        if (hsh < 0.14) continue;
-        const a = pts[i], b = pts[(i + 1) % pts.length];
-        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-        ctx.strokeStyle = 'rgba(214, 236, 240, ' + (0.5 + 0.25 * hsh).toFixed(3) + ')';
-        ctx.lineWidth = 1.6 + 1.2 * hsh;
-        ctx.stroke();
-      }
-      ctx.restore();
       pts.forEach(function (p) {
         if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
         if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
@@ -2375,6 +2356,47 @@ function punchAtmoRing(cx, cy, ringR, wave) {
   root.style.webkitMaskImage = img;
   root.style.maskImage = img;
 }
+/* Mind's-eye fog: everything inside the ring is clear; outside lies dark fog. The edge is soft and
+   broken by drifting mist so it reads as fog, not a line. */
+function drawRingFog(fog, w, h) {
+  const pts = ringScreenPts();
+  if (!pts || !pts.length) return;
+  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+  pts.forEach(function (p) { if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x; if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y; });
+  const ex = (x0 + x1) / 2, ey = (y0 + y1) / 2, rx = Math.max(10, (x1 - x0) / 2), ry = Math.max(10, (y1 - y0) / 2);
+  const t = (S && S.elapsed) || 0;
+  fog.fillStyle = 'rgba(' + CFG.fogColor.join(',') + ',' + CFG.fogAlpha + ')';
+  fog.fillRect(0, 0, w, h);
+  /* Carve the clear ellipse with a soft rim. */
+  fog.save();
+  fog.globalCompositeOperation = 'destination-out';
+  fog.translate(ex, ey); fog.scale(rx, ry);
+  const g = fog.createRadialGradient(0, 0, 0, 0, 0, CFG.fogOuter);
+  g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(CFG.fogInner / CFG.fogOuter, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  fog.fillStyle = g;
+  fog.beginPath(); fog.arc(0, 0, CFG.fogOuter, 0, Math.PI * 2); fog.fill();
+  fog.restore();
+  /* Drifting mist along the rim: long thin banks stretched along the edge, pale and dark, slowly sliding. */
+  const n = CFG.fogWisps;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + t * 0.035 * (i % 2 ? 1 : -1) + Math.sin(i * 7.3) * 0.25;
+    const rr = 1.04 + 0.08 * Math.sin(t * 0.4 + i * 1.7);
+    const px = ex + Math.cos(a) * rx * rr, py = ey + Math.sin(a) * ry * rr;
+    const len = rx * (0.32 + 0.12 * Math.sin(t * 0.5 + i * 2.3)), thick = len * 0.28;
+    const pale = i % 3 !== 0;
+    const al = pale ? CFG.fogWispAlpha * (0.6 + 0.4 * Math.sin(t * 0.7 + i)) : 0.3;
+    fog.save();
+    fog.translate(px, py);
+    fog.rotate(Math.atan2(Math.cos(a) * ry, -Math.sin(a) * rx));
+    fog.scale(1, thick / len);
+    const gw = fog.createRadialGradient(0, 0, 0, 0, 0, len);
+    gw.addColorStop(0, pale ? 'rgba(160,162,158,' + al.toFixed(3) + ')' : 'rgba(' + CFG.fogColor.join(',') + ',' + al.toFixed(3) + ')');
+    gw.addColorStop(1, 'rgba(160,162,158,0)');
+    fog.fillStyle = gw;
+    fog.fillRect(-len, -len, len * 2, len * 2);
+    fog.restore();
+  }
+}
 function drawSightFog() {
   const c = $('sightFog');
   const sc = $('sonarRing');
@@ -2396,23 +2418,12 @@ function drawSightFog() {
   const playing = !!(S && S.playing);
   const wave = (S && S.sightWave) || 0;
   if (!playing) { punchAtmoRing(0, 0, 0, 0); return; }
+  const cx = (S.hero ? heroScreen() : { x: w * 0.5 }).x, cy = (S.hero ? heroScreen() : { y: h * 0.5 }).y;
   fog.setTransform(dpr, 0, 0, dpr, 0, 0);
-  /* Edge ink-fog. The wave opens a clearer disc so enemies and bells show through. */
-  const hole = 0.16 + 0.58 * wave;
   const hs = S.hero ? heroScreen() : { x: w * 0.5, y: h * 0.5 };
-  const cx = hs.x, cy = hs.y;
-  host.style.setProperty('--hero-x', cx.toFixed(1) + 'px');
-  host.style.setProperty('--hero-y', cy.toFixed(1) + 'px');
-  const edgeA = 0.92 * (1 - wave * 0.18);
-  const midA = (0.55 * (1 - wave) + 0.12);
-  const grd = fog.createRadialGradient(cx, cy, Math.min(w, h) * hole * 0.28, cx, cy, Math.max(w, h) * 0.82);
-  grd.addColorStop(0, 'rgba(10,8,6,0)');
-  grd.addColorStop(0.32, 'rgba(16,12,10,' + (0.08 * (1 - wave)).toFixed(3) + ')');
-  grd.addColorStop(0.58, 'rgba(12,9,7,' + midA.toFixed(3) + ')');
-  grd.addColorStop(0.82, 'rgba(8,6,5,' + (0.78 * (0.55 + 0.45 * (1 - wave * 0.3))).toFixed(3) + ')');
-  grd.addColorStop(1, 'rgba(4,3,2,' + edgeA.toFixed(3) + ')');
-  fog.fillStyle = grd;
-  fog.fillRect(0, 0, w, h);
+  host.style.setProperty('--hero-x', hs.x.toFixed(1) + 'px');
+  host.style.setProperty('--hero-y', hs.y.toFixed(1) + 'px');
+  drawRingFog(fog, w, h);
   const ringCtx = sc ? sc.getContext('2d') : fog;
   if (sc) ringCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
   /* 4차: 심안 파동은 안개 구멍을 열기만 하고, 궤도 안의 두 번째 동심원 획은 그리지 않음. */
