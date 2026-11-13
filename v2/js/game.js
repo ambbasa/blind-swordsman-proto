@@ -2446,12 +2446,8 @@ function loop(ts) {
       if (t.glow && t.glow.material) {
         t.glow.material.opacity = 0.55 + Math.sin(ts / 90 + i) * 0.12;
         const sc = 0.95 + Math.sin(ts / 80 + i) * 0.08;
-        t.glow.scale.set(2.4 * sc, 2.4 * sc, 1);
-      }
-    });
-    ((three.map && three.map.fogs) || []).forEach(function (fog) {
-      if (fog.material && fog.material.map && fog.userData.fogScroll) {
-        fog.material.map.offset.x += (fog.userData.fogScroll / 1024) * raw;
+        const gb = t.glow.userData.baseScale || 2.4;
+        t.glow.scale.set(gb * sc, gb * sc, 1);
       }
     });
     const fx = three.fx || [];

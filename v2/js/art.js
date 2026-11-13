@@ -5,6 +5,7 @@ import { createInkGroundMaterial } from './inkground.js';
 import { drawInkBossSheet } from './inkboss.js';
 import { drawHeroSheets, drawZombieSheets, drawSpiritSheet } from './inkchars.js';
 import { drawBell, drawItem, drawSeal } from './inkicons.js';
+import { drawProp, drawBackdrop, INK_PROPS } from './inkprops.js';
 
 const BASE = '../assets/v2/';
 const ITEM_KEY = {
@@ -602,79 +603,33 @@ export async function buildArt(THREE) {
     group.userData.aura.material.opacity = on ? 0.85 : 0;
   }
 
+  const inkPropCache = {};
+  const inkBackdrops = {};
   function makeProp(name, def) {
-    def = def || (atlas.props && atlas.props[name]);
-    if (!def || !def.file) return null;
-    /* File may not be in the shared cache (map props load on demand). Caller should acquire first. */
-    const src = tex(def.file);
-    if (!src) return null;
-    const sz = def.size || [src.image.width, src.image.height];
-    const H = sz[1] * unit;
-    const W = sz[0] * unit;
-    const spr = imgSprite(src, W, H, { cy: 0, alphaTest: 0.1 });
-    const anc = def.anchor || [sz[0] / 2, sz[1] - 10];
-    spr.center.set(anc[0] / sz[0], 1 - anc[1] / sz[1]);
+    if (!inkPropCache[name]) {
+      const r = drawProp(name);
+      if (!r) return null;
+      const t = new THREE.CanvasTexture(r.canvas);
+      t.colorSpace = THREE.SRGBColorSpace;
+      inkPropCache[name] = { tex: t, size: r.size, anchor: r.anchor, flame: r.flame };
+    }
+    const P = inkPropCache[name];
+    const k = unit * INK_PROPS.scale;
+    const spr = imgSprite(P.tex, P.size[0] * k, P.size[1] * k, { cy: 0, alphaTest: 0.1 });
+    spr.center.set(P.anchor[0] / P.size[0], 1 - P.anchor[1] / P.size[1]);
     const g = new THREE.Group();
     g.add(spr);
-    g.userData.prop = def;
+    g.userData.prop = def || null;
     g.userData.sprite = spr;
-    if (def.flameOffset && torchGlowTex()) {
-      const glo = imgSprite(torchGlowTex(), 2.4, 2.4, { cy: 0.5, add: true, opacity: 0.7 });
-      glo.position.set(def.flameOffset[0] * unit, -def.flameOffset[1] * unit, 0.01);
+    if (P.flame && torchGlowTex()) {
+      const glo = imgSprite(torchGlowTex(), 2.4 * INK_PROPS.scale, 2.4 * INK_PROPS.scale, { cy: 0.5, add: true, opacity: 0.7 });
+      glo.position.set(P.flame[0] * k, -P.flame[1] * k, 0.01);
+      glo.userData.baseScale = 2.4 * INK_PROPS.scale;
       g.add(glo);
       g.userData.glow = glo;
-      g.userData.flameWorld = { x: def.flameOffset[0] * unit, y: -def.flameOffset[1] * unit };
+      g.userData.flameWorld = { x: P.flame[0] * k, y: -P.flame[1] * k };
     }
     return g;
-  }
-
-  function tilePath(ref) {
-    if (!ref) return null;
-    if (typeof ref === 'string' && ref.indexOf('tiles.') === 0) {
-      const k = ref.slice(6);
-      const t = atlas.tiles && atlas.tiles[k];
-      return t && (t.texture512 || t.texture);
-    }
-    if (typeof ref === 'object' && (ref.texture512 || ref.texture)) return ref.texture512 || ref.texture;
-    if (typeof ref === 'string' && ref.indexOf('.png') >= 0) return ref;
-    return null;
-  }
-  function fogAlpha(map) {
-    const s = (map && map.fog) || '';
-    const m = s.match(/(\.\d+)\s*[-–~]\s*(\.\d+)/);
-    if (m) return (parseFloat(m[1]) + parseFloat(m[2])) / 2;
-    return 0.45;
-  }
-
-  async function composeGround(baseUrl, patchUrl) {
-    const [base, patch] = await Promise.all([acquire(baseUrl, { repeat: true }), patchUrl ? acquire(patchUrl, { repeat: true }) : Promise.resolve(null)]);
-    if (!patch || !base || !base.image || !patch.image) return { tex: base, urls: patchUrl ? [baseUrl, patchUrl] : [baseUrl] };
-    const S = 512;
-    const { c, g } = canvas(S, S);
-    try { g.drawImage(base.image, 0, 0, S, S); } catch (e) { return { tex: base, urls: [baseUrl, patchUrl] }; }
-    const patches = [
-      [0.18, 0.22, 0.28], [0.62, 0.18, 0.24], [0.78, 0.55, 0.26],
-      [0.30, 0.70, 0.30], [0.52, 0.48, 0.18], [0.10, 0.50, 0.20]
-    ];
-    patches.forEach(function (p) {
-      const cx = p[0] * S, cy = p[1] * S, r = p[2] * S;
-      g.save();
-      const grd = g.createRadialGradient(cx, cy, r * 0.25, cx, cy, r);
-      grd.addColorStop(0, 'rgba(0,0,0,0.95)');
-      grd.addColorStop(0.7, 'rgba(0,0,0,0.55)');
-      grd.addColorStop(1, 'rgba(0,0,0,0)');
-      g.beginPath(); g.arc(cx, cy, r, 0, 7); g.clip();
-      g.globalAlpha = 1;
-      g.drawImage(patch.image, 0, 0, S, S);
-      g.restore();
-    });
-    const t = new THREE.CanvasTexture(c);
-    t.colorSpace = THREE.SRGBColorSpace;
-    t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.anisotropy = 8;
-    t.repeat.set(30, 30);
-    t.needsUpdate = true;
-    return { tex: t, urls: [baseUrl, patchUrl], composed: t };
   }
 
   const MAP_LAYOUT = {
@@ -719,73 +674,35 @@ export async function buildArt(THREE) {
     const urls = [];
     const group = new THREE.Group();
     group.name = 'map-' + id;
-    const suggested = M.suggestedGround || {};
-    const tiles = M.tiles || {};
-    let baseUrl, patchUrl;
-    if (id === 'map1') {
-      baseUrl = tilePath(tiles.courtyard || 'tiles.courtyard');
-    } else {
-      const baseKey = suggested.base && tiles[suggested.base] ? suggested.base : Object.keys(tiles)[0];
-      const patchKey = suggested.patches && tiles[suggested.patches] ? suggested.patches : null;
-      baseUrl = tilePath(tiles[baseKey]);
-      patchUrl = patchKey ? tilePath(tiles[patchKey]) : null;
-    }
-    const groundPack = await composeGround(baseUrl, patchUrl);
-    urls.push.apply(urls, groundPack.urls);
-    if (groundPack.tex && groundPack.tex.repeat && !groundPack.composed) groundPack.tex.repeat.set(30, 30);
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(120, 120, 1, 1),
-      createInkGroundMaterial(id, groundPack.tex)
+      createInkGroundMaterial(id, null)
     );
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     group.add(ground);
 
-    const bgUrl = M.bgJpg || M.bg;
-    if (bgUrl) {
-      const bgTex = await acquire(bgUrl);
-      urls.push(bgUrl);
-      if (bgTex) {
-        const bg = new THREE.Mesh(
-          new THREE.PlaneGeometry(80, 45),
-          new THREE.MeshBasicMaterial({ map: bgTex, fog: true })
-        );
-        bg.position.set(0, 18, -46);
-        group.add(bg);
-      }
+    if (!inkBackdrops[id]) {
+      inkBackdrops[id] = new THREE.CanvasTexture(drawBackdrop(id));
+      inkBackdrops[id].colorSpace = THREE.SRGBColorSpace;
     }
-
-    const fa = fogAlpha(M);
-    const fogs = [];
-    const f0 = tex((atlas.fog && atlas.fog['fog-0'] || {}).file);
-    if (f0) {
-      const t = cloneTex(f0);
-      t.wrapS = t.wrapT = THREE.RepeatWrapping;
-      t.repeat.set(4, 2);
-      const fog = new THREE.Mesh(
-        new THREE.PlaneGeometry(80, 16),
-        new THREE.MeshBasicMaterial({ map: t, transparent: true, opacity: fa, depthWrite: false })
-      );
-      fog.position.set(0, 5, -8);
-      fog.userData.fogScroll = 8;
-      group.add(fog);
-      fogs.push(fog);
-    }
+    const bg = new THREE.Mesh(
+      new THREE.PlaneGeometry(80, 45),
+      new THREE.MeshBasicMaterial({ map: inkBackdrops[id], fog: true })
+    );
+    bg.position.set(0, 18, -46);
+    group.add(bg);
 
     const layout = MAP_LAYOUT[id] || MAP_LAYOUT.map1;
     const lights = [];
     for (let i = 0; i < layout.length; i++) {
       const name = layout[i][0], x = layout[i][1], z = layout[i][2];
-      const def = propDef(M, name);
-      if (!def) continue;
-      await acquire(def.file);
-      urls.push(def.file);
-      const prop = makeProp(name, def);
+      const prop = makeProp(name, propDef(M, name));
       if (!prop) continue;
       if (name === 'map2-wall' && x > 0) prop.scale.x = -1;
       prop.position.set(x, 0, z);
       group.add(prop);
-      if (def.flameOffset && prop.userData.flameWorld) {
+      if (prop.userData.flameWorld) {
         const light = new THREE.PointLight(hexColor(pal.ember || pal.torch, 0xff8a3a), 2.6, 16, 1.6);
         light.position.set(x, prop.userData.flameWorld.y, z);
         group.add(light);
@@ -803,7 +720,6 @@ export async function buildArt(THREE) {
           arr.forEach(function (m) { if (m && m.dispose) m.dispose(); });
         }
       });
-      if (groundPack.composed) groundPack.composed.dispose();
       const seen = {};
       urls.forEach(function (u) {
         if (sharedUrls.indexOf(u) >= 0) return;
@@ -812,7 +728,7 @@ export async function buildArt(THREE) {
         release(u);
       });
     }
-    return { id: id, name: M.name, key: M.key, group: group, lights: lights, fogs: fogs, dispose: dispose, fogAlpha: fa };
+    return { id: id, name: M.name, key: M.key, group: group, lights: lights, dispose: dispose };
   }
 
   function slashTex(elem) {
