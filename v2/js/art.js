@@ -115,8 +115,9 @@ export async function buildArt(THREE) {
   const spiritH = (atlas.spiritAnim && atlas.spiritAnim.cell && atlas.spiritAnim.cell[1])
     ? atlas.spiritAnim.cell[1] / pxPerMeter
     : heroH * 1.05;
-  /* Spirits are ring markers: scaled up with the zoomed-out camera so they and their bells keep their screen size. */
-  const SPIRIT_VIEW_SCALE = 2;
+  /* Spirits hover over zombies: a small body, and a bell kept large enough to read its mark (about 34 px). */
+  const SPIRIT_VIEW_SCALE = 1.2;
+  const SPIRIT_BELL_SCALE = 1.7;
   const bossH = (atlas.bossAnim && atlas.bossAnim.cell && atlas.bossAnim.cell[1])
     ? atlas.bossAnim.cell[1] / pxPerMeter
     : heroH * 1.7;
@@ -357,7 +358,7 @@ export async function buildArt(THREE) {
   function attachHangingBell(group, bodySheet, worldH, isBoss, opts) {
     if (isBoss) return;
     opts = opts || {};
-    const attachPx = [((bodySheet && bodySheet.anchor && bodySheet.anchor[0]) || 128), 118];
+    const attachPx = opts.attachPx || [((bodySheet && bodySheet.anchor && bodySheet.anchor[0]) || 128), 118];
     if (bodySheet && worldH) {
       try {
         const markPx = [attachPx[0] + 26, 122];
@@ -489,7 +490,8 @@ export async function buildArt(THREE) {
       if (spiritSheet) {
         group.userData.anim = Anim.createController(spiritSheet, { blend: 0 });
         group.userData.noFlip = true;
-        attachHangingBell(group, spiritSheet, H, false, { bellH: spiritH * 0.27 * 2.5 * SPIRIT_VIEW_SCALE, shape: shape });
+        /* The bell hangs from the spirit's side so it does not cover the zombie below. */
+        attachHangingBell(group, spiritSheet, H, false, { bellH: spiritH * 0.27 * 2.5 * SPIRIT_BELL_SCALE, shape: shape, attachPx: [176, 70] });
       } else if (bossSheet) {
         group.userData.anim = Anim.createController(bossSheet, { blend: 0 });
         group.userData.action = 'idle';

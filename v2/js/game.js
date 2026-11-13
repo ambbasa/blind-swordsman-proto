@@ -43,7 +43,7 @@ const CFG = {
   idlePerMin: 4, idleMaxHours: 8,
   upgradeBase: 15, atkStep: 0.05, hpStep: 3, coinStep: 0.25, maxLv: 10,
   xpBase: 8, xpStep: 6, xpPerKill: 1,
-  dashDur: 0.28, pathRadius: 1.35, dashDmg: 2, spiritHp: 1,
+  dashDur: 0.28, pathRadius: 1.35, dashDmg: 2.5, spiritHp: 1,
   /* Zombie kinds: hp grows over the run by (1 + hpGrowth * t / timeLimit). */
   zombieTypes: {
     imp: { hp: 2, speed: 1.0, r: 0.55, dmg: 1, xp: 1, coin: 1 },
@@ -52,14 +52,13 @@ const CFG = {
   },
   zombieMix: [[0, { imp: 1 }], [25, { imp: 0.75, brute: 0.25 }], [45, { imp: 0.55, brute: 0.3, stone: 0.15 }]],
   hpGrowth: 0.6,
-  beatMul: { perfect: 1.5, good: 1.2, miss: 1 }, comboMulStep: 0.05, comboMulCap: 20, pierceFalloff: 0.85,
-  spreadR: 1.5, iceSlowDur: 2, iceSlowMul: 0.5, poisonCloudR: 2, poisonCloudDur: 3, bossMissStep: 0.5,
-  perfectPathBonus: 0.4,
+  comboMulStep: 0.05, comboMulCap: 20, pierceFalloff: 0.85,
+  spreadR: 1.5, iceSlowDur: 2, iceSlowMul: 0.5, poisonCloudR: 2, poisonCloudDur: 3,
   dashCount: 1, spawnZombieMs: 1000, spawnSpiritMs: 950,
   spawnZombieMax: 16, spawnSpiritMax: 0,
   spawnZombieMinMs: 450, spawnSpiritMinMs: 480,
   spawnZombieDelay: 3, practiceZombieMs: 3200, practiceZombieMax: 2, earlyZombieMax: 4, earlyZombieUntil: 15, earlyZombieMinMs: 1400,
-  spiritThreadAlpha: 0.85, spiritCapStart: 1, spiritMax: 4, sameShapeMax: 2, spiritExitMul: 1.08, spiritDimAlpha: 0.35, spiritGlowAlpha: 0.5,
+  spiritStreamAlpha: 0.7, spiritFadeIn: 0.4, spiritAlpha: 0.9, spiritHover: 0.7, spiritCapStart: 1, spiritMax: 4, sameShapeMax: 2, spiritGlowAlpha: 0.5,
   ringScreenFrac: 0.70, ringMaxFrac: 0.90, ringBoost: 0.14, ringLvMax: 4,
   spiritOmega: 2.8, spiritAvoidMax: 0.30, spiritAvoidOmega: 8, bossSpeed: 1.0, bossCatchUp: 0.3, bossSpawnR: 11,
   dashThroughMul: 1.5, dashPastTarget: 0.8, dashPastBodyMul: 1.5, playBound: 28,
@@ -73,7 +72,7 @@ const CFG = {
   zombieSpeed: 2.15, spiritSpeed: 0.55,
   camOff: { x: 14.4, y: 22.4, z: 14.4 }, camLookY: 1.2, fov: 62,
   markMinCss: 40, markMaxCss: 72,
-  bpm: 100, beatWindow: 0.09, beatGood: 0.18, comboTimeout: 2.8,
+  comboTimeout: 2.8,
   perfectDmgMul: 1, comboBurstAt: [4, 8, 12],
   comboBurstR: [3.2, 4.2, 5.2], comboBurstDmg: [1, 1.5, 2],
   practiceSec: 10, practiceSpawns: 6, comboBurstMs: 220,
@@ -114,16 +113,14 @@ function costOf(lv) { return CFG.upgradeBase * (lv + 1); }
 function atkBonus() { return Math.min(CFG.maxLv, save.atkLv) * CFG.atkStep; }
 function maxHp() { return CFG.hpBase + save.hpLv * CFG.hpStep + (S && S.runHp || 0); }
 function coinMult() { return 1 + save.coinLv * CFG.coinStep + (S && S.runCoin || 0); }
-/* Dash damage = (base + upgrades) x beat judgement x combo x meta attack. */
+/* Dash damage = (base + upgrades) x combo x meta attack. */
 function dashDmg() {
   const base = (S && S.dashDmg) || CFG.dashDmg;
-  const beat = (CFG.beatMul && CFG.beatMul[(S && S.lastJudge) || 'miss']) || 1;
   const combo = 1 + (CFG.comboMulStep || 0) * Math.min(CFG.comboMulCap || 20, (S && S.combo) || 0);
-  return base * beat * combo * (1 + atkBonus());
+  return base * combo * (1 + atkBonus());
 }
 function pathR() {
   let r = (S && S.pathR) || CFG.pathRadius;
-  if (S && (S.pendingPerfect || (S.dash && S.dash.perfect))) r += (CFG.perfectPathBonus || 0.4);
   return r;
 }
 
@@ -311,9 +308,8 @@ function startRun(opts) {
     dashElem: null, bellT: 0, bellShape: null, slowT: 0,
     mapId: mapIdOf(opts),
     runNo: 1, pool: SHAPE_UNLOCK.slice(), practiceT: 0, practiceShape: null, practiceSpawns: 0,
-    combo: 0, comboIdle: 0, comboMax: 0, pendingPerfect: false, lastJudge: null,
-    perfects: 0, misses: 0, bursts: [], lastBurst: 0,
-    beatPulse: 0, lastBeat: -1,
+    combo: 0, comboIdle: 0, comboMax: 0,
+    bursts: [], lastBurst: 0,
     sightWave: 0, lastStrokeDir: null,
     hitstop: 0, hurtFlash: 0, aimTarget: null, bellPans: [], recoil: null,
     ringR: 0, ringLv: 0, bounce: null, landRipple: null,
@@ -540,28 +536,26 @@ function livingThreats() {
   if (!S) return [];
   return (S.zombies || []).filter(function (z) { return z.alive; });
 }
-/* A spirit appears only for a threat inside the mind's-eye ring: the nearest ones (boss first) up to the spirit cap. */
+/* A spirit stays on its zombie until that zombie dies. A free slot (under the cap) goes to the
+   nearest zombie inside the mind's-eye ring that has no spirit yet, the boss first. */
 function assignSpiritTargets() {
   if (!S) return;
   const R = ringR();
   const cap = Math.min(CFG.spiritMax || 4, S.spiritCap || 1);
-  const bound = livingMarks().filter(function (s) { return !s.free; });
-  const near = livingThreats().filter(function (z) {
-    const held = bound.some(function (s) { return s.target === z; });
-    return dist(z, S.hero) < R * (held ? (CFG.spiritExitMul || 1.08) : 1);
+  livingMarks().forEach(function (s) {
+    if (!s.free && (!s.target || !s.target.alive)) destroySpirit(s);
   });
+  const bound = livingMarks().filter(function (s) { return !s.free; });
+  let room = cap - bound.length;
+  if (room <= 0) return;
+  const held = bound.map(function (s) { return s.target; });
+  const near = livingThreats().filter(function (z) { return held.indexOf(z) < 0 && dist(z, S.hero) < R; });
   near.sort(function (a, b) {
     if (a.isBoss && !b.isBoss) return -1;
     if (b.isBoss && !a.isBoss) return 1;
     return dist(a, S.hero) - dist(b, S.hero);
   });
-  const want = near.slice(0, cap);
-  bound.forEach(function (s) {
-    if (!s.target || !s.target.alive || want.indexOf(s.target) < 0) destroySpirit(s);
-  });
-  want.forEach(function (z) {
-    if (!livingMarks().some(function (s) { return s.target === z; })) spawnSpirit({ x: z.x, z: z.z, target: z });
-  });
+  for (let i = 0; i < near.length && room > 0; i++, room--) spawnSpirit({ x: near[i].x, z: near[i].z, target: near[i] });
 }
 function zombieScreenBody(z) {
   const top = projectXZ(z.x, z.z, 1.45);
@@ -642,7 +636,8 @@ function stepSpirits(dt) {
     stepSpiritAvoid(s, dt, false);
   });
   livingMarks().forEach(function (s) {
-    placeSpiritOnRing(s);
+    s.age = (s.age || 0) + dt;
+    placeSpirit(s);
     setSpiritAlpha(s);
     if (art.tickChar) art.tickChar(s.obj, 'spirit', 'idle', Math.min(0.05, dt), 0, 0);
   });
@@ -650,13 +645,20 @@ function stepSpirits(dt) {
 function setSpiritAlpha(s) {
   const ud = s && s.obj && s.obj.userData;
   if (!ud) return;
-  const dim = CFG.spiritDimAlpha == null ? 0.35 : CFG.spiritDimAlpha;
-  const k = Math.max((S && S.beatPulse) || 0, (S && S.sightWave) || 0);
-  const a = dim + (1 - dim) * clamp(k, 0, 1);
+  /* Fades in when the zombie enters the ring, then stays. */
+  const a = (CFG.spiritAlpha || 0.9) * clamp((s.age || 0) / (CFG.spiritFadeIn || 0.4), 0, 1);
   if (ud.sprite && ud.sprite.material) { ud.sprite.material.transparent = true; ud.sprite.material.opacity = a; }
   const bell = ud.bellHang && ud.bellHang.bell;
   if (bell && bell.material) { bell.material.transparent = true; bell.material.opacity = a; }
   if (ud.glow && ud.glow.material) ud.glow.material.opacity = (CFG.spiritGlowAlpha || 0.5) * a;
+}
+/* A spirit bound to a zombie hovers over its head and follows it; free (test) spirits stay on the ring. */
+function placeSpirit(s) {
+  const z = s.target;
+  if (!z || !z.alive || s.free) { placeSpiritOnRing(s); return; }
+  const zh = (z.obj && z.obj.userData && z.obj.userData.worldH) || 2.4;
+  s.x = z.x; s.z = z.z;
+  if (s.obj) placeGroup(s.obj, s.x, s.z, zh * (CFG.spiritHover || 0.62));
 }
 function addSpirit(opts) {
   opts = opts || {};
@@ -701,7 +703,7 @@ function spawnSpirit(opts) {
   const vis = (S.bellT > 0 && S.bellShape) ? S.bellShape : e.shape;
   e.obj = addEntityVisual('spirit', vis);
   if (S.bellT > 0 && art.setAura) art.setAura(e.obj, true);
-  placeSpiritOnRing(e);
+  placeSpirit(e);
   S.spirits.push(e);
   if (S.practiceSpawns > 0 && S.practiceShape && e.shape === S.practiceShape) S.practiceSpawns--;
   setSpiritAlpha(e);
@@ -1063,27 +1065,42 @@ function markCssSize(w) {
   return clamp(Math.round(min * Math.sqrt((w || 375) / 375)), min, max);
 }
 
-/* A faint jade thread from each spirit on the ring to the zombie it senses, brighter on the beat. */
-function drawSpiritThreads(ctx) {
-  const dim = CFG.spiritDimAlpha == null ? 0.35 : CFG.spiritDimAlpha;
-  const k = Math.max(S.beatPulse || 0, S.sightWave || 0);
-  const a = (CFG.spiritThreadAlpha || 0.55) * (dim + (1 - dim) * clamp(k, 0, 1));
-  livingMarks().forEach(function (sp) {
-    const z = sp.target;
-    if (!z || !z.alive || !sp.obj) return;
-    const from = bellFootScreen(sp);
-    const zh = (z.obj && z.obj.userData && z.obj.userData.worldH) || 2.4;
-    const to = projectXZ(z.x, z.z, zh * 0.55);
-    const mx = (from.x + to.x) / 2, my = (from.y + to.y) / 2 - 18;
+/* Soul stream: a blurred jade wisp flows from each spirit into the hero, as if being drawn in. */
+function drawSoulStreams(ctx) {
+  const t = (S.elapsed || 0);
+  const hs = heroScreen();
+  livingMarks().forEach(function (sp, si) {
+    if (!sp.target || !sp.target.alive || !sp.obj) return;
+    const a0 = (CFG.spiritStreamAlpha || 0.7) * clamp((sp.age || 0) / (CFG.spiritFadeIn || 0.4), 0, 1);
+    const from = screenOf(sp);
+    const dx = hs.x - from.x, dy = hs.y - from.y, L = Math.hypot(dx, dy) || 1;
+    const nx = -dy / L, ny = dx / L;
+    const bend = Math.min(40, L * 0.18) * (si % 2 ? 1 : -1);
+    const cx = (from.x + hs.x) / 2 + nx * bend, cy = (from.y + hs.y) / 2 + ny * bend;
+    function at(u) {
+      const v = 1 - u, w = Math.sin(u * Math.PI * 3 - t * 6 + si) * 6 * (1 - u);
+      return { x: v * v * from.x + 2 * v * u * cx + u * u * hs.x + nx * w, y: v * v * from.y + 2 * v * u * cy + u * u * hs.y + ny * w };
+    }
     ctx.save();
-    ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.quadraticCurveTo(mx, my, to.x, to.y);
-    ctx.strokeStyle = 'rgba(46,230,166,' + (a * 0.35).toFixed(3) + ')'; ctx.lineWidth = 5; ctx.stroke();
-    ctx.strokeStyle = 'rgba(214,250,236,' + a.toFixed(3) + ')'; ctx.lineWidth = 1.4;
-    ctx.setLineDash([7, 5]); ctx.lineDashOffset = -((S.elapsed || 0) * 30); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.beginPath(); ctx.ellipse(to.x, to.y, 12, 8, 0, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(46,230,166,' + Math.min(1, a * 1.4).toFixed(3) + ')'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.globalCompositeOperation = 'lighter';
+    /* Hazy ribbon, wide at the spirit and thin at the hero. */
+    for (let k = 0; k < 24; k++) {
+      const u = k / 23, p = at(u), r = 10 * (1 - u) + 2;
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+      g.addColorStop(0, 'rgba(46,230,166,' + (a0 * 0.16).toFixed(3) + ')'); g.addColorStop(1, 'rgba(46,230,166,0)');
+      ctx.fillStyle = g; ctx.fillRect(p.x - r, p.y - r, r * 2, r * 2);
+    }
+    /* Wisps drifting toward the hero, shrinking as they are drawn in. */
+    for (let k = 0; k < 5; k++) {
+      const u = ((t * 0.55 + k / 5 + si * 0.13) % 1);
+      const p = at(u), r = 7 * (1 - u * 0.7);
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 2.2);
+      const wa = a0 * Math.sin(Math.PI * u);
+      g.addColorStop(0, 'rgba(226,255,244,' + (wa * 0.9).toFixed(3) + ')');
+      g.addColorStop(0.4, 'rgba(46,230,166,' + (wa * 0.45).toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(46,230,166,0)');
+      ctx.fillStyle = g; ctx.fillRect(p.x - r * 2.2, p.y - r * 2.2, r * 4.4, r * 4.4);
+    }
     ctx.restore();
   });
 }
@@ -1149,7 +1166,7 @@ function updateMarks() {
       ringLv: S.ringLv || 0, pts: pts, kind: 'ellipse'
     };
   }
-  drawSpiritThreads(ctx);
+  drawSoulStreams(ctx);
   const placed = [];
   const arrows = [];
   const aimId = S.aimTarget && S.aimTarget.alive ? S.aimTarget.id : null;
@@ -1224,9 +1241,8 @@ function updateMarks() {
   }
   placed.forEach(function (m) {
     const x = m.x, y = m.y;
-    const pulse = (S && S.beatPulse) ? S.beatPulse : 0;
     const gsize = m.cssPx || size;
-    const rad = gsize / 2 + pulse * 2;
+    const rad = gsize / 2;
     ctx.save();
     if (m.seq && m.seq.length) {
       const gap = size * 0.38;
@@ -1273,56 +1289,9 @@ function updateMarks() {
       ctx.restore();
     }
   }
-  if (S && S.playing && S.hero && three && three.camera) {
-    _proj.v.set(S.hero.x, 0.05, S.hero.z).project(three.camera);
-    const hx = (_proj.v.x * 0.5 + 0.5) * r.width;
-    const hy = (-_proj.v.y * 0.5 + 0.5) * r.height;
-    const info = beatInfo();
-    const pulse = S.beatPulse || 0;
-    const nowCue = !!(info && info.perfect);
-    const rad0 = 15 + pulse * 10;
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(hx, hy, rad0, 0, 7);
-    ctx.strokeStyle = nowCue ? 'rgba(244,232,208,0.95)' : 'rgba(244,232,208,' + (0.35 + pulse * 0.55).toFixed(2) + ')';
-    ctx.lineWidth = nowCue ? 4 : 2 + pulse * 3;
-    ctx.stroke();
-    if (pulse > 0.45 || (nowCue && pulse > 0.15)) {
-      ctx.font = '800 13px sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = 'rgba(10,8,6,0.75)';
-      ctx.fillStyle = 'rgba(244,232,208,' + (nowCue ? 0.95 : 0.7) + ')';
-      const label = '지금';
-      const ly = hy - rad0 - 4;
-      ctx.strokeText(label, hx, ly);
-      ctx.fillText(label, hx, ly);
-    }
-    ctx.restore();
-    lastMarkMetrics.footRing = { x: hx, y: hy, r: rad0, now: nowCue, pulse: pulse };
-    lastMarkMetrics.beatPulse = pulse;
-  }
 }
 
 
-
-function beatClock() {
-  if (audio && audio.info && !qa.noDelay && (qa.timeScale || 1) === 1) {
-    const inf = audio.info();
-    if (inf && inf.clock != null) return inf.clock;
-  }
-  return (S && S.elapsed) || 0;
-}
-function beatInfo() {
-  const per = 60 / (CFG.bpm || 100);
-  const t = beatClock();
-  let ph = (t / per) % 1;
-  if (ph < 0) ph += 1;
-  const dt = Math.min(ph, 1 - ph) * per;
-  const perf = CFG.beatWindow || 0.09;
-  const good = CFG.beatGood || 0.18;
-  return { period: per, phase: ph, dt: dt, perfect: dt <= perf, good: dt <= good && dt > perf, bpm: CFG.bpm };
-}
 
 function failHint() {
   if (!S) return 'ㅣ — V 중에 그려 보세요';
@@ -1366,23 +1335,6 @@ function ringSpiritBell(sp) {
   S.bellPans = [{ id: sp.id, pan: pan, x: sp.x, z: sp.z, shape: spiritShape(sp) }];
   if (audio.setLastPans) audio.setLastPans(S.bellPans);
 }
-function tickBeat(dt) {
-  if (!S) return;
-  const info = beatInfo();
-  const idx = Math.floor(((S.elapsed) / info.period) + 1e-6);
-  if (idx !== S.lastBeat && S.elapsed > 0) {
-    S.lastBeat = idx;
-    const app = $('app');
-    S.beatPulse = 1;
-    if (app) {
-      app.classList.add('beat');
-      const hold = qa.noDelay ? 0 : 200;
-      setTimeout(function () { app.classList.remove('beat'); }, hold);
-    }
-    triggerSightWave();
-  }
-  if (S.beatPulse > 0) S.beatPulse = Math.max(0, S.beatPulse - dt / 0.22);
-}
 function triggerComboBurst(n) {
   if (!S) return;
   S.lastBurst = n;
@@ -1422,39 +1374,17 @@ function triggerComboBurst(n) {
     }
   }
 }
-function applyJudge(forced) {
-  if (!S) return 'miss';
-  let kind = forced;
-  if (!kind) {
-    if (qa.autoPerfect) kind = 'perfect';
-    else if (S.sandbox && !qa.useBeat) kind = 'miss';
-    else {
-      const b = beatInfo();
-      kind = b.perfect ? 'perfect' : (b.good ? 'good' : 'miss');
-    }
-  }
-  if (kind !== 'perfect' && kind !== 'miss' && kind !== 'good') {
-    const b = beatInfo();
-    kind = b.perfect ? 'perfect' : (b.good ? 'good' : 'miss');
-  }
-  S.lastJudge = kind;
-  S.pendingPerfect = kind === 'perfect';
-  if (kind === 'perfect' || kind === 'good') {
-    S.combo = (S.combo || 0) + 1;
-    S.comboIdle = 0;
-    if (kind === 'perfect') S.perfects = (S.perfects || 0) + 1;
-    if (S.combo > (S.comboMax || 0)) S.comboMax = S.combo;
-    showJudge(kind === 'perfect' ? '완벽' : '좋음');
-    const hits = CFG.comboBurstAt || [4, 8, 12];
-    if (hits.indexOf(S.combo) >= 0) triggerComboBurst(S.combo);
-  } else {
-    S.combo = Math.floor((S.combo || 0) / 2);
-    S.comboIdle = 0;
-    S.misses = (S.misses || 0) + 1;
-    S.pendingPerfect = false;
-    if (S.combo <= 0) S.combo = 0;
-  }
-  return kind;
+/* Combo: a dash that cuts something within comboTimeout of the last one adds 1; a dash that cuts nothing resets it. */
+function scoreDash(rec) {
+  if (!S || !rec || rec.scored) return;
+  rec.scored = true;
+  if (!rec.targets || !rec.targets.length) return;
+  const cut = (rec.hits || []).some(function (h) { return h.why === 'slash'; });
+  if (!cut) { S.combo = 0; return; }
+  S.combo = (S.combo || 0) + 1;
+  S.comboIdle = 0;
+  if (S.combo > (S.comboMax || 0)) S.comboMax = S.combo;
+  if ((CFG.comboBurstAt || [4, 8, 12]).indexOf(S.combo) >= 0) triggerComboBurst(S.combo);
 }
 
 function triggerSightWave() {
@@ -1541,7 +1471,7 @@ function beginDash(shape, opts) {
   return rec;
 }
 function startSeg() {
-  if (!S.dashQueue.length) { S.dash = null; maybeEnd(); return; }
+  if (!S.dashQueue.length) { S.dash = null; scoreDash(S.lastDash); maybeEnd(); return; }
   const tgt = S.dashQueue.shift();
   if (!tgt.alive) { startSeg(); return; }
   const from = { x: S.hero.x, z: S.hero.z };
@@ -1549,7 +1479,7 @@ function startSeg() {
   const to = { x: end.x, z: end.z };
   const raw = end.raw ? { x: end.raw.x, z: end.raw.z } : to;
   const slash = makeSlash(from, raw);
-  S.dash = { from: from, to: to, raw: raw, t: 0, dur: CFG.dashDur, target: tgt, slash: slash, judged: false, perfect: !!S.pendingPerfect };
+  S.dash = { from: from, to: to, raw: raw, t: 0, dur: CFG.dashDur, target: tgt, slash: slash, judged: false };
   S.iframe = Math.max(S.iframe || 0, CFG.dashDur + 0.05);
   S.shake = 0.28;
   S.lastDash.segs.push({ from: from, to: raw, r: pathR() });
@@ -1803,8 +1733,7 @@ function cutSpirit(s) {
   if (!s || !s.alive) return;
   if (s.kind === 'spirit') return;
   if (s.isBoss) {
-    s.seqProg = (s.seqProg || 0) + (S && S.lastJudge === 'miss' ? (CFG.bossMissStep || 0.5) : 1);
-    s.seqI = Math.floor(s.seqProg + 1e-6);
+    s.seqI++;
     addHitstop(CFG.hitstopKill || 0.06);
     if (s.seqI >= s.seq.length) { killZombie(s, S && S.lastDash); }
     else {
@@ -1978,7 +1907,6 @@ function step(dt) {
     S.comboIdle = (S.comboIdle || 0) + dt;
     if (S.comboIdle > (CFG.comboTimeout || 2.8)) S.combo = 0;
   }
-  tickBeat(dt);
   if (S.bellT > 0) {
     S.bellT -= dt;
     if (S.bellT <= 0) endBell();
@@ -2269,10 +2197,7 @@ function finishStroke(pts, opts) {
   const dir = strokeAimDir(pts, rec.type);
   S.lastStrokeDir = dir;
   rec.dir = dir;
-  applyJudge(opts.judge);
-  rec.judge = S.lastJudge;
   rec.combo = S.combo;
-  rec.perfect = !!S.pendingPerfect;
   const dash = beginDash(rec.type, { dir: dir });
   rec.targets = dash && dash.targets;
   rec.dash = dash;
@@ -2697,20 +2622,8 @@ const GPv2 = {
   getMap: function () { return three && three.map && { id: three.map.id, name: three.map.name, key: three.map.key }; },
   anim: Anim,
   strokeType: strokeType,
-  beatInfo: beatInfo,
   shapePool: function () { return S ? (S.pool || []).slice() : []; },
   spawnPool: spawnPool,
-  waitBeat: function (kind) {
-    kind = kind || 'on';
-    return new Promise(function (res) {
-      const t0 = now();
-      const id = setInterval(function () {
-        const b = beatInfo();
-        const ok = kind === 'on' ? b.perfect : !b.perfect;
-        if (ok || now() - t0 > 2000) { clearInterval(id); res(b); }
-      }, 8);
-    });
-  },
   strokePath: finishStroke,
   recognize: function (pts, opt) { return G.recognize(pts, opt); },
   failHint: failHint,
@@ -2845,7 +2758,6 @@ const GPv2 = {
       items: S ? S.items.filter(function (i) { return i.alive; }).map(function (i) { return { id: i.id, type: i.kind, x: i.x, z: i.z }; }) : [],
       lastDash: S && S.lastDash,
       combo: S && S.combo, comboMax: S && S.comboMax,
-      lastJudge: S && S.lastJudge, perfects: S && S.perfects, misses: S && S.misses,
       bursts: S && (S.bursts || []).slice(),
       runNo: S && S.runNo, pool: S && (S.pool || []).slice(),
       practice: S && { t: S.practiceT, shape: S.practiceShape, left: S.practiceSpawns },
@@ -2854,7 +2766,6 @@ const GPv2 = {
       bellPans: S && (S.bellPans || []).slice(),
       lastRec: S && S.lastRec && { type: S.lastRec.type, best: S.lastRec.best, readMessage: S.lastRec.readMessage, reason: S.lastRec.reason },
       telegraphs: S ? S.zombies.filter(function (z) { return z.alive && z.obj && z.obj.userData && z.obj.userData.teleOn; }).map(function (z) { return z.id; }) : [],
-      beat: beatInfo(),
 
       dashCount: S && S.dashCount,
       dashElem: S && S.dashElem,
