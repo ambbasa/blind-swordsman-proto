@@ -3,7 +3,7 @@
 import * as Anim from './anim.js';
 import { createInkGroundMaterial } from './inkground.js';
 import { drawInkBossSheet } from './inkboss.js';
-import { drawHeroSheets, drawZombieSheets, drawSpiritSheet } from './inkchars.js';
+import { drawHeroSheets, drawZombieSheets, drawZombieVariantSheets, drawSpiritSheet } from './inkchars.js';
 import { drawBell, drawItem, drawSeal } from './inkicons.js';
 import { drawProp, drawBackdrop, INK_PROPS } from './inkprops.js';
 
@@ -289,10 +289,12 @@ export async function buildArt(THREE) {
       r.sheet.tex = t;
       return r.sheet;
     }
-    const h = drawHeroSheets(), z = drawZombieSheets();
+    const h = drawHeroSheets(), z = drawZombieSheets(), v = drawZombieVariantSheets();
     inkCharPack = {
       hero: { actions: { idle: bake(h.idle), dash: bake(h.dash) }, afterimage: bake(h.afterimage) },
       zombie: { actions: { walk: bake(z.walk), frozen: bake(z.frozen), burning: bake(z.burning), poisoned: bake(z.poisoned) } },
+      brute: { actions: { walk: bake(v.brute) } },
+      stone: { actions: { walk: bake(v.stone) } },
       spirit: bake(drawSpiritSheet())
     };
     return inkCharPack;
@@ -457,7 +459,7 @@ export async function buildArt(THREE) {
       group.userData.anim = Anim.createController(sheet, { blend: 0.1 });
       if (kind === 'hero') addShadow(group, 1.5);
     } else if (kind === 'zombie') {
-      const pack = inkChars().zombie;
+      const pack = inkChars()[shape === 'brute' || shape === 'stone' ? shape : 'zombie'];
       const sheet = pack.actions.walk;
       const H = sheet.worldH;
       const spr = sheetSprite(sheet, sheet.tex, H, { depthTest: false, renderOrder: 2 });
@@ -533,8 +535,17 @@ export async function buildArt(THREE) {
     return group;
   }
 
+  const STATUS_TINT = { ice: [0.6, 0.85, 1.25], slow: [0.75, 0.9, 1.15], fire: [1.4, 0.7, 0.5], poison: [1.0, 0.6, 1.3] };
   function setStatus(group, elem) {
-    if (group && group.userData) group.userData.statusElem = elem || null;
+    if (!group || !group.userData) return;
+    group.userData.statusElem = elem || null;
+    /* Kinds without their own status sheets show the status as a tint. */
+    const pack = group.userData.animPack;
+    const mapped = { ice: 'frozen', fire: 'burning', poison: 'poisoned' }[elem];
+    const spr = group.userData.sprite;
+    if (!spr || !spr.material || !spr.material.color) return;
+    const c = (elem && !(pack && pack.actions && pack.actions[mapped]) && STATUS_TINT[elem]) || [1, 1, 1];
+    spr.material.color.setRGB(c[0], c[1], c[2]);
   }
 
   function applyFlip(spr, flip) {

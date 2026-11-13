@@ -37,29 +37,39 @@ const SHAPE_HINT = {
 };
 /* v1 numbers reused where the new brief is silent. Documented as defaults. */
 const CFG = {
-  hpBase: 10, dmg: 1, bossDmg: 3, iframeMs: 800,
-  timeLimit: 75, bossAt: 50, bossShapes: 5,
+  hpBase: 10, dmg: 1, bossDmg: 2, iframeMs: 800,
+  timeLimit: 75, bossAt: 50, bossShapes: 6,
   coinPerKill: 3, comboExtra: 2,
   idlePerMin: 4, idleMaxHours: 8,
-  upgradeBase: 15, atkStep: 0.08, hpStep: 3, coinStep: 0.25, maxLv: 10,
-  xpBase: 5, xpPerKill: 1,
-  dashDur: 0.28, pathRadius: 1.35, dashDmg: 2, zombieHp: 2, spiritHp: 1,
+  upgradeBase: 15, atkStep: 0.05, hpStep: 3, coinStep: 0.25, maxLv: 10,
+  xpBase: 8, xpStep: 6, xpPerKill: 1,
+  dashDur: 0.28, pathRadius: 1.35, dashDmg: 2, spiritHp: 1,
+  /* Zombie kinds: hp grows over the run by (1 + hpGrowth * t / timeLimit). */
+  zombieTypes: {
+    imp: { hp: 2, speed: 1.0, r: 0.55, dmg: 1, xp: 1, coin: 1 },
+    brute: { hp: 5, speed: 0.9, r: 0.7, dmg: 1, xp: 2, coin: 2 },
+    stone: { hp: 10, speed: 0.6, r: 0.9, dmg: 2, xp: 3, coin: 3 }
+  },
+  zombieMix: [[0, { imp: 1 }], [25, { imp: 0.75, brute: 0.25 }], [45, { imp: 0.55, brute: 0.3, stone: 0.15 }]],
+  hpGrowth: 0.6,
+  beatMul: { perfect: 1.5, good: 1.2, miss: 1 }, comboMulStep: 0.05, comboMulCap: 20, pierceFalloff: 0.85,
+  spreadR: 1.5, iceSlowDur: 2, iceSlowMul: 0.5, poisonCloudR: 2, poisonCloudDur: 3, bossMissStep: 0.5,
   perfectPathBonus: 0.4,
-  dashCount: 1, spawnZombieMs: 1250, spawnSpiritMs: 950,
+  dashCount: 1, spawnZombieMs: 1000, spawnSpiritMs: 950,
   spawnZombieMax: 16, spawnSpiritMax: 0,
   spawnZombieMinMs: 450, spawnSpiritMinMs: 480,
-  spawnZombieDelay: 5, practiceZombieMs: 3200, practiceZombieMax: 2, earlyZombieMax: 4, earlyZombieUntil: 25,
+  spawnZombieDelay: 3, practiceZombieMs: 3200, practiceZombieMax: 2, earlyZombieMax: 4, earlyZombieUntil: 15, earlyZombieMinMs: 1400,
   spiritCapStart: 1, spiritMax: 4, sameShapeMax: 2, spiritExitMul: 1.08, spiritDimAlpha: 0.35, spiritGlowAlpha: 0.5,
   ringScreenFrac: 0.70, ringMaxFrac: 0.90, ringBoost: 0.14, ringLvMax: 4,
-  spiritOmega: 2.8, spiritAvoidMax: 0.30, spiritAvoidOmega: 8, bossSpeed: 1.0, bossSpawnR: 14,
-  dashThroughMul: 1.5, dashPastTarget: 0.8, playBound: 28,
+  spiritOmega: 2.8, spiritAvoidMax: 0.30, spiritAvoidOmega: 8, bossSpeed: 1.0, bossCatchUp: 0.3, bossSpawnR: 11,
+  dashThroughMul: 1.5, dashPastTarget: 0.8, dashPastBodyMul: 1.5, playBound: 28,
   landBounce: 0.28, landBounceT: 0.16, landRippleDur: 0.45,
   landIframe: 0.25, landShockR: 1.6, landPush: 1.2, landStun: 0.3, landPast: 1.0,
   slideNear: 1.4, slideExtra: 1.5,
   hitstopKill: 0.06, hitstopKillMax: 0.12, hitHitstop: 0.08, hitKnock: 0.6,
   recoilU: 0.12, recoilT: 0.12, hurtVignette: 0.3,
   aimConeCos: 0.5, aimNearW: 0.35, telegraphRange: 3.2,
-  spiritRing: [5, 7.2], zombieRing: [9, 13],
+  spiritRing: [5, 7.2], zombieRing: [7, 10],
   zombieSpeed: 2.15, spiritSpeed: 0.55,
   camOff: { x: 14.4, y: 22.4, z: 14.4 }, camLookY: 1.2, fov: 62,
   markMinCss: 40, markMaxCss: 72,
@@ -92,7 +102,7 @@ function dist(a, b) { const dx = a.x - b.x, dz = a.z - b.z; return Math.hypot(dx
 function now() { return performance.now(); }
 
 const save = { coins: 0, atkLv: 0, hpLv: 0, coinLv: 0, cleared: 0, lastSeen: Date.now(), best: 0, runs: 0 };
-const qa = { timeScale: 1, noDelay: false, sandbox: false, atkRoll: null, noMove: false };
+const qa = { timeScale: 1, noDelay: false, sandbox: false, noMove: false };
 let S = null, art = null, three = null, raf = 0, lastTs = 0, toastT = 0;
 const audio = createAudio();
 let idlePending = 0;
@@ -101,15 +111,15 @@ const fps = { samples: [], last: 0 };
 let lastStroke = null, inkFade = 0;
 
 function costOf(lv) { return CFG.upgradeBase * (lv + 1); }
-function atkChance() { return Math.min(CFG.maxLv, save.atkLv) * CFG.atkStep; }
+function atkBonus() { return Math.min(CFG.maxLv, save.atkLv) * CFG.atkStep; }
 function maxHp() { return CFG.hpBase + save.hpLv * CFG.hpStep + (S && S.runHp || 0); }
 function coinMult() { return 1 + save.coinLv * CFG.coinStep + (S && S.runCoin || 0); }
+/* Dash damage = (base + upgrades) x beat judgement x combo x meta attack. */
 function dashDmg() {
-  let d = (S && S.dashDmg) || CFG.dashDmg;
-  if (S && S.combo > 1) d += Math.min(2, (S.combo - 1) * 0.1);
-  const roll = (qa && typeof qa.atkRoll === 'function') ? qa.atkRoll() : Math.random();
-  if (roll < atkChance()) d += 1;
-  return d;
+  const base = (S && S.dashDmg) || CFG.dashDmg;
+  const beat = (CFG.beatMul && CFG.beatMul[(S && S.lastJudge) || 'miss']) || 1;
+  const combo = 1 + (CFG.comboMulStep || 0) * Math.min(CFG.comboMulCap || 20, (S && S.combo) || 0);
+  return base * beat * combo * (1 + atkBonus());
 }
 function pathR() {
   let r = (S && S.pathR) || CFG.pathRadius;
@@ -152,7 +162,7 @@ function fillHp() {
   for (i = 0; i < n; i++) h += '<i' + (i < cur ? '' : ' class="off"') + '></i>';
   $('hpPips').innerHTML = h;
 }
-function xpNeed(lv) { return CFG.xpBase + (lv - 1) * 4; }
+function xpNeed(lv) { return CFG.xpBase + (lv - 1) * CFG.xpStep; }
 function renderHud() {
   if (!S) {
     $('timer').textContent = '—';
@@ -695,6 +705,7 @@ function spawnSpirit(opts) {
   S.spirits.push(e);
   if (S.practiceSpawns > 0 && S.practiceShape && e.shape === S.practiceShape) S.practiceSpawns--;
   setSpiritAlpha(e);
+  if (e.target) ringSpiritBell(e);
   return e;
 }
 function spawnBoss(opts) {
@@ -720,13 +731,16 @@ function spawnZombie(opts) {
   opts = opts || {};
   const zr = CFG.zombieRing || [10, 14];
   const p = opts.x != null ? { x: opts.x, z: opts.z } : ringPos(opts.r != null ? opts.r : (zr[0] + Math.random() * (zr[1] - zr[0])));
+  const type = opts.type || pickZombieType();
+  const def = CFG.zombieTypes[type] || CFG.zombieTypes.imp;
+  const grow = 1 + (CFG.hpGrowth || 0) * clamp(S.elapsed / CFG.timeLimit, 0, 1);
   const e = {
-    id: ++S._id, kind: 'zombie', x: p.x, z: p.z, r: 0.55, alive: true,
-    hp: opts.hp != null ? opts.hp : CFG.zombieHp,
+    id: ++S._id, kind: 'zombie', type: type, x: p.x, z: p.z, r: def.r, alive: true,
+    hp: opts.hp != null ? opts.hp : def.hp * grow, maxHp: def.hp * grow,
     frozen: 0, burn: 0, burnTick: 0, poison: 0, poisonT: 0, poisonTick: 0, stun: 0,
     marked: false, shape: null, isBoss: false
   };
-  e.obj = addEntityVisual('zombie');
+  e.obj = addEntityVisual('zombie', type);
   placeGroup(e.obj, e.x, e.z);
   S.zombies.push(e);
   if (qa.noDelay) snapSpiritsToTargets();
@@ -742,6 +756,14 @@ function spawnItem(opts) {
   placeGroup(e.obj, e.x, e.z, 0.2);
   S.items.push(e);
   return e;
+}
+function pickZombieType() {
+  const mix = CFG.zombieMix || [[0, { imp: 1 }]];
+  let w = mix[0][1];
+  mix.forEach(function (m) { if (S.elapsed >= m[0]) w = m[1]; });
+  let roll = Math.random() * Object.keys(w).reduce(function (a, k) { return a + w[k]; }, 0);
+  for (const k in w) { roll -= w[k]; if (roll <= 0) return k; }
+  return 'imp';
 }
 function ringPos(r) {
   const a = Math.random() * Math.PI * 2;
@@ -1306,21 +1328,17 @@ function showJudge(text) {
   el.classList.add('show');
 }
 let _audio = null;
-function playBeatBell() {
-  if (!audio) return;
+/* A spirit announces itself with one bell from its side of the screen; the pitch tells the shape. */
+function ringSpiritBell(sp) {
+  if (!audio || !sp) return;
   audio.setQuiet(qa.mute, qa.noDelay);
   const host = $('app') || $('ink');
   const w = host ? host.getBoundingClientRect().width : 375;
-  const pans = [];
-  livingMarks().forEach(function (s) {
-    const scr = screenOf(s);
-    const pan = Math.max(-1, Math.min(1, (scr.x / Math.max(1, w)) * 2 - 1));
-    pans.push({ id: s.id, pan: pan, x: s.x, z: s.z });
-    audio.bell(pan);
-  });
-  if (!pans.length) audio.bell(0);
-  if (S) S.bellPans = pans;
-  if (audio.setLastPans) audio.setLastPans(pans);
+  const scr = screenOf(sp);
+  const pan = Math.max(-1, Math.min(1, (scr.x / Math.max(1, w)) * 2 - 1));
+  audio.bell(pan, spiritShape(sp));
+  S.bellPans = [{ id: sp.id, pan: pan, x: sp.x, z: sp.z, shape: spiritShape(sp) }];
+  if (audio.setLastPans) audio.setLastPans(S.bellPans);
 }
 function tickBeat(dt) {
   if (!S) return;
@@ -1335,7 +1353,6 @@ function tickBeat(dt) {
       const hold = qa.noDelay ? 0 : 200;
       setTimeout(function () { app.classList.remove('beat'); }, hold);
     }
-    playBeatBell();
     triggerSightWave();
   }
   if (S.beatPulse > 0) S.beatPulse = Math.max(0, S.beatPulse - dt / 0.22);
@@ -1476,7 +1493,8 @@ function dashEndPoint(from, tgt) {
   const R = ringR();
   let len = R * (CFG.dashThroughMul || 1.5);
   const lock = tgt && (tgt.target && tgt.target.alive ? tgt.target : (tgt.kind === 'zombie' ? tgt : null));
-  if (lock) len = Math.max(len, dist(from, lock) + (CFG.dashPastTarget || 0.8));
+  /* Land clear of the target: bigger bodies need a longer run-out. */
+  if (lock) len = Math.max(len, dist(from, lock) + (CFG.dashPastTarget || 0.8) + (lock.r || 0) * (CFG.dashPastBodyMul || 0));
   const raw = clipBound({ x: from.x + dir.x * len, z: from.z + dir.z * len });
   const land = safeLand(from, raw);
   return { x: land.x, z: land.z, raw: raw };
@@ -1562,14 +1580,16 @@ function landingShock(at) {
 }
 function applyPath(from, to, rec, skip) {
   const r = pathR(), dmg = dashDmg();
-  S.zombies.forEach(function (z) {
-    if (!z.alive) return;
-    if (skip && z === skip) return;
-    if (z.isBoss || z.marked) return;
-    if (segDist(z.x, z.z, from.x, from.z, to.x, to.z) <= r + z.r) {
-      hurtZombie(z, dmg, 'slash', rec);
-      if (z.alive) applyElement(z, S.dashElem, rec);
-    }
+  const dx = to.x - from.x, dz = to.z - from.z, L2 = dx * dx + dz * dz || 1;
+  const hit = S.zombies.filter(function (z) {
+    return z.alive && z !== skip && !z.isBoss && segDist(z.x, z.z, from.x, from.z, to.x, to.z) <= r + z.r;
+  });
+  /* Nearest along the cut takes full damage; each one after it a little less. */
+  hit.sort(function (a, b) { return ((a.x - from.x) * dx + (a.z - from.z) * dz) / L2 - ((b.x - from.x) * dx + (b.z - from.z) * dz) / L2; });
+  hit.forEach(function (z, k) {
+    hurtZombie(z, dmg * Math.pow(CFG.pierceFalloff || 1, k), 'slash', rec);
+    if (z.alive) applyElement(z, S.dashElem, rec);
+    else spreadElement(z, S.dashElem, rec);
   });
   S.items.slice().forEach(function (it) {
     if (!it.alive) return;
@@ -1614,6 +1634,22 @@ function applyElement(z, elem, rec) {
     tintZombie(z);
   }
 }
+/* A cut that kills still carries its element: fire spreads, ice slows the crowd, poison leaves a cloud. */
+function spreadElement(z, elem, rec) {
+  if (!elem || !S) return;
+  const R = CFG.spreadR || 1.5;
+  if (elem === 'poison') {
+    S.clouds = S.clouds || [];
+    S.clouds.push({ x: z.x, z: z.z, t: CFG.poisonCloudDur || 3, tick: 0 });
+    if (art.playFx && three) { const fx = art.playFx(three.scene, 'poison-burst', z.x, z.z, 2.6); if (fx) three.fx.push(fx); }
+    return;
+  }
+  S.zombies.forEach(function (o) {
+    if (!o.alive || o === z || o.isBoss || dist(o, z) > R + o.r) return;
+    if (elem === 'fire') applyElement(o, 'fire', rec);
+    else if (elem === 'ice') { o.slowT = CFG.iceSlowDur || 2; tintZombie(o); }
+  });
+}
 function applyBurn(z, rec) {
   z.burn = CFG.burnDur;
   if (rec) rec.statuses = (rec.statuses || []).concat([{ id: z.id, burn: true }]);
@@ -1646,12 +1682,22 @@ function explodeZombie(z, rec) {
 }
 function tintZombie(z) {
   if (!z || !z.obj) return;
-  const elem = !z.alive ? null : (z.frozen > 0 ? 'ice' : z.burn > 0 ? 'fire' : z.poison > 0 ? 'poison' : null);
+  const elem = !z.alive ? null : (z.frozen > 0 ? 'ice' : z.burn > 0 ? 'fire' : z.poison > 0 ? 'poison' : z.slowT > 0 ? 'slow' : null);
   if (art.setStatus) art.setStatus(z.obj, elem);
 }
 function tickStatuses(dt) {
+  (S.clouds || []).forEach(function (c) {
+    c.t -= dt; c.tick += dt;
+    if (c.tick < CFG.poisonPeriod) return;
+    c.tick -= CFG.poisonPeriod;
+    S.zombies.forEach(function (z) {
+      if (z.alive && !z.isBoss && dist(z, c) <= (CFG.poisonCloudR || 2) + z.r) applyElement(z, 'poison', null);
+    });
+  });
+  if (S.clouds) S.clouds = S.clouds.filter(function (c) { return c.t > 0; });
   S.zombies.forEach(function (z) {
     if (!z.alive) return;
+    if (z.slowT > 0) { z.slowT -= dt; if (z.slowT < 0) z.slowT = 0; }
     if (z.stun > 0) { z.stun -= dt; if (z.stun < 0) z.stun = 0; }
     if (z.frozen > 0) { z.frozen -= dt; if (z.frozen < 0) z.frozen = 0; }
     if (z.burn > 0) {
@@ -1730,7 +1776,8 @@ function cutSpirit(s) {
   if (!s || !s.alive) return;
   if (s.kind === 'spirit') return;
   if (s.isBoss) {
-    s.seqI++;
+    s.seqProg = (s.seqProg || 0) + (S && S.lastJudge === 'miss' ? (CFG.bossMissStep || 0.5) : 1);
+    s.seqI = Math.floor(s.seqProg + 1e-6);
     addHitstop(CFG.hitstopKill || 0.06);
     if (s.seqI >= s.seq.length) { killZombie(s, S && S.lastDash); }
     else {
@@ -1764,8 +1811,9 @@ function killZombie(z, rec) {
     fxinkStat.kills++;
   }
   if (rec && rec.hits && rec.hits.some(function (h) { return h.id === z.id && h.why === 'slash'; })) addHitstop(CFG.hitstopKill || 0.06);
-  grantKill();
-  gainXp(CFG.xpPerKill);
+  const kd = CFG.zombieTypes[z.type] || CFG.zombieTypes.imp;
+  grantKill(kd.coin);
+  gainXp(CFG.xpPerKill * kd.xp);
   if (Math.random() < 0.35) spawnItem({ type: dropType(), x: z.x, z: z.z });
   refreshSpirits();
 }
@@ -1780,8 +1828,8 @@ function dropType() {
   if (r < 0.94) return 'poison';
   return 'bell';
 }
-function grantKill() {
-  const c = Math.round(CFG.coinPerKill * coinMult());
+function grantKill(mul) {
+  const c = Math.round(CFG.coinPerKill * (mul || 1) * coinMult());
   save.coins += c; persist();
 }
 function collectItem(it, rec) {
@@ -1923,7 +1971,7 @@ function step(dt) {
     let zBase = CFG.spawnZombieMs;
     if (practicing) { zMax = CFG.practiceZombieMax || 2; zBase = CFG.practiceZombieMs || 3200; }
     else if (delayed) { S.zAcc = 0; zMax = 0; }
-    else if (early) { zMax = CFG.earlyZombieMax || 4; zBase = Math.max(zBase, 2000); }
+    else if (early) { zMax = CFG.earlyZombieMax || 4; zBase = Math.max(zBase, CFG.earlyZombieMinMs || 2000); }
     const zms = Math.max(CFG.spawnZombieMinMs || 450, zBase / (practicing || delayed ? 1 : wave));
     while (zMax > 0 && S.zAcc >= zms && S.zombies.filter(function (z) { return z.alive && !z.isBoss; }).length < zMax) {
       S.zAcc -= zms; spawnZombie();
@@ -1968,7 +2016,9 @@ function step(dt) {
     const d = dist(z, S.hero) || 0.001;
     const frozen = z.frozen > 0 || (z.stun || 0) > 0;
     if (!qa.noMove && !frozen) {
-      const sp = z.isBoss ? (CFG.bossSpeed || 1) : zsp;
+      const kd = CFG.zombieTypes[z.type] || CFG.zombieTypes.imp;
+      /* The boss speeds up the farther it is outside the ring, so a dashing hero cannot outrun it. */
+      const sp = z.isBoss ? (CFG.bossSpeed || 1) * (1 + (CFG.bossCatchUp || 0) * Math.max(0, d - ringR())) : zsp * kd.speed * (z.slowT > 0 ? (CFG.iceSlowMul || 0.5) : 1);
       z.x += (S.hero.x - z.x) / d * sp * dt;
       z.z += (S.hero.z - z.z) / d * sp * dt;
     }
@@ -1982,7 +2032,7 @@ function step(dt) {
     if (art.setTelegraph && !z.isBoss) art.setTelegraph(z.obj, !frozen && d < (CFG.telegraphRange || 3.2));
     if (d < z.r + 0.55) {
       if ((S.iframe || 0) <= 0 && !S.dash) {
-        S.hp -= z.isBoss ? (CFG.bossDmg || 3) : CFG.dmg;
+        S.hp -= z.isBoss ? (CFG.bossDmg || 3) : ((CFG.zombieTypes[z.type] || {}).dmg || CFG.dmg);
         S.iframe = CFG.iframeMs / 1000;
         S.hitstop = Math.max(S.hitstop || 0, CFG.hitHitstop || 0.08);
         S.hurtFlash = CFG.hurtVignette || 0.3;
@@ -2251,7 +2301,7 @@ function refreshShop() {
     btn.disabled = max || save.coins < c;
     btn.innerHTML = name + ' Lv ' + lv + (max ? ' (최대)' : ' · ' + c + '엽전') + '<br>' + desc;
   }
-  label($('buyAtk'), '공격력', save.atkLv, '일섬이 두 배로 베일 확률 ' + Math.round(atkChance() * 100) + '%');
+  label($('buyAtk'), '공격력', save.atkLv, '일섬 피해 +' + Math.round(atkBonus() * 100) + '%');
   label($('buyHp'), '영웅 체력', save.hpLv, '최대 체력 ' + (CFG.hpBase + save.hpLv * CFG.hpStep));
   label($('buyCoin'), '코인 획득', save.coinLv, '획득량 ×' + (1 + save.coinLv * CFG.coinStep).toFixed(2));
 }

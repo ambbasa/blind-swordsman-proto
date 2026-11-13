@@ -281,3 +281,76 @@ export function drawSpiritSheet() {
   const seq = []; for (let i = 0; i < frames; i++) seq.push(i);
   return { canvas: canvas, sheet: { frame: [C.cell, C.cell], count: frames, dirs: 1, layout: 'frames-x', anchor: C.anchor.slice(), states: { idle: seq }, fpsByState: { idle: 10 }, fps: 10, loop: true, worldH: C.spiritWorldH } };
 }
+
+/* ---------- tougher zombies ---------- */
+
+/* 장정 귀신: broad shoulders, dark indigo clothes, vermilion headband, a broken plank club. */
+function drawBrute(ctx, f, n, rnd) {
+  const T = (f / n) * Math.PI * 2;
+  const limp = Math.sin(T), bob = Math.abs(Math.sin(T)) * 3;
+  const top = 58 + bob;
+  const cloth = 'rgba(52,58,84,', skin = 'rgba(120,124,108,1)';
+  const st = limp * 12;
+  stroke(ctx, curve([118, top + 120], [114 + st * 0.5, top + 150], [108 + st, 232], 10), 18, cloth + '1)');
+  stroke(ctx, curve([140, top + 120], [146, top + 150], [150 - st * 0.3, 234], 10), 18, cloth + '0.92)');
+  stroke(ctx, [[100 + st, 232], [118 + st, 234]], 9, C.ink + '1)');
+  stroke(ctx, [[146 - st * 0.3, 234], [162 - st * 0.3, 235]], 9, C.ink + '1)');
+  const torso = [[96, top + 34], [160, top + 26], [176, top + 70], [166, top + 126], [150, top + 118], [136, top + 130], [120, top + 118], [104, top + 128], [90, top + 74]];
+  const g = ctx.createLinearGradient(90, 0, 176, 0);
+  g.addColorStop(0, cloth + '0.95)'); g.addColorStop(1, 'rgba(24,26,40,1)');
+  poly(ctx, torso, g);
+  ctx.save(); ctx.beginPath(); torso.forEach(function (p, i) { if (i) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]); }); ctx.closePath(); ctx.clip();
+  wash(ctx, 90, top + 26, 90, 106, 9, 'rgba(10,10,20,', rnd, 8, 24);
+  ctx.restore();
+  brush(ctx, torso.concat([torso[0]]), 5, C.ink, 0.9, rnd, 6);
+  brush(ctx, torso.slice(0, 3), 6, C.paper, 0.4, rnd, 4);
+  /* Head with a vermilion headband and topknot. */
+  ctx.beginPath(); ctx.ellipse(150, top + 14, 15, 15, 0.2, 0, Math.PI * 2); ctx.fillStyle = skin; ctx.fill();
+  stroke(ctx, [[136, top + 6], [164, top + 4]], 6, C.red + '1)');
+  stroke(ctx, curve([136, top + 6], [120, top + 10], [108, top + 22 + Math.sin(T) * 3], 8), 4, C.red + '0.9)');
+  ctx.beginPath(); ctx.arc(146, top - 4, 7, 0, Math.PI * 2); ctx.fillStyle = C.ink + '1)'; ctx.fill();
+  ctx.beginPath(); ctx.arc(158, top + 14, 2.6, 0, Math.PI * 2); ctx.fillStyle = C.red + '1)'; ctx.fill();
+  /* Arm with a broken plank. */
+  stroke(ctx, curve([150, top + 44], [182, top + 62 - limp * 3], [200, top + 82 - limp * 4], 10), 13, cloth + '1)');
+  stroke(ctx, [[196, top + 70 - limp * 4], [236, top + 20 - limp * 4]], 12, 'rgba(90,68,46,1)');
+  brush(ctx, [[198, top + 68 - limp * 4], [234, top + 22 - limp * 4]], 3, C.paper, 0.5, rnd, 2);
+  brush(ctx, [[236, top + 20 - limp * 4], [240, top + 10], [232, top + 14]], 3, C.ink, 0.8, rnd, 3);
+}
+
+/* 돌덩이 귀신: a hunched heap of stone with ink cracks and ember eyes, moss on its back. */
+function drawStone(ctx, f, n, rnd) {
+  const T = (f / n) * Math.PI * 2;
+  const sway = Math.sin(T) * 3, top = 70 + Math.abs(Math.sin(T)) * 2;
+  stroke(ctx, curve([110, top + 120], [104 + sway, top + 150], [100 + sway * 2, 234], 8), 26, 'rgba(46,44,44,1)');
+  stroke(ctx, curve([152, top + 120], [158 - sway, top + 150], [162 - sway * 2, 234], 8), 26, 'rgba(36,34,36,1)');
+  const body = curve([86, top + 130], [70, top + 40], [128, top + 10], 12).concat(curve([128, top + 10], [196, top + 30], [182, top + 130], 12).slice(1));
+  const g = ctx.createRadialGradient(120, top + 50, 10, 128, top + 80, 110);
+  g.addColorStop(0, 'rgba(96,92,88,1)'); g.addColorStop(0.7, 'rgba(46,44,46,1)'); g.addColorStop(1, 'rgba(20,18,20,1)');
+  poly(ctx, body, g);
+  brush(ctx, body, 6, C.ink, 0.9, rnd, 6);
+  brush(ctx, body.slice(0, 10), 7, C.paper, 0.35, rnd, 4);
+  for (let i = 0; i < 5; i++) {
+    const x = 96 + i * 18, y = top + 40 + (i % 2) * 30;
+    brush(ctx, [[x, y], [x + 10, y + 18], [x + 4, y + 34]], 3, 'rgba(255,120,40,', 0.55, rnd, 2);
+  }
+  for (let i = 0; i < 8; i++) brush(ctx, [[96 + i * 10, top + 18 + Math.abs(i - 4) * 4], [100 + i * 10, top + 8 + Math.abs(i - 4) * 4]], 5, 'rgba(60,96,52,', 0.8, rnd, 3);
+  [-1, 1].forEach(function (s) {
+    ctx.beginPath(); ctx.arc(150 + s * 10, top + 50, 4, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,110,40,' + (0.7 + 0.3 * Math.sin(T * 2)).toFixed(2) + ')'; ctx.fill();
+  });
+  /* Heavy arms dragging on the ground. */
+  stroke(ctx, curve([176, top + 60], [204, top + 100 + sway], [208, 228], 10), 24, 'rgba(40,38,40,1)');
+  stroke(ctx, curve([88, top + 60], [70, top + 110 - sway], [78, 230], 10), 22, 'rgba(30,28,30,1)');
+}
+
+function variantSheet(type, frames, fps, worldK) {
+  const draw = type === 'brute' ? drawBrute : drawStone;
+  const canvas = sheetCanvas(C.cell, C.cell, frames, function (ctx, f) { draw(ctx, f, frames, rng(C.seed + 501 + f * 19 + type.length)); });
+  const seq = []; for (let i = 0; i < frames; i++) seq.push(i);
+  return { canvas: canvas, sheet: { frame: [C.cell, C.cell], count: frames, dirs: 1, layout: 'frames-x', anchor: C.anchor.slice(), states: { walk: seq }, fpsByState: { walk: fps }, fps: fps, loop: true, screenFlip: true, worldH: C.zombieWorldH * worldK } };
+}
+
+/** Walk sheets of the tougher zombie kinds: brute (1.25x tall) and stone (1.45x, slow shamble). */
+export function drawZombieVariantSheets() {
+  return { brute: variantSheet('brute', 12, 9, 1.25), stone: variantSheet('stone', 12, 5, 1.45) };
+}

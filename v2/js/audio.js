@@ -6,7 +6,10 @@ export function createAudio() {
   let muted = true, quiet = true;
 
   const PENTA = [262, 294, 330, 392, 440, 523, 587, 659]; /* C D E G A, daegeum-ish range later shifted */
-  const BELL_PARTIALS = [523, 1046, 1480, 1960, 2350];
+  /* Small hand-bell: inharmonic partial ratios, higher ones fade first. Pitch per shape on the pentatonic scale. */
+  const BELL = { ratios: [1, 2.756, 5.404, 8.933], gains: [1, 0.34, 0.14, 0.05], decays: [2.8, 1.5, 0.8, 0.45], peak: 0.12, detuneCents: 3, reverbSec: 2.2, reverbMix: 0.45 };
+  const BELL_PITCH = { hline: 784, vline: 880, vee: 1047, bolt: 1175 };
+  let reverb = null;
 
   function ac() {
     if (ctx) return ctx;
@@ -81,31 +84,53 @@ export function createAudio() {
 
   let lastPans = [];
 
-  function bell(pan) {
+  /* Synthetic room: decaying stereo noise impulse, softened. */
+  function bellReverb(c) {
+    if (reverb) return reverb;
+    const n = Math.floor(c.sampleRate * BELL.reverbSec);
+    const ir = c.createBuffer(2, n, c.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = ir.getChannelData(ch);
+      let lp = 0;
+      for (let i = 0; i < n; i++) { lp += ((Math.random() * 2 - 1) - lp) * 0.25; d[i] = lp * Math.pow(1 - i / n, 3); }
+    }
+    const conv = c.createConvolver();
+    conv.buffer = ir;
+    const wet = c.createGain();
+    wet.gain.value = BELL.reverbMix;
+    conv.connect(wet); wet.connect(sfxGain);
+    reverb = conv;
+    return reverb;
+  }
+
+  function bell(pan, shape) {
     if (quiet) return;
     const c = resume(); if (!c) return;
-    const t0 = c.currentTime;
-    const pv = pan == null ? 0 : Math.max(-1, Math.min(1, pan));
-    let dest = sfxGain;
+    const t0 = c.currentTime + 0.005;
+    const f0 = BELL_PITCH[shape] || 880;
+    const out = c.createGain();
+    out.gain.value = 1;
     if (c.createStereoPanner) {
       const panN = c.createStereoPanner();
-      panN.pan.setValueAtTime(pv, t0);
-      panN.connect(sfxGain);
-      dest = panN;
+      panN.pan.setValueAtTime(pan == null ? 0 : Math.max(-1, Math.min(1, pan)), t0);
+      out.connect(panN); panN.connect(sfxGain); panN.connect(bellReverb(c));
+    } else {
+      out.connect(sfxGain); out.connect(bellReverb(c));
     }
-    BELL_PARTIALS.forEach(function (f, i) {
-      const o = c.createOscillator();
-      const g = c.createGain();
-      o.type = 'sine';
-      o.frequency.setValueAtTime(f * (1 + (Math.random() - 0.5) * 0.004), t0);
-      const peak = (i === 0 ? 0.22 : 0.12 / (i + 1)) * (pan == null ? 1 : 0.7);
-      g.gain.setValueAtTime(0.0001, t0);
-      g.gain.exponentialRampToValueAtTime(peak, t0 + 0.008);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.7 + i * 0.15);
-      o.connect(g); g.connect(dest);
-      o.start(t0); o.stop(t0 + 1.2);
+    BELL.ratios.forEach(function (r, i) {
+      [-1, 1].forEach(function (side) {
+        const o = c.createOscillator();
+        const g = c.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(f0 * r * Math.pow(2, side * BELL.detuneCents / 1200), t0);
+        const peak = BELL.peak * BELL.gains[i] * 0.5;
+        g.gain.setValueAtTime(0.0001, t0);
+        g.gain.linearRampToValueAtTime(peak, t0 + 0.004 + i * 0.002);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + BELL.decays[i]);
+        o.connect(g); g.connect(out);
+        o.start(t0); o.stop(t0 + BELL.decays[i] + 0.05);
+      });
     });
-    noise(t0, 0.03, 'highpass', 2000, 0.5, 0.08);
   }
 
   function setLastPans(list) { lastPans = (list || []).slice(); }
