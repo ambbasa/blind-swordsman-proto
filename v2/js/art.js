@@ -4,6 +4,7 @@ import * as Anim from './anim.js';
 import { createInkGroundMaterial } from './inkground.js';
 import { drawInkBossSheet } from './inkboss.js';
 import { drawHeroSheets, drawZombieSheets, drawSpiritSheet } from './inkchars.js';
+import { drawBell, drawItem, drawSeal } from './inkicons.js';
 
 const BASE = '../assets/v2/';
 const ITEM_KEY = {
@@ -124,13 +125,6 @@ export async function buildArt(THREE) {
   function sheetFile(s) { return s && (s.file || s.file1x); }
   /* Prefer @1x for large 8-dir action sheets so headless SW GL stays interactive. */
   function animFile(s) { return s && (s.file1x || s.file); }
-  want('img/hang-bell.png', { noBase: true });
-  ['hline', 'vline', 'vee', 'bolt', 'plain'].forEach(function (k) {
-    want('bells/bell-' + k + '@2x.png');
-  });
-  if (atlas.marks && atlas.marks.files) Object.keys(atlas.marks.files).forEach(function (k) { want(atlas.marks.files[k]); });
-  if (atlas.marks && atlas.marks.seals) Object.keys(atlas.marks.seals).forEach(function (k) { want(atlas.marks.seals[k]); });
-  if (atlas.items) Object.keys(atlas.items).forEach(function (k) { want(atlas.items[k].file); });
   if (atlas.fx) {
     if (atlas.fx['slash-line']) want(atlas.fx['slash-line'].file);
     if (atlas.fx['slash-arc-sheet']) want(atlas.fx['slash-arc-sheet'].file);
@@ -302,6 +296,21 @@ export async function buildArt(THREE) {
     };
     return inkCharPack;
   }
+  const ITEM_DRAW = { 'elem-ice': 'ice', 'elem-fire': 'fire', 'elem-poison': 'poison', 'one-bell': 'bell', 'dash-plus': 'dashplus', heal: 'heal', coin: 'coin', 'xp-orb': 'xp' };
+  const inkItemCache = {};
+  function inkItemTex(key) {
+    if (!inkItemCache[key]) {
+      const t = new THREE.CanvasTexture(drawItem(ITEM_DRAW[key] || 'xp'));
+      t.colorSpace = THREE.SRGBColorSpace;
+      inkItemCache[key] = t;
+    }
+    return inkItemCache[key];
+  }
+  const sealUrls = {};
+  function sealUrl(shape) {
+    if (!sealUrls[shape]) sealUrls[shape] = drawSeal(shape).toDataURL('image/png');
+    return sealUrls[shape];
+  }
   let inkBossPack = null;
   function inkBoss() {
     if (!inkBossPack) {
@@ -320,8 +329,15 @@ export async function buildArt(THREE) {
     const k = shape || 'plain';
     return 'bells/bell-' + k + '@2x.png';
   }
+  const inkBellCache = {};
   function getHangBellTex(shape) {
-    return (shape && tex(bellTexUrl(shape))) || tex(bellTexUrl('plain')) || tex('img/hang-bell.png');
+    const k = shape || 'plain';
+    if (!inkBellCache[k]) {
+      const t = new THREE.CanvasTexture(drawBell(k));
+      t.colorSpace = THREE.SRGBColorSpace;
+      inkBellCache[k] = t;
+    }
+    return inkBellCache[k];
   }
   function applyBellMap(bell, shape) {
     if (!bell || !bell.material) return;
@@ -508,15 +524,8 @@ export async function buildArt(THREE) {
       }
       group.userData.markShape = shape || 'circle';
       group.userData.isBoss = isBoss;
-    } else if (itemK && atlas.items && atlas.items[itemK]) {
-      const it = atlas.items[itemK];
-      const src = tex(it.file);
-      const css = 0.9;
-      const spr = imgSprite(src, css, css, { cy: 0.5 });
-      group.add(spr);
-      group.userData.sprite = spr;
     } else {
-      const spr = imgSprite(tex((atlas.items && atlas.items['xp-orb'] || {}).file), 0.85, 0.85, { cy: 0.5 });
+      const spr = imgSprite(inkItemTex(itemK || 'xp-orb'), 1.6, 1.6, { cy: 0.5 });
       group.add(spr);
       group.userData.sprite = spr;
     }
@@ -842,7 +851,7 @@ export async function buildArt(THREE) {
     transitions: (atlas.tiles && atlas.tiles.transitions) || null,
     night: hexColor(pal.night || pal.ground, 0x1e1c1a),
     makeChar: makeChar, makeProp: makeProp, tickChar: tickChar,
-    setSpiritShape: setSpiritShape, setBellAim: setBellAim, getHangBellTex: getHangBellTex, bellTexUrl: bellTexUrl, setStatus: setStatus, setAura: setAura, setTelegraph: setTelegraph,
+    sealUrl: sealUrl, setSpiritShape: setSpiritShape, setBellAim: setBellAim, getHangBellTex: getHangBellTex, bellTexUrl: bellTexUrl, setStatus: setStatus, setAura: setAura, setTelegraph: setTelegraph,
     applyMap: applyMap, slashTex: slashTex, playFx: playFx,
     trailTex: tex(el['fire-trail'] && el['fire-trail'].file),
     torchGlow: tex('fx/torch-glow.png'),
@@ -854,8 +863,6 @@ export async function buildArt(THREE) {
       inkStroke: tex(inkStrokeUrl),
       inkLit: tex(inkLitUrl),
       inkDab: tex(inkDabUrl),
-      marks: atlas.marks && atlas.marks.files,
-      seals: atlas.marks && atlas.marks.seals,
       onebellInk: onebell.inkFrames || [],
       onebellPaper: onebell.paperFrames || [],
       onebellBurst: onebell.burst && String(onebell.burst).split(' ')[0],

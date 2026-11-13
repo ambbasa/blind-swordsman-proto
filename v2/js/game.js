@@ -756,15 +756,8 @@ function upcomingRun() {
 }
 function titleChip(shape) {
   const alt = SHAPE_MARK[shape] || shape;
-  if (shape === 'bolt') {
-    return '<span class="hanji-chip" data-shape="bolt" title="번개"><svg viewBox="0 0 32 40" width="26" height="32" aria-hidden="true"><path d="M20 2 L9 20 L19 20 L12 38" fill="none" stroke="#0E0C0A" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
-  }
-  const seals = { hline: 'H', vline: 'I', vee: 'V' };
-  const k = seals[shape];
-  if (k) {
-    return '<span class="hanji-chip" data-shape="' + shape + '" title="' + alt + '"><img src="../assets/v2/ui/seal-' + k + '@2x.png" alt="' + alt + '" width="40" height="40"></span>';
-  }
-  return '<span class="hanji-chip" data-shape="' + shape + '">' + alt + '</span>';
+  const src = art && art.sealUrl ? art.sealUrl(shape) : '';
+  return '<span class="hanji-chip" data-shape="' + shape + '" title="' + alt + '"><img src="' + src + '" alt="' + alt + '" width="40" height="40"></span>';
 }
 function refreshTitleHelp() {
   const el = $('titleShapes') || document.querySelector('.shapes-help');
@@ -987,15 +980,7 @@ function triggerCinematic() {
 }
 
 const onebell = { phase: 'off', ink: 0, t: 0 };
-const markImgs = {};
 function loadMarkImages() {
-  const files = art && art.images && art.images.marks;
-  if (!files) return;
-  Object.keys(files).forEach(function (k) {
-    const im = new Image();
-    im.src = art.BASE + files[k];
-    markImgs[k] = im;
-  });
   const dabUrl = art.images && art.images.inkDab && art.images.inkDab.image ? null : (art.images && art.fx);
   if (art.images && art.images.inkDab && art.images.inkDab.image) {
     paintInk._dab = art.images.inkDab.image;
