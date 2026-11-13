@@ -59,7 +59,7 @@ const CFG = {
   spawnZombieMax: 16, spawnSpiritMax: 0,
   spawnZombieMinMs: 450, spawnSpiritMinMs: 480,
   spawnZombieDelay: 3, practiceZombieMs: 3200, practiceZombieMax: 2, earlyZombieMax: 4, earlyZombieUntil: 15, earlyZombieMinMs: 1400,
-  spiritCapStart: 1, spiritMax: 4, sameShapeMax: 2, spiritExitMul: 1.08, spiritDimAlpha: 0.35, spiritGlowAlpha: 0.5,
+  spiritThreadAlpha: 0.85, spiritCapStart: 1, spiritMax: 4, sameShapeMax: 2, spiritExitMul: 1.08, spiritDimAlpha: 0.35, spiritGlowAlpha: 0.5,
   ringScreenFrac: 0.70, ringMaxFrac: 0.90, ringBoost: 0.14, ringLvMax: 4,
   spiritOmega: 2.8, spiritAvoidMax: 0.30, spiritAvoidOmega: 8, bossSpeed: 1.0, bossCatchUp: 0.3, bossSpawnR: 11,
   dashThroughMul: 1.5, dashPastTarget: 0.8, dashPastBodyMul: 1.5, playBound: 28,
@@ -1063,6 +1063,30 @@ function markCssSize(w) {
   return clamp(Math.round(min * Math.sqrt((w || 375) / 375)), min, max);
 }
 
+/* A faint jade thread from each spirit on the ring to the zombie it senses, brighter on the beat. */
+function drawSpiritThreads(ctx) {
+  const dim = CFG.spiritDimAlpha == null ? 0.35 : CFG.spiritDimAlpha;
+  const k = Math.max(S.beatPulse || 0, S.sightWave || 0);
+  const a = (CFG.spiritThreadAlpha || 0.55) * (dim + (1 - dim) * clamp(k, 0, 1));
+  livingMarks().forEach(function (sp) {
+    const z = sp.target;
+    if (!z || !z.alive || !sp.obj) return;
+    const from = bellFootScreen(sp);
+    const zh = (z.obj && z.obj.userData && z.obj.userData.worldH) || 2.4;
+    const to = projectXZ(z.x, z.z, zh * 0.55);
+    const mx = (from.x + to.x) / 2, my = (from.y + to.y) / 2 - 18;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.quadraticCurveTo(mx, my, to.x, to.y);
+    ctx.strokeStyle = 'rgba(46,230,166,' + (a * 0.35).toFixed(3) + ')'; ctx.lineWidth = 5; ctx.stroke();
+    ctx.strokeStyle = 'rgba(214,250,236,' + a.toFixed(3) + ')'; ctx.lineWidth = 1.4;
+    ctx.setLineDash([7, 5]); ctx.lineDashOffset = -((S.elapsed || 0) * 30); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.ellipse(to.x, to.y, 12, 8, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(46,230,166,' + Math.min(1, a * 1.4).toFixed(3) + ')'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.restore();
+  });
+}
 function updateMarks() {
   const c = $('marks');
   if (!c) return;
@@ -1125,6 +1149,7 @@ function updateMarks() {
       ringLv: S.ringLv || 0, pts: pts, kind: 'ellipse'
     };
   }
+  drawSpiritThreads(ctx);
   const placed = [];
   const arrows = [];
   const aimId = S.aimTarget && S.aimTarget.alive ? S.aimTarget.id : null;
