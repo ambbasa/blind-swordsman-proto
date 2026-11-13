@@ -58,7 +58,7 @@ const CFG = {
   spawnZombieMax: 16, spawnSpiritMax: 0,
   spawnZombieMinMs: 450, spawnSpiritMinMs: 480,
   spawnZombieDelay: 3, practiceZombieMs: 3200, practiceZombieMax: 2, earlyZombieMax: 4, earlyZombieUntil: 15, earlyZombieMinMs: 1400,
-  spiritStreamAlpha: 0.7, spiritFadeIn: 0.4, spiritAlpha: 0.9, spiritHover: 0.7, spiritCapStart: 1, spiritMax: 4, sameShapeMax: 2, spiritGlowAlpha: 0.5,
+  spiritStreamAlpha: 0.7, spiritFadeIn: 0.4, spiritAlpha: 0.9, spiritHover: 0.85, spiritCapStart: 1, spiritMax: 4, sameShapeMax: 2, spiritGlowAlpha: 0.5,
   ringScreenFrac: 0.70, ringMaxFrac: 0.90, ringBoost: 0.14, ringLvMax: 4,
   spiritOmega: 2.8, spiritAvoidMax: 0.30, spiritAvoidOmega: 8, bossSpeed: 1.0, bossCatchUp: 0.3, bossSpawnR: 11,
   dashThroughMul: 1.5, dashPastTarget: 0.8, dashPastBodyMul: 1.5, playBound: 28,
@@ -700,8 +700,8 @@ function spawnSpirit(opts) {
     x: 0, z: 0, r: 0.7, alive: true, hp: 1, isBoss: false, target: opts.target || null, avoid: 0,
     free: !opts.target
   };
-  const vis = (S.bellT > 0 && S.bellShape) ? S.bellShape : e.shape;
-  e.obj = addEntityVisual('spirit', vis);
+  /* Show the shape the spirit answers to: the one-bell shape, or the boss's current shape. */
+  e.obj = addEntityVisual('spirit', spiritShape(e));
   if (S.bellT > 0 && art.setAura) art.setAura(e.obj, true);
   placeSpirit(e);
   S.spirits.push(e);
@@ -879,7 +879,8 @@ function bellWorld(s) {
   if (hang && hang.bell) {
     if (!_proj.c) _proj.c = new THREE.Vector3();
     const bh = (s.obj.userData.bellH != null) ? s.obj.userData.bellH : 0.4;
-    _proj.c.set(0, bh * 0.52, 0);
+    /* A spirit's mark is centred on its sprite; a hanging bell is measured from its top. */
+    _proj.c.set(0, hang.pivot === null ? 0 : bh * 0.52, 0);
     hang.bell.updateWorldMatrix(true, false);
     _proj.c.applyMatrix4(hang.bell.matrixWorld);
     return { x: _proj.c.x, y: _proj.c.y, z: _proj.c.z };
@@ -981,7 +982,7 @@ function endBell() {
   S.bellT = 0; S.bellShape = null;
   livingMarks().forEach(function (s) {
     if (s.obj) {
-      if (art.setSpiritShape) art.setSpiritShape(s.obj, s.isBoss ? s.seq[s.seqI] : s.shape);
+      if (art.setSpiritShape) art.setSpiritShape(s.obj, spiritShape(s));
       if (art.setAura) art.setAura(s.obj, false);
     }
   });
@@ -1103,6 +1104,21 @@ function drawSoulStreams(ctx) {
     }
     ctx.restore();
   });
+}
+/* The shape mark is drawn on the 2D layer over the spirit's orb, so bloom and the ink pass cannot blur it. */
+function drawMarkGlyph(ctx, shape, x, y, size) {
+  const k = { hline: [[[-1, 0], [1, 0]]], vline: [[[0, -1], [0, 1]]], vee: [[[-1, -0.75], [0, 0.85], [1, -0.75]]], bolt: [[[0.45, -1], [-0.45, -0.05], [0.45, 0.05], [-0.4, 1]]] }[shape];
+  if (!k) return;
+  const h = size * 0.42;
+  ctx.save();
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  k.forEach(function (line) {
+    ctx.beginPath();
+    line.forEach(function (q, i) { const px = x + q[0] * h, py = y + q[1] * h; if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py); });
+    ctx.strokeStyle = 'rgba(244,236,214,0.95)'; ctx.lineWidth = Math.max(4, size * 0.26); ctx.stroke();
+    ctx.strokeStyle = 'rgba(10,9,12,1)'; ctx.lineWidth = Math.max(2.2, size * 0.14); ctx.stroke();
+  });
+  ctx.restore();
 }
 function updateMarks() {
   const c = $('marks');
@@ -1244,6 +1260,7 @@ function updateMarks() {
     const gsize = m.cssPx || size;
     const rad = gsize / 2;
     ctx.save();
+    drawMarkGlyph(ctx, m.shape, x, y, clamp((m.bellPx || 16) * 1.3, 18, 28));
     if (m.seq && m.seq.length) {
       const gap = size * 0.38;
       const rowW = (m.seq.length - 1) * gap;
@@ -1734,6 +1751,7 @@ function cutSpirit(s) {
   if (s.kind === 'spirit') return;
   if (s.isBoss) {
     s.seqI++;
+    livingMarks().forEach(function (m) { if (m.target === s && art.setSpiritShape) art.setSpiritShape(m.obj, spiritShape(m)); });
     addHitstop(CFG.hitstopKill || 0.06);
     if (s.seqI >= s.seq.length) { killZombie(s, S && S.lastDash); }
     else {

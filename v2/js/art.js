@@ -4,7 +4,7 @@ import * as Anim from './anim.js';
 import { createInkGroundMaterial } from './inkground.js';
 import { drawInkBossSheet } from './inkboss.js';
 import { drawHeroSheets, drawZombieSheets, drawZombieVariantSheets, drawSpiritSheet } from './inkchars.js';
-import { drawBell, drawItem, drawSeal } from './inkicons.js';
+import { drawGlyph, drawRattle, drawItem, drawSeal } from './inkicons.js';
 import { drawProp, drawBackdrop, INK_PROPS } from './inkprops.js';
 
 const BASE = '../assets/v2/';
@@ -115,9 +115,43 @@ export async function buildArt(THREE) {
   const spiritH = (atlas.spiritAnim && atlas.spiritAnim.cell && atlas.spiritAnim.cell[1])
     ? atlas.spiritAnim.cell[1] / pxPerMeter
     : heroH * 1.05;
-  /* Spirits hover over zombies: a small body, and a bell kept large enough to read its mark (about 34 px). */
+  /* Spirits are small will-o'-wisps over zombies; the shape mark sits in the orb, a rattle at the side. */
   const SPIRIT_VIEW_SCALE = 1.2;
-  const SPIRIT_BELL_SCALE = 1.7;
+  const SPIRIT_MARK_K = 0.42;
+  const SPIRIT_RATTLE_K = 0.42;
+  let rattleTexCache = null;
+  function rattleTex() {
+    if (!rattleTexCache) { rattleTexCache = new THREE.CanvasTexture(drawRattle()); rattleTexCache.colorSpace = THREE.SRGBColorSpace; }
+    return rattleTexCache;
+  }
+  /* Mark at the orb's bright centre (cell px 128,112) and a shaman's rattle held at the side, swinging. */
+  function attachSpiritMark(group, sheet, worldH, shape) {
+    const c = localFromPx(sheet, worldH, [128, 112]);
+    const size = worldH * SPIRIT_MARK_K;
+    const mark = imgSprite(getHangBellTex(shape), size, size, { cx: 0.5, cy: 0.5, alphaTest: 0.02 });
+    mark.material.depthTest = false;
+    mark.renderOrder = 5;
+    mark.position.set(c.x, c.y, 0.05);
+    mark.visible = false; /* holds the shape state; game.js draws the mark crisply on the 2D layer */
+    applyBellMap(mark, shape);
+    group.add(mark);
+    const rh = worldH * SPIRIT_RATTLE_K;
+    const rt = imgSprite(rattleTex(), rh * (96 / 168), rh, { cx: 0.5, cy: 0, alphaTest: 0.02 });
+    rt.material.depthTest = false;
+    rt.renderOrder = 4;
+    const at = localFromPx(sheet, worldH, [204, 168]);
+    rt.position.set(at.x, at.y, 0.04);
+    group.add(rt);
+    group.userData.bellHang = { pivot: null, bell: mark, t: 0, phase: 0, amp: 0, period: 1.5 };
+    group.userData.rattle = { sprite: rt, t: Math.random() * 4, amp: 0.35, period: 0.9 + Math.random() * 0.3 };
+    group.userData.bellH = size;
+    group.userData.bellW = size;
+    group.userData.bellAttachY = c.y + size / 2;
+    group.userData.bellFootY = c.y - size / 2;
+    group.userData.bellLocal = { x: c.x, y: c.y };
+    group.userData.bellRestLocal = { x: c.x, y: c.y };
+    group.userData.markShape = shape;
+  }
   const bossH = (atlas.bossAnim && atlas.bossAnim.cell && atlas.bossAnim.cell[1])
     ? atlas.bossAnim.cell[1] / pxPerMeter
     : heroH * 1.7;
@@ -337,7 +371,7 @@ export async function buildArt(THREE) {
   function getHangBellTex(shape) {
     const k = shape || 'plain';
     if (!inkBellCache[k]) {
-      const t = new THREE.CanvasTexture(drawBell(k));
+      const t = new THREE.CanvasTexture(drawGlyph(k));
       t.colorSpace = THREE.SRGBColorSpace;
       inkBellCache[k] = t;
     }
@@ -354,48 +388,6 @@ export async function buildArt(THREE) {
     bell.userData = bell.userData || {};
     bell.userData.bellTex = shape ? bellTexUrl(shape) : 'img/hang-bell.png';
     bell.userData.bellShape = shape || 'plain';
-  }
-  function attachHangingBell(group, bodySheet, worldH, isBoss, opts) {
-    if (isBoss) return;
-    opts = opts || {};
-    const attachPx = opts.attachPx || [((bodySheet && bodySheet.anchor && bodySheet.anchor[0]) || 128), 118];
-    if (bodySheet && worldH) {
-      try {
-        const markPx = [attachPx[0] + 26, 122];
-        group.userData.bellLocal = localFromPx(bodySheet, worldH, markPx);
-        group.userData.bellRestLocal = localFromPx(bodySheet, worldH, [attachPx[0], 142]);
-      } catch (err) {}
-    }
-    if (!group.userData.bellLocal) group.userData.bellLocal = { x: 0, y: (worldH || 1.6) * 0.95 };
-    const shape = opts.shape || group.userData.markShape || null;
-    const texBell = getHangBellTex(shape);
-    if (!texBell) return;
-    const attach = localFromPx(bodySheet, worldH, attachPx);
-    const pivot = new THREE.Group();
-    pivot.position.set(attach.x, attach.y, 0.04);
-    const bh = opts.bellH != null ? opts.bellH : worldH * 0.27 * (opts.bellScale || 1);
-    const bw = bh * (190 / 376);
-    /* cy:1 = hang from the top (same as hang-bell.png). alphaTest 0.02 keeps the soft blue aura. */
-    const bell = imgSprite(texBell, bw, bh, { cx: 0.5, cy: 1, alphaTest: 0.02 });
-    bell.material.depthTest = false;
-    bell.renderOrder = 4;
-    applyBellMap(bell, shape);
-    pivot.add(bell);
-    group.add(pivot);
-    group.userData.bellHang = {
-      pivot: pivot, bell: bell, t: Math.random() * 4,
-      phase: Math.random() * Math.PI * 2,
-      amp: 0.18 + Math.random() * 0.04,
-      period: 1.45 + Math.random() * 0.3
-    };
-    group.userData.bellH = bh;
-    group.userData.bellW = bw;
-    group.userData.bellAttachY = attach.y;
-    /* Bottom of the hanging bell (floor/contact point on the rim). */
-    group.userData.bellFootY = attach.y - bh;
-    group.userData.bellLocal = { x: attach.x, y: attach.y - bh };
-    group.userData.bellRestLocal = { x: attach.x, y: attach.y - bh };
-    group.userData.markShape = shape;
   }
   function swapAction(group, sheet, name) {
     if (!group || !sheet) return;
@@ -490,8 +482,7 @@ export async function buildArt(THREE) {
       if (spiritSheet) {
         group.userData.anim = Anim.createController(spiritSheet, { blend: 0 });
         group.userData.noFlip = true;
-        /* The bell hangs from the spirit's side so it does not cover the zombie below. */
-        attachHangingBell(group, spiritSheet, H, false, { bellH: spiritH * 0.27 * 2.5 * SPIRIT_BELL_SCALE, shape: shape, attachPx: [176, 70] });
+        attachSpiritMark(group, spiritSheet, H, shape);
       } else if (bossSheet) {
         group.userData.anim = Anim.createController(bossSheet, { blend: 0 });
         group.userData.action = 'idle';
@@ -592,6 +583,11 @@ export async function buildArt(THREE) {
       hang.t = (hang.t || 0) + dt;
       const ang = hang.amp * Math.sin((hang.t / hang.period) * Math.PI * 2 + hang.phase);
       hang.bell.material.rotation = ang;
+    }
+    const rat = group.userData && group.userData.rattle;
+    if (rat) {
+      rat.t += dt;
+      rat.sprite.material.rotation = rat.amp * Math.sin((rat.t / rat.period) * Math.PI * 2);
     }
     if (group.userData.aura && group.userData.aura.visible) {
       group.userData.aura.material.rotation = (group.userData.aura.material.rotation || 0) - (20 * Math.PI / 180) * dt;

@@ -123,3 +123,48 @@ export function drawSeal(shape) {
   mark(ctx, shape, S / 2, S / 2, S * 0.26, 9, PAPER + '1)', rnd);
   return c;
 }
+
+/** The shape mark alone, for the spirit's orb: thick ink strokes with a paper edge on transparency. */
+export function drawGlyph(shape) {
+  const S = 128, c = canvas(S, S), ctx = c.getContext('2d');
+  const rnd = rng(INK_ICONS.seed + (shape || 'plain').length * 23);
+  /* Dark ink strokes with a paper edge, so the mark reads on the bright orb. */
+  if (shape && shape !== 'plain') {
+    const k = { hline: [[[-1, 0], [1, 0]]], vline: [[[0, -1], [0, 1]]], vee: [[[-1, -0.75], [0, 0.85], [1, -0.75]]], bolt: [[[0.45, -1], [-0.45, -0.05], [0.45, 0.05], [-0.4, 1]]] }[shape];
+    const sc = 40;
+    (k || []).forEach(function (line) {
+      const p = line.map(function (q) { return [S / 2 + q[0] * sc, S / 2 + q[1] * sc]; });
+      stroke(ctx, p, 24, PAPER + '0.9)');
+      stroke(ctx, p, 15, INK + '1)');
+      brush(ctx, p, 8, 'rgba(40,36,38,', 0.6, rnd, 4);
+    });
+  }
+  return c;
+}
+
+/** A shaman's rattle (무당방울): a short red handle, tiers of small brass bells, five-colour ribbons. Handle end at the bottom centre. */
+export function drawRattle() {
+  const W = 96, H = 168, c = canvas(W, H), ctx = c.getContext('2d');
+  const rnd = rng(INK_ICONS.seed + 401);
+  const cx = W / 2;
+  const cols = [RED, GOLD, 'rgba(46,120,200,', PAPER, 'rgba(40,140,90,'];
+  cols.forEach(function (col, i) {
+    const x = cx - 10 + i * 5;
+    stroke(ctx, curve([cx, H - 30], [x - 6, H - 14], [x - 12 + (rnd() - 0.5) * 6, H - 2], 8), 4, col + '0.95)');
+  });
+  stroke(ctx, [[cx, H - 4], [cx, 70]], 9, 'rgba(150,40,30,1)');
+  brush(ctx, [[cx - 2, H - 6], [cx - 2, 72]], 2, PAPER, 0.4, rnd, 2);
+  /* Tiers of bells: 1 on top, then 2, then 4. */
+  const tiers = [[1, 16], [2, 38], [4, 60]];
+  tiers.forEach(function (t) {
+    for (let i = 0; i < t[0]; i++) {
+      const x = cx + (i - (t[0] - 1) / 2) * 20, y = t[1];
+      const gg = ctx.createRadialGradient(x - 3, y - 3, 1, x, y, 10);
+      gg.addColorStop(0, 'rgba(255,236,170,1)'); gg.addColorStop(0.6, GOLD + '1)'); gg.addColorStop(1, 'rgba(110,80,30,1)');
+      ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.fillStyle = gg; ctx.fill();
+      ctx.beginPath(); ctx.moveTo(x - 5, y + 2); ctx.lineTo(x + 5, y + 2); ctx.strokeStyle = 'rgba(40,28,10,0.9)'; ctx.lineWidth = 2; ctx.stroke();
+      stroke(ctx, [[x, y + 9], [cx, 70]], 2.5, 'rgba(90,70,40,0.9)');
+    }
+  });
+  return c;
+}

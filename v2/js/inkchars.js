@@ -239,40 +239,47 @@ export function drawZombieSheets() {
 
 /* ---------- spirit ---------- */
 
+/* Will-o'-wisp (도깨비불): a round flame orb with tongues licking up and a tail fading below.
+   The orb centre (128, 128) is where art.js puts the shape mark. */
 function drawSpirit(ctx, f, n, rnd) {
   const T = (f / n) * Math.PI * 2;
-  /* Wisp tail curling down to the ground point. */
+  const cx = 128, cy = 128, R = 58 + Math.sin(T) * 2;
+  /* Tail drifting down to the anchor. */
+  for (let i = 0; i < 6; i++) {
+    const u = i / 5, sw = Math.sin(T + u * 3) * 14 * u;
+    const y = cy + 40 + u * 64, r = 26 * (1 - u) + 4;
+    const gt = ctx.createRadialGradient(cx + sw, y, 0, cx + sw, y, r);
+    gt.addColorStop(0, 'rgba(200,236,224,' + (0.35 * (1 - u)).toFixed(3) + ')'); gt.addColorStop(1, 'rgba(200,236,224,0)');
+    ctx.fillStyle = gt; ctx.fillRect(cx + sw - r, y - r, r * 2, r * 2);
+  }
+  /* Flame tongues around the top of the orb. */
   for (let i = 0; i < 4; i++) {
-    const sw = Math.sin(T + i * 0.8) * (8 + i * 3);
-    stroke(ctx, curve([128 + (i - 1.5) * 8, 150], [120 + sw, 196], [128 + sw * 1.4, 232], 14), 16 - i * 3, 'rgba(210,230,226,' + (0.5 - i * 0.08).toFixed(2) + ')');
+    const off = (i - 1.5) * 22, h = 46 + Math.abs(Math.sin(T * 2 + i * 1.7)) * 26 - Math.abs(off) * 0.5;
+    const bx = cx + off, by = cy - R * 0.55 + Math.abs(off) * 0.35;
+    const tx = bx + off * 0.25 + Math.sin(T * 3 + i) * 8, ty = by - h;
+    ctx.beginPath();
+    ctx.moveTo(bx - 24, by + 14);
+    ctx.quadraticCurveTo(bx - 20, by - h * 0.55, tx, ty);
+    ctx.quadraticCurveTo(bx + 20, by - h * 0.55, bx + 24, by + 14);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(214,246,234,' + (0.55 + 0.25 * Math.sin(T + i)).toFixed(2) + ')';
+    ctx.fill();
   }
-  /* Body: a pale flame-shaped ghost in a mourning robe (소복), arms around the bell cord. */
-  const crown = 44 + Math.sin(T) * 3;
-  const body = curve([128, crown], [164, crown + 20], [160, 120], 12)
-    .concat(curve([160, 120], [154, 168], [128, 172], 10).slice(1))
-    .concat(curve([128, 172], [102, 168], [96, 120], 10).slice(1))
-    .concat(curve([96, 120], [92, crown + 20], [128, crown], 12).slice(1));
-  const g = ctx.createRadialGradient(128, 100, 6, 128, 110, 80);
-  g.addColorStop(0, 'rgba(244,250,246,0.95)'); g.addColorStop(0.7, 'rgba(206,226,220,0.75)'); g.addColorStop(1, 'rgba(160,190,184,0.2)');
-  poly(ctx, body, g);
-  brush(ctx, body.concat([body[0]]), 5, 'rgba(120,160,150,', 0.55, rnd, 6);
-  /* Flame tips at the crown, flickering. */
-  for (let i = 0; i < 3; i++) {
-    const x = 116 + i * 12, h = 20 + Math.abs(Math.sin(T * 2 + i)) * 16;
-    flame(ctx, x, crown + 18, 7, h, Math.sin(T * 3 + i) * 5, 'rgba(232,248,242,0.8)');
-  }
-  /* Hollow eyes and a calm mouth line. */
-  [-1, 1].forEach(function (s) {
-    ctx.beginPath(); ctx.ellipse(128 + s * 10, 86, 4, 6, 0, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(20,40,36,0.85)'; ctx.fill();
+  /* The orb: bright core, pale body, soft rim. */
+  const g = ctx.createRadialGradient(cx, cy - 8, 6, cx, cy, R);
+  g.addColorStop(0, 'rgba(255,255,250,1)'); g.addColorStop(0.55, 'rgba(226,248,240,0.95)'); g.addColorStop(0.9, 'rgba(180,222,208,0.8)'); g.addColorStop(1, 'rgba(150,200,186,0)');
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
+  const ring = [];
+  for (let i = 0; i <= 28; i++) { const a = Math.PI * 0.15 + (i / 28) * Math.PI * 1.4; ring.push([cx + Math.cos(a) * (R - 4), cy + Math.sin(a) * (R - 4)]); }
+  brush(ctx, ring, 5, 'rgba(110,160,146,', 0.5, rnd, 5);
+  /* Two small dark eyes near the top of the orb, above where the mark sits. */
+  [-1, 1].forEach(function (sd) {
+    ctx.beginPath(); ctx.ellipse(cx + sd * 15, cy - 34, 4, 5.5, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(16,40,34,0.85)'; ctx.fill();
   });
-  brush(ctx, [[122, 104], [134, 104]], 2, 'rgba(20,40,36,', 0.6, rnd, 2);
-  /* Sleeves meeting at the bell cord. */
-  brush(ctx, curve([100, 100], [112, 120], [128, 118], 10), 6, 'rgba(150,180,172,', 0.7, rnd, 5);
-  brush(ctx, curve([156, 100], [144, 120], [128, 118], 10), 6, 'rgba(150,180,172,', 0.7, rnd, 5);
 }
 
-/** Spirit sheet: one floating wisp, 10 frames at 10 fps; the bell is hung by art.js at the cord (128, 118). */
+/** Spirit sheet: one will-o'-wisp, 10 frames at 10 fps; art.js puts the mark at the orb centre (128, 128). */
 export function drawSpiritSheet() {
   const frames = 10;
   const canvas = sheetCanvas(C.cell, C.cell, frames, function (ctx, f) {
