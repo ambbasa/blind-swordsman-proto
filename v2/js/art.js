@@ -154,7 +154,7 @@ export async function buildArt(THREE) {
   if (atlas.zombieAnim && atlas.zombieAnim.actions && atlas.zombieAnim.actions.walk) want(animFile(atlas.zombieAnim.actions.walk));
   if (atlas.spiritAnim) want(animFile(atlas.spiritAnim));
   want('img/hang-bell.png', { noBase: true });
-  ['hline', 'vline', 'vee', 'circle', 'bolt', 'plain'].forEach(function (k) {
+  ['hline', 'vline', 'vee', 'bolt', 'plain'].forEach(function (k) {
     want('bells/bell-' + k + '@2x.png');
   });
   if (atlas.marks && atlas.marks.files) Object.keys(atlas.marks.files).forEach(function (k) { want(atlas.marks.files[k]); });

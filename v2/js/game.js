@@ -24,17 +24,16 @@ const fxQForced = (function () {
 })();
 let fxQ = fxQualityFromUrl();
 const fxinkStat = { slashes: 0, hits: 0, kills: 0 };
-const SHAPE_MARK = { hline: '—', vline: 'ㅣ', vee: 'V', bolt: '⚡', circle: 'O' };
-const SHAPE_KEY = { hline: 'H', vline: 'I', vee: 'V', bolt: 'Z', circle: 'O' };
-const SHAPE_UNLOCK = ['hline', 'vline', 'vee', 'bolt', 'circle'];
+const SHAPE_MARK = { hline: '—', vline: 'ㅣ', vee: 'V', bolt: '⚡' };
+const SHAPE_KEY = { hline: 'H', vline: 'I', vee: 'V', bolt: 'Z' };
+const SHAPE_UNLOCK = ['hline', 'vline', 'vee', 'bolt'];
 const COMBAT = SHAPE_UNLOCK.slice();
 
 const SHAPE_HINT = {
   hline: '가로로 길게 그어 보세요',
   vline: '세로로 길게 그어 보세요',
   vee: 'V자를 그려 보세요',
-  bolt: '번개(⚡)처럼 지그재그로 그어 보세요',
-  circle: '동그라미를 그려 보세요'
+  bolt: '번개(⚡)처럼 지그재그로 그어 보세요'
 };
 /* v1 numbers reused where the new brief is silent. Documented as defaults. */
 const CFG = {
@@ -760,7 +759,7 @@ function titleChip(shape) {
   if (shape === 'bolt') {
     return '<span class="hanji-chip" data-shape="bolt" title="번개"><svg viewBox="0 0 32 40" width="26" height="32" aria-hidden="true"><path d="M20 2 L9 20 L19 20 L12 38" fill="none" stroke="#0E0C0A" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
   }
-  const seals = { hline: 'H', vline: 'I', vee: 'V', circle: 'O' };
+  const seals = { hline: 'H', vline: 'I', vee: 'V' };
   const k = seals[shape];
   if (k) {
     return '<span class="hanji-chip" data-shape="' + shape + '" title="' + alt + '"><img src="../assets/v2/ui/seal-' + k + '@2x.png" alt="' + alt + '" width="40" height="40"></span>';
@@ -893,18 +892,10 @@ function strokeAimDir(pts, type) {
     if (!ap.dir || ap.depth < 8) return strokeScreenDir(pts);
     return ap.dir;
   }
-  if (type === 'circle') return null;
   return strokeScreenDir(pts);
 }
-function strokeCentroid(pts) {
-  if (!pts || !pts.length) return null;
-  let x = 0, y = 0;
-  pts.forEach(function (p) { x += p.x; y += p.y; });
-  return { x: x / pts.length, y: y / pts.length };
-}
-function pickSpirits(shape, n, from, dir, exclude, opts) {
+function pickSpirits(shape, n, from, dir, exclude) {
   from = from || (S && S.hero);
-  opts = opts || {};
   const skip = exclude || [];
   const list = livingMarks().filter(function (s) { return spiritShape(s) === shape && skip.indexOf(s) < 0; });
   const boss = list.filter(function (s) { return s.isBoss; });
@@ -913,15 +904,9 @@ function pickSpirits(shape, n, from, dir, exclude, opts) {
   const off = rest.filter(function (s) { return !isOnScreen(s, 20); });
   if (on.length) rest = on;
   const heroScr = projectXZ(from.x, from.z);
-  const screenAt = opts.screenAt;
   function sortRest(arr) {
     const copy = arr.slice();
-    if (screenAt) {
-      copy.sort(function (a, b) {
-        const va = screenOf(a), vb = screenOf(b);
-        return Math.hypot(va.x - screenAt.x, va.y - screenAt.y) - Math.hypot(vb.x - screenAt.x, vb.y - screenAt.y);
-      });
-    } else if (dir && (dir.x || dir.y)) {
+    if (dir && (dir.x || dir.y)) {
       const dMax = copy.reduce(function (m, s) { return Math.max(m, dist(s, from)); }, 1) || 1;
       const cone = CFG.aimConeCos || 0.5;
       const wN = CFG.aimNearW == null ? 0.35 : CFG.aimNearW;
@@ -1516,8 +1501,7 @@ function beginDash(shape, opts) {
   if (!S || !S.playing || S.paused || S.dash) return null;
   const n = S.dashCount;
   const dir = opts.dir || S.lastStrokeDir || null;
-  const pickOpts = opts.screenAt ? { screenAt: opts.screenAt } : {};
-  const targets = pickSpirits(shape, n, S.hero, dir, null, pickOpts);
+  const targets = pickSpirits(shape, n, S.hero, dir, null);
   if (!targets.length) { toast('화면에 그 모양이 없어요'); return { type: shape, targets: [], hits: [], items: [] }; }
   const rec = { type: shape, targets: targets.map(function (t) { return t.id; }), hits: [], items: [], t0: now(), segs: [], elem: S.dashElem, cinematic: false };
   S.lastDash = rec;
@@ -2188,8 +2172,7 @@ function onMove(e) {
     const rec = G.recognize(pointers.pts, { allowBolt: true });
     if (rec && rec.type && (S.sandbox || !S.pool || S.pool.indexOf(rec.type) >= 0)) {
       const dir = strokeAimDir(pointers.pts, rec.type);
-      const opts = rec.type === 'circle' ? { screenAt: strokeCentroid(pointers.pts) } : {};
-      S.aimTarget = pickSpirits(rec.type, 1, S.hero, dir, null, opts)[0] || null;
+      S.aimTarget = pickSpirits(rec.type, 1, S.hero, dir, null)[0] || null;
     } else S.aimTarget = null;
     updateMarks();
   }
@@ -2228,10 +2211,7 @@ function finishStroke(pts, opts) {
   rec.judge = S.lastJudge;
   rec.combo = S.combo;
   rec.perfect = !!S.pendingPerfect;
-  const dash = beginDash(rec.type, {
-    dir: dir,
-    screenAt: rec.type === 'circle' ? strokeCentroid(pts) : null
-  });
+  const dash = beginDash(rec.type, { dir: dir });
   rec.targets = dash && dash.targets;
   rec.dash = dash;
   return rec;
@@ -2251,12 +2231,7 @@ function syntheticPath(type, x, y, s) {
       .concat(line(x - s * 0.35, y - s * 0.15, x + s * 0.35, y + s * 0.15, 10).slice(1),
               line(x + s * 0.35, y + s * 0.15, x - s * 0.35, y + s, 10).slice(1));
   }
-  const p = []; const n = 36;
-  for (let i = 0; i < n; i++) {
-    const a = -Math.PI / 2 + Math.PI * 2 * 0.98 * (i / (n - 1));
-    p.push({ x: x + Math.cos(a) * s * 0.7, y: y + Math.sin(a) * s * 0.7 });
-  }
-  return p;
+  return [];
 }
 function strokeType(type, opts) {
   const r = $('ink').getBoundingClientRect();
