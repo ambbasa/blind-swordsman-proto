@@ -129,6 +129,8 @@ export async function buildArt(THREE) {
   const spiritH = (atlas.spiritAnim && atlas.spiritAnim.cell && atlas.spiritAnim.cell[1])
     ? atlas.spiritAnim.cell[1] / pxPerMeter
     : heroH * 1.05;
+  /* Spirits are ring markers: scaled up with the zoomed-out camera so they and their bells keep their screen size. */
+  const SPIRIT_VIEW_SCALE = 2;
   const bossH = (atlas.bossAnim && atlas.bossAnim.cell && atlas.bossAnim.cell[1])
     ? atlas.bossAnim.cell[1] / pxPerMeter
     : heroH * 1.7;
@@ -512,7 +514,7 @@ export async function buildArt(THREE) {
       const spiritSheet = !isBoss && spiritAnimSheet();
       const bossSheet = isBoss && bossActionSheet('idle');
       const bodySheet = bossSheet || spiritSheet || (isBoss ? atlas.boss : (atlas['spirit-wisp'] || atlas.spirit));
-      const spiritBodyK = isBoss ? 1 : 0.7;
+      const spiritBodyK = isBoss ? 1 : 0.7 * SPIRIT_VIEW_SCALE;
       const H = isBoss ? bossH : (spiritSheet ? spiritH : heroH * 1.05) * spiritBodyK;
       group.userData.bodyScale = spiritBodyK;
       group.userData.bodyH = H;
@@ -527,7 +529,7 @@ export async function buildArt(THREE) {
         group.userData.rowLock = plain >= 0 ? plain : Math.max(0, (spiritSheet.dirOrder || []).length - 1);
         group.userData.anim.dir = group.userData.rowLock;
         group.userData.noFlip = true;
-        attachHangingBell(group, spiritSheet, H, false, { bellH: spiritH * 0.27 * 2.5, shape: shape });
+        attachHangingBell(group, spiritSheet, H, false, { bellH: spiritH * 0.27 * 2.5 * SPIRIT_VIEW_SCALE, shape: shape });
       } else if (bossSheet) {
         group.userData.animPack = { actions: {} };
         group.userData.bossPack = atlas.bossAnim;
@@ -547,8 +549,9 @@ export async function buildArt(THREE) {
       }
       const glow = tex('fx/spirit-glow.png');
       if (glow) {
-        const g = imgSprite(glow, isBoss ? 4.2 : 1.05, isBoss ? 4.2 : 1.05, { cy: 0.45, add: true, opacity: isBoss ? 0.7 : 0.22 });
-        g.position.y = isBoss ? 2.0 : 0.55;
+        const gs = isBoss ? 4.2 : 1.05 * SPIRIT_VIEW_SCALE;
+        const g = imgSprite(glow, gs, gs, { cy: 0.45, add: true, opacity: isBoss ? 0.7 : 0.22 });
+        g.position.y = isBoss ? 2.0 : 0.55 * SPIRIT_VIEW_SCALE;
         g.material.depthTest = false;
         g.renderOrder = 1;
         group.add(g);
@@ -559,8 +562,9 @@ export async function buildArt(THREE) {
       if (!isBoss && spr.material && spr.material.color) spr.material.color.setRGB(0.75, 1.45, 1.15);
       const auraFile = atlas.onebell && atlas.onebell.aura && String(atlas.onebell.aura).split(' ')[0];
       if (auraFile && tex(auraFile)) {
-        const au = imgSprite(tex(auraFile), isBoss ? 2.4 : 1.6, isBoss ? 1.1 : 0.72, { cy: 0.5, add: true, opacity: 0 });
-        au.position.y = isBoss ? 1.8 : 1.0;
+        const ak = isBoss ? 1 : SPIRIT_VIEW_SCALE;
+        const au = imgSprite(tex(auraFile), isBoss ? 2.4 : 1.6 * ak, isBoss ? 1.1 : 0.72 * ak, { cy: 0.5, add: true, opacity: 0 });
+        au.position.y = isBoss ? 1.8 : 1.0 * ak;
         au.visible = false;
         au.material.depthTest = false;
         au.renderOrder = 3;

@@ -53,7 +53,7 @@ const CFG = {
   spawnZombieDelay: 5, practiceZombieMs: 3200, practiceZombieMax: 2, earlyZombieMax: 4, earlyZombieUntil: 25,
   spiritCapStart: 1, spiritMax: 4, sameShapeMax: 2, spiritExitMul: 1.08, spiritDimAlpha: 0.35, spiritGlowAlpha: 0.5,
   ringScreenFrac: 0.70, ringMaxFrac: 0.90, ringBoost: 0.14, ringLvMax: 4,
-  spiritOmega: 2.8, spiritAvoidMax: 0.30, spiritAvoidOmega: 8, bossSpeed: 1.0, bossSpawnR: 10,
+  spiritOmega: 2.8, spiritAvoidMax: 0.30, spiritAvoidOmega: 8, bossSpeed: 1.0, bossSpawnR: 14,
   dashThroughMul: 1.5, dashPastTarget: 0.8, playBound: 28,
   landBounce: 0.28, landBounceT: 0.16, landRippleDur: 0.45,
   landIframe: 0.25, landShockR: 1.6, landPush: 1.2, landStun: 0.3, landPast: 1.0,
@@ -61,9 +61,9 @@ const CFG = {
   hitstopKill: 0.06, hitstopKillMax: 0.12, hitHitstop: 0.08, hitKnock: 0.6,
   recoilU: 0.12, recoilT: 0.12, hurtVignette: 0.3,
   aimConeCos: 0.5, aimNearW: 0.35, telegraphRange: 3.2,
-  spiritRing: [5, 7.2], zombieRing: [7, 10.5],
+  spiritRing: [5, 7.2], zombieRing: [9, 13],
   zombieSpeed: 2.15, spiritSpeed: 0.55,
-  camOff: { x: 7.2, y: 11.2, z: 7.2 }, camLookY: 1.2, fov: 62,
+  camOff: { x: 14.4, y: 22.4, z: 14.4 }, camLookY: 1.2, fov: 62,
   markMinCss: 40, markMaxCss: 72,
   bpm: 100, beatWindow: 0.09, beatGood: 0.18, comboTimeout: 2.8,
   perfectDmgMul: 1, comboBurstAt: [4, 8, 12],
@@ -229,7 +229,7 @@ async function makeWorld() {
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(clear);
-  scene.fog = new THREE.FogExp2(clear, 0.014);
+  scene.fog = new THREE.FogExp2(clear, 0.007);
 
   const camera = new THREE.PerspectiveCamera(CFG.fov || 38, view.clientWidth / Math.max(1, view.clientHeight), 0.1, 200);
   camera.position.set(CFG.camOff.x, CFG.camOff.y, CFG.camOff.z);
@@ -1330,7 +1330,7 @@ function updateMarks() {
     const info = beatInfo();
     const pulse = S.beatPulse || 0;
     const nowCue = !!(info && info.perfect);
-    const rad0 = 22 + pulse * 14;
+    const rad0 = 15 + pulse * 10;
     ctx.save();
     ctx.beginPath();
     ctx.arc(hx, hy, rad0, 0, 7);
