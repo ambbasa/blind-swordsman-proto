@@ -507,7 +507,6 @@ export async function buildArt(THREE) {
       addRim(group, 0x3ec8c0, 1.12);
       addTelegraph(group, H);
       attachStatus(group, H);
-      attachHangingBell(group, sheet, H, false);
     } else if (kind === 'spirit' || kind === 'boss') {
       const isBoss = kind === 'boss';
       const spiritSheet = !isBoss && spiritAnimSheet();

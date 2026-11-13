@@ -51,9 +51,9 @@ const CFG = {
   spawnZombieMax: 16, spawnSpiritMax: 0,
   spawnZombieMinMs: 450, spawnSpiritMinMs: 480,
   spawnZombieDelay: 5, practiceZombieMs: 3200, practiceZombieMax: 2, earlyZombieMax: 4, earlyZombieUntil: 25,
-  startSpirits: 1, spiritMax: 4, markedMax: 4, markedStart: 0, sameShapeMax: 2,
+  spiritCapStart: 1, spiritMax: 4, sameShapeMax: 2, spiritExitMul: 1.08, spiritDimAlpha: 0.35, spiritGlowAlpha: 0.5,
   ringScreenFrac: 0.70, ringMaxFrac: 0.90, ringBoost: 0.14, ringLvMax: 4,
-  spiritOmega: 2.8, spiritAvoidMax: 0.30, spiritAvoidOmega: 8, lockKeep: 3.0, lockRelinquish: 1.85,
+  spiritOmega: 2.8, spiritAvoidMax: 0.30, spiritAvoidOmega: 8, bossSpeed: 1.0, bossSpawnR: 10,
   dashThroughMul: 1.5, dashPastTarget: 0.8, playBound: 28,
   landBounce: 0.28, landBounceT: 0.16, landRippleDur: 0.45,
   landIframe: 0.25, landShockR: 1.6, landPush: 1.2, landStun: 0.3, landPast: 1.0,
@@ -79,7 +79,7 @@ const RUN_UPGRADES = [
   { id: 'dmg', name: '돌진 데미지', desc: '일섬이 좀비에게 더 큰 상처를 남깁니다.' },
   { id: 'width', name: '경로 폭', desc: '베기 선이 넓어져 더 많은 것을 스칩니다.' },
   { id: 'dash', name: '일섬 횟수', desc: '같은 모양 혼령 방향으로 한 번 더 이어 돌진합니다.' },
-  { id: 'ring', name: '푸른 원 반경', desc: '심안 원이 넓어져 혼령이 더 멀리 돕니다.' },
+  { id: 'ring', name: '푸른 원 반경', desc: '심안 원이 넓어져 좀비를 더 멀리서 느낍니다.' },
   { id: 'heal', name: '체력 회복', desc: '체력을 회복하고 이번 판 최대 체력이 조금 늘어납니다.' },
   { id: 'wealth', name: '엽전 주머니', desc: '이번 판 코인 획득이 늘어납니다.' },
   { id: 'ice', name: '일섬·얼음', desc: '경로에 맞은 좀비가 일정 시간 얼어붙습니다.' },
@@ -308,7 +308,8 @@ function startRun(opts) {
     beatPulse: 0, lastBeat: -1,
     sightWave: 0, parryT: 0, lastParry: null, lastStrokeDir: null,
     hitstop: 0, hurtFlash: 0, aimTarget: null, bellPans: [], recoil: null,
-    ringR: 0, ringLv: 0, bounce: null, landRipple: null
+    ringR: 0, ringLv: 0, bounce: null, landRipple: null,
+    spiritCap: CFG.spiritCapStart
   };
   S.runNo = opts.sandbox ? SHAPE_UNLOCK.length : (save.runs || 1);
   S.pool = unlockedShapes(S.runNo);
@@ -332,10 +333,6 @@ function startRun(opts) {
   three.camera.lookAt(0, CFG.camLookY, 0);
   applyCameraLens();
   applyRingBoost();
-  if (!opts.sandbox) {
-    const n0 = CFG.startSpirits || 1;
-    for (let i = 0; i < n0; i++) spawnSpirit({ angle: (Math.PI * 2 * i) / Math.max(1, n0) });
-  }
   renderHud();
   lastTs = 0;
   if (audio) { audio.setQuiet(qa.mute, qa.noDelay); audio.startBgm(); }
@@ -535,40 +532,27 @@ function livingThreats() {
   if (!S) return [];
   return (S.zombies || []).filter(function (z) { return z.alive; });
 }
-function lockStillGood(s, z) {
-  if (!z || !z.alive) return false;
-  const d = dist(z, S.hero);
-  const R = ringR();
-  const others = livingThreats().filter(function (q) { return q !== z; });
-  let near = 1e9;
-  others.forEach(function (q) { near = Math.min(near, dist(q, S.hero)); });
-  if (near < 1e8 && d > Math.max((CFG.lockKeep || 3) * R, near * (CFG.lockRelinquish || 1.85)) && d > near * 1.5) return false;
-  return true;
-}
+/* A spirit appears only for a threat inside the mind's-eye ring: the nearest ones (boss first) up to the spirit cap. */
 function assignSpiritTargets() {
   if (!S) return;
-  const zs = livingThreats().slice();
-  zs.sort(function (a, b) {
+  const R = ringR();
+  const cap = Math.min(CFG.spiritMax || 4, S.spiritCap || 1);
+  const bound = livingMarks().filter(function (s) { return !s.free; });
+  const near = livingThreats().filter(function (z) {
+    const held = bound.some(function (s) { return s.target === z; });
+    return dist(z, S.hero) < R * (held ? (CFG.spiritExitMul || 1.08) : 1);
+  });
+  near.sort(function (a, b) {
     if (a.isBoss && !b.isBoss) return -1;
     if (b.isBoss && !a.isBoss) return 1;
     return dist(a, S.hero) - dist(b, S.hero);
   });
-  const used = {};
-  livingMarks().forEach(function (s) {
-    if (s.target && lockStillGood(s, s.target) && !used[s.target.id]) {
-      used[s.target.id] = true;
-    } else {
-      s.target = null;
-    }
+  const want = near.slice(0, cap);
+  bound.forEach(function (s) {
+    if (!s.target || !s.target.alive || want.indexOf(s.target) < 0) destroySpirit(s);
   });
-  livingMarks().forEach(function (s) {
-    if (s.target) return;
-    for (let i = 0; i < zs.length; i++) {
-      if (used[zs[i].id]) continue;
-      s.target = zs[i];
-      used[zs[i].id] = true;
-      break;
-    }
+  want.forEach(function (z) {
+    if (!livingMarks().some(function (s) { return s.target === z; })) spawnSpirit({ x: z.x, z: z.z, target: z });
   });
 }
 function zombieScreenBody(z) {
@@ -651,8 +635,20 @@ function stepSpirits(dt) {
   });
   livingMarks().forEach(function (s) {
     placeSpiritOnRing(s);
+    setSpiritAlpha(s);
     if (art.tickChar) art.tickChar(s.obj, 'spirit', 'idle', Math.min(0.05, dt), 0, 0);
   });
+}
+function setSpiritAlpha(s) {
+  const ud = s && s.obj && s.obj.userData;
+  if (!ud) return;
+  const dim = CFG.spiritDimAlpha == null ? 0.35 : CFG.spiritDimAlpha;
+  const k = Math.max((S && S.beatPulse) || 0, (S && S.sightWave) || 0);
+  const a = dim + (1 - dim) * clamp(k, 0, 1);
+  if (ud.sprite && ud.sprite.material) { ud.sprite.material.transparent = true; ud.sprite.material.opacity = a; }
+  const bell = ud.bellHang && ud.bellHang.bell;
+  if (bell && bell.material) { bell.material.transparent = true; bell.material.opacity = a; }
+  if (ud.glow && ud.glow.material) ud.glow.material.opacity = (CFG.spiritGlowAlpha || 0.5) * a;
 }
 function addSpirit(opts) {
   opts = opts || {};
@@ -691,7 +687,8 @@ function spawnSpirit(opts) {
   }
   const e = {
     id: ++S._id, kind: 'spirit', shape: shape, angle: angNorm(angle),
-    x: 0, z: 0, r: 0.7, alive: true, hp: 1, isBoss: false, target: null, avoid: 0
+    x: 0, z: 0, r: 0.7, alive: true, hp: 1, isBoss: false, target: opts.target || null, avoid: 0,
+    free: !opts.target
   };
   const vis = (S.bellT > 0 && S.bellShape) ? S.bellShape : e.shape;
   e.obj = addEntityVisual('spirit', vis);
@@ -699,7 +696,7 @@ function spawnSpirit(opts) {
   placeSpiritOnRing(e);
   S.spirits.push(e);
   if (S.practiceSpawns > 0 && S.practiceShape && e.shape === S.practiceShape) S.practiceSpawns--;
-  assignSpiritTargets();
+  setSpiritAlpha(e);
   return e;
 }
 function spawnBoss(opts) {
@@ -790,7 +787,7 @@ function refreshTitleHelp() {
 function spawnPool() {
   if (!S) return unlockedShapes(1);
   if (S.sandbox) return SHAPE_UNLOCK.slice();
-  if ((S.practiceT > 0 || S.practiceSpawns > 0) && S.practiceShape) return [S.practiceShape];
+  if (S.practiceT > 0 && S.practiceSpawns > 0 && S.practiceShape) return [S.practiceShape];
   return (S.pool && S.pool.length) ? S.pool.slice() : unlockedShapes(S.runNo || 1);
 }
 function leastUsedShape() {
@@ -1438,17 +1435,7 @@ function tickBeat(dt) {
     }
     playBeatBell();
     triggerSightWave();
-    livingMarks().forEach(function (s) {
-      if (!s.obj || !s.obj.userData || !s.obj.userData.glow) return;
-      const g = s.obj.userData.glow;
-      if (g.material) g.material.opacity = 0.95;
-    });
   }
-  livingMarks().forEach(function (s) {
-    if (!s.obj || !s.obj.userData || !s.obj.userData.glow || !s.obj.userData.glow.material) return;
-    const g = s.obj.userData.glow;
-    g.material.opacity += (0.7 - g.material.opacity) * Math.min(1, dt * 6);
-  });
   if (S.beatPulse > 0) S.beatPulse = Math.max(0, S.beatPulse - dt / 0.22);
 }
 function triggerComboBurst(n) {
@@ -1957,7 +1944,7 @@ function gainXp(n) {
   while (S.xp >= xpNeed(S.level)) {
     S.xp -= xpNeed(S.level);
     S.level++;
-    if (livingMarks().length < (CFG.spiritMax || 4)) addSpirit({ force: true });
+    S.spiritCap = Math.min(CFG.spiritMax || 4, (S.spiritCap || 1) + 1);
     openLevelUp();
   }
 }
@@ -2054,20 +2041,20 @@ function step(dt) {
     if (S.bellT <= 0) endBell();
   }
   if (!S.sandbox && !S.bossSpawned && S.elapsed >= CFG.bossAt) {
-    spawnBoss({ r: 16, nShapes: CFG.bossShapes });
+    spawnBoss({ r: CFG.bossSpawnR, nShapes: CFG.bossShapes });
     toast('큰 종을 든 귀물이 나타났어요');
   }
   const wave = 1 + 0.7 * clamp(S.elapsed / CFG.timeLimit, 0, 1);
   if (!S.sandbox) {
     S.zAcc += dt * 1000;
     S.sAcc += dt * 1000;
-    const practicing = (S.practiceT > 0) || (S.practiceSpawns > 0);
+    const practicing = (S.practiceT > 0) && (S.practiceSpawns > 0);
     const delayed = S.elapsed < (CFG.spawnZombieDelay || 12);
     const early = S.elapsed < (CFG.earlyZombieUntil || 25);
     let zMax = CFG.spawnZombieMax || 16;
     let zBase = CFG.spawnZombieMs;
-    if (delayed) { S.zAcc = 0; zMax = 0; }
-    else if (practicing) { zMax = CFG.practiceZombieMax || 2; zBase = CFG.practiceZombieMs || 3200; }
+    if (practicing) { zMax = CFG.practiceZombieMax || 2; zBase = CFG.practiceZombieMs || 3200; }
+    else if (delayed) { S.zAcc = 0; zMax = 0; }
     else if (early) { zMax = CFG.earlyZombieMax || 4; zBase = Math.max(zBase, 2000); }
     const zms = Math.max(CFG.spawnZombieMinMs || 450, zBase / (practicing || delayed ? 1 : wave));
     while (zMax > 0 && S.zAcc >= zms && S.zombies.filter(function (z) { return z.alive && !z.isBoss; }).length < zMax) {
@@ -2112,9 +2099,10 @@ function step(dt) {
     if (!z.alive) return;
     const d = dist(z, S.hero) || 0.001;
     const frozen = z.frozen > 0 || (z.stun || 0) > 0;
-    if (!qa.noMove && !frozen && !z.isBoss) {
-      z.x += (S.hero.x - z.x) / d * zsp * dt;
-      z.z += (S.hero.z - z.z) / d * zsp * dt;
+    if (!qa.noMove && !frozen) {
+      const sp = z.isBoss ? (CFG.bossSpeed || 1) : zsp;
+      z.x += (S.hero.x - z.x) / d * sp * dt;
+      z.z += (S.hero.z - z.z) / d * sp * dt;
     }
     placeGroup(z.obj, z.x, z.z);
     if (art.tickChar) {
@@ -2124,9 +2112,9 @@ function step(dt) {
       art.tickChar(z.obj, kind, st, Math.min(0.05, dt), vx, vz);
     }
     if (art.setTelegraph && !z.isBoss) art.setTelegraph(z.obj, !frozen && d < (CFG.telegraphRange || 3.2));
-    if (!z.isBoss && d < z.r + 0.55) {
+    if (d < z.r + 0.55) {
       if ((S.iframe || 0) <= 0 && !S.dash) {
-        S.hp -= CFG.dmg;
+        S.hp -= z.isBoss ? (CFG.bossDmg || 3) : CFG.dmg;
         S.iframe = CFG.iframeMs / 1000;
         S.hitstop = Math.max(S.hitstop || 0, CFG.hitHitstop || 0.08);
         S.hurtFlash = CFG.hurtVignette || 0.3;
@@ -2140,7 +2128,7 @@ function step(dt) {
         renderHud();
         if (S.hp <= 0) { endRun(false, '좀비에게 닿았습니다.'); return; }
       }
-      const push = 1.2;
+      const push = Math.max(1.2, z.r + 0.65);
       z.x = S.hero.x - (S.hero.x - z.x) / d * push;
       z.z = S.hero.z - (S.hero.z - z.z) / d * push;
     }
@@ -2338,7 +2326,8 @@ function finishStroke(pts, opts) {
   S.lastStrokeDir = dir;
   rec.dir = dir;
   /* A boss waiting on a tap takes the tap; otherwise nearby zombies would always turn it into a parry. */
-  const bossWantsTap = rec.type === 'tap' && S.boss && S.boss.alive && S.boss.seq && S.boss.seq[S.boss.seqI] === 'tap';
+  const bossWantsTap = rec.type === 'tap' && S.boss && S.boss.alive && S.boss.seq && S.boss.seq[S.boss.seqI] === 'tap'
+    && livingMarks().some(function (m) { return m.target === S.boss; });
   if (rec.type === 'tap' && !bossWantsTap) {
     const threat = closeZombie();
     if (threat) {
