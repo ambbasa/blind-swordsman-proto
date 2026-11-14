@@ -133,7 +133,7 @@ const STAGES = [
     spawn: { ms: 1150, max: 13, earlyMax: 5, earlyMinMs: 1500 },
     boss: { telegraph: 1.35, charge: 16, adds: 0 },
     starCombo: 8,
-    atmo: { clear: 0x1b1a1c, fog: 0.0075, moon: 1.35, tint: 'rgba(150,175,190,0.10)' }
+    atmo: { clear: 0x1b1a1c, fog: 0.0075, moon: 1.35, hemi: 0x6a6860, ground: 0x1a1612, moonCol: 0xc8c0b0, tint: 'linear-gradient(180deg, rgba(96,112,130,0.12) 0%, rgba(34,44,54,0.18) 100%)' }
   },
   {
     id: 2, name: '무너진 성문', sub: '성곽 위에 매달린 원혼', map: 'map2', tag: '가로 · 세로',
@@ -150,7 +150,7 @@ const STAGES = [
     spawn: { ms: 1000, max: 16, earlyMax: 6, earlyMinMs: 1400 },
     boss: { telegraph: 1.2, charge: 18, adds: 0 },
     starCombo: 12,
-    atmo: { clear: 0x141a26, fog: 0.0092, moon: 1.15, tint: 'rgba(90,120,200,0.12)' }
+    atmo: { clear: 0x141a26, fog: 0.0092, moon: 1.15, hemi: 0x5c6a8c, ground: 0x11141c, moonCol: 0xa9b8dd, tint: 'linear-gradient(180deg, rgba(44,64,150,0.20) 0%, rgba(8,18,58,0.26) 100%)' }
   },
   {
     id: 3, name: '대나무 골', sub: '서낭당 너머로 우는 소리', map: 'map3', tag: 'V 두 획',
@@ -168,7 +168,7 @@ const STAGES = [
     spawn: { ms: 900, max: 18, earlyMax: 7, earlyMinMs: 1250 },
     boss: { telegraph: 1.1, charge: 19, adds: 2 },
     starCombo: 16,
-    atmo: { clear: 0x121a15, fog: 0.0098, moon: 1.05, tint: 'rgba(80,160,120,0.12)' }
+    atmo: { clear: 0x121a15, fog: 0.0098, moon: 1.05, hemi: 0x5d7a63, ground: 0x12160f, moonCol: 0xb4d2b4, tint: 'linear-gradient(180deg, rgba(28,92,60,0.18) 0%, rgba(6,26,16,0.26) 100%)' }
   },
   {
     id: 4, name: '붉은 달', sub: '모든 획이 열린 밤', map: 'map1', tag: '번개 획',
@@ -187,7 +187,7 @@ const STAGES = [
     spawn: { ms: 820, max: 20, earlyMax: 8, earlyMinMs: 1100 },
     boss: { telegraph: 1.0, charge: 21, adds: 3 },
     starCombo: 20,
-    atmo: { clear: 0x1c0f12, fog: 0.0105, moon: 1.25, tint: 'rgba(220,60,50,0.16)' }
+    atmo: { clear: 0x1c0f12, fog: 0.0105, moon: 1.25, hemi: 0x8a5a52, ground: 0x1e1210, moonCol: 0xff9c84, tint: 'linear-gradient(180deg, rgba(150,32,28,0.22) 0%, rgba(52,6,8,0.28) 100%)' }
   }
 ];
 function stageOf(n) { return STAGES[clamp((n | 0) || 1, 1, STAGES.length) - 1]; }
@@ -3348,8 +3348,13 @@ function applyStageAtmo(st) {
       if (three.scene.fog) { three.scene.fog.color.set(clear); three.scene.fog.density = a.fog != null ? a.fog : 0.007; }
     }
     if (three.sky && three.sky.material && three.sky.material.color) three.sky.material.color.set(clear);
-    if (three.moon) three.moon.intensity = a.moon != null ? a.moon : 1.45;
+    if (three.moon) {
+      three.moon.intensity = a.moon != null ? a.moon : 1.45;
+      if (a.moonCol != null && three.moon.color) three.moon.color.setHex(a.moonCol);
+    }
     if (three.amb) three.amb.intensity = a.amb != null ? a.amb : 1.0;
+    if (three.hemi && a.hemi != null) three.hemi.color.setHex(a.hemi);
+    if (three.hemi && a.ground != null) three.hemi.groundColor.setHex(a.ground);
     if (three.renderer) three.renderer.setClearColor(clear, 1);
   }
   const tint = $('stageTint');

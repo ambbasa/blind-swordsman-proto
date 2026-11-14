@@ -346,7 +346,7 @@ body { font-family: "InkSerif", "Apple SD Gothic Neo", "Noto Sans KR", serif; }
 /* ===== 스테이지 선택·인트로·정산 (모바일 게임식 진행 연출) ===== */
 #stageTint {
   position: absolute; inset: 0; z-index: 3; pointer-events: none;
-  background: transparent; mix-blend-mode: screen; opacity: .55;
+  background: transparent; mix-blend-mode: normal; opacity: 1;
   transition: background .7s ease;
 }
 .stage-select { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin: 2px 0 8px; }
