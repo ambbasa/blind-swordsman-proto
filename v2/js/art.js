@@ -118,17 +118,19 @@ export async function buildArt(THREE) {
     ? atlas.spiritAnim.cell[1] / pxPerMeter
     : heroH * 1.05;
   /* Spirits are small will-o'-wisps over zombies; the shape mark sits in the orb, a rattle at the side. */
-  const SPIRIT_VIEW_SCALE = 1.2;
-  const SPIRIT_MARK_K = 0.42;
+  const SPIRIT_VIEW_SCALE = 1.45;
+  /* 0.26: the mark box is ~57% of the orb's diameter, so the glyph sits inside the orb instead of
+     spilling over its rim. game.js draws the glyph at 0.82 of the orb, centred on this point. */
+  const SPIRIT_MARK_K = 0.26;
   const SPIRIT_RATTLE_K = 0.34;
   let rattleTexCache = null;
   function rattleTex() {
     if (!rattleTexCache) { rattleTexCache = new THREE.CanvasTexture(drawRattle()); rattleTexCache.colorSpace = THREE.SRGBColorSpace; }
     return rattleTexCache;
   }
-  /* Mark at the orb's bright centre (cell px 128,112) and a shaman's rattle held at the side, swinging. */
+  /* Mark at the orb's bright centre (cell px 128,128) and a shaman's rattle held at the side, swinging. */
   function attachSpiritMark(group, sheet, worldH, shape) {
-    const c = localFromPx(sheet, worldH, [128, 112]);
+    const c = localFromPx(sheet, worldH, [128, 128]);
     const size = worldH * SPIRIT_MARK_K;
     const mark = imgSprite(getHangBellTex(shape), size, size, { cx: 0.5, cy: 0.5, alphaTest: 0.02 });
     mark.material.depthTest = false;
