@@ -145,6 +145,61 @@ export function createAudio() {
 
   function setLastPans(list) { lastPans = (list || []).slice(); }
 
+  /* 회수된 혼령의 요령: 한 번만 짧게 젖혀진 소리. */
+  function bellCut(pan, shape) {
+    if (quiet) return;
+    const c = resume(); if (!c) return;
+    const t0 = c.currentTime + 0.003;
+    const f0 = BELL_PITCH[shape] || 3000;
+    const out = c.createGain();
+    out.gain.value = 0.8;
+    if (c.createStereoPanner) {
+      const p = c.createStereoPanner();
+      p.pan.setValueAtTime(pan == null ? 0 : Math.max(-1, Math.min(1, pan)), t0);
+      out.connect(p); p.connect(sfxGain);
+    } else out.connect(sfxGain);
+    for (let b = 0; b < 4; b++) {
+      const tb = t0 + Math.random() * 0.03;
+      const f = f0 * (1 + (Math.random() - 0.5) * BELL.pitchSpread);
+      BELL.ratios.slice(0, 2).forEach(function (r, i) {
+        const o = c.createOscillator();
+        const g = c.createGain();
+        o.type = 'sine';
+        o.frequency.setValueAtTime(f * r, tb);
+        g.gain.setValueAtTime(0.0001, tb);
+        g.gain.linearRampToValueAtTime(BELL.peak * 0.55 * BELL.gains[i], tb + 0.002);
+        g.gain.exponentialRampToValueAtTime(0.0001, tb + BELL.decay[i] * 0.7);
+        o.connect(g); g.connect(out);
+        o.start(tb); o.stop(tb + 0.2);
+      });
+    }
+    noise(t0, 0.02, 'bandpass', 6000, 2.4, BELL.clink * 0.6, out);
+  }
+
+  /* 패링 실패: 허공을 가른 짧은 바람 소리. */
+  function whiff() {
+    if (quiet) return;
+    const c = resume(); if (!c) return;
+    const t0 = c.currentTime;
+    noise(t0, 0.09, 'highpass', 900, 0.7, 0.16);
+    tone(t0, 620, 0.08, 0.05, 'sine', sfxGain, 300);
+  }
+
+  /* 자석 수집: 개수만큼 올라가는 청동 음계('딩딩딩'). */
+  function pickup(n) {
+    if (quiet) return;
+    const c = resume(); if (!c) return;
+    const t0 = c.currentTime;
+    const cnt = Math.max(1, Math.min(8, n || 1));
+    const scale = [784, 880, 988, 1175, 1319, 1568, 1760, 1976];
+    for (let i = 0; i < cnt; i++) {
+      const tb = t0 + i * 0.055;
+      const f = scale[i % scale.length];
+      tone(tb, f, 0.12, 0.07, 'sine', sfxGain);
+      tone(tb, f * 2.01, 0.08, 0.03, 'sine', sfxGain);
+    }
+  }
+
   function drum() {
     if (quiet) return;
     const c = resume(); if (!c) return;
@@ -278,6 +333,9 @@ export function createAudio() {
     setQuiet: setQuiet,
     resume: resume,
     bell: bell,
+    bellCut: bellCut,
+    whiff: whiff,
+    pickup: pickup,
     slash: slash,
     hit: hit,
     explode: explode,
@@ -292,7 +350,7 @@ export function createAudio() {
       return {
         synth: true,
         bpm: 100,
-        kinds: ['slash', 'hit', 'explode', 'bell', 'drum', 'bgm-daegeum-buk'],
+        kinds: ['slash', 'hit', 'explode', 'bell', 'bellCut', 'whiff', 'pickup', 'drum', 'bgm-daegeum-buk'],
         muted: muted,
         bgmOn: bgmOn,
         source: 'original-webaudio',

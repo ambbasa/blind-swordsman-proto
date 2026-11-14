@@ -266,6 +266,17 @@ body { font-family: "InkSerif", "Apple SD Gothic Neo", "Noto Sans KR", serif; }
 }
 #xpFill { background: linear-gradient(90deg, #8a6a22, var(--gold) 70%, #fff0b8); box-shadow: 0 0 8px rgba(217,180,90,.7); }
 
+/* 참(斬) 게이지 — 차오를수록 옥빛에서 금빛으로 */
+#chargeWrap {
+  flex: 0 0 54px; height: 5px; background: rgba(239,228,204,.12); position: relative;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
+}
+#chargeFill { height: 100%; width: 0; background: linear-gradient(90deg, #2e8f7a, #5BE8C4 70%, #e8f8ee); box-shadow: 0 0 8px rgba(91,232,196,.8); transition: width .12s linear; }
+#chargeWrap.full #chargeFill { background: linear-gradient(90deg, #a07a1e, #E8C04A 60%, #fff6cf); box-shadow: 0 0 12px rgba(232,192,74,.95); }
+#chargeText { font-size: 11px !important; color: var(--paper); opacity: .8; }
+#chargeWrap.full + #chargeText { color: #E8C04A; opacity: 1; }
+
 #toast {
   top: 17%; padding: 9px 22px; border-radius: 2px;
   background: linear-gradient(90deg, rgba(8,7,6,0), rgba(8,7,6,.92) 14%, rgba(8,7,6,.92) 86%, rgba(8,7,6,0));

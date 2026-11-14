@@ -165,6 +165,20 @@
     sc *= clamp01((0.28 - dev) / 0.28);
     return sc;
   }
+  /* 직선을 '축'이 아니라 '방향'으로 판정한다. 모바일 엄지의 35~55° 대각선이 사각지대에 빠지지 않게,
+     가장 가까운 축(세로/가로)으로 흡수하고 45° 근처(tie)는 조준으로 확정하도록 넘긴다. */
+  function scoreLineAxis(pts, bb, L) {
+    var a = pts[0], b = pts[pts.length - 1];
+    var s = straightness(pts), dev = lineDev(pts, a, b) / L;
+    var ny = Math.abs(b.y - a.y) / L, nx = Math.abs(b.x - a.x) / L;
+    var span = Math.max(bb.w, bb.h);
+    if (span < 40 || L < 56) return null;
+    if (s < 0.86 || dev > 0.10) return null;
+    var axis = ny >= nx ? 'vline' : 'hline';
+    var lean = Math.max(ny, nx);
+    var score = clamp01((lean - 0.62) / 0.25) * 0.9 + 0.1;
+    return { type: axis, score: score, tie: Math.abs(ny - nx) < 0.06 };
+  }
   function scoreVee(pts, bb, L) {
     if (bb.w < 28 || bb.h < 28) return 0;
     var vi = vertexIndex(pts);
@@ -226,9 +240,9 @@
     return sc;
   }
   function scoreBolt(pts, bb, L) {
-    if (bb.h < 40) return 0;
-    var simple = simplify(pts, Math.max(8, bb.diag * 0.1));
-    if (simple.length < 4 || simple.length > 8) return 0;
+    if (bb.h < 24) return 0;
+    var simple = simplify(pts, Math.max(8, bb.diag * 0.13));
+    if (simple.length < 3 || simple.length > 7) return 0;
     var netY = simple[simple.length - 1].y - simple[0].y;
     if (netY / bb.h < 0.2 && bb.h / bb.w < 0.7) {
       // horizontal Z still ok if 3 segments zigzag
@@ -244,12 +258,12 @@
     }
     var closure = dist(pts[0], pts[pts.length - 1]) / L;
     var sc = 1;
-    sc *= clamp01((flips - 1.1) / 1.2);
-    sc *= clamp01((simple.length - 3.1) / 1.2) * clamp01((8.2 - simple.length) / 3);
+    sc *= clamp01((flips - 0.9) / 1.2);
+    sc *= clamp01((simple.length - 2.9) / 1.2) * clamp01((7.4 - simple.length) / 2.6);
     sc *= clamp01((closure - 0.2) / 0.3);
-    sc *= clamp01((Math.max(bb.w, bb.h) - 40) / 40);
-    // must not be a plain V (3 corners) or circle
-    if (flips < 2) sc *= 0.2;
+    sc *= clamp01((Math.max(bb.w, bb.h) - 30) / 40);
+    /* must not be a plain V (3 corners) or circle */
+    if (flips < 2) sc *= 0.6;
     return sc;
   }
 
@@ -350,13 +364,15 @@
     if (L < 36) return { type: null, reason: 'short', scores: {}, label: null };
     var rs = resample(pts, 48);
     var bb = bbox(rs);
+    var axis = scoreLineAxis(rs, bb, pathLen(rs));
     var scores = {
       vline: scoreVline(rs, bb, pathLen(rs)),
       hline: scoreHline(rs, bb, pathLen(rs)),
       vee: scoreVeeAny(rs, bb, pathLen(rs)),
       circle: scoreCircle(rs, bb, pathLen(rs)),
       square: scoreSquare(rs, bb, pathLen(rs)),
-      bolt: scoreBoltAny(rs, bb, pathLen(rs))
+      bolt: scoreBoltAny(rs, bb, pathLen(rs)),
+      axisLine: axis ? axis.score : 0
     };
     var allowBolt = !!opts.allowBolt;
     var keys = ['vline', 'hline', 'vee', 'circle', 'square'];
@@ -377,6 +393,12 @@
       best = 'circle'; bestS = scores.circle;
     }
     var stable = best === 'circle' || best === 'square';
+    /* 대각선 흡수: 충분히 곧은 획은 가장 가까운 축의 직선으로 확정한다. */
+    var axisPick = null;
+    if (axis && axis.score >= TH && axis.score + 0.10 >= bestS) { axisPick = axis; best = axis.type; bestS = axis.score; }
+    if (axisPick && axisPick.tie) {
+      return { type: axis.type, reason: null, tie: true, scores: scores, label: LABELS[axis.type], best: axis.type, bestScore: bestS, axis: axis.type };
+    }
     if (!best || bestS < TH || (second > 0 && bestS - second < MARGIN && second >= TH * 0.9 && !stable)) {
       return { type: null, reason: best ? 'ambiguous' : 'unknown', scores: scores, label: null, best: best, bestScore: bestS };
     }
@@ -404,6 +426,12 @@
 
   var API = {
     recognize: recognize,
+    scoreLineAxis: function (pts) {
+      if (!pts || pts.length < 2) return null;
+      var d = densify(pts, 10);
+      var bb = bbox(d);
+      return scoreLineAxis(d, bb, pathLen(d));
+    },
     veeApex: veeApex,
     readMessage: readMessage,
     resample: resample,

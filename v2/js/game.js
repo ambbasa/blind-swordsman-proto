@@ -42,36 +42,54 @@ const CFG = {
   coinPerKill: 3, comboExtra: 2,
   idlePerMin: 4, idleMaxHours: 8,
   upgradeBase: 15, atkStep: 0.05, hpStep: 3, coinStep: 0.25, maxLv: 10,
-  xpBase: 8, xpStep: 6, xpPerKill: 1,
+  xpBase: 4, xpStep: 5, xpPerKill: 1,
   dashDur: 0.28, pathRadius: 1.35, dashDmg: 2.5, spiritHp: 1,
   /* Zombie kinds: hp grows over the run by (1 + hpGrowth * t / timeLimit). */
   zombieTypes: {
     imp: { hp: 2, speed: 1.0, r: 0.55, dmg: 1, xp: 1, coin: 1 },
     brute: { hp: 5, speed: 0.9, r: 0.7, dmg: 1, xp: 2, coin: 2 },
-    stone: { hp: 10, speed: 0.6, r: 0.9, dmg: 2, xp: 3, coin: 3 }
+    stone: { hp: 10, speed: 0.6, r: 0.9, dmg: 2, xp: 3, coin: 3 },
+    /* 정예 원귀: 금테를 두른 느린 귀물. 처치하면 부적 상자(강화 3연속)를 떨어뜨린다. */
+    elite: { hp: 12, speed: 0.8, r: 0.85, dmg: 1, xp: 5, coin: 6 }
   },
   zombieMix: [[0, { imp: 1 }], [25, { imp: 0.75, brute: 0.25 }], [45, { imp: 0.55, brute: 0.3, stone: 0.15 }]],
-  hpGrowth: 0.6,
+  hpGrowth: 0.45,
   comboMulStep: 0.05, comboMulCap: 20, pierceFalloff: 0.85,
   spreadR: 1.5, iceSlowDur: 2, iceSlowMul: 0.5, poisonCloudR: 2, poisonCloudDur: 3,
-  dashCount: 1, spawnZombieMs: 1000, spawnSpiritMs: 950,
-  spawnZombieMax: 16, spawnSpiritMax: 0,
-  spawnZombieMinMs: 450, spawnSpiritMinMs: 480,
-  spawnZombieDelay: 3, practiceZombieMs: 3200, practiceZombieMax: 2, earlyZombieMax: 4, earlyZombieUntil: 15, earlyZombieMinMs: 1400,
-  spiritStreamAlpha: 0.7, spiritFadeIn: 0.4, spiritAlpha: 0.9, spiritHover: 1.05, spiritCapStart: 1, spiritMax: 4, sameShapeMax: 2, spiritGlowAlpha: 0.5,
+  dashCount: 1, spawnZombieMs: 900,
+  spawnZombieMax: 20,
+  spawnZombieMinMs: 450,
+  spawnZombieDelay: 1.2, practiceZombieMs: 3200, practiceZombieMax: 2, earlyZombieMax: 6, earlyZombieUntil: 15, earlyZombieMinMs: 1400,
+  openingZombies: 6, openingRing: [0.5, 0.8],
+  spiritStreamAlpha: 0.7, spiritFadeIn: 0.4, spiritAlpha: 0.9, spiritHover: 1.05, spiritCapStart: 3, spiritMax: 5, spiritGlowAlpha: 0.5,
+  /* 혼령 회수 되돌림(hysteresis): 획득 0.95R, 회수 1.15R(=fogOuter). */
+  spiritReleaseMul: 1.15, spiritAcquireMul: 1.02,
+  /* 제자리 탭 = 칼집 패링 */
+  parryR: 2.4, parryPush: 1.6, parryStun: 0.35, parryDmg: 0.5, parryCd: 0.45, parryFailCd: 0.2, parryIframe: 0.2, parryHitstop: 0.05,
+  /* 선입력 버퍼 */
+  inputBufMs: 200,
+  /* 참(斬) 필살기 */
+  cleaveCharge: 100, cleaveR: 12, cleaveDmgMul: 3, cleaveBossDmg: 6, cleaveGainKill: 7, cleaveGainWave: 15, cleaveGainBoss: 10,
+  /* 자석 수집 */
+  magnetR: 1.8, magnetDur: 0.18, magnetStep: 0.6, magnetMax: 3.6,
+  /* 포위 웨이브 */
+  waves: [
+    { t: 20, n: 14, mix: { imp: 0.7, brute: 0.3 }, r: [9, 10] },
+    { t: 40, n: 20, mix: { imp: 0.6, brute: 0.3, stone: 0.1 }, r: [9, 11], elite: 1 }
+  ], waveBoostSec: 8,
   ringScreenFrac: 0.70, ringMaxFrac: 0.90, ringBoost: 0.14, ringLvMax: 4,
   spiritOmega: 2.8, spiritAvoidMax: 0.30, spiritAvoidOmega: 8, bossSpeed: 1.0, bossCatchUp: 0.3, bossSpawnR: 11,
-  dashThroughMul: 1.5, dashPastTarget: 0.8, dashPastBodyMul: 1.5, playBound: 28,
+  dashThroughMul: 1.5, dashPastTarget: 0.8, dashPastBodyMul: 1.5, dashPastExtra: 2.0, playBound: 28,
   landBounce: 0.28, landBounceT: 0.16, landRippleDur: 0.45,
   landIframe: 0.25, landShockR: 1.6, landPush: 1.2, landStun: 0.3, landPast: 1.0,
   slideNear: 1.4, slideExtra: 1.5,
   hitstopKill: 0.06, hitstopKillMax: 0.12, hitHitstop: 0.08, hitKnock: 0.6,
   recoilU: 0.12, recoilT: 0.12, hurtVignette: 0.3,
   aimConeCos: 0.5, aimNearW: 0.35, telegraphRange: 3.2,
-  spiritRing: [5, 7.2], zombieRing: [7, 10],
+  spiritRing: [5, 7.2], zombieRing: [6, 8.5],
   zombieSpeed: 2.15, spiritSpeed: 0.55,
   camOff: { x: 14.4, y: 22.4, z: 14.4 }, camLookY: 1.2, fov: 62,
-  markMinCss: 40, markMaxCss: 72,
+  markMinCss: 28, markMaxCss: 36,
   comboTimeout: 2.8,
   perfectDmgMul: 1, comboBurstAt: [4, 8, 12],
   comboBurstR: [3.2, 4.2, 5.2], comboBurstDmg: [1, 1.5, 2],
@@ -88,7 +106,9 @@ const RUN_UPGRADES = [
   { id: 'dmg', name: '돌진 데미지', desc: '일섬이 좀비에게 더 큰 상처를 남깁니다.' },
   { id: 'width', name: '경로 폭', desc: '베기 선이 넓어져 더 많은 것을 스칩니다.' },
   { id: 'dash', name: '일섬 횟수', desc: '같은 모양 혼령 방향으로 한 번 더 이어 돌진합니다.' },
-  { id: 'ring', name: '푸른 원 반경', desc: '심안 원이 넓어져 좀비를 더 멀리서 느낍니다.' },
+  { id: 'ring', name: '심안 반경', desc: '심안(먹안개)이 넓어져 좀비를 더 멀리서 느낍니다.' },
+  { id: 'magnet', name: '혼백 자석', desc: '일섬 착지점 주변의 혼백구와 엽전이 빨려 옵니다.' },
+  { id: 'charge', name: '참(斬) 게이지', desc: '참 게이지가 더 빨리 차오릅니다.' },
   { id: 'heal', name: '체력 회복', desc: '체력을 회복하고 이번 판 최대 체력이 조금 늘어납니다.' },
   { id: 'wealth', name: '엽전 주머니', desc: '이번 판 코인 획득이 늘어납니다.' },
   { id: 'ice', name: '일섬·얼음', desc: '경로에 맞은 좀비가 일정 시간 얼어붙습니다.' },
@@ -170,6 +190,7 @@ function renderHud() {
     $('lvlLabel').textContent = 'Lv —';
     if ($('comboLabel')) { $('comboLabel').textContent = '콤보 0'; $('comboLabel').classList.remove('hot'); }
     $('xpFill').style.width = '0%';
+    renderCharge();
     fillHp();
     return;
   }
@@ -185,7 +206,17 @@ function renderHud() {
   }
   $('stageLabel').textContent = S.boss ? '보스' : ((S.runNo || 1) + '판');
   $('xpFill').style.width = Math.min(100, (S.xp / xpNeed(S.level)) * 100) + '%';
+  renderCharge();
   fillHp();
+}
+function renderCharge() {
+  const w = $('chargeWrap'), t = $('chargeText');
+  if (!w) return;
+  const max = CFG.cleaveCharge || 100;
+  const c = (S && S.charge) || 0;
+  w.classList.toggle('full', c >= max);
+  $('chargeFill').style.width = Math.min(100, (c / max) * 100) + '%';
+  if (t) t.textContent = c >= max ? '참 준비' : '참 ' + Math.floor(c);
 }
 
 /* ---------- three.js world ---------- */
@@ -315,7 +346,13 @@ function startRun(opts) {
     sightWave: 0, lastStrokeDir: null,
     hitstop: 0, hurtFlash: 0, aimTarget: null, bellPans: [], recoil: null,
     ringR: 0, ringLv: 0, bounce: null, landRipple: null,
-    spiritCap: CFG.spiritCapStart
+    spiritCap: CFG.spiritCapStart,
+    /* v0.15~v0.17: 참 게이지·패링·선입력·웨이브·자석·진화 */
+    charge: 0, chargeLv: 0, magnetR: CFG.magnetR || 1.8,
+    parryCd: 0, parryFlash: 0, parryHits: [], cleaveFx: 0, cleaveCount: 0,
+    inputBuf: null, comboGrace: 0,
+    waveDone: {}, waveBoostT: 0, waveIds: [], wavesFired: [], fogPulse: 0,
+    evo: {}, evolved: [], preview: null, lastAxis: 'vline'
   };
   S.runNo = opts.sandbox ? SHAPE_UNLOCK.length : (save.runs || 1);
   S.pool = unlockedShapes(S.runNo);
@@ -342,6 +379,10 @@ function startRun(opts) {
   renderHud();
   lastTs = 0;
   if (audio) { audio.setQuiet(qa.mute, qa.noDelay); audio.startBgm(); }
+  if (!opts.sandbox) {
+    spawnOpening();
+    snapSpiritsToTargets();
+  }
   triggerSightWave();
   if (!raf) loop(now());
 }
@@ -528,36 +569,115 @@ function screenOf(ent) {
   return projectXZ(ent.x + (off.x || 0), ent.z, y + (off.y || 0));
 }
 function isOnScreen(ent, margin) {
-  const host = $('app') || $('ink');
-  const r = host ? host.getBoundingClientRect() : { width: 375, height: 667 };
+  const r = hostRect();
   const p = screenOf(ent);
   const m = margin == null ? 20 : margin;
   return !(p.x < -m || p.y < -m || p.x > r.width + m || p.y > r.height + m);
 }
+/* 프레임당 한 번만 레이아웃을 읽는다(isOnScreen가 수십 번 불려도 리플로를 반복하지 않게). */
+let _frameId = 0, _rectCache = { id: -1, r: null };
+function hostRect() {
+  if (_rectCache.id === _frameId) return _rectCache.r;
+  const host = $('app') || $('ink');
+  _rectCache = { id: _frameId, r: host ? host.getBoundingClientRect() : { width: 375, height: 667 } };
+  return _rectCache.r;
+}
 function livingThreats() {
   if (!S) return [];
   return (S.zombies || []).filter(function (z) { return z.alive; });
+}
+/* 화면 안 + 반경 2R 이내의 살아 있는 귀물 — 화면 밖 혼령을 놓을 대상을 고를 때 쓴다. */
+function screenThreats() {
+  if (!S) return [];
+  const R = ringR();
+  return livingThreats().filter(function (z) { return isOnScreen(z, 40) && dist(z, S.hero) <= R * 2; });
+}
+/* 0초 오프닝: 심안 원 안쪽(0.5~0.8R)에 귀물을 각도 분산 배치해 첫 획부터 3방향 선택이 성립한다. */
+function spawnOpening() {
+  if (!S) return;
+  const R = ringR();
+  const n = CFG.openingZombies || 0;
+  const ring = CFG.openingRing || [0.5, 0.8];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.22;
+    const rr = R * (ring[0] + Math.random() * (ring[1] - ring[0]));
+    spawnZombie({
+      x: S.hero.x + Math.cos(a) * rr,
+      z: S.hero.z + Math.sin(a) * rr,
+      type: (i % 4 === 3) ? 'brute' : 'imp'
+    });
+  }
+  seedOpeningSpirits();
+}
+/** 시작 혼령 3개를 서로 120° 떨어지게 미리 묶어 둔다 — 첫 프레임부터 3방향 선택. */
+function seedOpeningSpirits() {
+  if (!S) return;
+  const cap = Math.min(CFG.spiritMax || 5, S.spiritCap || CFG.spiritCapStart || 3);
+  const zs = S.zombies.filter(function (z) { return z.alive; });
+  if (!zs.length || cap <= 0) return;
+  /* 오프닝 스폰이 이미 최근접 위주로 묶어 둔 혼령은 풀고, 각도가 고른 3방향으로 다시 묶는다. */
+  livingMarks().forEach(function (s) { destroySpirit(s); });
+  const sorted = zs.map(function (z) { return { z: z, a: angNorm(angleOf(z.x, z.z, S.hero)) }; });
+  sorted.sort(function (p, q) { return p.a - q.a; });
+  const step = sorted.length / cap;
+  for (let i = 0; i < cap; i++) {
+    const pick = sorted[Math.floor(i * step) % sorted.length];
+    spawnSpirit({ x: pick.z.x, z: pick.z.z, target: pick.z });
+  }
+}
+/* 혼령을 놓아준다: 대상 사망이 아니라 거리·화면 조건으로 회수될 때. 요령 소리가 짧게 끊긴다. */
+function releaseSpirit(s) {
+  if (!s || s.kind !== 'spirit' || !s.alive) return;
+  if (audio && !qa.mute) {
+    const host = $('app') || $('ink');
+    const w = host ? host.getBoundingClientRect().width : 375;
+    const scr = screenOf(s);
+    const pan = clamp((scr.x / Math.max(1, w)) * 2 - 1, -1, 1);
+    if (audio.bellCut) audio.bellCut(pan, spiritShape(s));
+    else audio.bell(pan, spiritShape(s));
+  }
+  if (art && art.playFx && three) {
+    const fx = art.playFx(three.scene, 'ink-splat', s.x, s.z, 0.9);
+    if (fx) three.fx.push(fx);
+  }
+  destroySpirit(s);
 }
 /* A spirit stays on its zombie until that zombie dies. A free slot (under the cap) goes to the
    nearest zombie inside the mind's-eye ring that has no spirit yet, the boss first. */
 function assignSpiritTargets() {
   if (!S) return;
   const R = ringR();
-  const cap = Math.min(CFG.spiritMax || 4, S.spiritCap || 1);
+  const cap = Math.min(CFG.spiritMax || 5, S.spiritCap || CFG.spiritCapStart || 3);
+  const outR = R * (CFG.spiritReleaseMul || 1.15);
+  const inR = R * (CFG.spiritAcquireMul || 0.95);
+  /* 1) 대상이 죽었거나 안개 밖(1.15R)으로 벗어난 혼령은 즉시 회수한다. */
   livingMarks().forEach(function (s) {
-    if (!s.free && (!s.target || !s.target.alive)) destroySpirit(s);
+    if (s.free) return;
+    if (!s.target || !s.target.alive) { destroySpirit(s); return; }
+    if (dist(s.target, S.hero) > outR) { releaseSpirit(s); return; }
   });
+  /* 2) 화면 밖으로 나간 대상은 '화면 안 대체 대상'이 있을 때만 회수한다(획득-회수 진동 방지). */
+  const heldNow = livingMarks().filter(function (s) { return !s.free && s.target && s.target.alive; }).map(function (s) { return s.target; });
+  const onFree = screenThreats().filter(function (z) { return z.alive && heldNow.indexOf(z) < 0; });
+  if (onFree.length) {
+    livingMarks().forEach(function (s) {
+      if (s.free || !s.target || !s.target.alive) return;
+      if (!isOnScreen(s.target, 40)) releaseSpirit(s);
+    });
+  }
   const bound = livingMarks().filter(function (s) { return !s.free; });
   let room = cap - bound.length;
   if (room <= 0) return;
   const held = bound.map(function (s) { return s.target; });
-  const near = livingThreats().filter(function (z) { return held.indexOf(z) < 0 && dist(z, S.hero) < R; });
-  near.sort(function (a, b) {
+  const pool = livingThreats().filter(function (z) { return held.indexOf(z) < 0 && dist(z, S.hero) < inR; });
+  const onPool = pool.filter(function (z) { return isOnScreen(z, 40); });
+  const use = onPool.length ? onPool : pool;
+  use.sort(function (a, b) {
     if (a.isBoss && !b.isBoss) return -1;
     if (b.isBoss && !a.isBoss) return 1;
     return dist(a, S.hero) - dist(b, S.hero);
   });
-  for (let i = 0; i < near.length && room > 0; i++, room--) spawnSpirit({ x: near[i].x, z: near[i].z, target: near[i] });
+  for (let i = 0; i < use.length && room > 0; i++, room--) spawnSpirit({ x: use[i].x, z: use[i].z, target: use[i] });
 }
 function zombieScreenBody(z) {
   const top = projectXZ(z.x, z.z, 1.45);
@@ -665,12 +785,12 @@ function placeSpirit(s) {
 function addSpirit(opts) {
   opts = opts || {};
   if (!S) return null;
-  if (!opts.force && livingMarks().length >= (CFG.spiritMax || 4)) return null;
+  if (!opts.force && livingMarks().length >= (CFG.spiritMax || 5)) return null;
   return spawnSpirit(opts);
 }
 function setSpiritCount(n) {
   if (!S) return [];
-  n = clamp(n | 0, 0, CFG.spiritMax || 4);
+  n = clamp(n | 0, 0, CFG.spiritMax || 5);
   while (livingMarks().length > n) {
     const s = S.spirits[S.spirits.length - 1];
     s.alive = false;
@@ -742,7 +862,7 @@ function spawnZombie(opts) {
     id: ++S._id, kind: 'zombie', type: type, x: p.x, z: p.z, r: def.r, alive: true,
     hp: opts.hp != null ? opts.hp : def.hp * grow, maxHp: def.hp * grow,
     frozen: 0, burn: 0, burnTick: 0, poison: 0, poisonT: 0, poisonTick: 0, stun: 0,
-    marked: false, shape: null, isBoss: false
+    marked: false, shape: null, isBoss: false, elite: type === 'elite'
   };
   e.obj = addEntityVisual('zombie', type);
   placeGroup(e.obj, e.x, e.z);
@@ -793,8 +913,8 @@ function refreshTitleHelp() {
   el.innerHTML = pool.map(titleChip).join('');
   const sub = $('titleSub');
   if (sub) {
-    if (pool.length === 1) sub.textContent = '1판은 가로선만 나옵니다. 원 위 혼령 쪽으로 가로로 길게 그어 돌진하세요.';
-    else sub.textContent = '주인공 둘레 푸른 원 위의 종 모양을 그려, 그 혼령 방향으로 돌진하세요';
+    if (pool.length === 1) sub.textContent = '1판은 가로선만 나옵니다. 심안(먹안개) 안쪽 혼령 쪽으로 가로로 길게 그어 돌진하세요.';
+    else sub.textContent = '주인공 둘레 심안(먹안개) 안쪽 혼령의 종 모양을 그려, 그 혼령 방향으로 돌진하세요';
   }
   return { run: run, pool: pool, html: el.innerHTML };
 }
@@ -914,6 +1034,16 @@ function strokeAimDir(pts, type) {
   }
   return strokeScreenDir(pts);
 }
+/* 자동 추격기(V·⚡)의 대상 선택: 위협도 우선 — 예고 중 > 보스 > 가까운 것 > 마무리 가능. */
+function threatScore(s, from) {
+  if (!s) return 0;
+  let k = 0;
+  if (s.isBoss) k += 30;
+  if (s.obj && s.obj.userData && s.obj.userData.teleOn) k += 20;
+  k += 40 / (1 + dist(s, from));
+  if (s.hp != null && s.hp <= (S ? dashDmg() : 2.5)) k += 8;
+  return k;
+}
 function pickSpirits(shape, n, from, dir, exclude) {
   from = from || (S && S.hero);
   const skip = exclude || [];
@@ -945,7 +1075,8 @@ function pickSpirits(shape, n, from, dir, exclude) {
       pick.sort(function (a, b) { return b.score - a.score; });
       return pick.map(function (o) { return o.s; });
     } else {
-      copy.sort(function (a, b) { return dist(a, from) - dist(b, from); });
+      /* 방향이 없는 모양(V·⚡)은 위협도 순위로 고른다. */
+      copy.sort(function (a, b) { return threatScore(b.target, from) - threatScore(a.target, from); });
     }
     return copy;
   }
@@ -1063,8 +1194,8 @@ function clearOnebell(immediate) {
 const _proj = { v: null };
 let lastMarkMetrics = { cssPx: 40, minCss: 40, w: 0, h: 0, marks: [] };
 function markCssSize(w) {
-  const min = CFG.markMinCss || 40;
-  const max = CFG.markMaxCss || 72;
+  const min = CFG.markMinCss || 28;
+  const max = CFG.markMaxCss || 36;
   return clamp(Math.round(min * Math.sqrt((w || 375) / 375)), min, max);
 }
 
@@ -1126,21 +1257,34 @@ function brushStrokeAlong(ctx, pts, w, color) {
     ctx.beginPath(); ctx.arc(a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, Math.max(0.4, r), 0, Math.PI * 2); ctx.fill();
   }
 }
-function drawMarkGlyph(ctx, shape, x, y, size) {
+function drawMarkGlyph(ctx, shape, x, y, size, opt) {
   const k = { hline: [[[-1, 0.08], [0.05, -0.04], [1, 0.02]]], vline: [[[0.04, -1], [-0.03, 0.1], [0.02, 1]]], vee: [[[-0.95, -0.7], [0, 0.85]], [[0, 0.85], [0.95, -0.8]]], bolt: [[[0.45, -1], [-0.45, -0.05]], [[-0.45, -0.05], [0.45, 0.05]], [[0.45, 0.05], [-0.4, 1]]] }[shape];
   if (!k) return;
-  const h = size * 0.45, w = Math.max(1.1, size * 0.085);
+  opt = opt || {};
+  const h = size * 0.46, w = Math.max(1.1, size * 0.09);
+  const glow = opt.glow !== false;
   ctx.save();
-  const g = ctx.createRadialGradient(x, y, 0, x, y, size * 0.75);
-  g.addColorStop(0, 'rgba(244,236,214,0.55)'); g.addColorStop(1, 'rgba(244,236,214,0)');
+  /* (a) 옻빛 후광: 먹안개 속에서도 종 위치를 먼저 읽게 한다. */
+  const g = ctx.createRadialGradient(x, y, 0, x, y, size * 0.85);
+  g.addColorStop(0, 'rgba(91,232,196,0.30)'); g.addColorStop(0.55, 'rgba(91,232,196,0.10)'); g.addColorStop(1, 'rgba(91,232,196,0)');
   ctx.fillStyle = g; ctx.fillRect(x - size, y - size, size * 2, size * 2);
   k.forEach(function (line) {
     const p = line.map(function (q) { return [x + q[0] * h, y + q[1] * h]; });
-    brushStrokeAlong(ctx, p, w * 1.9, 'rgba(244,236,214,0.5)');
-    brushStrokeAlong(ctx, p, w, 'rgba(10,9,12,0.95)');
+    /* (b) 청록 네온 잉크 글로우 (넓게) */
+    ctx.save();
+    if (glow) { ctx.shadowColor = '#5BE8C4'; ctx.shadowBlur = 6; }
+    brushStrokeAlong(ctx, p, w * 3.0, 'rgba(91,232,196,0.35)');
+    ctx.restore();
+    /* (c) 네온 잉크 테두리 */
+    brushStrokeAlong(ctx, p, w * 1.9, 'rgba(64,240,214,0.95)');
+    /* (d) 거의 검은 먹 코어 — 경계를 선명하게 */
+    brushStrokeAlong(ctx, p, w * 0.95, 'rgba(8,7,10,0.96)');
   });
   ctx.restore();
 }
+/* 드로잉 프리뷰: 인식 중인 기호의 잉크 색 */
+const INK_OF = { hline: '#5BE8C4', vline: '#E8654A', vee: '#B48CE8', bolt: '#E8C04A', circle: '#E8C04A', tap: '#F2EAD6' };
+function inkColorFor(type) { return INK_OF[type] || '#6B6B6B'; }
 function updateMarks() {
   const c = $('marks');
   if (!c) return;
@@ -1200,7 +1344,7 @@ function updateMarks() {
     const bodyTop = projectXZ(s.x, s.z, bodyH);
     const bodyBot = projectXZ(s.x, s.z, 0);
     const bodyPx = Math.max(16, Math.hypot(bodyTop.x - bodyBot.x, bodyTop.y - bodyBot.y));
-    const glyphPx = clamp(Math.round(bellPx * 0.82), 28, 80);
+    const glyphPx = clamp(Math.round(bellPx * 1.8), CFG.markMinCss || 28, CFG.markMaxCss || 36);
     const on = !(ox < -20 || oy < -20 || ox > r.width + 20 || oy > r.height + 20);
     const item = {
       x: ox, y: oy, ox: ox, oy: oy, cssPx: glyphPx, onScreen: on,
@@ -1232,7 +1376,7 @@ function updateMarks() {
         let dx = b.x - a.x, dy = b.y - a.y;
         let d = Math.hypot(dx, dy);
         if (d < 0.01) { dx = 1; dy = 0; d = 1; }
-        const need = Math.max(a.cssPx || size, b.cssPx || size) * 0.85 + 0.05;
+        const need = Math.max(a.cssPx || size, b.cssPx || size) * 0.9 + 0.05;
         if (d < need) {
           const push = (need - d) * 0.5;
           a.x -= dx / d * push; a.y -= dy / d * push;
@@ -1248,24 +1392,31 @@ function updateMarks() {
     }
   }
   lastMarkMetrics.minSep = placed.length > 1 ? minSep : minD;
-  lastMarkMetrics.markStyle = 'bell-tex';
-  lastMarkMetrics.glyphOn = 'boss-only';
+  lastMarkMetrics.markStyle = 'neon-brush';
+  lastMarkMetrics.glyphOn = 'all';
   if (placed.length) {
     lastMarkMetrics.cssPx = placed.reduce(function (m, p) { return Math.max(m, p.cssPx || 0); }, 0) || size;
     lastMarkMetrics.bellPx = placed.reduce(function (m, p) { return Math.max(m, p.bellPx || 0); }, 0);
     lastMarkMetrics.bodyPx = placed.reduce(function (m, p) { return Math.max(m, p.bodyPx || 0); }, 0);
   }
+  const denseGlow = (placed.length <= 6) && (((fps.last || 60) >= 50) && fxQ !== 'low' && fxQ !== 'off');
+  lastMarkMetrics.denseGlow = denseGlow;
   placed.forEach(function (m) {
-    const x = m.x, y = m.y;
-    const gsize = m.cssPx || size;
-    const rad = gsize / 2;
+    /* 밀집도: 60px 안에 기호가 3개 이상이면 1.15배 확대해 서로 묻히지 않게 한다. */
+    let near = 0;
+    placed.forEach(function (o) { if (o !== m && Math.hypot(o.x - m.x, o.y - m.y) < 60) near++; });
+    const dense = near >= 2;
+    m.dense = dense;
+    m.drawPx = Math.round((m.cssPx || size) * (dense ? 1.15 : 1));
+    const x = m.x, y = m.y - 6;
+    const gsize = m.drawPx;
     ctx.save();
-    drawMarkGlyph(ctx, m.shape, x, y, clamp((m.bellPx || 16) * 1.0, 14, 20));
+    drawMarkGlyph(ctx, m.shape, x, y, gsize, { glow: denseGlow });
     if (m.seq && m.seq.length) {
       const gap = size * 0.38;
       const rowW = (m.seq.length - 1) * gap;
       const rowX = clamp(x - rowW * 0.5, 10, r.width - 10 - rowW);
-      const rowY = clamp(y - rad - 10, 90, r.height - 10);
+      const rowY = clamp(y - gsize * 0.5 - 10, 90, r.height - 10);
       m.seq.forEach(function (seqSh, i) {
         const done = i < m.seqI;
         const cur = i === m.seqI;
@@ -1305,6 +1456,131 @@ function updateMarks() {
       ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(tscr.x, tscr.y); ctx.stroke();
       ctx.restore();
     }
+  }
+  drawOverlays(ctx, r, hs);
+}
+/* 프리뷰·락온·보스 예고선·참(斬)·패링 연출을 한 겹에 그린다. */
+function drawOverlays(ctx, r, hs) {
+  if (!S) return;
+  const t = S.elapsed || 0;
+  const pv = S.preview;
+  /* 1) 확정 예고선: 손을 떼기 전에 예상 착지까지 먹선으로 보여 준다. */
+  if (pv && pv.show && pv.to && S.hero) {
+    const a = projectXZ(S.hero.x, S.hero.z, 0.35);
+    const b = projectXZ(pv.to.x, pv.to.z, 0.15);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(236,240,230,0.35)';
+    ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    ctx.restore();
+  }
+  /* 2) 락온 링(회전) + 조준 콘(±60°) */
+  const tgt = (S.aimTarget && S.aimTarget.alive) ? S.aimTarget : null;
+  if (tgt && S.hero) {
+    const tp = screenOf(tgt);
+    const rot = (t % 6) * 0.21;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(91,232,196,0.85)';
+    ctx.lineWidth = 2;
+    const rr = 20 + Math.sin(t * 4) * 2;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath(); ctx.arc(tp.x, tp.y, rr, rot + i * 2.094, rot + i * 2.094 + 1.1); ctx.stroke();
+    }
+    const dirA = Math.atan2(tp.y - hs.y, tp.x - hs.x);
+    const len = Math.hypot(tp.x - hs.x, tp.y - hs.y);
+    ctx.beginPath(); ctx.moveTo(hs.x, hs.y);
+    ctx.arc(hs.x, hs.y, Math.max(20, len), dirA - 1.047, dirA + 1.047);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(91,232,196,0.09)';
+    ctx.fill();
+    ctx.restore();
+  }
+  /* 3) 손가락 위 상태 칩: 지금 무엇으로 읽히는지, 신뢰도는 얼마인지 */
+  const chip = pv && pv.chip;
+  if (chip) {
+    const x = chip.x, y = chip.y - 26;
+    ctx.save();
+    ctx.beginPath(); ctx.arc(x, y, 19, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(9,8,11,0.74)'; ctx.fill();
+    ctx.strokeStyle = inkColorFor(chip.type); ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x, y, 24, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * clamp(chip.conf || 0, 0, 1));
+    ctx.strokeStyle = (chip.conf || 0) >= 0.38 ? inkColorFor(chip.type) : 'rgba(140,140,140,0.85)';
+    ctx.lineWidth = 3; ctx.stroke();
+    ctx.fillStyle = chip.type ? inkColorFor(chip.type) : 'rgba(210,210,210,0.95)';
+    ctx.font = '700 17px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(chip.type ? (G.LABELS[chip.type] || '') : '?', x, y + 1);
+    if (chip.hint) {
+      ctx.font = '700 11px sans-serif';
+      ctx.fillStyle = 'rgba(244,236,214,0.92)';
+      ctx.fillText(chip.hint, x, y + 34);
+    }
+    ctx.restore();
+  }
+  /* 4) 보스 돌진 예고선: 붉은 붓글씨 돌진선 */
+  const b = S.boss;
+  if (b && b.alive && b.state === 'telegraph' && b.aim) {
+    const dx = b.aim.x - b.x, dz = b.aim.z - b.z, L = Math.hypot(dx, dz) || 1;
+    const a = projectXZ(b.x, b.z, 0.12);
+    const e = projectXZ(b.x + dx / L * 9, b.z + dz / L * 9, 0.12);
+    const tf = clamp((b.stateT || 0) / 1.1, 0, 1);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(200,40,30,' + (0.30 + 0.45 * tf).toFixed(2) + ')';
+    ctx.lineWidth = Math.max(6, worldPerCss() * 1.2);
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(a.x + (e.x - a.x) * tf, a.y + (e.y - a.y) * tf); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,120,90,0.55)';
+    ctx.lineWidth = 2; ctx.stroke();
+    ctx.restore();
+  }
+  /* 5) 정예 원귀 바닥 경고 링 */
+  S.zombies.forEach(function (z) {
+    if (!z.alive || !z.elite) return;
+    const p = projectXZ(z.x, z.z, 0.05);
+    const rr = (z.r || 0.85) * worldPerCss() * (1.35 + 0.12 * Math.sin(t * 5));
+    ctx.save();
+    ctx.strokeStyle = 'rgba(232,192,74,0.55)';
+    ctx.lineWidth = 2; ctx.setLineDash([7, 5]);
+    ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(10, rr), 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  });
+  /* 6) 참(斬) — 거대한 붓글씨와 먹 번짐 */
+  if (S.cleaveFx > 0) {
+    const k = clamp(S.cleaveFx / 0.6, 0, 1);
+    const cx = r.width * 0.5, cy = r.height * 0.46;
+    ctx.save();
+    ctx.globalAlpha = k;
+    const rr = (1 - k) * Math.min(r.width, r.height) * 0.62;
+    ctx.strokeStyle = 'rgba(91,232,196,' + (0.55 * k).toFixed(3) + ')';
+    ctx.lineWidth = 10;
+    ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,250,' + (0.35 * k).toFixed(3) + ')';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, rr * 0.72, 0, Math.PI * 2); ctx.stroke();
+    /* 글자는 먹 위에 얹힌 한지빛 — 화면을 가리지 않도록 반투명으로 */
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '700 ' + Math.round(Math.min(r.width, r.height) * 0.26) + 'px serif';
+    ctx.shadowColor = 'rgba(0,0,0,0.9)';
+    ctx.shadowBlur = 18;
+    ctx.fillStyle = 'rgba(244,236,214,' + (0.72 * k).toFixed(3) + ')';
+    ctx.fillText('斬', cx, cy);
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(91,232,196,' + (0.8 * k).toFixed(3) + ')';
+    ctx.lineWidth = 1.5;
+    ctx.strokeText('斬', cx, cy);
+    ctx.restore();
+  }
+  /* 7) 칼집 패링 섬광 */
+  if (S.parryFlash > 0) {
+    const k = clamp(S.parryFlash / 0.12, 0, 1);
+    const g = ctx.createRadialGradient(hs.x, hs.y, 0, hs.x, hs.y, 120);
+    g.addColorStop(0, 'rgba(255,255,250,' + (0.55 * k).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(255,255,250,0)');
+    ctx.save(); ctx.fillStyle = g; ctx.fillRect(hs.x - 130, hs.y - 130, 260, 260);
+    ctx.strokeStyle = 'rgba(255,255,250,' + (0.7 * k).toFixed(3) + ')';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(hs.x, hs.y, 30 + (1 - k) * 70, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
   }
 }
 
@@ -1467,19 +1743,38 @@ function dashEndPoint(from, tgt) {
   let len = R * (CFG.dashThroughMul || 1.5);
   const lock = tgt && (tgt.target && tgt.target.alive ? tgt.target : (tgt.kind === 'zombie' ? tgt : null));
   /* Land clear of the target: bigger bodies need a longer run-out. */
-  if (lock) len = Math.max(len, dist(from, lock) + (CFG.dashPastTarget || 0.8) + (lock.r || 0) * (CFG.dashPastBodyMul || 0));
+  if (lock) {
+    const past = (CFG.dashPastTarget || 0.8) + (lock.r || 0) * (CFG.dashPastBodyMul || 1.5);
+    len = Math.max(len, dist(from, lock) + past);
+    /* 상대를 베고 너무 멀리 달려나가지 않는다 — 다음 혼령이 사거리 안에 남도록. */
+    len = Math.min(len, dist(from, lock) + past + (CFG.dashPastExtra || 2.0));
+  }
   const raw = clipBound({ x: from.x + dir.x * len, z: from.z + dir.z * len });
   const land = safeLand(from, raw);
   return { x: land.x, z: land.z, raw: raw };
+}
+/* 선입력 버퍼 소비: 착지 0프레임에 예약된 획을 이어 붙인다. */
+function consumeInputBuf() {
+  if (!S || !S.inputBuf) return false;
+  const b = S.inputBuf;
+  S.inputBuf = null;
+  /* 돌진 중에 예약된 획은 착지 직후(ttl 200ms + 여유) 소비된다. */
+  if (now() - b.t0 > (b.ttl || 200) + 300) return false;
+  if (!S.playing || S.paused) return false;
+  if (b.type === 'circle') return false;
+  S.comboGrace = Math.max(S.comboGrace || 0, 0.1);
+  beginDash(b.type, { dir: b.dir });
+  return true;
 }
 function beginDash(shape, opts) {
   opts = opts || {};
   if (!S || !S.playing || S.paused || S.dash) return null;
   const n = S.dashCount;
-  const dir = opts.dir || S.lastStrokeDir || null;
+  const dir = ('dir' in opts) ? opts.dir : (S.lastStrokeDir || null);
   const targets = pickSpirits(shape, n, S.hero, dir, null);
   if (!targets.length) { toast('화면에 그 모양이 없어요'); return { type: shape, targets: [], hits: [], items: [] }; }
   const rec = { type: shape, targets: targets.map(function (t) { return t.id; }), hits: [], items: [], t0: now(), segs: [], elem: S.dashElem, cinematic: false };
+  S.dashSeq = (S.dashSeq || 0) + 1;
   S.lastDash = rec;
   S.dashQueue = targets.slice();
   /* Only the first cut of a one-bell spell is the slow cinematic; later cuts run at full speed. */
@@ -1488,7 +1783,11 @@ function beginDash(shape, opts) {
   return rec;
 }
 function startSeg() {
-  if (!S.dashQueue.length) { S.dash = null; scoreDash(S.lastDash); maybeEnd(); return; }
+  if (!S.dashQueue.length) {
+    S.dash = null; scoreDash(S.lastDash);
+    consumeInputBuf();
+    maybeEnd(); return;
+  }
   const tgt = S.dashQueue.shift();
   if (!tgt.alive) { startSeg(); return; }
   const from = { x: S.hero.x, z: S.hero.z };
@@ -1538,6 +1837,11 @@ function landDash(d) {
 function landingShock(at) {
   if (!S) return;
   const R = CFG.landShockR || 1.6, push = CFG.landPush || 1.2, stun = CFG.landStun || 0.3;
+  magnetPull(at);
+  if (S.evo && S.evo.fireTrail) {
+    S.clouds = S.clouds || [];
+    S.clouds.push({ kind: 'fire', x: at.x, z: at.z, t: 4, tick: 0, r: 1.5 });
+  }
   S.zombies.forEach(function (z) {
     if (!z.alive) return;
     const d = dist(z, at);
@@ -1552,6 +1856,146 @@ function landingShock(at) {
   });
   if (S.lastDash) S.lastDash.shock = { x: at.x, z: at.z, r: R, push: push };
 }
+/* 제자리 탭 → 칼집 패링: 반경 2.4m 넉백·경직·0.5 피해. 성공 시 parry 사운드 + 히트스톱. */
+function doParry(rec) {
+  if (!S || !S.playing || S.paused) return rec || null;
+  const r = rec || { type: 'tap', targets: [], hits: [] };
+  r.type = 'tap';
+  r.targets = r.targets || [];
+  r.hits = r.hits || [];
+  if ((S.parryCd || 0) > 0) { r.parry = { hits: 0, cooling: true }; return r; }
+  const R = CFG.parryR || 2.4;
+  const hits = [];
+  S.zombies.forEach(function (z) {
+    if (!z.alive) return;
+    const d = dist(z, S.hero);
+    if (d > R + (z.r || 0.55)) return;
+    hits.push(z.id);
+    hurtZombie(z, CFG.parryDmg || 0.5, 'parry', r);
+    if (z.alive) {
+      const ux = d < 1e-3 ? 1 : (z.x - S.hero.x) / d;
+      const uz = d < 1e-3 ? 0 : (z.z - S.hero.z) / d;
+      const push = CFG.parryPush || 1.6;
+      z.x += ux * push; z.z += uz * push;
+      z.stun = Math.max(z.stun || 0, CFG.parryStun || 0.35);
+      if (z.obj) placeGroup(z.obj, z.x, z.z);
+    }
+  });
+  r.parry = { hits: hits.length };
+  if (hits.length) {
+    S.parryCd = CFG.parryCd || 0.45;
+    S.iframe = Math.max(S.iframe || 0, CFG.parryIframe || 0.2);
+    S.parryFlash = 0.12;
+    S.parryHits = hits;
+    S.shake = Math.max(S.shake || 0, 0.35);
+    if (audio) audio.parry();
+    addHitstop(CFG.parryHitstop || 0.05);
+    showJudge('챙-');
+    triggerSightWave();
+  } else {
+    S.parryCd = CFG.parryFailCd || 0.2;
+    S.parryHits = [];
+    if (audio && audio.whiff) audio.whiff();
+    showJudge('휙');
+  }
+  return r;
+}
+
+/* O 한 붓 = 참(斬): 게이지 100에서 반경 12m 전멸급 배기. */
+function castCleave(rec) {
+  if (!S || !S.playing || S.paused) return rec || null;
+  const max = CFG.cleaveCharge || 100;
+  rec = rec || { type: 'circle', targets: [], hits: [] };
+  rec.type = 'circle';
+  rec.hits = rec.hits || [];
+  rec.targets = rec.targets || [];
+  if ((S.charge || 0) < max) {
+    toast('참(斬)의 기운이 모자랍니다 — ' + Math.floor(S.charge || 0) + '/' + max);
+    showJudge('기운 ' + Math.floor(S.charge || 0));
+    rec.cleave = false;
+    return rec;
+  }
+  S.charge = 0;
+  S.cleaveCount = (S.cleaveCount || 0) + 1;
+  S.cleaveFx = 0.6;
+  const R = CFG.cleaveR || 12;
+  const dmg = dashDmg() * (CFG.cleaveDmgMul || 3);
+  const hitIds = [];
+  const iceCleave = !!S.evo.iceCleave;
+  S.zombies.slice().forEach(function (z) {
+    if (!z.alive) return;
+    if (dist(z, S.hero) > R + (z.r || 0.5)) return;
+    hitIds.push(z.id);
+    if (z.isBoss) { cutSpirit(z); return; }
+    if (iceCleave) z.frozen = Math.max(z.frozen || 0, 3);
+    if (z.frozen > 0) shatterZombie(z, rec);
+    else if (z.poison > 0) explodeZombie(z, rec);
+    else hurtZombie(z, dmg, 'cleave', rec);
+  });
+  rec.cleaveHits = hitIds;
+  rec.targets = hitIds;
+  S.shake = Math.max(S.shake || 0, 0.9);
+  S.slowT = Math.max(S.slowT || 0, 0.35);
+  addHitstop(0.12);
+  if (audio) { audio.explode(); audio.bell(0, 'bolt'); }
+  if (three && three.ink) three.ink.hit(S.hero.x + 0.5, S.hero.z, 0, 1);
+  showJudge('참(斬)');
+  renderHud();
+  return rec;
+}
+
+/* 포위 웨이브: 8방향 균등 배치 + 안개 수축 + 북 3연타. */
+function fireWave(w) {
+  if (!S || !w) return;
+  S.waveDone = S.waveDone || {};
+  if (S.waveDone[w.t]) return;
+  S.waveDone[w.t] = true;
+  S.wavesFired = S.wavesFired || [];
+  S.wavesFired.push(w.t);
+  const R = ringR();
+  const total = w.n || 10;
+  const rr = w.r || [9, 10];
+  const mix = w.mix || { imp: 1 };
+  const sum = Object.keys(mix).reduce(function (a, k) { return a + mix[k]; }, 0) || 1;
+  for (let i = 0; i < total; i++) {
+    const a = (i / total) * Math.PI * 2 + (Math.random() - 0.5) * 0.24;
+    const rad = Math.max(rr[0], R * 1.05) + Math.random() * Math.max(0.5, rr[1] - rr[0]);
+    let roll = Math.random() * sum, type = 'imp';
+    for (const k in mix) { roll -= mix[k]; if (roll <= 0) { type = k; break; } }
+    const z = spawnZombie({ x: S.hero.x + Math.cos(a) * rad, z: S.hero.z + Math.sin(a) * rad, type: type });
+    if (z) S.waveIds.push(z.id);
+  }
+  if (w.elite) {
+    const ang = Math.random() * Math.PI * 2;
+    const z = spawnZombie({ x: S.hero.x + Math.cos(ang) * rr[1], z: S.hero.z + Math.sin(ang) * rr[1], type: 'elite' });
+    if (z) { z.elite = true; S.waveIds.push(z.id); }
+  }
+  S.waveBoostT = CFG.waveBoostSec || 8;
+  S.fogPulse = 1;
+  S.shake = Math.max(S.shake || 0, 0.6);
+  triggerSightWave();
+  if (audio && !qa.noDelay) {
+    audio.drum();
+    setTimeout(function () { if (audio) audio.drum(); }, 140);
+    setTimeout(function () { if (audio) audio.drum(); }, 280);
+  }
+  showJudge('포위!');
+}
+/* 착지 자석: 반경 안의 혼백구·엽전이 곡선으로 빨려온다. */
+function magnetPull(at) {
+  if (!S) return 0;
+  const R = S.magnetR || CFG.magnetR || 1.8;
+  let n = 0;
+  S.items.forEach(function (it) {
+    if (!it.alive) return;
+    if (dist(it, at) > R) return;
+    it.home = { from: { x: it.x, z: it.z }, t: 0, dur: CFG.magnetDur || 0.18 };
+    n++;
+  });
+  if (n && audio && audio.pickup) audio.pickup(n);
+  return n;
+}
+
 function applyPath(from, to, rec, skip) {
   const r = pathR(), dmg = dashDmg();
   const dx = to.x - from.x, dz = to.z - from.z, L2 = dx * dx + dz * dz || 1;
@@ -1614,7 +2058,7 @@ function spreadElement(z, elem, rec) {
   const R = CFG.spreadR || 1.5;
   if (elem === 'poison') {
     S.clouds = S.clouds || [];
-    S.clouds.push({ x: z.x, z: z.z, t: CFG.poisonCloudDur || 3, tick: 0 });
+    S.clouds.push({ x: z.x, z: z.z, t: CFG.poisonCloudDur || 3, tick: 0, r: S.evo && S.evo.poisonSpread ? 3.2 : (CFG.poisonCloudR || 2) });
     if (art.playFx && three) { const fx = art.playFx(three.scene, 'poison-burst', z.x, z.z, 2.6); if (fx) three.fx.push(fx); }
     return;
   }
@@ -1664,11 +2108,33 @@ function tickStatuses(dt) {
     c.t -= dt; c.tick += dt;
     if (c.tick < CFG.poisonPeriod) return;
     c.tick -= CFG.poisonPeriod;
+    if (c.kind === 'fire') {
+      /* 묵염(墨炎) 장판: 0.75초당 1뎀 */
+      S.zombies.forEach(function (z) {
+        if (z.alive && !z.isBoss && dist(z, c) <= (c.r || 1.5) + z.r) hurtZombie(z, CFG.burnDmg || 1, 'burn', S.lastDash);
+      });
+      return;
+    }
     S.zombies.forEach(function (z) {
-      if (z.alive && !z.isBoss && dist(z, c) <= (CFG.poisonCloudR || 2) + z.r) applyElement(z, 'poison', null);
+      if (z.alive && !z.isBoss && dist(z, c) <= (c.r || CFG.poisonCloudR || 2) + z.r) applyElement(z, 'poison', null);
     });
   });
   if (S.clouds) S.clouds = S.clouds.filter(function (c) { return c.t > 0; });
+  /* 둑운(毒雲) 확산: 구름끼리 만나면 병합 */
+  if (S.evo && S.evo.poisonSpread && S.clouds && S.clouds.length > 1) {
+    for (let i = 0; i < S.clouds.length; i++) {
+      for (let j = i + 1; j < S.clouds.length; j++) {
+        const a = S.clouds[i], b = S.clouds[j];
+        if (!a || !b) continue;
+        if (a.kind === 'fire' || b.kind === 'fire') continue;
+        if (dist(a, b) > 1.2) continue;
+        a.r = Math.max(a.r || 2, b.r || 2) + 0.4;
+        a.t = Math.max(a.t, b.t);
+        S.clouds.splice(j, 1);
+        j--;
+      }
+    }
+  }
   S.zombies.forEach(function (z) {
     if (!z.alive) return;
     if (z.slowT > 0) { z.slowT -= dt; if (z.slowT < 0) z.slowT = 0; }
@@ -1751,6 +2217,9 @@ function cutSpirit(s) {
   if (s.kind === 'spirit') return;
   if (s.isBoss) {
     s.seqI++;
+    /* 돌진 뒤 경직(등 뒤)에서 베면 절단이 두 번 들어간다 — 예고→회피→반격 파훼. */
+    if (s.state === 'stun') { s.seqI++; showJudge('파훼!'); }
+    addCharge(CFG.cleaveGainBoss || 10);
     livingMarks().forEach(function (m) { if (m.target === s && art.setSpiritShape) art.setSpiritShape(m.obj, spiritShape(m)); });
     addHitstop(CFG.hitstopKill || 0.06);
     if (s.seqI >= s.seq.length) { killZombie(s, S && S.lastDash); }
@@ -1788,7 +2257,28 @@ function killZombie(z, rec) {
   const kd = CFG.zombieTypes[z.type] || CFG.zombieTypes.imp;
   grantKill(kd.coin);
   gainXp(CFG.xpPerKill * kd.xp);
-  if (Math.random() < 0.35) spawnItem({ type: dropType(), x: z.x, z: z.z });
+  /* 혼백구 100% + 20% 추가 드롭, 정예는 부적 상자 */
+  spawnItem({ type: 'xp', x: z.x, z: z.z });
+  if (Math.random() < 0.2) spawnItem({ type: dropType(), x: z.x + (Math.random() - 0.5) * 0.7, z: z.z + (Math.random() - 0.5) * 0.7 });
+  if (z.elite) spawnItem({ type: 'charm', x: z.x, z: z.z });
+  /* 참 게이지 */
+  if (!z.isBoss) addCharge(CFG.cleaveGainKill || 7);
+  /* 사방 한기(寒氣): 얼어붙은 적이 죽으면 사방으로 얼음 검기 */
+  if (S.evo && S.evo.frostNova && (z.frozen > 0 || z.slowT > 0) && !z.novaDone) {
+    z.novaDone = true;
+    S.zombies.forEach(function (o) {
+      if (!o.alive || o === z || o.isBoss) return;
+      if (dist(o, z) <= 3) hurtZombie(o, 4, 'frost', rec);
+    });
+  }
+  /* 포위 웨이브 정리 보상 */
+  if (S) {
+    const ix = (S.waveIds || []).indexOf(z.id);
+    if (ix >= 0) {
+      S.waveIds.splice(ix, 1);
+      if (!S.waveIds.length) { addCharge(CFG.cleaveGainWave || 15); showJudge('포위 격파!'); }
+    }
+  }
   refreshSpirits();
 }
 function dropType() {
@@ -1821,25 +2311,66 @@ function collectItem(it, rec) {
         if (rec.targets.indexOf(more[0].id) < 0) rec.targets.push(more[0].id);
       }
     }
+  } else if (it.kind === 'charm') {
+    /* 부적 상자(잭팟): 강화 3연속 */
+    S._pendingLv = (S._pendingLv || 0) + 2;
+    S.slowT = Math.max(S.slowT || 0, 0.35);
+    if (audio) {
+      audio.bell(0, 'bolt');
+      setTimeout(function () { if (audio) audio.bell(0.4, 'vee'); }, 120);
+      setTimeout(function () { if (audio) audio.bell(-0.4, 'hline'); }, 240);
+    }
+    showJudge('부적 상자!');
+    openLevelUp();
   } else if (it.kind === 'heal') {
     S.runHp += 0; S.hp = Math.min(maxHp(), S.hp + 3);
   } else if (it.kind === 'coin') {
     save.coins += Math.round(5 * coinMult()); persist();
   } else if (it.kind === 'xp') gainXp(1);
-  else if (it.kind === 'ice' || it.kind === 'fire' || it.kind === 'poison') setDashElem(it.kind);
+  else if (it.kind === 'ice' || it.kind === 'fire' || it.kind === 'poison') { setDashElem(it.kind); checkEvolutions(); }
   else if (it.kind === 'bell') startBell(it.shape, it.dur);
   renderHud();
+}
+function addCharge(n) {
+  if (!S) return;
+  const max = CFG.cleaveCharge || 100;
+  const before = S.charge || 0;
+  const mul = 1 + 0.25 * (S.chargeLv || 0);
+  S.charge = Math.min(max, before + n * mul);
+  if (before < max && S.charge >= max) { showJudge('참(斬) 준비'); if (audio) audio.bell(0, 'bolt'); }
+}
+/* 스킬 진화: 조합이 갖춰지면 화면과 손에서 바로 티나는 효과가 켜진다. */
+function checkEvolutions() {
+  if (!S) return;
+  const has = S.evo || (S.evo = {});
+  S.evolved = S.evolved || [];
+  const el = S.dashElem;
+  function born(key, name) {
+    if (has[key]) return;
+    has[key] = true;
+    S.evolved.push(name);
+    toast('✦ 진화: ' + name);
+    showJudge('✦ ' + name);
+    if (audio) audio.bell(0, 'bolt');
+  }
+  if (S.dashCount >= 2 && el === 'fire') born('fireTrail', '묵염(墨炎) 장판');
+  if (el === 'ice' && S.pathR >= (CFG.pathRadius + 1.0)) born('frostNova', '사방 한기(寒氣)');
+  if (el === 'poison' && S.dashCount >= 2) born('poisonSpread', '독운(毒雲) 확산');
+  if ((S.chargeLv || 0) > 0 && el === 'ice') born('iceCleave', '빙참(氷斬)');
+  if (S.bellT > 0 && S.dashCount >= 3) born('myriadBell', '만종(萬鐘)');
 }
 function gainXp(n) {
   S.xp += n;
   while (S.xp >= xpNeed(S.level)) {
     S.xp -= xpNeed(S.level);
     S.level++;
-    S.spiritCap = Math.min(CFG.spiritMax || 4, (S.spiritCap || 1) + 1);
+    S.spiritCap = Math.min(CFG.spiritMax || 5, (S.spiritCap || CFG.spiritCapStart || 3) + 1);
     openLevelUp();
   }
 }
 function openLevelUp() {
+  /* 참(斬) 연출 중에는 카드를 잠시 미룬다 — 필살의 손맛을 가리지 않도록. */
+  if (S && S.cleaveFx > 0.05) { S._cleaveLv = (S._cleaveLv || 0) + 1; return; }
   if (S.paused === 'levelup') { S._pendingLv = (S._pendingLv || 0) + 1; return; }
   S.paused = 'levelup';
   const pool = RUN_UPGRADES.slice(), picks = [];
@@ -1871,12 +2402,63 @@ function pickUpgrade(id) {
   else if (id === 'heal') { S.runHp += 2; S.hp = Math.min(maxHp(), S.hp + 5); }
   else if (id === 'wealth') S.runCoin += 0.25;
   else if (id === 'ice' || id === 'fire' || id === 'poison') setDashElem(id);
-  else if (id === 'bell') startBell(null, CFG.bellDur);
+  else if (id === 'bell') startBell(null, S.evo && S.evo.myriadBell ? 12 : CFG.bellDur);
+  else if (id === 'magnet') S.magnetR = Math.min(CFG.magnetMax || 3.6, (S.magnetR || CFG.magnetR || 1.8) + (CFG.magnetStep || 0.6));
+  else if (id === 'charge') S.chargeLv = (S.chargeLv || 0) + 1;
   hideOvs(); S.paused = null; renderHud();
+  checkEvolutions();
   if (S._pendingLv) { S._pendingLv--; openLevelUp(); }
   return true;
 }
 
+/* 보스 돌진 예고(walk → telegraph → charge → stun) 상태기계. 이동을 직접 처리했으면 true. */
+function stepBoss(z, dt) {
+  if (!z || !z.alive || !S) return false;
+  z.state = z.state || 'walk';
+  z.stateT = (z.stateT || 0) + dt;
+  if (z.state === 'walk') {
+    if (z.stateT > 4.5) {
+      z.state = 'telegraph'; z.stateT = 0;
+      z.aim = { x: S.hero.x, z: S.hero.z };
+      if (audio) audio.drum();
+    }
+    return false;
+  }
+  if (z.state === 'telegraph') {
+    if (z.stateT > 1.1) {
+      z.state = 'charge'; z.stateT = 0;
+      const dx = (z.aim ? z.aim.x : S.hero.x) - z.x, dz = (z.aim ? z.aim.z : S.hero.z) - z.z;
+      const L = Math.hypot(dx, dz) || 1;
+      z.chargeDir = { x: dx / L, z: dz / L };
+      if (audio) audio.slash();
+    }
+    return true;
+  }
+  if (z.state === 'charge') {
+    const sp = 20;
+    z.x += (z.chargeDir ? z.chargeDir.x : 0) * sp * dt;
+    z.z += (z.chargeDir ? z.chargeDir.z : 0) * sp * dt;
+    if ((S.iframe || 0) <= 0 && dist(z, S.hero) < z.r + 0.7) {
+      S.hp -= CFG.bossDmg || 2;
+      S.iframe = CFG.iframeMs / 1000;
+      S.hurtFlash = CFG.hurtVignette || 0.3;
+      const d = dist(z, S.hero) || 1;
+      S.hero.x += (S.hero.x - z.x) / d * 2.2;
+      S.hero.z += (S.hero.z - z.z) / d * 2.2;
+      if (three && three.heroSpr) placeGroup(three.heroSpr, S.hero.x, S.hero.z);
+      if (audio) audio.drum();
+      renderHud();
+      if (S.hp <= 0) endRun(false, '귀물의 돌진에 닿았습니다.');
+    }
+    if (z.stateT > 0.45) { z.state = 'stun'; z.stateT = 0; }
+    return true;
+  }
+  if (z.state === 'stun') {
+    if (z.stateT > 1.2) { z.state = 'walk'; z.stateT = 0; }
+    return true;
+  }
+  return false;
+}
 function maybeEnd() {
   if (!S || S.won || S.lost || !S.playing) return;
   if (S.hp <= 0) { endRun(false, '좀비에게 닿았습니다.'); return; }
@@ -1898,6 +2480,23 @@ function step(dt) {
   if (!S || !S.playing || S.paused) return;
   S.elapsed += dt; S.timeLeft -= dt;
   if (S.iframe > 0) S.iframe -= dt;
+  if (S.parryCd > 0) S.parryCd = Math.max(0, S.parryCd - dt);
+  if (S.parryFlash > 0) S.parryFlash = Math.max(0, S.parryFlash - dt);
+  if (S.cleaveFx > 0) S.cleaveFx = Math.max(0, S.cleaveFx - dt);
+  if (S.cleaveFx <= 0 && S._cleaveLv > 0 && !S.paused && S.playing) {
+    const n = S._cleaveLv;
+    S._cleaveLv = 0;
+    if (n > 1) S._pendingLv = (S._pendingLv || 0) + (n - 1);
+    openLevelUp();
+  }
+  if (S.fogPulse > 0) S.fogPulse = Math.max(0, S.fogPulse - dt / 0.6);
+  if (S.waveBoostT > 0) S.waveBoostT = Math.max(0, S.waveBoostT - dt);
+  if (S.comboGrace > 0) S.comboGrace = Math.max(0, S.comboGrace - dt);
+  if (S.inputBuf) {
+    const busy = !!S.dash || (S.dashQueue && S.dashQueue.length);
+    const age = now() - S.inputBuf.t0;
+    if ((!busy && age > (S.inputBuf.ttl || 200) + 300) || age > 1200) S.inputBuf = null;
+  }
   if (S.landRipple && S.landRipple.t > 0) {
     S.landRipple.t -= dt / (S.landRipple.dur || 0.45);
     if (S.landRipple.t <= 0) S.landRipple = null;
@@ -1922,8 +2521,11 @@ function step(dt) {
   if (S.practiceT > 0) S.practiceT -= dt;
   if (S.sightWave > 0 && !qa.freezeWave) S.sightWave = Math.max(0, S.sightWave - dt / (CFG.sightWaveDur || 0.7));
   if (S.combo > 0) {
-    S.comboIdle = (S.comboIdle || 0) + dt;
-    if (S.comboIdle > (CFG.comboTimeout || 2.8)) S.combo = 0;
+    /* 선입력으로 이어진 연쇄는 판정을 조금 더 봐준다. */
+    if (!(S.comboGrace > 0)) {
+      S.comboIdle = (S.comboIdle || 0) + dt;
+      if (S.comboIdle > (CFG.comboTimeout || 2.8)) S.combo = 0;
+    }
   }
   if (S.bellT > 0) {
     S.bellT -= dt;
@@ -1933,6 +2535,12 @@ function step(dt) {
     spawnBoss({ r: CFG.bossSpawnR, nShapes: CFG.bossShapes });
     toast('부적을 단 귀물이 다가옵니다');
   }
+  /* 포위 웨이브 (20s / 40s) */
+  if (!S.sandbox) {
+    (CFG.waves || []).forEach(function (w) {
+      if (!S.waveDone[w.t] && S.elapsed >= w.t) fireWave(w);
+    });
+  }
   const wave = 1 + 0.7 * clamp(S.elapsed / CFG.timeLimit, 0, 1);
   if (!S.sandbox) {
     S.zAcc += dt * 1000;
@@ -1940,7 +2548,9 @@ function step(dt) {
     const practicing = (S.practiceT > 0) && (S.practiceSpawns > 0);
     const delayed = S.elapsed < (CFG.spawnZombieDelay || 12);
     const early = S.elapsed < (CFG.earlyZombieUntil || 25);
-    let zMax = CFG.spawnZombieMax || 16;
+    let zMax = CFG.spawnZombieMax || 20;
+    /* 웨이브 중에는 잔몹 스폰을 멈춰 45마리까지 쌓이지 않게 한다(포위는 웨이브가 만든다). */
+    if (S.waveBoostT > 0) zMax = 0;
     let zBase = CFG.spawnZombieMs;
     if (practicing) { zMax = CFG.practiceZombieMax || 2; zBase = CFG.practiceZombieMs || 3200; }
     else if (delayed) { S.zAcc = 0; zMax = 0; }
@@ -1988,7 +2598,8 @@ function step(dt) {
     if (!z.alive) return;
     const d = dist(z, S.hero) || 0.001;
     const frozen = z.frozen > 0 || (z.stun || 0) > 0;
-    if (!qa.noMove && !frozen) {
+    const bossHandled = z.isBoss ? stepBoss(z, dt) : false;
+    if (!qa.noMove && !frozen && !bossHandled) {
       const kd = CFG.zombieTypes[z.type] || CFG.zombieTypes.imp;
       /* The boss speeds up the farther it is outside the ring, so a dashing hero cannot outrun it. */
       const sp = z.isBoss ? (CFG.bossSpeed || 1) * (1 + (CFG.bossCatchUp || 0) * Math.max(0, d - ringR())) : zsp * kd.speed * (z.slowT > 0 ? (CFG.iceSlowMul || 0.5) : 1);
@@ -2027,6 +2638,15 @@ function step(dt) {
   refreshSpirits();
   S.items.forEach(function (it) {
     if (!it.alive) return;
+    /* 자석으로 날아오는 중 */
+    if (it.home) {
+      it.home.t += dt;
+      const u = clamp(it.home.t / (it.home.dur || 0.18), 0, 1);
+      const k = u * u;
+      it.x = it.home.from.x + (S.hero.x - it.home.from.x) * k;
+      it.z = it.home.from.z + (S.hero.z - it.home.from.z) * k;
+      if (u >= 1) { collectItem(it, null); return; }
+    }
     placeGroup(it.obj, it.x, it.z, 0.2 + Math.sin(S.elapsed * 3 + it.id) * 0.08);
   });
   renderHud();
@@ -2093,6 +2713,11 @@ function resizeInk() {
   const ctx = c.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
+function hexRgba(hex, a) {
+  const h = String(hex || '#ffffff').replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16) || 0, g = parseInt(h.slice(2, 4), 16) || 0, b = parseInt(h.slice(4, 6), 16) || 0;
+  return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+}
 function paperRgba(a) {
   const pal = (art && art.pal) || {};
   const hex = (pal.paper || pal.paperRim || '#EDE3CF').replace('#', '');
@@ -2110,7 +2735,7 @@ function clearInk() {
   ctx.clearRect(0, 0, c.width, c.height);
   ctx.restore();
 }
-function paintInk(pts, fading) {
+function paintInk(pts, fading, color) {
   const c = $('ink');
   if (!c) return;
   const host = $('app') || c;
@@ -2141,7 +2766,7 @@ function paintInk(pts, fading) {
   for (let i = 1; i < left.length; i++) ctx.lineTo(left[i].x, left[i].y);
   for (let i = right.length - 1; i >= 0; i--) ctx.lineTo(right[i].x, right[i].y);
   ctx.closePath();
-  ctx.fillStyle = paperRgba(0.94 * a);
+  ctx.fillStyle = color ? hexRgba(color, 0.62 * a) : paperRgba(0.94 * a);
   ctx.fill();
   const dab = paintInk._dab;
   if (dab && dab.complete) {
@@ -2175,21 +2800,80 @@ function onMove(e) {
   if (!pointers.down || e.pointerId !== pointers.id) return;
   const p = localPts(e), last = pointers.pts[pointers.pts.length - 1];
   if (!last || Math.hypot(p.x - last.x, p.y - last.y) >= 1) pointers.pts.push(p);
-  paintInk(pointers.pts, 1);
+  const chipped = pointers._chip && pointers._chip.color;
+  paintInk(pointers.pts, 1, chipped);
   if (S && S.playing && !S.paused && pointers.pts.length >= 3 && G && G.recognize) {
     const rec = G.recognize(pointers.pts, { allowBolt: true });
-    if (rec && rec.type && (S.sandbox || !S.pool || S.pool.indexOf(rec.type) >= 0)) {
-      const dir = strokeAimDir(pointers.pts, rec.type);
-      S.aimTarget = pickSpirits(rec.type, 1, S.hero, dir, null)[0] || null;
-    } else S.aimTarget = null;
+    const res = resolveStrokeType(rec, pointers.pts);
+    const type = res.type;
+    let aim = null, to = null;
+    if (type && type !== 'tap' && type !== 'circle') {
+      const dir = AUTO_TARGET[type] ? null : strokeAimDir(pointers.pts, type);
+      if (S.sandbox || !S.pool || S.pool.indexOf(type) >= 0) aim = pickSpirits(type, 1, S.hero, dir, null)[0] || null;
+      if (aim && (now() - (pointers._prevT || 0) > 12)) {
+        pointers._prevT = now();
+        const end = dashEndPoint(S.hero, aim);
+        to = { x: end.x, z: end.z };
+      }
+    }
+    S.aimTarget = aim;
+    const color = inkColorFor(type);
+    pointers._chip = { x: p.x, y: p.y, type: type, conf: rec.bestScore || 0, color: color, hint: type ? '' : ambiguousHint(rec) };
+    S.preview = {
+      show: !!to, to: to,
+      chip: pointers._chip
+    };
+    paintInk(pointers.pts, 1, color);
     updateMarks();
   }
 }
 function onUp(e) {
   if (!pointers.down || (e.pointerId != null && e.pointerId !== pointers.id)) return;
   pointers.down = false;
-  finishStroke(pointers.pts);
+  const pts = pointers.pts;
+  pointers._chip = null;
+  if (S) { S.preview = null; S.aimTarget = null; }
+  finishStroke(pts);
 }
+/* 모호한(45°) 직선은 조준으로 확정한다: 획 방향 콘 안 혼령의 hline/vline 분포를 따름. */
+function resolveTieAxis(dir) {
+  if (!S) return null;
+  const n = { hline: 0, vline: 0 };
+  const hs = heroScreen();
+  livingMarks().forEach(function (s) {
+    const sh = spiritShape(s);
+    if (sh !== 'hline' && sh !== 'vline') return;
+    if (dir) {
+      const va = projectXZ(s.x, s.z, 0.8);
+      const da = Math.hypot(va.x - hs.x, va.y - hs.y) || 1;
+      const cos = ((va.x - hs.x) / da) * dir.x + ((va.y - hs.y) / da) * dir.y;
+      if (cos < (CFG.aimConeCos || 0.5)) return;
+    }
+    n[sh]++;
+  });
+  if (!n.hline && !n.vline) return null;
+  if (n.hline === n.vline) return S.lastAxis || 'vline';
+  return n.hline > n.vline ? 'hline' : 'vline';
+}
+function resolveStrokeType(rec, pts) {
+  if (!rec) return { type: null, rec: rec };
+  if (rec.tie) {
+    const dir = strokeScreenDir(pts);
+    const a = resolveTieAxis(dir);
+    if (a) return { type: a, rec: rec, tieResolved: true };
+    return { type: S.lastAxis || 'vline', rec: rec, tieResolved: true };
+  }
+  if (rec.type) return { type: rec.type, rec: rec };
+  return { type: null, rec: rec };
+}
+function ambiguousHint(rec) {
+  if (!rec) return '';
+  const k = rec.best;
+  if (k && (rec.bestScore || 0) >= 0.30) return (G.NAMES[k] || '') + '? 더 크게';
+  return '획이 짧아요';
+}
+/* 방향 무시 자동 추격기: V·⚡ */
+const AUTO_TARGET = { vee: 1, bolt: 1 };
 function finishStroke(pts, opts) {
   opts = opts || {};
   lastStroke = (pts || []).slice(); inkFade = 0.28;
@@ -2198,24 +2882,46 @@ function finishStroke(pts, opts) {
   const rec = G.recognize(pts, { allowBolt: true });
   S.lastRec = rec;
   S.aimTarget = null;
+  S.preview = null;
   const read = (G.readMessage && G.readMessage(rec)) || '';
   rec.readMessage = read;
-  if (!rec.type) {
+  /* 제자리 탭 = 칼집 패링 (인식기는 이미 tap을 읽는다) */
+  if (rec.type === 'tap' || opts.tap) return doParry(rec);
+  const res = resolveStrokeType(rec, pts);
+  if (!res.type) {
     inkFade = 0.16;
     toast((read ? read + ' ' : '잘 안 그려졌어요. ') + failHint());
     setTimeout(clearInk, qa.noDelay ? 80 : 160);
     return rec;
   }
+  if (res.type !== rec.type) {
+    rec.type = res.type;
+    rec.label = (G.LABELS && G.LABELS[res.type]) || rec.label;
+    rec.tieResolved = true;
+  }
+  /* O = 전 화면 참(斬) 필살기 */
+  if (rec.type === 'circle') { rec.cleave = true; return castCleave(rec); }
   if (!S.sandbox && S.pool && S.pool.indexOf(rec.type) < 0) {
     toast((read ? read + ' ' : '') + '지금은 ' + failHint());
     inkFade = 0.16;
     setTimeout(clearInk, qa.noDelay ? 80 : 160);
     return rec;
   }
-  const dir = strokeAimDir(pts, rec.type);
+  /* 스마트 타겟팅 이원화: 직선은 그은 방향, V/⚡는 위협도순 자동 */
+  const dir = AUTO_TARGET[rec.type] ? null : strokeAimDir(pts, rec.type);
+  if (rec.type === 'hline' || rec.type === 'vline') S.lastAxis = rec.type;
   S.lastStrokeDir = dir;
   rec.dir = dir;
   rec.combo = S.combo;
+  /* 선입력 버퍼: 돌진 중에 들어온 획은 버리지 않고 200ms 예약한다. */
+  if (S.dash || (S.dashQueue && S.dashQueue.length)) {
+    S.inputBuf = { type: rec.type, dir: dir, t0: now(), ttl: CFG.inputBufMs || 200 };
+    inkFade = 0.20;
+    showJudge('예약');
+    rec.buffered = true;
+    rec.targets = [];
+    return rec;
+  }
   const dash = beginDash(rec.type, { dir: dir });
   rec.targets = dash && dash.targets;
   rec.dash = dash;
@@ -2365,6 +3071,7 @@ function drawRingFog(fog, w, h) {
   pts.forEach(function (p) { if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x; if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y; });
   const ex = (x0 + x1) / 2, ey = (y0 + y1) / 2, rx = Math.max(10, (x1 - x0) / 2), ry = Math.max(10, (y1 - y0) / 2);
   const t = (S && S.elapsed) || 0;
+  const pulse = (S && S.fogPulse) || 0;
   fog.fillStyle = 'rgba(' + CFG.fogColor.join(',') + ',' + CFG.fogAlpha + ')';
   fog.fillRect(0, 0, w, h);
   /* Carve the clear ellipse with a soft rim. */
@@ -2372,7 +3079,7 @@ function drawRingFog(fog, w, h) {
   fog.globalCompositeOperation = 'destination-out';
   fog.translate(ex, ey); fog.scale(rx, ry);
   const g = fog.createRadialGradient(0, 0, 0, 0, 0, CFG.fogOuter);
-  g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(CFG.fogInner / CFG.fogOuter, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(CFG.fogInner / CFG.fogOuter * (1 - 0.07 * pulse), 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
   fog.fillStyle = g;
   fog.beginPath(); fog.arc(0, 0, CFG.fogOuter, 0, Math.PI * 2); fog.fill();
   fog.restore();
@@ -2445,6 +3152,7 @@ function drawSightFog() {
 }
 function loop(ts) {
   raf = requestAnimationFrame(loop);
+  _frameId++;
   let scale = qa.timeScale || 1;
   if (!lastTs) lastTs = ts;
   const real = Math.max(0.0001, (ts - lastTs) / 1000);
@@ -2659,6 +3367,7 @@ const GPv2 = {
 
 
   markedList: livingMarks,
+  assign: function () { assignSpiritTargets(); return livingMarks().length; },
   bellPans: function () { return (S && S.bellPans) || (audio && audio.lastPans && audio.lastPans()) || []; },
   readMessage: function (rec) { return (G.readMessage && G.readMessage(rec)) || ''; },
   spawnItem: function (o) { return spawnItem(o); },
@@ -2673,6 +3382,44 @@ const GPv2 = {
   shapePool: function () { return S ? (S.pool || []).slice() : []; },
   spawnPool: spawnPool,
   strokePath: finishStroke,
+  /* v0.15~v0.17 QA 훅 */
+  parry: function () { return doParry(null); },
+  tap: function () { return doParry(null); },
+  cleave: function (rec) { return castCleave(rec || null); },
+  setCharge: function (n) { if (S) { S.charge = clamp(n | 0, 0, CFG.cleaveCharge || 100); renderHud(); } return S && S.charge; },
+  addCharge: function (n) { addCharge(n); return S && S.charge; },
+  fireWave: function (t) {
+    const list = CFG.waves || [];
+    const w = list.filter(function (x) { return t == null || x.t === t; })[0];
+    if (!w) return null;
+    fireWave(w);
+    return { t: w.t, spawned: (S && S.waveIds || []).length };
+  },
+  waves: function () { return (CFG.waves || []).map(function (w) { return { t: w.t, n: w.n, fired: !!(S && S.waveDone && S.waveDone[w.t]) }; }); },
+  magnet: function (x, z) { return magnetPull({ x: x == null ? (S && S.hero.x) : x, z: z == null ? (S && S.hero.z) : z }); },
+  evolve: function () { checkEvolutions(); return S && Object.keys(S.evo || {}); },
+  setSpiritCap: function (n) { if (S) S.spiritCap = clamp(n | 0, 0, CFG.spiritMax || 5); return S && S.spiritCap; },
+  preview: function () { return (S && S.preview) || null; },
+  resolveTieAxis: function (dir) { return resolveTieAxis(dir); },
+  inputBuf: function () { return (S && S.inputBuf) || null; },
+  openLevelUp: function () { if (S) openLevelUp(); },
+  spawnElite: function (o) {
+    o = o || {};
+    const z = spawnZombie({ type: 'elite', x: o.x, z: o.z, hp: o.hp });
+    if (z) z.elite = true;
+    return z;
+  },
+  bossInfo: function () {
+    const b = S && S.boss;
+    return b ? { state: b.state || 'walk', t: b.stateT || 0, seqI: b.seqI, alive: b.alive, aim: b.aim || null } : null;
+  },
+  setBossState: function (st) {
+    const b = S && S.boss;
+    if (!b) return null;
+    b.state = st; b.stateT = 0;
+    if (st === 'telegraph') b.aim = { x: S.hero.x, z: S.hero.z };
+    return b.state;
+  },
   recognize: function (pts, opt) { return G.recognize(pts, opt); },
   failHint: failHint,
   titleHelp: refreshTitleHelp,
@@ -2805,6 +3552,19 @@ const GPv2 = {
       zombies: S ? S.zombies.filter(function (z) { return z.alive; }).map(function (z) { return { id: z.id, x: z.x, z: z.z, hp: z.hp, frozen: z.frozen > 0, freezeLeft: z.frozen || 0, burn: z.burn > 0, burnLeft: z.burn || 0, poison: z.poison || 0, stun: z.stun || 0, marked: !!z.marked, shape: z.marked || z.isBoss ? spiritShape(z) : null, isBoss: !!z.isBoss, seqI: z.isBoss ? z.seqI : 0, hasRim: !!(z.obj && z.obj.userData && (z.obj.userData.rim || z.obj.userData.bakedRim)), tele: !!(z.obj && z.obj.userData && z.obj.userData.teleOn) }; }) : [],
       items: S ? S.items.filter(function (i) { return i.alive; }).map(function (i) { return { id: i.id, type: i.kind, x: i.x, z: i.z }; }) : [],
       lastDash: S && S.lastDash,
+      charge: S && S.charge, cleaveCount: S && S.cleaveCount, cleaveFx: S && S.cleaveFx,
+      parry: S && { cd: S.parryCd || 0, hits: (S.parryHits || []).slice(), flash: S.parryFlash || 0 },
+      inputBuf: (S && S.inputBuf) ? { type: S.inputBuf.type, age: now() - S.inputBuf.t0 } : null,
+      wave: S && { fired: (S.wavesFired || []).slice(), boost: S.waveBoostT || 0, pending: (S.waveIds || []).length },
+      evo: S && Object.keys(S.evo || {}), evolved: S && (S.evolved || []).slice(),
+      magnetR: S && S.magnetR,
+      marks: (lastMarkMetrics && lastMarkMetrics.marks) || [],
+      glyphs: (lastMarkMetrics && lastMarkMetrics.marks) || [],
+      dashSeq: S && (S.dashSeq || 0),
+      markStyle: lastMarkMetrics && lastMarkMetrics.markStyle,
+      markCssPx: lastMarkMetrics && lastMarkMetrics.cssPx,
+      bossState: S && S.boss ? (S.boss.state || 'walk') : null,
+      elites: S ? S.zombies.filter(function (z) { return z.alive && z.elite; }).map(function (z) { return { id: z.id, hp: z.hp }; }) : [],
       combo: S && S.combo, comboMax: S && S.comboMax,
       bursts: S && (S.bursts || []).slice(),
       runNo: S && S.runNo, pool: S && (S.pool || []).slice(),

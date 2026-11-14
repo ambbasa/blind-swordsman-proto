@@ -11,7 +11,9 @@ const BASE = '../assets/v2/';
 const ITEM_KEY = {
   ice: 'elem-ice', fire: 'elem-fire', poison: 'elem-poison', bell: 'one-bell',
   'elem-ice': 'elem-ice', 'elem-fire': 'elem-fire', 'elem-poison': 'elem-poison', 'one-bell': 'one-bell',
-  dashplus: 'dash-plus', 'dash-plus': 'dash-plus', heal: 'heal', coin: 'coin', xp: 'xp-orb', 'xp-orb': 'xp-orb'
+  dashplus: 'dash-plus', 'dash-plus': 'dash-plus', heal: 'heal', coin: 'coin', xp: 'xp-orb', 'xp-orb': 'xp-orb',
+  /* 정예 원귀의 부적 상자 */
+  charm: 'one-bell'
 };
 const SHAPE_MARK = { vline: 'I', hline: 'H', vee: 'V', circle: 'O' };
 
@@ -464,6 +466,11 @@ export async function buildArt(THREE) {
       group.userData.anim = Anim.createController(sheet, { blend: 0.08 });
       addShadow(group, 1.35);
       addRim(group, 0x3ec8c0, 1.12);
+      /* 정예 원귀: 금빛 테 */
+      if (shape === 'elite' && group.userData.rim && group.userData.rim.material) {
+        group.userData.rim.material.color.setHex(0xE8C04A);
+        group.userData.rim.material.opacity = 0.6;
+      }
       addTelegraph(group, H);
     } else if (kind === 'spirit' || kind === 'boss') {
       const isBoss = kind === 'boss';
