@@ -71,7 +71,7 @@ export function drawItem(kind) {
   const rnd = rng(INK_ICONS.seed + kind.length * 17);
   const x = S / 2, y = S / 2;
   const glow = ctx.createRadialGradient(x, y, 30, x, y, 78);
-  const tint = { xp: JADE, coin: GOLD, heal: RED, dashplus: JADE, ice: 'rgba(142,232,255,', fire: RED, poison: 'rgba(176,77,255,', bell: GOLD }[kind] || PAPER;
+  const tint = { xp: JADE, coin: GOLD, heal: RED, dashplus: JADE, ice: 'rgba(142,232,255,', fire: RED, poison: 'rgba(176,77,255,', bell: GOLD, herb: 'rgba(96,214,120,', magnet: 'rgba(120,196,255,', bang: 'rgba(255,150,60,' }[kind] || PAPER;
   glow.addColorStop(0, tint + '0.45)'); glow.addColorStop(1, tint + '0)');
   ctx.fillStyle = glow; ctx.fillRect(0, 0, S, S);
   disc(ctx, x, y, 52, 'rgba(14,12,14,0.96)', PAPER, rnd);
@@ -111,6 +111,36 @@ export function drawItem(kind) {
   } else if (kind === 'bell') {
     const b = drawBell('plain');
     ctx.drawImage(b, x - 22, y - 44, 44, 88);
+  } else if (kind === 'herb') {
+    /* 묵항아리에서 나온 약초·주먹밥: 잎 세 장과 뿌리 */
+    stroke(ctx, [[x, y + 30], [x - 2, y - 6]], 6, 'rgba(60,140,80,1)');
+    [[-1, 0], [1, -6], [0, -20]].forEach(function (o) {
+      ctx.beginPath();
+      ctx.ellipse(x + o[0] * 16, y + o[1], 16, 9, o[0] * 0.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(86,196,110,1)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(30,80,40,0.9)'; ctx.lineWidth = 2; ctx.stroke();
+    });
+    ctx.beginPath(); ctx.ellipse(x, y + 14, 13, 8, 0, 0, Math.PI * 2); ctx.fillStyle = PAPER + '1)'; ctx.fill();
+  } else if (kind === 'magnet') {
+    /* 자석 부적: 종이 부적에 붉은 글씨 */
+    ctx.save(); ctx.translate(x, y); ctx.rotate(-0.08);
+    ctx.fillStyle = PAPER + '0.98)'; ctx.fillRect(-20, -32, 40, 64);
+    ctx.strokeStyle = 'rgba(150,30,24,0.9)'; ctx.lineWidth = 3; ctx.strokeRect(-20, -32, 40, 64);
+    stroke(ctx, [[0, -22], [0, 22]], 6, 'rgba(180,40,30,1)');
+    stroke(ctx, [[-10, -10], [10, -10]], 5, 'rgba(180,40,30,1)');
+    stroke(ctx, [[-8, 8], [8, 8]], 5, 'rgba(180,40,30,1)');
+    ctx.restore();
+    const g2 = ctx.createRadialGradient(x, y, 8, x, y, 46);
+    g2.addColorStop(0, 'rgba(120,196,255,0.5)'); g2.addColorStop(1, 'rgba(120,196,255,0)');
+    ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(x, y, 46, 0, Math.PI * 2); ctx.fill();
+  } else if (kind === 'bang') {
+    /* 화약 부적: 터지는 불꽃 */
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + 0.2;
+      stroke(ctx, [[x + Math.cos(a) * 10, y + Math.sin(a) * 10], [x + Math.cos(a) * 34, y + Math.sin(a) * 34]], 5, 'rgba(255,150,50,1)');
+    }
+    ctx.beginPath(); ctx.arc(x, y, 17, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,214,120,1)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,96,40,1)'; ctx.fill();
   }
   return c;
 }

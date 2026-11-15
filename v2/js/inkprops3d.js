@@ -10,7 +10,7 @@ import {
 const TAU = Math.PI * 2;
 
 /* ---------- 지오메트리 유틸 ---------- */
-function mergeGeo(list) {
+export function mergeGeo(list) {
   let vCount = 0, iCount = 0;
   list.forEach(function (g) {
     vCount += g.getAttribute('position').count;
@@ -41,7 +41,7 @@ function mergeGeo(list) {
   return out;
 }
 
-function crossQuads() {
+export function crossQuads() {
   const a = new THREE.PlaneGeometry(1, 1);
   const b = a.clone(); b.rotateY(Math.PI / 2);
   const c = a.clone(); c.rotateX(Math.PI / 2);
@@ -49,7 +49,7 @@ function crossQuads() {
 }
 
 /* 부정형 바위: 정이십면체 꼭짓점을 시드로 밀어낸다. */
-function rockGeo(seed, detail) {
+export function rockGeo(seed, detail) {
   const g = new THREE.IcosahedronGeometry(1, detail || 1);
   const rnd = mulberry(seed);
   const p = g.getAttribute('position');
@@ -63,7 +63,7 @@ function rockGeo(seed, detail) {
 }
 
 /* ---------- 재질 ---------- */
-function makeMaterials(stageId) {
+export function makeMaterials(stageId) {
   const stageTint = {
     1: [1.0, 0.96, 0.9], 2: [0.86, 0.93, 1.12], 3: [0.9, 1.06, 0.92], 4: [1.18, 0.82, 0.78]
   }[stageId] || [1, 1, 1];
@@ -104,7 +104,7 @@ function makeMaterials(stageId) {
 }
 
 /* ---------- 인스턴스 배치 ---------- */
-function instanced(geo, material, items, opts) {
+export function instanced(geo, material, items, opts) {
   opts = opts || {};
   if (!items.length) return null;
   const mesh = new THREE.InstancedMesh(geo, material, items.length);
@@ -134,7 +134,7 @@ function ringPoint(rnd, rMin, rMax, avoid) {
   return { x: rMin, z: 0, a: 0, r: rMin };
 }
 
-function glowBatch(items) {
+export function glowBatch(items) {
   const geo = new THREE.PlaneGeometry(1, 1);
   geo.rotateX(-Math.PI / 2);
   const mat = new THREE.MeshBasicMaterial({
@@ -161,7 +161,7 @@ function glowBatch(items) {
   return mesh;
 }
 
-function aoBatch(items) {
+export function aoBatch(items) {
   const geo = new THREE.PlaneGeometry(1, 1);
   geo.rotateX(-Math.PI / 2);
   const mat = new THREE.MeshBasicMaterial({
@@ -597,6 +597,8 @@ export function buildStage3D(THREE_IGNORED, opts) {
   opts = opts || {};
   const stageId = opts.stageId || 1;
   const mapId = opts.mapId || 'map1';
+  /* chunked: 바닥과 소품은 3×3 시드 청크(inkchunks.js)가 맡고, 여기서는 원경 파노라마만 세운다. */
+  const chunked = !!opts.chunked;
   const T = {};
   const M = makeMaterials(stageId);
   const group = new THREE.Group();
@@ -609,52 +611,58 @@ export function buildStage3D(THREE_IGNORED, opts) {
     3: { stone: [0.28, 0.31, 0.24], dirt: [0.15, 0.18, 0.13], moss: 0.8, wet: 0.5, seed: 37 },
     4: { stone: [0.36, 0.26, 0.23], dirt: [0.18, 0.12, 0.11], moss: 0.14, wet: 0.45, seed: 41 }
   }[stageId] || { stone: [0.195, 0.205, 0.21], dirt: [0.095, 0.095, 0.10], moss: 0.22, wet: 0.7, seed: 11 };
-  const gs = groundSet(gStyle);
-  const gmap = gs.map.clone(); gmap.needsUpdate = true; gmap.repeat.set(60, 60);
-  const gnorm = gs.normalMap.clone(); gnorm.needsUpdate = true; gnorm.repeat.set(60, 60);
-  const grough = gs.roughnessMap.clone(); grough.needsUpdate = true; grough.repeat.set(60, 60);
-  const groundMat = new THREE.MeshStandardMaterial({
-    map: gmap, normalMap: gnorm, roughnessMap: grough, normalScale: new THREE.Vector2(0.3, 0.3),
-    color: 0x6e6e6e, roughness: 1.0, metalness: 0.0
-  });
-  const groundGeo = new THREE.PlaneGeometry(120, 120, 48, 48);
-  const gp = groundGeo.getAttribute('position');
-  for (let i = 0; i < gp.count; i++) {
-    const x = gp.getX(i), y = gp.getY(i);
-    const h = Math.sin(x * 0.23) * Math.cos(y * 0.19) * 0.07 + Math.sin(x * 0.07 + y * 0.11) * 0.12;
-    gp.setZ(i, h);
-  }
-  groundGeo.computeVertexNormals();
-  const ground = new THREE.Mesh(groundGeo, groundMat);
-  ground.rotation.x = -Math.PI / 2;
-  ground.receiveShadow = true;
-  group.add(ground);
-  T.groundMat = groundMat;
+  let ground = null, groundMat = null;
+  if (!chunked) {
+    const gs = groundSet(gStyle);
+    const gmap = gs.map.clone(); gmap.needsUpdate = true; gmap.repeat.set(60, 60);
+    const gnorm = gs.normalMap.clone(); gnorm.needsUpdate = true; gnorm.repeat.set(60, 60);
+    const grough = gs.roughnessMap.clone(); grough.needsUpdate = true; grough.repeat.set(60, 60);
+    groundMat = new THREE.MeshStandardMaterial({
+      map: gmap, normalMap: gnorm, roughnessMap: grough, normalScale: new THREE.Vector2(0.3, 0.3),
+      color: 0x6e6e6e, roughness: 1.0, metalness: 0.0
+    });
+    const groundGeo = new THREE.PlaneGeometry(120, 120, 48, 48);
+    const gp = groundGeo.getAttribute('position');
+    for (let i = 0; i < gp.count; i++) {
+      const x = gp.getX(i), y = gp.getY(i);
+      const h = Math.sin(x * 0.23) * Math.cos(y * 0.19) * 0.07 + Math.sin(x * 0.07 + y * 0.11) * 0.12;
+      gp.setZ(i, h);
+    }
+    groundGeo.computeVertexNormals();
+    ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    group.add(ground);
+    T.groundMat = groundMat;
 
-  /* 대형 먹 번짐 베일 */
-  const veil = new THREE.Mesh(
-    new THREE.PlaneGeometry(72, 72, 1, 1),
-    new THREE.MeshBasicMaterial({ map: inkVeilTexture(), transparent: true, opacity: 0.95, depthWrite: false, color: 0xffffff, fog: true })
-  );
-  veil.rotation.x = -Math.PI / 2;
-  veil.position.y = 0.012;
-  veil.renderOrder = 1;
-  group.add(veil);
+    /* 대형 먹 번짐 베일 */
+    const veil = new THREE.Mesh(
+      new THREE.PlaneGeometry(72, 72, 1, 1),
+      new THREE.MeshBasicMaterial({ map: inkVeilTexture(), transparent: true, opacity: 0.95, depthWrite: false, color: 0xffffff, fog: true })
+    );
+    veil.rotation.x = -Math.PI / 2;
+    veil.position.y = 0.012;
+    veil.renderOrder = 1;
+    group.add(veil);
+  }
 
   /* 원경 파노라마 */
   const pano = new THREE.Mesh(
     new THREE.CylinderGeometry(44, 44, 30, 72, 1, true),
     new THREE.MeshBasicMaterial({ map: panoramaTexture(stageId), side: THREE.BackSide, fog: true, depthWrite: false, color: 0xffffff })
   );
-  pano.position.y = 11.5;
+  const panoHome = 11.5;
+  pano.position.y = panoHome;
   pano.renderOrder = -2;
   group.add(pano);
 
-  /* 스테이지별 소품 */
-  let D;
-  if (stageId === 3) D = buildBamboo(null, T, null);
-  else if (stageId === 2) D = buildGateWorld(null, T, null);
-  else D = buildMarket(null, T, null, { burnt: stageId === 4 });
+  /* 스테이지별 소품 (청크 모드에서는 inkchunks.js가 청크마다 세운다) */
+  let D = { lights: [] };
+  if (!chunked) {
+    if (stageId === 3) D = buildBamboo(null, T, null);
+    else if (stageId === 2) D = buildGateWorld(null, T, null);
+    else D = buildMarket(null, T, null, { burnt: stageId === 4 });
+  }
 
   const geos = {
     box: new THREE.BoxGeometry(1, 1, 1),
@@ -764,8 +772,14 @@ export function buildStage3D(THREE_IGNORED, opts) {
 
   const api = {
     id: mapId, stageId: stageId, group: group, lights: lights, ground: ground, groundMat: groundMat,
+    pano: pano, chunked: chunked,
     pools: D.pools || [], firePits: T.firePits || [], braziers: T.braziers || [], shrine: T.shrine || null,
     batches: batches.length, triangles: 0,
+    /* 원경 파노라마가 영웅을 따라간다 — 끝없이 걸어도 지평선이 남아 있게. */
+    follow(x, z) {
+      pano.position.x = x || 0;
+      pano.position.z = z || 0;
+    },
     update(dt, t) {
       T.t = t;
       for (let i = 0; i < lights.length; i++) {

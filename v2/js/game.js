@@ -1,4 +1,6 @@
-/* 심안(SIMAN) v2 — 2.5D quarter-view, Three.js, camera-follow dashes. */
+/* 심안(SIMAN) v2 — 2.5D quarter-view, Three.js, camera-follow dashes.
+   v0.22: 3×3 시드 청크 무한맵(inkchunks.js) · 묵항아리 3종 픽업 · 보스 결계(아레나) ·
+          뱀서류 3분 템포(90/150/180/180초, 적 28~45, 42초 포위 러시) · 진화 3종. */
 import * as THREE from 'three';
 import { probeAssets, buildArt } from './art.js';
 import * as Anim from './anim.js';
@@ -11,6 +13,7 @@ import { createInkWashPass } from './inkwash.js';
 import { createCinematicPass } from './inkcinematic.js';
 import { createSlashArc } from './inkslash3d.js';
 import { StageAtmosphere } from './inkatmos.js';
+import { createChunkWorld, buildChunkData, CHUNK as CHUNK_SIZE, chunkOf } from './inkchunks.js';
 
 const G = window.GPGestures;
 const SAVE_KEY = 'gesture-proto.v2';
@@ -56,7 +59,7 @@ const CFG = {
     elite: { hp: 12, speed: 0.8, r: 0.85, dmg: 1, xp: 5, coin: 6 }
   },
   zombieMix: [[0, { imp: 1 }], [25, { imp: 0.75, brute: 0.25 }], [45, { imp: 0.55, brute: 0.3, stone: 0.15 }]],
-  hpGrowth: 0.45,
+  hpGrowth: 0.18,
   comboMulStep: 0.05, comboMulCap: 20, pierceFalloff: 0.85,
   spreadR: 1.5, iceSlowDur: 2, iceSlowMul: 0.5, poisonCloudR: 2, poisonCloudDur: 3,
   dashCount: 1, spawnZombieMs: 900,
@@ -82,7 +85,11 @@ const CFG = {
   ], waveBoostSec: 8,
   ringScreenFrac: 0.70, ringMaxFrac: 0.90, ringBoost: 0.14, ringLvMax: 4,
   spiritOmega: 2.8, spiritAvoidMax: 0.30, spiritAvoidOmega: 8, bossSpeed: 1.0, bossCatchUp: 0.3, bossSpawnR: 11,
-  dashThroughMul: 1.5, dashPastTarget: 0.8, dashPastBodyMul: 1.5, dashPastExtra: 2.0, playBound: 28,
+  dashThroughMul: 1.5, dashPastTarget: 0.8, dashPastBodyMul: 1.5, dashPastExtra: 2.0, playBound: 0,
+  /* v0.22 보스 결계(아레나): 보스가 서면 이 반경 안에서만 싸운다. */
+  arenaR: 12, arenaRing: 0.5, arenaPulse: 1.4,
+  /* v0.22 묵항아리: 부수면 세 가지 픽업 중 하나 */
+  jarHp: 1, jarR: 0.62, jarDropWeights: { herb: 0.4, magnet: 0.3, bang: 0.3 }, herbHeal: 2, bangR: 15,
   landBounce: 0.28, landBounceT: 0.16, landRippleDur: 0.45,
   landIframe: 0.25, landShockR: 1.6, landPush: 1.2, landStun: 0.3, landPast: 1.0,
   slideNear: 1.4, slideExtra: 1.5,
@@ -128,68 +135,69 @@ const STAGES = [
     id: 1, name: '잿빛 장터', sub: '불탄 기와집, 첫 번째 획', map: 'map1', tag: '가로 한 획',
     goal: '혼령이 든 가로 한 획(—)을 그어 귀물을 베어 넘기세요.',
     tip: '제자리에서 짧게 콕 누르면 칼집으로 받아치는 패링이 됩니다.',
-    time: 70, bossAt: 46, bossShapes: 3,
+    time: 90, bossAt: 60, bossShapes: 3,
     shapes: ['hline'], spiritCap: 1,
     opening: { n: 5, ring: [0.45, 0.72], brute: 0 },
     mix: [[0, { imp: 1 }], [26, { imp: 0.8, brute: 0.2 }]],
-    waves: [{ t: 30, n: 9, mix: { imp: 0.85, brute: 0.15 }, r: [8, 9.5] }],
-    spawn: { ms: 1150, max: 13, earlyMax: 5, earlyMinMs: 1500 },
+    waves: [
+      { t: 42, n: 20, mix: { imp: 0.85, brute: 0.15 }, r: [9, 11] }
+    ],
+    spawn: { ms: 900, max: 28, earlyMax: 9, earlyMinMs: 1300 },
     boss: { telegraph: 1.35, charge: 16, adds: 0 },
-    starCombo: 8,
+    starCombo: 14,
     atmo: { clear: 0x1b1a1c, fogCol: [21, 18, 15], fog: 0.020, moon: 22.0, amb: 6.0, hemiI: 6.0, fill: 4.2, hemi: 0x6a6860, ground: 0x1a1612, moonCol: 0xc8c0b0, tint: 'linear-gradient(180deg, rgba(96,112,130,0.12) 0%, rgba(34,44,54,0.18) 100%)' }
   },
   {
     id: 2, name: '무너진 성문', sub: '성곽 위에 매달린 원혼', map: 'map2', tag: '가로 · 세로',
     goal: '세로 획(ㅣ)이 열립니다. 두 방향을 오가며 성문을 지키세요.',
     tip: '금테를 두른 정예 원귀를 베면 부적 상자가 떨어집니다.',
-    time: 75, bossAt: 50, bossShapes: 4,
+    time: 150, eliteAt: 75, bossAt: 115, bossShapes: 4,
     shapes: ['hline', 'vline'], spiritCap: 1,
     opening: { n: 6, ring: [0.5, 0.8], brute: 1 },
     mix: [[0, { imp: 0.85, brute: 0.15 }], [22, { imp: 0.66, brute: 0.34 }], [46, { imp: 0.5, brute: 0.32, stone: 0.18 }]],
     waves: [
-      { t: 24, n: 12, mix: { imp: 0.7, brute: 0.3 }, r: [8.5, 10] },
-      { t: 44, n: 16, mix: { imp: 0.6, brute: 0.3, stone: 0.1 }, r: [9, 11], elite: 1 }
+      { t: 42, n: 24, mix: { imp: 0.7, brute: 0.3 }, r: [9, 11] },
+      { t: 90, n: 28, mix: { imp: 0.6, brute: 0.3, stone: 0.1 }, r: [9.5, 12], elite: 1 }
     ],
-    spawn: { ms: 1000, max: 16, earlyMax: 6, earlyMinMs: 1400 },
+    spawn: { ms: 780, max: 34, earlyMax: 10, earlyMinMs: 1200 },
     boss: { telegraph: 1.2, charge: 18, adds: 0 },
-    starCombo: 12,
+    starCombo: 20,
     atmo: { clear: 0x141a26, fogCol: [12, 17, 26], fog: 0.024, moon: 20.0, amb: 5.6, hemiI: 6.6, fill: 4.0, hemi: 0x5c6a8c, ground: 0x11141c, moonCol: 0xa9b8dd, tint: 'linear-gradient(180deg, rgba(44,64,150,0.20) 0%, rgba(8,18,58,0.26) 100%)' }
   },
   {
     id: 3, name: '대나무 골', sub: '서낭당 너머로 우는 소리', map: 'map3', tag: 'V 두 획',
     goal: 'V자 두 획이 열립니다. 조여오는 무리를 한 번에 가르세요.',
     tip: 'V·번개 획은 가장 위협적인 귀물을 알아서 찾아갑니다.',
-    time: 80, bossAt: 54, bossShapes: 5,
+    time: 180, eliteAt: 90, bossAt: 140, bossShapes: 5,
     shapes: ['hline', 'vline', 'vee'], spiritCap: 2,
     opening: { n: 7, ring: [0.55, 0.85], brute: 1 },
     mix: [[0, { imp: 0.8, brute: 0.2 }], [20, { imp: 0.6, brute: 0.3, stone: 0.1 }], [44, { imp: 0.45, brute: 0.33, stone: 0.22 }]],
     waves: [
-      { t: 18, n: 12, mix: { imp: 0.7, brute: 0.3 }, r: [8.5, 10] },
-      { t: 38, n: 17, mix: { imp: 0.55, brute: 0.3, stone: 0.15 }, r: [9, 11], elite: 1 },
-      { t: 60, n: 18, mix: { imp: 0.5, brute: 0.32, stone: 0.18 }, r: [9, 11.5], elite: 1 }
+      { t: 42, n: 26, mix: { imp: 0.7, brute: 0.3 }, r: [9, 11] },
+      { t: 84, n: 30, mix: { imp: 0.55, brute: 0.3, stone: 0.15 }, r: [9.5, 12], elite: 1 },
+      { t: 126, n: 34, mix: { imp: 0.5, brute: 0.32, stone: 0.18 }, r: [9.5, 12.5], elite: 1 }
     ],
-    spawn: { ms: 900, max: 18, earlyMax: 7, earlyMinMs: 1250 },
+    spawn: { ms: 660, max: 40, earlyMax: 11, earlyMinMs: 1100 },
     boss: { telegraph: 1.1, charge: 19, adds: 2 },
-    starCombo: 16,
+    starCombo: 26,
     atmo: { clear: 0x121a15, fogCol: [11, 19, 14], fog: 0.026, moon: 18.0, amb: 5.4, hemiI: 6.2, fill: 3.6, hemi: 0x6f8472, ground: 0x12160f, moonCol: 0xb4d2b4, tint: 'linear-gradient(180deg, rgba(28,92,60,0.18) 0%, rgba(6,26,16,0.26) 100%)' }
   },
   {
     id: 4, name: '붉은 달', sub: '모든 획이 열린 밤', map: 'map1', tag: '번개 획',
     goal: '번개 획(⚡)까지 열렸습니다. 여섯 번의 절단으로 끝내세요.',
     tip: '보스가 돌진한 뒤 경직될 때 베면 절단이 두 번 들어갑니다.',
-    time: 85, bossAt: 56, bossShapes: 6,
+    time: 180, eliteAt: 85, bossAt: 135, bossShapes: 6,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 2,
     opening: { n: 8, ring: [0.55, 0.9], brute: 2 },
     mix: [[0, { imp: 0.75, brute: 0.25 }], [18, { imp: 0.55, brute: 0.3, stone: 0.15 }], [40, { imp: 0.42, brute: 0.33, stone: 0.25 }]],
     waves: [
-      { t: 16, n: 13, mix: { imp: 0.65, brute: 0.35 }, r: [8.5, 10] },
-      { t: 34, n: 18, mix: { imp: 0.5, brute: 0.32, stone: 0.18 }, r: [9, 11], elite: 1 },
-      { t: 52, n: 20, mix: { imp: 0.45, brute: 0.33, stone: 0.22 }, r: [9, 11.5], elite: 1 },
-      { t: 70, n: 20, mix: { imp: 0.4, brute: 0.35, stone: 0.25 }, r: [9, 12], elite: 1 }
+      { t: 40, n: 28, mix: { imp: 0.65, brute: 0.35 }, r: [9, 11] },
+      { t: 82, n: 32, mix: { imp: 0.5, brute: 0.32, stone: 0.18 }, r: [9.5, 12], elite: 1 },
+      { t: 122, n: 36, mix: { imp: 0.45, brute: 0.33, stone: 0.22 }, r: [9.5, 12.5], elite: 1 }
     ],
-    spawn: { ms: 820, max: 20, earlyMax: 8, earlyMinMs: 1100 },
+    spawn: { ms: 580, max: 45, earlyMax: 12, earlyMinMs: 1000 },
     boss: { telegraph: 1.0, charge: 21, adds: 3 },
-    starCombo: 20,
+    starCombo: 32,
     atmo: { clear: 0x1c0f12, fogCol: [30, 10, 11], fog: 0.028, moon: 21.0, amb: 6.0, hemiI: 5.8, fill: 4.0, hemi: 0x8a5a52, ground: 0x1e1210, moonCol: 0xff9c84, tint: 'linear-gradient(180deg, rgba(150,32,28,0.22) 0%, rgba(52,6,8,0.28) 100%)' }
   }
 ];
@@ -197,6 +205,11 @@ function stageOf(n) { return STAGES[clamp((n | 0) || 1, 1, STAGES.length) - 1]; 
 function curStage() { return (S && S.stage) || stageOf(save.stage || 1); }
 function stageWaves() { const st = curStage(); return (st && st.waves) || CFG.waves || []; }
 function stageBoss() { const st = curStage(); return (st && st.boss) || {}; }
+/* 한 판의 제한 시간(스테이지별). 적 성장·포위 가속의 기준. */
+function runLimit() { return (S && S.stage && S.stage.time) || CFG.timeLimit; }
+/* 보스 결계(아레나): 보스가 살아 있는 동안만 성립한다. */
+function arenaActive() { return !!(S && S.arena && S.boss && S.boss.alive); }
+function arenaR() { return (S && S.arena && S.arena.r) || (CFG.arenaR || 12); }
 
 function $(id) { return document.getElementById(id); }
 function clamp(n, a, b) { return n < a ? a : n > b ? b : n; }
@@ -326,6 +339,7 @@ function switchMap(id, stageNo) {
       three.torches = [];
       if (three.atmo) { try { three.atmo.dispose(); } catch (e) {} }
       try { three.atmo = new StageAtmosphere(three.scene, st, m); } catch (e) { three.atmo = null; }
+      setupChunkWorld(st, m.id);
       if (S) { S.mapId = m.id; S.mapStage = st; }
       applyFxinkAtmo(m.id);
       return { id: m.id, name: m.name, key: m.key, stageId: st };
@@ -336,6 +350,24 @@ function switchMap(id, stageNo) {
   const p = three._mapP;
   p.then(function () { if (three._mapP === p) three._mapP = null; });
   return p;
+}
+
+/* v0.22: 3×3 시드 청크 무한 맵을 (다시) 세운다. 스테이지가 바뀌면 통째로 갈아 끼운다. */
+function setupChunkWorld(stageId, mapId) {
+  if (!three) return null;
+  if (three.chunks) {
+    try { three.chunks.dispose(); } catch (e) {}
+    three.chunks = null;
+  }
+  try {
+    three.chunks = createChunkWorld({ stageId: stageId || 1, mapId: mapId || 'map1' });
+    three.scene.add(three.chunks.group);
+    three.chunks.update(0, 0, (S && S.hero) ? S.hero.x : 0, (S && S.hero) ? S.hero.z : 0);
+  } catch (e) {
+    three.chunks = null;
+    if (window.console && console.warn) console.warn('[심안] 청크 월드 생성 실패', e);
+  }
+  return three.chunks;
 }
 
 let DPR_QUERY = 0;
@@ -493,7 +525,9 @@ function startRun(opts) {
     parryCd: 0, parryFlash: 0, parryHits: [], cleaveFx: 0, cleaveCount: 0,
     inputBuf: null, comboGrace: 0,
     waveDone: {}, waveBoostT: 0, waveIds: [], wavesFired: [], fogPulse: 0, noMarkT: 0,
-    evo: {}, evolved: [], preview: null, lastAxis: 'vline'
+    evo: {}, evolved: [], preview: null, lastAxis: 'vline',
+    /* v0.22: 무한 청크·묵항아리·보스 결계·진화 레벨 */
+    upLv: {}, jarsBroken: 0, arena: null, arenaFx: 0, eliteDone: false, eliteAt: st.eliteAt || 0
   };
   S.runNo = opts.sandbox ? SHAPE_UNLOCK.length : stageNo;
   S.pool = opts.sandbox ? SHAPE_UNLOCK.slice() : (st.shapes || SHAPE_UNLOCK.slice()).slice();
@@ -524,6 +558,8 @@ function startRun(opts) {
   three.camera.lookAt(0, CFG.camLookY, 0);
   applyCameraLens();
   applyRingBoost();
+  closeArena(true);
+  if (three && three.chunks) three.chunks.reset(0, 0);
   renderHud();
   lastTs = 0;
   if (audio) { audio.setQuiet(qa.mute, qa.noDelay); audio.startBgm(); }
@@ -1045,8 +1081,98 @@ function spawnBoss(opts) {
   placeGroup(e.obj, e.x, e.z);
   S.zombies.push(e);
   S.boss = e; S.bossSpawned = true;
+  /* v0.22 보스 결계: 잡몹을 걷어내고, 영웅을 중심으로 원형 아레나를 세운다. */
+  clearFieldForBoss();
+  openArena(S.hero.x, S.hero.z);
   assignSpiritTargets();
   return e;
+}
+/* 보스전 집중: 필드의 잔몹은 보상 없이 연기처럼 사라진다. */
+function clearFieldForBoss() {
+  if (!S) return 0;
+  let n = 0;
+  (S.zombies || []).forEach(function (z) {
+    if (!z.alive || z.isBoss) return;
+    z.alive = false;
+    if (z.obj && three) three.scene.remove(z.obj);
+    if (three && three.ink && n < 14) three.ink.kill(z.x, z.z, 0, 1);
+    n++;
+  });
+  S.waveIds = [];
+  S.spirits = (S.spirits || []).filter(function (s) {
+    if (s.target && !s.target.alive) { if (s.obj && three) three.scene.remove(s.obj); return false; }
+    return true;
+  });
+  return n;
+}
+
+/* ---------- 보스 결계(아레나) 연출 ---------- */
+function openArena(cx, cz) {
+  closeArena(true);
+  if (!S) return null;
+  const r = CFG.arenaR || 12;
+  S.arena = { x: cx || 0, z: cz || 0, r: r, t: 0 };
+  if (!three) return S.arena;
+  const group = new THREE.Group();
+  group.name = 'boss-arena';
+  const ringGeo = new THREE.RingGeometry(r - 0.42, r, 128, 1);
+  ringGeo.rotateX(-Math.PI / 2);
+  const ringMat = new THREE.MeshBasicMaterial({
+    color: 0xff6a3a, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending,
+    depthWrite: false, side: THREE.DoubleSide, fog: false
+  });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.position.y = 0.06;
+  ring.renderOrder = 4;
+  group.add(ring);
+  const innerGeo = new THREE.RingGeometry(r * 0.94, r * 0.955, 96, 1);
+  innerGeo.rotateX(-Math.PI / 2);
+  const innerMat = new THREE.MeshBasicMaterial({
+    color: 0xffd7a0, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending,
+    depthWrite: false, side: THREE.DoubleSide, fog: false
+  });
+  const inner = new THREE.Mesh(innerGeo, innerMat);
+  inner.position.y = 0.07;
+  inner.renderOrder = 4;
+  group.add(inner);
+  /* 결계 벽: 바닥에서 솟은 먹빛 원기둥(은은한 발광) */
+  const wallGeo = new THREE.CylinderGeometry(r, r, 2.8, 96, 1, true);
+  const wallMat = new THREE.MeshBasicMaterial({
+    color: 0xff7040, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending,
+    depthWrite: false, side: THREE.DoubleSide, fog: false
+  });
+  const wall = new THREE.Mesh(wallGeo, wallMat);
+  wall.position.y = 1.4;
+  wall.renderOrder = 4;
+  group.add(wall);
+  group.position.set(S.arena.x, 0, S.arena.z);
+  three.scene.add(group);
+  three.arena = { group: group, ring: ring, inner: inner, wall: wall, ringMat: ringMat, innerMat: innerMat, wallMat: wallMat, t: 0 };
+  return S.arena;
+}
+function closeArena(instant) {
+  if (three && three.arena) {
+    const a = three.arena;
+    three.scene.remove(a.group);
+    a.group.traverse(function (o) {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) o.material.dispose();
+    });
+    three.arena = null;
+  }
+  if (S) S.arena = null;
+}
+function stepArena(dt) {
+  const a = three && three.arena;
+  if (!a) return;
+  a.t += dt || 0;
+  const p = 0.55 + 0.45 * Math.sin(a.t * 2.7);
+  a.ringMat.opacity = 0.55 + 0.3 * p;
+  a.innerMat.opacity = 0.3 + 0.3 * p;
+  a.wallMat.opacity = 0.14 + 0.16 * p;
+  const s = 1 + 0.006 * Math.sin(a.t * 3.3);
+  a.ring.scale.set(s, 1, s);
+  a.inner.scale.set(2 - s, 1, 2 - s);
 }
 function spawnZombie(opts) {
   opts = opts || {};
@@ -1054,7 +1180,7 @@ function spawnZombie(opts) {
   const p = opts.x != null ? { x: opts.x, z: opts.z } : ringPos(opts.r != null ? opts.r : (zr[0] + Math.random() * (zr[1] - zr[0])));
   const type = opts.type || pickZombieType();
   const def = CFG.zombieTypes[type] || CFG.zombieTypes.imp;
-  const grow = 1 + (CFG.hpGrowth || 0) * clamp(S.elapsed / CFG.timeLimit, 0, 1);
+  const grow = 1 + (CFG.hpGrowth || 0) * clamp(S.elapsed / runLimit(), 0, 1);
   const e = {
     id: ++S._id, kind: 'zombie', type: type, x: p.x, z: p.z, r: def.r, alive: true,
     hp: opts.hp != null ? opts.hp : def.hp * grow, maxHp: def.hp * grow,
@@ -1077,6 +1203,69 @@ function spawnItem(opts) {
   placeGroup(e.obj, e.x, e.z, 0.2);
   S.items.push(e);
   return e;
+}
+
+/* ---------- 묵항아리: 부수면 세 가지 픽업 중 하나 ---------- */
+function pickJarDrop() {
+  const w = CFG.jarDropWeights || { herb: 0.4, magnet: 0.3, bang: 0.3 };
+  const keys = Object.keys(w);
+  const sum = keys.reduce(function (a, k) { return a + w[k]; }, 0) || 1;
+  let roll = Math.random() * sum;
+  for (let i = 0; i < keys.length; i++) { roll -= w[keys[i]]; if (roll <= 0) return keys[i]; }
+  return keys[0];
+}
+function breakJar(j) {
+  if (!j || !j.alive) return false;
+  if (three && three.chunks) three.chunks.breakJar(j);
+  j.alive = false;
+  if (!S) return true;
+  S.jarsBroken = (S.jarsBroken || 0) + 1;
+  if (art && art.playFx && three) {
+    const fx = art.playFx(three.scene, 'ink-splat', j.x, j.z, 1.7);
+    if (fx) three.fx.push(fx);
+  }
+  if (three && three.ink) three.ink.hit(j.x, j.z, 0.7, 0.7);
+  if (audio && !qa.mute) audio.hit();
+  S.shake = Math.max(S.shake || 0, 0.18);
+  const kind = pickJarDrop();
+  spawnItem({ type: kind, x: j.x, z: j.z });
+  addCharge(3);
+  showJudge('항아리 파괴');
+  return true;
+}
+/* 자석 부적: 필드의 모든 엽전·혼백을 즉시 빨아들인다. */
+function absorbAllItems(except) {
+  if (!S) return 0;
+  const list = (S.items || []).filter(function (x) { return x.alive && x !== except; });
+  let n = 0;
+  list.forEach(function (x) { if (x.alive) { collectItem(x, null); n++; } });
+  if (n && audio && audio.pickup) audio.pickup(n);
+  return n;
+}
+/* 화약 부적: 화면 안의 일반 적을 쓸어버리고 보스를 절단한다. */
+function firecrackerBurst() {
+  if (!S) return 0;
+  const R = Math.max(CFG.bangR || 15, ringR() * 2.2);
+  let killed = 0;
+  S.zombies.slice().forEach(function (z) {
+    if (!z.alive) return;
+    if (!isOnScreen(z, 120) && dist(z, S.hero) > R) return;
+    if (z.isBoss) {
+      cutBoss(z);
+      z.stun = Math.max(z.stun || 0, 0.8);
+      showJudge('화약 폭발!');
+      return;
+    }
+    if (dist(z, S.hero) > R + (z.r || 0.5)) return;
+    hurtZombie(z, 999, 'bang', S.lastDash);
+    if (!z.alive) killed++;
+  });
+  S.shake = Math.max(S.shake || 0, 1.0);
+  addHitstop(0.1);
+  if (audio && !qa.mute) audio.explode();
+  showJudge('화약 부적!');
+  triggerSightWave();
+  return killed;
 }
 function pickZombieType() {
   const st = curStage();
@@ -1913,13 +2102,13 @@ function dashDirOf(tgt, from) {
   return { x: dx / L, z: dz / L };
 }
 function safeLand(from, to) {
-  const bound = CFG.playBound || 28;
   let x = to.x, z = to.z;
-  const ro = Math.hypot(x, z);
-  if (ro > bound) { x *= bound / ro; z *= bound / ro; }
+  const clipped = clipBound({ x: x, z: z });
+  x = clipped.x; z = clipped.z;
   const dx = x - from.x, dz = z - from.z, L = Math.hypot(dx, dz) || 1;
   function blocked(px, pz) {
-    if (Math.hypot(px, pz) > bound + 0.01) return true;
+    const c = clipBound({ x: px, z: pz });
+    if (Math.hypot(c.x - px, c.z - pz) > 0.01) return true;
     let hit = false;
     (S.zombies || []).forEach(function (q) {
       if (!q.alive) return;
@@ -1935,11 +2124,29 @@ function safeLand(from, to) {
   }
   return { x: from.x + dx / L * Math.max(1, L * minU), z: from.z + dz / L * Math.max(1, L * minU) };
 }
+/* v0.22: 맵은 끝없이 이어진다. 보스 결계가 서 있을 때만 아레나 원 안으로 묶는다. */
+function clampPointToArena(x, z, pad) {
+  if (!arenaActive()) return { x: x, z: z };
+  const A = S.arena, R = Math.max(2, arenaR() - (pad || 0));
+  const dx = x - A.x, dz = z - A.z, ro = Math.hypot(dx, dz);
+  if (ro <= R) return { x: x, z: z };
+  return { x: A.x + dx * R / ro, z: A.z + dz * R / ro };
+}
 function clipBound(p) {
-  const bound = CFG.playBound || 28;
-  const ro = Math.hypot(p.x, p.z);
-  if (ro <= bound) return { x: p.x, z: p.z };
-  return { x: p.x * bound / ro, z: p.z * bound / ro };
+  if (!arenaActive()) return { x: p.x, z: p.z };
+  const A = S.arena, R = arenaR() - (CFG.arenaEdge || 0.6);
+  const dx = p.x - A.x, dz = p.z - A.z;
+  const ro = Math.hypot(dx, dz);
+  if (ro <= R) return { x: p.x, z: p.z };
+  return { x: A.x + dx * R / ro, z: A.z + dz * R / ro };
+}
+/* 넉백·반동으로도 결계 밖으로 밀리지 않게 영웅을 다시 안으로 넣는다. */
+function clampHeroToArena() {  if (!S || !S.hero || !arenaActive()) return false;
+  const c = clipBound(S.hero);
+  if (Math.abs(c.x - S.hero.x) < 1e-6 && Math.abs(c.z - S.hero.z) < 1e-6) return false;
+  S.hero.x = c.x; S.hero.z = c.z;
+  if (three && three.heroSpr) placeGroup(three.heroSpr, S.hero.x, S.hero.z);
+  return true;
 }
 function dashEndPoint(from, tgt) {
   const dir = dashDirOf(tgt, from);
@@ -2042,6 +2249,9 @@ function landingShock(at) {
   if (!S) return;
   const R = CFG.landShockR || 1.6, push = CFG.landPush || 1.2, stun = CFG.landStun || 0.3;
   magnetPull(at);
+  if (three && three.chunks) three.chunks.jarsNear(at.x, at.z, R + 0.7).forEach(breakJar);
+  if (S.evo && S.evo.frostNova) frostLanding(at);
+  if (S.evo && S.evo.fireTrail) fireLanding(at);
   if (S.evo && S.evo.fireTrail) {
     /* 묵염(墨炎) 장판: 착지점 한 곳이 아니라 베고 지나온 자리에 불길이 남는다. */
     S.clouds = S.clouds || [];
@@ -2153,6 +2363,7 @@ function castCleave(rec) {
   });
   rec.cleaveHits = hitIds;
   rec.targets = hitIds;
+  if (three && three.chunks) three.chunks.jarsNear(S.hero.x, S.hero.z, R).forEach(breakJar);
   S.shake = Math.max(S.shake || 0, 0.9);
   S.slowT = Math.max(S.slowT || 0, 0.35);
   addHitstop(0.12);
@@ -2200,6 +2411,26 @@ function fireWave(w) {
   }
   showJudge('포위!');
 }
+/* 중간 엘리트: 보스 전에 금테 원귀 한 마리와 그 패거리가 몰려온다. */
+function spawnEliteEvent() {
+  if (!S) return 0;
+  const R = Math.max(8, ringR() * 1.9);
+  const ang = Math.random() * Math.PI * 2;
+  const e = spawnZombie({ x: S.hero.x + Math.cos(ang) * R, z: S.hero.z + Math.sin(ang) * R, type: 'elite' });
+  if (e) { e.elite = true; S.waveIds.push(e.id); }
+  const n = 4;
+  for (let i = 0; i < n; i++) {
+    const a = ang + (i - (n - 1) / 2) * 0.3;
+    const z = spawnZombie({ x: S.hero.x + Math.cos(a) * R * 1.08, z: S.hero.z + Math.sin(a) * R * 1.08, type: i % 3 === 2 ? 'brute' : 'imp' });
+    if (z) S.waveIds.push(z.id);
+  }
+  S.waveBoostT = Math.max(S.waveBoostT || 0, 3);
+  S.shake = Math.max(S.shake || 0, 0.5);
+  toast('정예 원귀가 부적 상자를 지고 옵니다');
+  showJudge('정예 원귀');
+  if (audio && !qa.noDelay) audio.drum();
+  return 1;
+}
 /* 착지 자석: 반경 안의 혼백구·엽전이 곡선으로 빨려온다. */
 function magnetPull(at) {
   if (!S) return 0;
@@ -2232,6 +2463,8 @@ function applyPath(from, to, rec, skip) {
     if (!it.alive) return;
     if (segDist(it.x, it.z, from.x, from.z, to.x, to.z) <= r + it.r) collectItem(it, rec);
   });
+  /* 결을 지나간 자리의 묵항아리는 깨진다. */
+  if (three && three.chunks) three.chunks.jarsOnPath(from.x, from.z, to.x, to.z, r).forEach(breakJar);
 }
 function inkDir(rec, z) {
   const segs = rec && rec.segs;
@@ -2509,6 +2742,11 @@ function killZombie(z, rec) {
   if (S.evo && S.evo.frostNova && (z.frozen > 0 || z.slowT > 0) && !z.novaDone) {
     frostNovaAt(z, rec);
   }
+  /* 만독 쇄도: 독이 오른 적의 죽음이 독폭발과 참 게이지로 이어진다. */
+  if (S.evo && S.evo.poisonSpread && (z.poison || 0) > 0 && !z.manpoDone) {
+    z.manpoDone = true;
+    manpoBurst(z, rec);
+  }
   /* 포위 웨이브 정리 보상 */
   if (S) {
     const ix = (S.waveIds || []).indexOf(z.id);
@@ -2562,6 +2800,18 @@ function collectItem(it, rec) {
     openLevelUp();
   } else if (it.kind === 'heal') {
     S.hp = Math.min(maxHp(), S.hp + 3);
+  } else if (it.kind === 'herb') {
+    /* 회복 약초·주먹밥: 체력 +2 */
+    S.hp = Math.min(maxHp(), S.hp + (CFG.herbHeal || 2));
+    showJudge('약초 +' + (CFG.herbHeal || 2));
+    if (audio && audio.pickup) audio.pickup(1);
+  } else if (it.kind === 'magnet') {
+    /* 자석 부적: 바닥의 엽전·혼백을 한 번에 */
+    showJudge('자석 부적!');
+    absorbAllItems(it);
+  } else if (it.kind === 'bang') {
+    /* 화약 부적: 화면 안 광역 폭발 */
+    firecrackerBurst();
   } else if (it.kind === 'coin') {
     save.coins += Math.round(5 * coinMult()); persist();
   } else if (it.kind === 'xp') gainXp(1);
@@ -2577,7 +2827,9 @@ function addCharge(n) {
   S.charge = Math.min(max, before + n * mul);
   if (before < max && S.charge >= max) { showJudge('참(斬) 준비'); if (audio) audio.bell(0, 'bolt'); }
 }
-/* 스킬 진화: 조합이 갖춰지면 화면과 손에서 바로 티나는 효과가 켜진다. */
+/* 스킬 진화: 조합이 갖춰지면 화면과 손에서 바로 티나는 효과가 켜진다.
+   v0.22: 강화 레벨(upLv)까지 조건에 넣어 '한 번 집은 것'이 아니라 '키운 것'으로 진화한다. */
+function upLv(id) { return (S && S.upLv && S.upLv[id]) || 0; }
 function checkEvolutions(ctx) {
   if (!S) return;
   ctx = ctx || {};
@@ -2592,11 +2844,70 @@ function checkEvolutions(ctx) {
     showJudge('✦ ' + name);
     if (audio) audio.bell(0, 'bolt');
   }
-  if (S.dashCount >= 2 && el === 'fire') born('fireTrail', '묵염(墨炎) 장판');
-  if (el === 'ice' && S.pathR >= (CFG.pathRadius + 1.0)) born('frostNova', '사방 한기(寒氣)');
-  if (el === 'poison' && S.dashCount >= 2) born('poisonSpread', '독운(毒雲) 확산');
+  /* 1) 빙결 참격(절대영도): 일섬·얼음 + 경로 폭 Lv2↑ → 착지점 광역 동결·분쇄 */
+  if (el === 'ice' && upLv('width') >= 2) born('frostNova', '빙결 참격(절대영도)');
+  /* 2) 업화 연쇄: 일섬·화염 + 일섬 횟수 Lv2↑ → 돌진마다 화염 폭발 장판 */
+  if (el === 'fire' && upLv('dash') >= 2) born('fireTrail', '업화 연쇄');
+  /* 3) 만독 쇄도: 일섬·독 + 참(斬) 게이지 Lv2↑ → 독폭발 연쇄 + 참 게이지 충전 */
+  if (el === 'poison' && upLv('charge') >= 2) born('poisonSpread', '만독 쇄도');
   if ((S.chargeLv || 0) > 0 && el === 'ice') born('iceCleave', '빙참(氷斬)');
   if ((S.bellT > 0 || ctx.bell) && S.dashCount >= 3) born('myriadBell', '만종(萬鐘)');
+}
+/* 빙결 참격: 착지점이 얼어붙고 부서지는 얼음 파편이 퍼진다. */
+function frostLanding(at) {
+  if (!S || !at) return;
+  const R = 4.2;
+  if (art && art.playFx && three) {
+    const fx = art.playFx(three.scene, 'ink-splat', at.x, at.z, 3.4);
+    if (fx) three.fx.push(fx);
+  }
+  S.zombies.forEach(function (z) {
+    if (!z.alive || z.isBoss) return;
+    if (dist(z, at) > R + z.r) return;
+    z.frozen = Math.max(z.frozen || 0, CFG.iceDur || 2.5);
+    z.burn = 0;
+    tintZombie(z);
+    hurtZombie(z, CFG.shatterDmg || 4, 'frost', S.lastDash);
+  });
+  S.shake = Math.max(S.shake || 0, 0.35);
+}
+/* 업화 연쇄: 착지할 때마다 불꽃이 터지고 지나온 자리에 장판이 남는다. */
+function fireLanding(at) {
+  if (!S || !at) return;
+  const R = 2.7;
+  if (art && art.playFx && three) {
+    const fx = art.playFx(three.scene, 'ink-splat', at.x, at.z, 2.4);
+    if (fx) three.fx.push(fx);
+  }
+  S.zombies.forEach(function (z) {
+    if (!z.alive || z.isBoss) return;
+    if (dist(z, at) > R + z.r) return;
+    hurtZombie(z, CFG.explodeDmg || 3, 'fire-burst', S.lastDash);
+    if (z.alive) { z.burn = CFG.burnDur || 3; tintZombie(z); }
+  });
+  S.shake = Math.max(S.shake || 0, 0.3);
+}
+/* 만독 쇄도: 독이 오른 적이 쓰러지면 독이 터져 옆으로 옮고 참 게이지가 더 찬다. */
+function manpoBurst(z, rec) {
+  if (!S || !z) return;
+  const stacks = Math.max(1, Math.min(CFG.poisonMax || 5, z.poison || 1));
+  const R = 2.8 + stacks * 0.3;
+  if (art && art.playFx && three) {
+    const fx = art.playFx(three.scene, 'ink-splat', z.x, z.z, 2.8);
+    if (fx) three.fx.push(fx);
+  }
+  S.zombies.forEach(function (o) {
+    if (o === z || !o.alive || o.isBoss) return;
+    if (dist(o, z) > R + o.r) return;
+    hurtZombie(o, 2 + stacks, 'poison-burst', rec);
+    if (o.alive) {
+      o.poison = Math.min(CFG.poisonMax || 5, (o.poison || 0) + 1);
+      o.poisonT = CFG.poisonDur || 4;
+      tintZombie(o);
+    }
+  });
+  addCharge(6 + stacks * 2);
+  S.shake = Math.max(S.shake || 0, 0.22);
 }
 /* 사방 한기(寒氣): 얼어붙은 적(혹은 얼음 일섬으로 베어 넘긴 적)이 터지며 사방을 얼린다. */
 function frostNovaAt(z, rec) {
@@ -2650,6 +2961,8 @@ function openLevelUp() {
 }
 function pickUpgrade(id) {
   if (!S || S.paused !== 'levelup') return false;
+  S.upLv = S.upLv || {};
+  S.upLv[id] = (S.upLv[id] || 0) + 1;
   if (id === 'dmg') S.dashDmg += 1;
   else if (id === 'width') S.pathR += 0.55;
   else if (id === 'dash') S.dashCount += 1;
@@ -2703,6 +3016,9 @@ function stepBoss(z, dt) {
     const sp = chargeSp;
     z.x += (z.chargeDir ? z.chargeDir.x : 0) * sp * dt;
     z.z += (z.chargeDir ? z.chargeDir.z : 0) * sp * dt;
+    /* 결계 벽에 막히는 돌진 — 밖으로 빠져나가 영웅을 놓치는 일이 없다. */
+    const ca = clampPointToArena(z.x, z.z, 1.3);
+    z.x = ca.x; z.z = ca.z;
     if ((S.iframe || 0) <= 0 && dist(z, S.hero) < z.r + 0.7) {
       S.hp -= CFG.bossDmg || 2;
       S.iframe = CFG.iframeMs / 1000;
@@ -2754,6 +3070,7 @@ function starsFor(win) {
 function endRun(win, msg) {
   if (!S || S.won || S.lost) return;
   S.won = win; S.lost = !win; S.playing = false; S.paused = 'result'; S.dash = null;
+  closeArena();
   const st = S.stage || stageOf(1);
   const stars = starsFor(win);
   const coinsGain = Math.max(0, save.coins - (S.coin0 || 0));
@@ -2867,16 +3184,22 @@ function step(dt) {
   }
   if (!S.sandbox && !S.bossSpawned && S.elapsed >= ((S.stage && S.stage.bossAt) || CFG.bossAt)) {
     spawnBoss({ r: CFG.bossSpawnR, nShapes: (S.stage && S.stage.bossShapes) || CFG.bossShapes });
-    toast('부적을 단 귀물이 다가옵니다');
+    toast('부적을 단 귀물이 다가옵니다 — 결계가 내려앉습니다');
   }
-  /* 포위 웨이브 (스테이지별 스케줄) */
-  if (!S.sandbox) {
+  const bossAlive = !!(S.boss && S.boss.alive);
+  /* 중간 정예(보스 전 엘리트) — 스테이지별 1회 */
+  if (!S.sandbox && !bossAlive && S.eliteAt > 0 && !S.eliteDone && S.elapsed >= S.eliteAt) {
+    S.eliteDone = true;
+    spawnEliteEvent();
+  }
+  /* 포위 웨이브 (스테이지별 스케줄). 보스 결계 안에서는 잔몹을 부르지 않는다. */
+  if (!S.sandbox && !bossAlive) {
     stageWaves().forEach(function (w) {
       if (!S.waveDone[w.t] && S.elapsed >= w.t) fireWave(w);
     });
   }
-  const wave = 1 + 0.7 * clamp(S.elapsed / CFG.timeLimit, 0, 1);
-  if (!S.sandbox) {
+  const wave = 1 + 0.7 * clamp(S.elapsed / runLimit(), 0, 1);
+  if (!S.sandbox && !bossAlive) {
     S.zAcc += dt * 1000;
     S.sAcc += dt * 1000;
     const SP = (S.stage && S.stage.spawn) || {};
@@ -2884,8 +3207,6 @@ function step(dt) {
     const delayed = S.elapsed < (CFG.spawnZombieDelay || 12);
     const early = S.elapsed < (CFG.earlyZombieUntil || 25);
     let zMax = SP.max || CFG.spawnZombieMax || 20;
-    /* 웨이브 중에는 잔몹 스폰을 멈춰 45마리까지 쌓이지 않게 한다(포위는 웨이브가 만든다). */
-    if (S.waveBoostT > 0) zMax = 0;
     let zBase = SP.ms || CFG.spawnZombieMs;
     if (practicing) { zMax = CFG.practiceZombieMax || 2; zBase = CFG.practiceZombieMs || 3200; }
     else if (delayed) { S.zAcc = 0; zMax = 0; }
@@ -2973,6 +3294,7 @@ function step(dt) {
       z.z = S.hero.z - (S.hero.z - z.z) / d * push;
     }
   });
+  clampHeroToArena();
   refreshSpirits();
   S.items.forEach(function (it) {
     if (!it.alive) return;
@@ -2987,6 +3309,8 @@ function step(dt) {
     }
     placeGroup(it.obj, it.x, it.z, 0.2 + Math.sin(S.elapsed * 3 + it.id) * 0.08);
   });
+  /* 시체 누적 정리(무한맵에서 장시간 플레이해도 배열이 자라지 않게) */
+  if (S.zombies.length > 120) S.zombies = S.zombies.filter(function (z) { return z.alive; });
   renderHud();
   /* Check time after autoStroke/combat so a large timeScale dt cannot skip the last boss hit. */
   if (S.playing && S.timeLeft <= 0) {
@@ -3573,7 +3897,7 @@ function loop(ts) {
     if (inkFade <= 0) clearInk();
     else paintInk(lastStroke, clamp(inkFade / 0.35, 0, 1));
   }
-  if (S && S.paused === 'levelup' && (qa.autoStroke || (qa.noDelay && qa.timeScale > 1))) {
+  if (S && S.paused === 'levelup' && (qa.autoPick === true || (qa.autoPick !== false && (qa.autoStroke || (qa.noDelay && qa.timeScale > 1))))) {
     const b = document.querySelector('#levelChoices [data-up]');
     if (b) pickUpgrade(b.getAttribute('data-up'));
     else if (S.levelPicks && S.levelPicks[0]) pickUpgrade(S.levelPicks[0].id);
@@ -3587,6 +3911,10 @@ function loop(ts) {
   }
   updateCam(dt);
   if (three) {
+    /* v0.22 무한 청크: 영웅이 청크를 넘으면 3×3 창을 밀고 새 청크를 세운다. */
+    if (three.chunks) three.chunks.update(raw, ts * 0.001, S ? S.hero.x : 0, S ? S.hero.z : 0);
+    if (three.map && three.map.follow) three.map.follow(S ? S.cam.x : 0, S ? S.cam.z : 0);
+    stepArena(raw);
     if (three.map && three.map.update) three.map.update(raw, ts * 0.001);
     if (three.atmo) {
       if (S && S.hero) {
@@ -3713,6 +4041,7 @@ async function boot() {
   await probeAssets();
   art = await buildArt(THREE);
   three = await makeWorld();
+  setupChunkWorld((three.map && three.map.stageId) || 1, (three.map && three.map.id) || 'map1');
   applyFxinkAtmo((three.map && three.map.id) || 'map1');
   applyStageAtmo(stageOf(titleSel || save.stage || 1));
   previewStageWorld(titleSel || save.stage || 1);
@@ -3775,7 +4104,7 @@ const GPv2 = {
   spawnItem: function (o) { return spawnItem(o); },
   setHero: function (x, z) { if (!S) return; S.hero.x = x; S.hero.z = z; S.cam.x = x; S.cam.z = z; if (three.heroSpr) placeGroup(three.heroSpr, x, z); },
   setDashCount: function (n) { if (S) S.dashCount = n; renderHud(); },
-  setElement: function (el) { setDashElem(el); },
+  setElement: function (el) { setDashElem(el); checkEvolutions(); return S && S.dashElem; },
   startBell: function (shape, dur) { startBell(shape, dur); },
   setMap: function (id) { return switchMap(id); },
   getMap: function () { return three && three.map && { id: three.map.id, name: three.map.name, key: three.map.key }; },
@@ -3833,12 +4162,77 @@ const GPv2 = {
   stageInfo: function () {
     const st = curStage();
     return {
-      id: st.id, name: st.name, sub: st.sub, map: st.map, time: st.time, bossAt: st.bossAt,
+      id: st.id, name: st.name, sub: st.sub, map: st.map, time: st.time, bossAt: st.bossAt, eliteAt: st.eliteAt || 0,
       bossShapes: st.bossShapes, shapes: (st.shapes || []).slice(), spiritCap: st.spiritCap,
+      spawn: st.spawn ? Object.assign({}, st.spawn) : null,
       waves: stageWaves().map(function (w) { return { t: w.t, n: w.n, elite: !!w.elite }; }),
       saveStage: save.stage, stars: Object.assign({}, save.stars), bestScore: save.bestScore
     };
   },
+  /* v0.22 QA 훅: 청크·항아리·결계·진화 */
+  chunkInfo: function () {
+    const c = three && three.chunks;
+    if (!c) return null;
+    return {
+      stageId: c.stageId, center: { cx: c.center.cx, cz: c.center.cz }, stats: Object.assign({}, c.stats),
+      jars: c.jars.map(function (j) { return { id: j.id, x: j.x, z: j.z, alive: j.alive, cx: j.cx, cz: j.cz }; }),
+      heroChunk: S ? { cx: chunkOf(S.hero.x), cz: chunkOf(S.hero.z) } : null
+    };
+  },
+  /* 시드 고정 확인: 같은 좌표를 다시 지으면 같은 소품 수·같은 항아리 자리가 나와야 한다. */
+  chunkSeedInfo: function (cx, cz, stageId) {
+    const d = buildChunkData(cx | 0, cz | 0, stageId || (three && three.chunks && three.chunks.stageId) || 1);
+    let n = 0;
+    Object.keys(d.buckets).forEach(function (k) { n += d.buckets[k].length; });
+    return { seed: d.seed, props: n, jars: d.jars.map(function (j) { return [Math.round(j.x * 100) / 100, Math.round(j.z * 100) / 100]; }) };
+  },
+  jarInfo: function () {
+    const c = three && three.chunks;
+    if (!c) return null;
+    return c.jars.map(function (j) { return { id: j.id, x: j.x, z: j.z, alive: j.alive }; });
+  },
+  breakJarAt: function (x, z, r) {
+    const c = three && three.chunks;
+    if (!c) return 0;
+    const list = c.jarsNear(x, z, r == null ? 2.5 : r);
+    list.forEach(breakJar);
+    return list.length;
+  },
+  spawnJarDrop: function (kind) {
+    if (!S) return null;
+    return spawnItem({ type: kind || 'herb', x: S.hero.x + 1.2, z: S.hero.z });
+  },
+  arenaInfo: function () {
+    const a = S && S.arena;
+    return {
+      active: !!a, x: a ? a.x : null, z: a ? a.z : null, r: a ? a.r : 0,
+      heroDist: a && S ? Math.hypot(S.hero.x - a.x, S.hero.z - a.z) : null,
+      hasMesh: !!(three && three.arena), bossAlive: !!(S && S.boss && S.boss.alive)
+    };
+  },
+  firecracker: function () { return firecrackerBurst(); },
+  absorbAll: function () { return absorbAllItems(null); },
+  eliteEvent: function () { return spawnEliteEvent(); },
+  /* 진화 효과 확인용: 착지 충격을 그 자리에서 일으킨다(실제 landingShock 경로). */
+  landingProbe: function (x, z) {
+    if (!S) return null;
+    const at = { x: x == null ? S.hero.x : x, z: z == null ? S.hero.z : z };
+    landingShock(at);
+    return S.zombies.filter(function (zz) { return zz.alive; }).map(function (zz) {
+      return { id: zz.id, hp: zz.hp, frozen: zz.frozen > 0, burn: zz.burn > 0, poison: zz.poison || 0 };
+    });
+  },
+  /* 만독 쇄도 확인용: 독이 오른 적을 쓰러뜨린다. */
+  poisonKillProbe: function (x, z) {
+    if (!S) return null;
+    const p = { x: x == null ? S.hero.x + 3 : x, z: z == null ? S.hero.z : z };
+    const z1 = spawnZombie({ x: p.x, z: p.z, hp: 4 });
+    z1.poison = 3; z1.poisonT = 4;
+    const before = S.charge || 0;
+    hurtZombie(z1, 99, 'probe', S.lastDash);
+    return { chargeBefore: before, chargeAfter: S.charge || 0, alive: z1.alive, evo: Object.keys(S.evo || {}) };
+  },
+  upInfo: function () { return S ? { upLv: Object.assign({}, S.upLv || {}), evo: Object.keys(S.evo || {}), evolved: (S.evolved || []).slice(), dashElem: S.dashElem, dashCount: S.dashCount, pathR: S.pathR, chargeLv: S.chargeLv || 0 } : null; },
   beginStage: beginStage,
   goStageNow: goStageNow,
   selectStage: function (n) { titleSel = clamp(n | 0, 1, STAGES.length); refreshTitleHelp(); previewStageWorld(titleSel); return titleSel; },
@@ -3979,7 +4373,10 @@ const GPv2 = {
       shadowMap: three && three.moon ? three.moon.shadow.mapSize.x : 0,
       stageId: three && three.map ? three.map.stageId : null,
       mapId: three && three.map ? three.map.id : null,
-      props: three && three.map && three.map.w3 ? three.map.w3.batches : 0,
+      props: three && three.chunks ? three.chunks.stats.batches : (three && three.map && three.map.w3 ? three.map.w3.batches : 0),
+      chunkProps: three && three.chunks ? three.chunks.stats.props : 0,
+      chunkJars: three && three.chunks ? three.chunks.jars.filter(function (j) { return j.alive; }).length : 0,
+      chunkRebuilds: three && three.chunks ? three.chunks.stats.rebuilds : 0,
       triangles: three && three.map && three.map.w3 ? three.map.w3.triangles : 0,
       lights: three && three.map ? (three.map.lights || []).length : 0,
       atmoFields: three && three.atmo ? three.atmo.fields.length : 0,
@@ -4047,6 +4444,8 @@ const GPv2 = {
       dashElem: S && S.dashElem,
       bell: S && { t: S.bellT, shape: S.bellShape, cinematic: !!(S.lastDash && S.lastDash.cinematic) },
       map: three && three.map && { id: three.map.id, name: three.map.name, key: three.map.key },
+      chunks: three && three.chunks ? Object.assign({ center: { cx: three.chunks.center.cx, cz: three.chunks.center.cz }, jarsAlive: three.chunks.jars.filter(function (j) { return j.alive; }).length }, three.chunks.stats) : null,
+      arena: S && S.arena ? { x: S.arena.x, z: S.arena.z, r: S.arena.r, bossAlive: !!(S.boss && S.boss.alive) } : null,
       hp: S && S.hp, coins: save.coins, playing: !!(S && S.playing), paused: S && S.paused,
       timeLeft: S && S.timeLeft, boss: !!(S && S.boss), bossAlive: !!(S && S.boss && S.boss.alive), bossSeqI: S && S.boss && S.boss.alive ? S.boss.seqI : null,
       fps: fpsReport(),

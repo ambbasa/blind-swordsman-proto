@@ -12,6 +12,8 @@ const ITEM_KEY = {
   ice: 'elem-ice', fire: 'elem-fire', poison: 'elem-poison', bell: 'one-bell',
   'elem-ice': 'elem-ice', 'elem-fire': 'elem-fire', 'elem-poison': 'elem-poison', 'one-bell': 'one-bell',
   dashplus: 'dash-plus', 'dash-plus': 'dash-plus', heal: 'heal', coin: 'coin', xp: 'xp-orb', 'xp-orb': 'xp-orb',
+  /* 묵항아리 3종 픽업 */
+  herb: 'herb', magnet: 'magnet', bang: 'bang',
   /* 정예 원귀의 부적 상자 */
   charm: 'one-bell'
 };
@@ -497,7 +499,7 @@ export async function buildArt(THREE) {
     };
     return inkCharPack;
   }
-  const ITEM_DRAW = { 'elem-ice': 'ice', 'elem-fire': 'fire', 'elem-poison': 'poison', 'one-bell': 'bell', 'dash-plus': 'dashplus', heal: 'heal', coin: 'coin', 'xp-orb': 'xp' };
+  const ITEM_DRAW = { 'elem-ice': 'ice', 'elem-fire': 'fire', 'elem-poison': 'poison', 'one-bell': 'bell', 'dash-plus': 'dashplus', heal: 'heal', coin: 'coin', 'xp-orb': 'xp', herb: 'herb', magnet: 'magnet', bang: 'bang' };
   const inkItemCache = {};
   function inkItemTex(key) {
     if (!inkItemCache[key]) {
@@ -812,7 +814,7 @@ export async function buildArt(THREE) {
     currentMapId = id;
     const M = atlas.maps[id];
     const stageId = (opts && opts.stage) || 1;
-    const w3 = buildStage3D(THREE, { mapId: id, stageId: stageId });
+    const w3 = buildStage3D(THREE, { mapId: id, stageId: stageId, chunked: opts && opts.chunked !== false });
     const group = w3.group;
     group.name = 'map-' + id + '-' + stageId;
     scene.add(group);
