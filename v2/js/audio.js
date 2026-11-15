@@ -1,4 +1,4 @@
-/* Original Web Audio synthesis for 맹인 검객 일섬 v2.
+/* Original Web Audio synthesis for 심안 v2.
  * No third-party samples. See docs/SOUND.md. */
 export function createAudio() {
   let ctx = null, master = null, bgmGain = null, sfxGain = null;

@@ -1,4 +1,4 @@
-/* 맹인 검객 일섬 v2 — 2.5D quarter-view, Three.js, camera-follow dashes. */
+/* 심안(SIMAN) v2 — 2.5D quarter-view, Three.js, camera-follow dashes. */
 import * as THREE from 'three';
 import { probeAssets, buildArt } from './art.js';
 import * as Anim from './anim.js';
@@ -287,7 +287,7 @@ function renderHud() {
     $('comboLabel').textContent = '콤보 ' + (S.combo || 0);
     $('comboLabel').classList.toggle('hot', (S.combo || 0) >= 4);
   }
-  $('stageLabel').textContent = S.sandbox ? '연습' : (S.stage ? (S.stageNo + '장 ' + S.stage.name) : '일섬');
+  $('stageLabel').textContent = S.sandbox ? '연습' : (S.stage ? (S.stageNo + '장 ' + S.stage.name) : '심안');
   if (S.boss && S.boss.alive) $('stageLabel').textContent = '보스';
   $('xpFill').style.width = Math.min(100, (S.xp / xpNeed(S.level)) * 100) + '%';
   renderCharge();
@@ -1120,7 +1120,7 @@ function refreshTitleHelp() {
   const pool = (st.shapes || ['hline']).slice();
   if (el) el.innerHTML = pool.map(titleChip).join('');
   const sub = $('titleSub');
-  if (sub) sub.textContent = st.sub + ' — 심안(먹안개) 안쪽 혼령의 종 모양을 그려, 그 혼령 방향으로 돌진하세요';
+  if (sub) sub.textContent = st.sub + ' — 먹안개 안쪽 혼령의 종 모양을 그려, 그 혼령 방향으로 일섬 돌진하세요';
   const btn = $('btnStart');
   if (btn) btn.textContent = sel + '장 출전';
   const note = $('titleStageNote');
