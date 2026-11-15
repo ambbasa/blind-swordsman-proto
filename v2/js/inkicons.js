@@ -124,24 +124,6 @@ export function drawSeal(shape) {
   return c;
 }
 
-/** The shape mark alone, for the spirit's orb: thick ink strokes with a paper edge on transparency. */
-export function drawGlyph(shape) {
-  const S = 128, c = canvas(S, S), ctx = c.getContext('2d');
-  const rnd = rng(INK_ICONS.seed + (shape || 'plain').length * 23);
-  /* Dark ink strokes with a paper edge, so the mark reads on the bright orb. */
-  if (shape && shape !== 'plain') {
-    const k = { hline: [[[-1, 0], [1, 0]]], vline: [[[0, -1], [0, 1]]], vee: [[[-1, -0.75], [0, 0.85], [1, -0.75]]], bolt: [[[0.45, -1], [-0.45, -0.05], [0.45, 0.05], [-0.4, 1]]] }[shape];
-    const sc = 40;
-    (k || []).forEach(function (line) {
-      const p = line.map(function (q) { return [S / 2 + q[0] * sc, S / 2 + q[1] * sc]; });
-      stroke(ctx, p, 24, PAPER + '0.9)');
-      stroke(ctx, p, 15, INK + '1)');
-      brush(ctx, p, 8, 'rgba(40,36,38,', 0.6, rnd, 4);
-    });
-  }
-  return c;
-}
-
 /** A shaman's rattle (무당방울), hanging: the red handle on top (its end at the top centre), tiers of small brass bells below, five-colour ribbons trailing down. */
 export function drawRattle() {
   const W = 96, H = 168, c = canvas(W, H), ctx = c.getContext('2d');

@@ -903,8 +903,6 @@ function setSpiritAlpha(s) {
   /* Fades in when the zombie enters the ring, then stays. */
   const a = (CFG.spiritAlpha || 0.9) * clamp((s.age || 0) / (CFG.spiritFadeIn || 0.4), 0, 1);
   if (ud.sprite && ud.sprite.material) { ud.sprite.material.transparent = true; ud.sprite.material.opacity = a; }
-  const bell = ud.bellHang && ud.bellHang.bell;
-  if (bell && bell.material) { bell.material.transparent = true; bell.material.opacity = a; }
   if (ud.glow && ud.glow.material) ud.glow.material.opacity = (CFG.spiritGlowAlpha || 0.5) * a;
 }
 /* A spirit bound to a zombie hovers over its head and follows it; free (test) spirits stay on the ring. */
@@ -1210,19 +1208,11 @@ function unprojectToY(sx, sy, y0) {
   const k = (y0 - _proj.a.y) / dy;
   return { x: _proj.a.x + dx * k, z: _proj.a.z + dz * k };
 }
+/* 혼령의 기호가 놓인 월드 좌표(구슬 중심). 혼령 그룹은 좀비 머리 위로 떠 있으므로 그 높이를 더한다. */
 function bellWorld(s) {
-  const hang = s && s.obj && s.obj.userData && s.obj.userData.bellHang;
-  if (hang && hang.bell) {
-    if (!_proj.c) _proj.c = new THREE.Vector3();
-    const bh = (s.obj.userData.bellH != null) ? s.obj.userData.bellH : 0.4;
-    /* A spirit's mark is centred on its sprite; a hanging bell is measured from its top. */
-    _proj.c.set(0, hang.pivot === null ? 0 : bh * 0.52, 0);
-    hang.bell.updateWorldMatrix(true, false);
-    _proj.c.applyMatrix4(hang.bell.matrixWorld);
-    return { x: _proj.c.x, y: _proj.c.y, z: _proj.c.z };
-  }
   const off = (s && s.obj && s.obj.userData && s.obj.userData.bellLocal) || { x: 0, y: 1 };
-  return { x: s.x, y: off.y || 1, z: s.z };
+  const g = (s && s.obj && s.obj.position) || { x: (s && s.x) || 0, y: 0, z: (s && s.z) || 0 };
+  return { x: g.x, y: g.y + (off.y || 1), z: g.z };
 }
 function bellScreen(s) {
   const b = bellWorld(s);
@@ -1452,53 +1442,6 @@ function drawSoulStreams(ctx) {
     ctx.restore();
   });
 }
-/* The shape mark, written like a brush stroke on the 2D layer over the spirit's orb (bloom cannot blur it):
-   each stroke presses in heavy, thins out and lifts off; a faint paper glow behind keeps it readable. */
-function brushStrokeAlong(ctx, pts, w, color) {
-  const seg = [];
-  let total = 0;
-  for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); seg.push(d); total += d; }
-  const n = Math.max(8, Math.ceil(total / 0.7));
-  ctx.fillStyle = color;
-  let si = 0, acc = 0;
-  for (let k = 0; k <= n; k++) {
-    const want = (k / n) * total;
-    while (si < seg.length - 1 && acc + seg[si] < want) { acc += seg[si]; si++; }
-    const u = Math.min(1, (want - acc) / (seg[si] || 1));
-    const a = pts[si], b = pts[si + 1];
-    const t = k / n;
-    const r = w * (t < 0.08 ? 1.25 - t * 2 : 1.1 - 0.75 * Math.pow(t, 1.6));
-    ctx.beginPath(); ctx.arc(a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u, Math.max(0.4, r), 0, Math.PI * 2); ctx.fill();
-  }
-}
-/* 붓글씨 기호: 한 획이 눌러 들어갔다가 가늘어지며 떨어지는 먹 붓질.
-   x, y는 혼령(구슬)의 정중앙이고, 획 자체의 외곽 중심을 그 점에 맞춘다. */
-function drawMarkGlyph(ctx, shape, x, y, size, opt) {
-  const k = { hline: [[[-1, 0.08], [0.05, -0.04], [1, 0.02]]], vline: [[[0.04, -1], [-0.03, 0.1], [0.02, 1]]], vee: [[[-0.95, -0.7], [0, 0.85]], [[0, 0.85], [0.95, -0.8]]], bolt: [[[0.45, -1], [-0.45, -0.05]], [[-0.45, -0.05], [0.45, 0.05]], [[0.45, 0.05], [-0.4, 1]]] }[shape];
-  if (!k) return;
-  opt = opt || {};
-  const h = size * 0.46, w = Math.max(1.1, size * 0.085);
-  /* 획의 실제 외곽 중심을 구해 그 점이 (x, y)에 오게 한다 (V·번개도 삐뚫어지지 않게). */
-  let mnx = 9, mxx = -9, mny = 9, mxy = -9;
-  k.forEach(function (line) {
-    line.forEach(function (q) {
-      if (q[0] < mnx) mnx = q[0]; if (q[0] > mxx) mxx = q[0];
-      if (q[1] < mny) mny = q[1]; if (q[1] > mxy) mxy = q[1];
-    });
-  });
-  const ox = (mnx + mxx) * 0.5, oy = (mny + mxy) * 0.5;
-  ctx.save();
-  /* 한지 후광: 먹안개 속에서도 기호 위치를 먼저 읽게 한다. */
-  const g = ctx.createRadialGradient(x, y, 0, x, y, size * 0.75);
-  g.addColorStop(0, 'rgba(244,236,214,0.45)'); g.addColorStop(1, 'rgba(244,236,214,0)');
-  ctx.fillStyle = g; ctx.fillRect(x - size, y - size, size * 2, size * 2);
-  k.forEach(function (line) {
-    const p = line.map(function (q) { return [x + (q[0] - ox) * h, y + (q[1] - oy) * h]; });
-    brushStrokeAlong(ctx, p, w * 1.9, 'rgba(244,236,214,0.5)');
-    brushStrokeAlong(ctx, p, w, 'rgba(10,9,12,0.95)');
-  });
-  ctx.restore();
-}
 /* 혼령 구슬의 화면 중심과 반지름(px). 구슬은 256px 셀에서 반지름 58px로 그려진다. */
 function spiritOrbScreen(s) {
   const ud = (s && s.obj && s.obj.userData) || {};
@@ -1583,7 +1526,7 @@ function updateMarks() {
       x: orb.x, y: orb.y, ox: ox, oy: oy, cssPx: glyphPx, orbR: orb.r, onScreen: on,
       shape: spiritShape(s), boss: !!s.isBoss, id: s.id, aim: s.id === aimId,
       seq: s === bossSpirit ? (S.boss.seq || []).slice() : null, seqI: s === bossSpirit ? (S.boss.seqI || 0) : 0,
-      bellPx: bellPx, bodyPx: bodyPx, glyph: !!s.isBoss, bellTex: (s.obj.userData.bellHang && s.obj.userData.bellHang.bell && s.obj.userData.bellHang.bell.userData && s.obj.userData.bellHang.bell.userData.bellTex) || null
+      bellPx: bellPx, bodyPx: bodyPx
     };
     lastMarkMetrics.marks.push(item);
     if (on) placed.push(item);
@@ -1597,72 +1540,34 @@ function updateMarks() {
     }
   });
   lastMarkMetrics.arrows = arrows;
-  livingMarks().forEach(function (s) {
-    if (art.setBellAim) art.setBellAim(s.obj, !!(aimId && s.id === aimId));
-  });
-  const minD = 8;
-  /* Separate overlapping glyphs enough to read; stay near the bell when already apart. */
-  for (let iter = 0; iter < 8; iter++) {
-    for (let i = 0; i < placed.length; i++) {
-      for (let j = i + 1; j < placed.length; j++) {
-        const a = placed[i], b = placed[j];
-        let dx = b.x - a.x, dy = b.y - a.y;
-        let d = Math.hypot(dx, dy);
-        if (d < 0.01) { dx = 1; dy = 0; d = 1; }
-        const need = Math.max(a.cssPx || size, b.cssPx || size) * 0.9 + 0.05;
-        if (d < need) {
-          const push = (need - d) * 0.5;
-          a.x -= dx / d * push; a.y -= dy / d * push;
-          b.x += dx / d * push; b.y += dy / d * push;
-        }
-      }
-    }
-  }
-  let minSep = 9999;
-  for (let i = 0; i < placed.length; i++) {
-    for (let j = i + 1; j < placed.length; j++) {
-      minSep = Math.min(minSep, Math.hypot(placed[j].x - placed[i].x, placed[j].y - placed[i].y));
-    }
-  }
-  lastMarkMetrics.minSep = placed.length > 1 ? minSep : minD;
-  lastMarkMetrics.markStyle = 'brush';
-  lastMarkMetrics.glyphOn = 'all';
+  lastMarkMetrics.markStyle = 'ink';
   if (placed.length) {
     lastMarkMetrics.cssPx = placed.reduce(function (m, p) { return Math.max(m, p.cssPx || 0); }, 0) || size;
     lastMarkMetrics.bellPx = placed.reduce(function (m, p) { return Math.max(m, p.bellPx || 0); }, 0);
     lastMarkMetrics.bodyPx = placed.reduce(function (m, p) { return Math.max(m, p.bodyPx || 0); }, 0);
   }
-  const denseGlow = (placed.length <= 6) && (((fps.last || 60) >= 50) && fxQ !== 'low' && fxQ !== 'off');
-  lastMarkMetrics.denseGlow = denseGlow;
   placed.forEach(function (m) {
-    /* 밀집도: 60px 안에 기호가 3개 이상이면 1.15배 확대해 서로 묻히지 않게 한다. */
-    let near = 0;
-    placed.forEach(function (o) { if (o !== m && Math.hypot(o.x - m.x, o.y - m.y) < 60) near++; });
-    const dense = near >= 2;
-    m.dense = dense;
-    m.drawPx = Math.round((m.cssPx || size) * (dense ? 1.08 : 1));
+    /* 기호는 혼령 텍스처에 구워져 3D 월드에서 렌더링된다. 2D 레이어에는 보스의 도형 순서만 남긴다. */
+    if (!(m.seq && m.seq.length)) return;
     const x = m.x, y = m.y;
-    const gsize = m.drawPx;
+    const gsize = m.cssPx || size;
     ctx.save();
-    drawMarkGlyph(ctx, m.shape, x, y, gsize, { glow: denseGlow });
-    if (m.seq && m.seq.length) {
-      const gap = size * 0.38;
-      const rowW = (m.seq.length - 1) * gap;
-      const rowX = clamp(x - rowW * 0.5, 10, r.width - 10 - rowW);
-      const rowY = clamp(y - gsize * 0.5 - 10, 90, r.height - 10);
-      m.seq.forEach(function (seqSh, i) {
-        const done = i < m.seqI;
-        const cur = i === m.seqI;
-        const px = rowX + i * gap;
-        ctx.beginPath(); ctx.arc(px, rowY, cur ? 7 : 5, 0, 7);
-        ctx.fillStyle = done ? 'rgba(80,70,60,0.7)' : (cur ? '#E8C04A' : 'rgba(244,232,208,0.85)');
-        ctx.fill();
-        ctx.fillStyle = '#0E0C0A';
-        ctx.font = '700 9px serif';
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(SHAPE_MARK[seqSh] || '', px, rowY + 0.5);
-      });
-    }
+    const gap = size * 0.38;
+    const rowW = (m.seq.length - 1) * gap;
+    const rowX = clamp(x - rowW * 0.5, 10, r.width - 10 - rowW);
+    const rowY = clamp(y - gsize * 0.5 - 10, 90, r.height - 10);
+    m.seq.forEach(function (seqSh, i) {
+      const done = i < m.seqI;
+      const cur = i === m.seqI;
+      const px = rowX + i * gap;
+      ctx.beginPath(); ctx.arc(px, rowY, cur ? 7 : 5, 0, 7);
+      ctx.fillStyle = done ? 'rgba(80,70,60,0.7)' : (cur ? '#E8C04A' : 'rgba(244,232,208,0.85)');
+      ctx.fill();
+      ctx.fillStyle = '#0E0C0A';
+      ctx.font = '700 9px serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(SHAPE_MARK[seqSh] || '', px, rowY + 0.5);
+    });
     ctx.restore();
   });
   arrows.forEach(function (a) {
@@ -3902,12 +3807,10 @@ const GPv2 = {
         const hs = heroScreen();
         let tscr = null;
         if (s.target && s.target.alive) tscr = projectXZ(s.target.x, s.target.z, 0.8);
-        const hang = s.obj && s.obj.userData && s.obj.userData.bellHang;
-        const bellTex = hang && hang.bell && hang.bell.userData && hang.bell.userData.bellTex;
         return {
           id: s.id, shape: spiritShape(s), x: s.x, z: s.z, angle: s.angle, avoid: s.avoid || 0,
           sx: fs.x, sy: fs.y, screenAngle: screenAngleTo(fs.x, fs.y, hs),
-          rimErr: rimErrorPx(fs.x, fs.y), bellTex: bellTex || null,
+          rimErr: rimErrorPx(fs.x, fs.y),
           targetId: s.target && s.target.alive ? s.target.id : null,
           targetSx: tscr && tscr.x, targetSy: tscr && tscr.y,
           targetScreenAngle: tscr ? screenAngleTo(tscr.x, tscr.y, hs) : null,

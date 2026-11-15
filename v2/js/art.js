@@ -4,7 +4,7 @@ import * as Anim from './anim.js';
 import { createInkGroundMaterial } from './inkground.js';
 import { drawInkBossSheet } from './inkboss.js';
 import { drawHeroSheets, drawZombieSheets, drawZombieVariantSheets, drawSpiritSheet } from './inkchars.js';
-import { drawGlyph, drawRattle, drawItem, drawSeal } from './inkicons.js';
+import { drawRattle, drawItem, drawSeal } from './inkicons.js';
 import { drawProp, drawBackdrop, INK_PROPS } from './inkprops.js';
 
 const BASE = '../assets/v2/';
@@ -117,10 +117,10 @@ export async function buildArt(THREE) {
   const spiritH = (atlas.spiritAnim && atlas.spiritAnim.cell && atlas.spiritAnim.cell[1])
     ? atlas.spiritAnim.cell[1] / pxPerMeter
     : heroH * 1.05;
-  /* Spirits are small will-o'-wisps over zombies; the shape mark sits in the orb, a rattle at the side. */
+  /* Spirits are small will-o'-wisps over zombies; the shape mark is baked into the orb, a rattle at the side. */
   const SPIRIT_VIEW_SCALE = 1.45;
-  /* 0.26: the mark box is ~57% of the orb's diameter, so the glyph sits inside the orb instead of
-     spilling over its rim. game.js draws the glyph at 0.82 of the orb, centred on this point. */
+  /* 0.26: the orb anchor box in world units (~57% of the orb's diameter). game.js measures the
+     spirit's screen centre and foot point from it. */
   const SPIRIT_MARK_K = 0.26;
   const SPIRIT_RATTLE_K = 0.34;
   let rattleTexCache = null;
@@ -128,17 +128,178 @@ export async function buildArt(THREE) {
     if (!rattleTexCache) { rattleTexCache = new THREE.CanvasTexture(drawRattle()); rattleTexCache.colorSpace = THREE.SRGBColorSpace; }
     return rattleTexCache;
   }
-  /* Mark at the orb's bright centre (cell px 128,128) and a shaman's rattle held at the side, swinging. */
+  /* ------------------------------------------------------------------
+     혼령 구슬에 직접 각인하는 먹획 — "영혼 빛에 스며든 먹획".
+     혼령은 3D 스프라이트(구슬 중심 = 셀 px 128,128, 반지름 58)라서, 기호를
+     2D HUD에 따로 얹으면 먹안개 위에 떠 보인다. 그래서 기호를 혼령 시트
+     텍스처의 모든 프레임에 먹으로 구워 넣는다. 원근·안개·투명도·비취 색조·
+     블룸이 혼령 본체와 똑같이 적용되고, 획은 구슬 빛에 승산(multiply)되어
+     뾰족한 중심 없이 스며든다.
+     ------------------------------------------------------------------ */
+  const SPIRIT_ORB = { x: 128, y: 128, r: 58 };
+  const SPIRIT_GLYPH_K = 0.5;   /* 획 외곽 = 구슬 지름의 50% */
+  const SPIRIT_GLYPH_PATHS = {
+    hline: [[[-1, 0.08], [0.05, -0.04], [1, 0.02]]],
+    vline: [[[0.04, -1], [-0.03, 0.1], [0.02, 1]]],
+    vee: [[[-0.95, -0.7], [0, 0.85]], [[0, 0.85], [0.95, -0.8]]],
+    bolt: [[[0.45, -1], [-0.45, -0.05]], [[-0.45, -0.05], [0.45, 0.05]], [[0.45, 0.05], [-0.4, 1]]]
+  };
+  /* 프레임마다 마른 붓 결이 조금씩 달라지도록 고정 시드 난수를 쓴다. */
+  function inkSeed(text) {
+    let h = 2166136261;
+    for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return function () {
+      h = Math.imul(h ^ (h >>> 15), 2246822507);
+      h = Math.imul(h ^ (h >>> 13), 3266489909);
+      return ((h ^= h >>> 16) >>> 0) / 4294967296;
+    };
+  }
+  function resampleStroke(pts, n) {
+    const seg = [];
+    let total = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const d = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]);
+      seg.push(d); total += d;
+    }
+    const out = [];
+    for (let k = 0; k <= n; k++) {
+      const want = total * k / n;
+      let acc = 0;
+      for (let i = 0; i < seg.length; i++) {
+        if (acc + seg[i] >= want || i === seg.length - 1) {
+          const t = seg[i] ? (want - acc) / seg[i] : 0;
+          out.push([pts[i][0] + (pts[i + 1][0] - pts[i][0]) * t, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * t]);
+          break;
+        }
+        acc += seg[i];
+      }
+    }
+    return out;
+  }
+  /* 붓 획: 가운데가 굵고 양끝이 가는 압력 변화, 삐죽한 붓끝, 가장자리의 마른 붓 결. */
+  function inkBrush(ctx, pts, w, colors, rnd) {
+    const dense = resampleStroke(pts, 24);
+    const passes = [
+      { k: 1.20, c: colors.soft, j: w * 0.12, a: 0.5 },
+      { k: 1.0, c: colors.core, j: w * 0.05, a: 1 },
+      { k: 0.46, c: colors.deep, j: w * 0.02, a: 0.9 }
+    ];
+    passes.forEach(function (p) {
+      const jitter = (rnd() - 0.5) * p.j;
+      ctx.globalAlpha = p.a;
+      for (let i = 0; i < dense.length - 1; i++) {
+        const u = (i + 0.5) / (dense.length - 1);
+        const prof = 0.5 + 0.66 * Math.pow(Math.sin(Math.PI * Math.min(1, Math.max(0.001, u))), 0.5);
+        const a = dense[i], b = dense[i + 1];
+        const nx = -(b[1] - a[1]), ny = (b[0] - a[0]);
+        const nl = Math.hypot(nx, ny) || 1;
+        const ox = nx / nl * jitter, oy = ny / nl * jitter;
+        ctx.lineCap = 'round';
+        ctx.lineWidth = Math.max(0.9, w * p.k * prof);
+        ctx.strokeStyle = p.c;
+        ctx.beginPath(); ctx.moveTo(a[0] + ox, a[1] + oy); ctx.lineTo(b[0] + ox, b[1] + oy); ctx.stroke();
+      }
+    });
+    for (let i = 0; i < 10; i++) {
+      const idx = Math.min(dense.length - 2, Math.floor(rnd() * (dense.length - 1)));
+      const a = dense[idx];
+      const ang = rnd() * Math.PI * 2, len = w * (0.15 + rnd() * 0.4);
+      ctx.strokeStyle = colors.deep;
+      ctx.lineWidth = Math.max(0.8, w * 0.12);
+      ctx.beginPath();
+      ctx.moveTo(a[0], a[1]);
+      ctx.lineTo(a[0] + Math.cos(ang) * len, a[1] + Math.sin(ang) * len);
+      ctx.stroke();
+    }
+  }
+  /* 획 굵기까지 포함한 기호 외곽이 정확히 box가 되도록 좌표를 편다. */
+  function glyphInkBox(shape, cx, cy, box) {
+    const path = SPIRIT_GLYPH_PATHS[shape];
+    if (!path) return null;
+    let mnx = 9, mxx = -9, mny = 9, mxy = -9;
+    path.forEach(function (line) {
+      line.forEach(function (q) {
+        if (q[0] < mnx) mnx = q[0]; if (q[0] > mxx) mxx = q[0];
+        if (q[1] < mny) mny = q[1]; if (q[1] > mxy) mxy = q[1];
+      });
+    });
+    const ox = (mnx + mxx) * 0.5, oy = (mny + mxy) * 0.5;
+    const w = box * 0.19;
+    const half = Math.max(1, (box - w) * 0.5);
+    return {
+      width: w,
+      lines: path.map(function (line) {
+        return line.map(function (q) { return [cx + (q[0] - ox) * half, cy + (q[1] - oy) * half]; });
+      })
+    };
+  }
+  /* 영혼빛을 넓게 깔고, 먹을 반투명하게 승산해 획의 뾰족한 중심 없이 혼령 빛에 스며들게 한다. */
+  function paintSpiritInk(ctx, shape, cx, cy, box, rnd) {
+    const G = glyphInkBox(shape, cx, cy, box);
+    if (!G) return;
+    const glow = 'rgba(206,246,238,';
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.filter = 'blur(' + Math.max(1.2, box * 0.07) + 'px)';
+    G.lines.forEach(function (p) {
+      inkBrush(ctx, p, G.width * 1.7, { soft: glow + '0.07)', core: glow + '0.07)', deep: glow + '0.06)' }, rnd);
+    });
+    ctx.restore();
+    ctx.save();
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.filter = 'blur(' + Math.max(0.6, box * 0.018) + 'px)';
+    G.lines.forEach(function (p) {
+      inkBrush(ctx, p, G.width, { soft: 'rgba(110,118,112,0.5)', core: 'rgba(40,46,44,0.8)', deep: 'rgba(24,28,26,0.85)' }, rnd);
+    });
+    ctx.restore();
+  }
+  const spiritInkCache = {};
+  /* 혼령 시트의 모든 프레임 셀에 같은 자리(구슬 중심)로 먹을 각인한 텍스처. */
+  function spiritInkTex(sheet, shape) {
+    const src = sheet && sheet.tex && sheet.tex.image;
+    if (!src || !SPIRIT_GLYPH_PATHS[shape]) return null;
+    if (spiritInkCache[shape]) return spiritInkCache[shape];
+    const cell = (sheet.frame && sheet.frame[0]) || 256;
+    const frames = Math.max(1, sheet.count || Math.round(src.width / cell));
+    /* 기기의 최대 텍스처(4096)를 넘지 않는 선에서 2배 슈퍼샘플. */
+    const ss = Math.min(2, 4096 / src.width);
+    const out = document.createElement('canvas');
+    out.width = Math.round(src.width * ss); out.height = Math.round(src.height * ss);
+    const g = out.getContext('2d');
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(src, 0, 0, out.width, out.height);
+    const box = SPIRIT_ORB.r * 2 * SPIRIT_GLYPH_K * ss;
+    for (let f = 0; f < frames; f++) {
+      paintSpiritInk(g, shape, (f * cell + SPIRIT_ORB.x) * ss, SPIRIT_ORB.y * ss, box, inkSeed(shape + '|' + f));
+    }
+    const t = new THREE.CanvasTexture(out);
+    t.colorSpace = THREE.SRGBColorSpace;
+    /* 밉맵으로 줄이면 22px 혼령에서 1~2px 획이 뭉개져 먹이 사라진다 → 선형 필터로 또렷하게 유지. */
+    t.generateMipmaps = false;
+    t.minFilter = THREE.LinearFilter;
+    t.magFilter = THREE.LinearFilter;
+    t.anisotropy = 1;
+    spiritInkCache[shape] = t;
+    return t;
+  }
+  function applySpiritInk(group, sheet, worldH, shape) {
+    const spr = group && group.userData && group.userData.sprite;
+    if (!spr || !spr.material || !sheet || !worldH) return;
+    const baked = spiritInkTex(sheet, shape);
+    if (!baked) return;
+    const t = cloneTex(baked);
+    applyUV(t, sheet, 0, 0);
+    const prev = spr.material.map;
+    spr.material.map = t;
+    spr.material.needsUpdate = true;
+    if (prev && prev !== t && prev.dispose) prev.dispose();
+    group.userData.markSheet = sheet;
+    group.userData.markWorldH = worldH;
+  }
+  /* 구슬 중심(cell px 128,128)에 먹획을 각인하고, 옆에 무당 방울을 매단다. */
   function attachSpiritMark(group, sheet, worldH, shape) {
     const c = localFromPx(sheet, worldH, [128, 128]);
-    const size = worldH * SPIRIT_MARK_K;
-    const mark = imgSprite(getHangBellTex(shape), size, size, { cx: 0.5, cy: 0.5, alphaTest: 0.02 });
-    mark.material.depthTest = false;
-    mark.renderOrder = 5;
-    mark.position.set(c.x, c.y, 0.05);
-    mark.visible = false; /* holds the shape state; game.js draws the mark crisply on the 2D layer */
-    applyBellMap(mark, shape);
-    group.add(mark);
+    applySpiritInk(group, sheet, worldH, shape);
     const rh = worldH * SPIRIT_RATTLE_K;
     const rt = imgSprite(rattleTex(), rh * (96 / 168), rh, { cx: 0.5, cy: 1, alphaTest: 0.02 });
     rt.material.depthTest = false;
@@ -146,14 +307,12 @@ export async function buildArt(THREE) {
     const at = localFromPx(sheet, worldH, [214, 92]);
     rt.position.set(at.x, at.y, 0.04);
     group.add(rt);
-    group.userData.bellHang = { pivot: null, bell: mark, t: 0, phase: 0, amp: 0, period: 1.5 };
     group.userData.rattle = { sprite: rt, t: Math.random() * 4, amp: 0.22, period: 1.3 + Math.random() * 0.3 };
+    const size = worldH * SPIRIT_MARK_K;
     group.userData.bellH = size;
-    group.userData.bellW = size;
     group.userData.bellAttachY = c.y + size / 2;
     group.userData.bellFootY = c.y - size / 2;
     group.userData.bellLocal = { x: c.x, y: c.y };
-    group.userData.bellRestLocal = { x: c.x, y: c.y };
     group.userData.markShape = shape;
   }
   const bossH = (atlas.bossAnim && atlas.bossAnim.cell && atlas.bossAnim.cell[1])
@@ -367,32 +526,6 @@ export async function buildArt(THREE) {
     if (sheet && sheet.tex) return sheet.tex;
     return tex(animFile(sheet)) || tex(sheetFile(sheet));
   }
-  function bellTexUrl(shape) {
-    const k = shape || 'plain';
-    return 'bells/bell-' + k + '@2x.png';
-  }
-  const inkBellCache = {};
-  function getHangBellTex(shape) {
-    const k = shape || 'plain';
-    if (!inkBellCache[k]) {
-      const t = new THREE.CanvasTexture(drawGlyph(k));
-      t.colorSpace = THREE.SRGBColorSpace;
-      inkBellCache[k] = t;
-    }
-    return inkBellCache[k];
-  }
-  function applyBellMap(bell, shape) {
-    if (!bell || !bell.material) return;
-    const t = getHangBellTex(shape);
-    if (!t) return;
-    if (bell.material.map !== t) {
-      bell.material.map = t;
-      bell.material.needsUpdate = true;
-    }
-    bell.userData = bell.userData || {};
-    bell.userData.bellTex = shape ? bellTexUrl(shape) : 'img/hang-bell.png';
-    bell.userData.bellShape = shape || 'plain';
-  }
   function swapAction(group, sheet, name) {
     if (!group || !sheet) return;
     const url = animFile(sheet) || sheetFile(sheet);
@@ -587,12 +720,6 @@ export async function buildArt(THREE) {
       else if (spr) applyFlip(spr, false);
       if (group.userData.rim) syncRim(group);
     }
-    const hang = group.userData && group.userData.bellHang;
-    if (hang && hang.bell) {
-      hang.t = (hang.t || 0) + dt;
-      const ang = hang.amp * Math.sin((hang.t / hang.period) * Math.PI * 2 + hang.phase);
-      hang.bell.material.rotation = ang;
-    }
     const rat = group.userData && group.userData.rattle;
     if (rat) {
       rat.t += dt;
@@ -606,14 +733,7 @@ export async function buildArt(THREE) {
   function setSpiritShape(group, shape) {
     if (!group || !group.userData) return;
     group.userData.markShape = shape;
-    const hang = group.userData.bellHang;
-    if (hang && hang.bell) applyBellMap(hang.bell, shape);
-  }
-  function setBellAim(group, on) {
-    const hang = group && group.userData && group.userData.bellHang;
-    if (!hang || !hang.bell || !hang.bell.material || !hang.bell.material.color) return;
-    if (on) hang.bell.material.color.setRGB(1.25, 1.1, 0.8);
-    else hang.bell.material.color.setRGB(1, 1, 1);
+    applySpiritInk(group, group.userData.markSheet, group.userData.markWorldH, shape);
   }
   function setAura(group, on) {
     if (!group || !group.userData || !group.userData.aura) return;
@@ -785,7 +905,7 @@ export async function buildArt(THREE) {
     transitions: (atlas.tiles && atlas.tiles.transitions) || null,
     night: hexColor(pal.night || pal.ground, 0x1e1c1a),
     makeChar: makeChar, makeProp: makeProp, tickChar: tickChar,
-    sealUrl: sealUrl, setSpiritShape: setSpiritShape, setBellAim: setBellAim, getHangBellTex: getHangBellTex, bellTexUrl: bellTexUrl, setStatus: setStatus, setAura: setAura, setTelegraph: setTelegraph,
+    sealUrl: sealUrl, setSpiritShape: setSpiritShape, setStatus: setStatus, setAura: setAura, setTelegraph: setTelegraph,
     applyMap: applyMap, slashTex: slashTex, playFx: playFx,
     trailTex: tex(el['fire-trail'] && el['fire-trail'].file),
     torchGlow: tex('fx/torch-glow.png'),
