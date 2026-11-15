@@ -1977,8 +1977,18 @@ function landingShock(at) {
   const R = CFG.landShockR || 1.6, push = CFG.landPush || 1.2, stun = CFG.landStun || 0.3;
   magnetPull(at);
   if (S.evo && S.evo.fireTrail) {
+    /* 묵염(墨炎) 장판: 착지점 한 곳이 아니라 베고 지나온 자리에 불길이 남는다. */
     S.clouds = S.clouds || [];
-    S.clouds.push({ kind: 'fire', x: at.x, z: at.z, t: 4, tick: 0, r: 1.5 });
+    const seg = (S.lastDash && S.lastDash.segs && S.lastDash.segs[S.lastDash.segs.length - 1]) || null;
+    const pts = seg ? [0.45, 0.8, 1.0].map(function (u) {
+      return { x: seg.from.x + (seg.to.x - seg.from.x) * u, z: seg.from.z + (seg.to.z - seg.from.z) * u };
+    }) : [{ x: at.x, z: at.z }];
+    pts.forEach(function (p) {
+      const fires = S.clouds.filter(function (c) { return c.kind === 'fire' && c.t > 0; });
+      if (fires.length >= 12) return;
+      if (fires.some(function (c) { return dist(c, p) < 0.9; })) return;
+      S.clouds.push({ kind: 'fire', x: p.x, z: p.z, t: 4, tick: 0.55, r: 1.6 });
+    });
   }
   S.zombies.forEach(function (z) {
     if (!z.alive) return;
@@ -2065,10 +2075,15 @@ function castCleave(rec) {
     if (dist(z, S.hero) > R + (z.r || 0.5)) return;
     hitIds.push(z.id);
     if (z.isBoss) { cutSpirit(z); return; }
-    if (iceCleave) z.frozen = Math.max(z.frozen || 0, 3);
-    if (z.frozen > 0) shatterZombie(z, rec);
-    else if (z.poison > 0) explodeZombie(z, rec);
-    else hurtZombie(z, dmg, 'cleave', rec);
+    /* 참 피해는 항상 그대로 들어간다. 상태이상은 그 위에 얹히는 보너스다(예전에는 빙결·독 대상이
+       4·3 피해로 '대체'되어 진화를 띄울수록 참이 약해졌다). */
+    const wasFrozen = z.frozen > 0;
+    const wasPoison = z.poison > 0;
+    hurtZombie(z, dmg, 'cleave', rec);
+    if (!z.alive) { if (wasPoison) spreadElement(z, 'poison', rec); return; }
+    if (wasFrozen) shatterZombie(z, rec);
+    else if (wasPoison) explodeZombie(z, rec);
+    if (z.alive && iceCleave) { z.frozen = Math.max(z.frozen || 0, CFG.iceDur || 2.5); tintZombie(z); }
   });
   rec.cleaveHits = hitIds;
   rec.targets = hitIds;
@@ -2205,6 +2220,8 @@ function spreadElement(z, elem, rec) {
     if (elem === 'fire') applyElement(o, 'fire', rec);
     else if (elem === 'ice') { o.slowT = CFG.iceSlowDur || 2; tintZombie(o); }
   });
+  /* 얼음 일섬으로 한 번에 베어 넘긴 적도 '얼어붙은 채 죽은 것'으로 본다 — 사방 한기가 발동한다. */
+  if (elem === 'ice') frostNovaAt(z, rec);
 }
 function applyBurn(z, rec) {
   z.burn = CFG.burnDur;
@@ -2243,9 +2260,11 @@ function tintZombie(z) {
 }
 function tickStatuses(dt) {
   (S.clouds || []).forEach(function (c) {
-    c.t -= dt; c.tick += dt;
-    if (c.tick < CFG.poisonPeriod) return;
-    c.tick -= CFG.poisonPeriod;
+    c.t -= dt;
+    const period = c.kind === 'fire' ? (CFG.burnPeriod || 0.75) : (CFG.poisonPeriod || 1);
+    c.tick += dt;
+    if (c.tick < period) return;
+    c.tick -= period;
     if (c.kind === 'fire') {
       /* 묵염(墨炎) 장판: 0.75초당 1뎀 */
       S.zombies.forEach(function (z) {
@@ -2277,7 +2296,14 @@ function tickStatuses(dt) {
     if (!z.alive) return;
     if (z.slowT > 0) { z.slowT -= dt; if (z.slowT < 0) z.slowT = 0; }
     if (z.stun > 0) { z.stun -= dt; if (z.stun < 0) z.stun = 0; }
-    if (z.frozen > 0) { z.frozen -= dt; if (z.frozen < 0) z.frozen = 0; }
+    if (z.frozen > 0) {
+      z.frozen -= dt;
+      if (z.frozen <= 0) {
+        z.frozen = 0;
+        /* 빙결이 끝나면 잠깐 둔화가 남아 칼을 다시 챙길 시간을 준다. */
+        z.slowT = Math.max(z.slowT || 0, 0.9);
+      }
+    }
     if (z.burn > 0) {
       z.burn -= dt;
       z.burnTick = (z.burnTick || 0) + dt;
@@ -2404,11 +2430,7 @@ function killZombie(z, rec) {
   if (!z.isBoss) addCharge(CFG.cleaveGainKill || 7);
   /* 사방 한기(寒氣): 얼어붙은 적이 죽으면 사방으로 얼음 검기 */
   if (S.evo && S.evo.frostNova && (z.frozen > 0 || z.slowT > 0) && !z.novaDone) {
-    z.novaDone = true;
-    S.zombies.forEach(function (o) {
-      if (!o.alive || o === z || o.isBoss) return;
-      if (dist(o, z) <= 3) hurtZombie(o, 4, 'frost', rec);
-    });
+    frostNovaAt(z, rec);
   }
   /* 포위 웨이브 정리 보상 */
   if (S) {
@@ -2462,7 +2484,7 @@ function collectItem(it, rec) {
     showJudge('부적 상자!');
     openLevelUp();
   } else if (it.kind === 'heal') {
-    S.runHp += 0; S.hp = Math.min(maxHp(), S.hp + 3);
+    S.hp = Math.min(maxHp(), S.hp + 3);
   } else if (it.kind === 'coin') {
     save.coins += Math.round(5 * coinMult()); persist();
   } else if (it.kind === 'xp') gainXp(1);
@@ -2479,8 +2501,9 @@ function addCharge(n) {
   if (before < max && S.charge >= max) { showJudge('참(斬) 준비'); if (audio) audio.bell(0, 'bolt'); }
 }
 /* 스킬 진화: 조합이 갖춰지면 화면과 손에서 바로 티나는 효과가 켜진다. */
-function checkEvolutions() {
+function checkEvolutions(ctx) {
   if (!S) return;
+  ctx = ctx || {};
   const has = S.evo || (S.evo = {});
   S.evolved = S.evolved || [];
   const el = S.dashElem;
@@ -2496,7 +2519,23 @@ function checkEvolutions() {
   if (el === 'ice' && S.pathR >= (CFG.pathRadius + 1.0)) born('frostNova', '사방 한기(寒氣)');
   if (el === 'poison' && S.dashCount >= 2) born('poisonSpread', '독운(毒雲) 확산');
   if ((S.chargeLv || 0) > 0 && el === 'ice') born('iceCleave', '빙참(氷斬)');
-  if (S.bellT > 0 && S.dashCount >= 3) born('myriadBell', '만종(萬鐘)');
+  if ((S.bellT > 0 || ctx.bell) && S.dashCount >= 3) born('myriadBell', '만종(萬鐘)');
+}
+/* 사방 한기(寒氣): 얼어붙은 적(혹은 얼음 일섬으로 베어 넘긴 적)이 터지며 사방을 얼린다. */
+function frostNovaAt(z, rec) {
+  if (!S || !z || !S.evo || !S.evo.frostNova || z.novaDone) return;
+  z.novaDone = true;
+  if (art.playFx && three) {
+    const fx = art.playFx(three.scene, 'ice-shatter', z.x, z.z, 3.2);
+    if (fx) three.fx.push(fx);
+  }
+  S.zombies.forEach(function (o) {
+    if (!o.alive || o === z || o.isBoss) return;
+    if (dist(o, z) <= 3) {
+      hurtZombie(o, 4, 'frost', rec);
+      if (o.alive) { o.slowT = Math.max(o.slowT || 0, CFG.iceSlowDur || 2); tintZombie(o); }
+    }
+  });
 }
 function gainXp(n) {
   S.xp += n;
@@ -2541,7 +2580,10 @@ function pickUpgrade(id) {
   else if (id === 'heal') { S.runHp += 2; S.hp = Math.min(maxHp(), S.hp + 5); }
   else if (id === 'wealth') S.runCoin += 0.25;
   else if (id === 'ice' || id === 'fire' || id === 'poison') setDashElem(id);
-  else if (id === 'bell') startBell(null, S.evo && S.evo.myriadBell ? 12 : CFG.bellDur);
+  else if (id === 'bell') { /* 진화(만종)를 먼저 판정해야 첫 종부터 12초가 된다. */
+    checkEvolutions({ bell: true });
+    startBell(null, (S.evo && S.evo.myriadBell) ? 12 : CFG.bellDur);
+  }
   else if (id === 'magnet') S.magnetR = Math.min(CFG.magnetMax || 3.6, (S.magnetR || CFG.magnetR || 1.8) + (CFG.magnetStep || 0.6));
   else if (id === 'charge') S.chargeLv = (S.chargeLv || 0) + 1;
   hideOvs(); S.paused = null; renderHud();
@@ -2833,7 +2875,8 @@ function step(dt) {
     }
     if (art.setTelegraph && !z.isBoss) art.setTelegraph(z.obj, !frozen && d < (CFG.telegraphRange || 3.2));
     if (d < z.r + 0.55) {
-      if ((S.iframe || 0) <= 0 && !S.dash) {
+      /* 빙결·경직된 귀물은 몸이 굳은 사이 닿아도 해치지 못한다(얼음·충격이 실제로 방어가 된다). */
+      if ((S.iframe || 0) <= 0 && !S.dash && !frozen) {
         S.hp -= z.isBoss ? (CFG.bossDmg || 3) : ((CFG.zombieTypes[z.type] || {}).dmg || CFG.dmg);
         S.iframe = CFG.iframeMs / 1000;
         S.hitstop = Math.max(S.hitstop || 0, CFG.hitHitstop || 0.08);
