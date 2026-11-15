@@ -4,7 +4,7 @@ import * as Anim from './anim.js';
 import { buildStage3D } from './inkprops3d.js';
 import { drawInkBossSheet } from './inkboss.js';
 import { drawHeroSheets, drawZombieSheets, drawZombieVariantSheets, drawSpiritSheet } from './inkchars.js';
-import { drawRattle, drawItem, drawSeal } from './inkicons.js';
+import { drawRattle, drawItem, drawSeal, drawUpgrade } from './inkicons.js';
 import { drawProp, drawBackdrop, INK_PROPS } from './inkprops.js';
 
 const BASE = '../assets/v2/';
@@ -15,7 +15,7 @@ const ITEM_KEY = {
   /* 묵항아리 3종 픽업 */
   herb: 'herb', magnet: 'magnet', bang: 'bang',
   /* 정예 원귀의 부적 상자 */
-  charm: 'one-bell'
+  charm: 'charm'
 };
 const SHAPE_MARK = { vline: 'I', hline: 'H', vee: 'V', circle: 'O' };
 
@@ -342,7 +342,7 @@ export async function buildArt(THREE) {
     Object.keys(el['slash-line'].files).forEach(function (k) { want(el['slash-line'].files[k]); });
   }
   want('fx/torch-glow.png');
-  ['map1', 'map2', 'map3'].forEach(function (id) { want('fx-ink/atmo/torch-glow-' + id + '.png'); });
+  ['map1', 'map2', 'map3', 'map5', 'map6', 'map7', 'map8', 'map9', 'map10', 'map11', 'map12'].forEach(function (id) { want('fx-ink/atmo/torch-glow-' + id + '.png'); });
   want('fx/spirit-glow.png');
   want('fx/shadow.png');
   if (atlas.fog) {
@@ -499,7 +499,7 @@ export async function buildArt(THREE) {
     };
     return inkCharPack;
   }
-  const ITEM_DRAW = { 'elem-ice': 'ice', 'elem-fire': 'fire', 'elem-poison': 'poison', 'one-bell': 'bell', 'dash-plus': 'dashplus', heal: 'heal', coin: 'coin', 'xp-orb': 'xp', herb: 'herb', magnet: 'magnet', bang: 'bang' };
+  const ITEM_DRAW = { 'elem-ice': 'ice', 'elem-fire': 'fire', 'elem-poison': 'poison', 'one-bell': 'bell', 'dash-plus': 'dashplus', heal: 'heal', coin: 'coin', 'xp-orb': 'xp', herb: 'herb', magnet: 'magnet', bang: 'bang', charm: 'charm' };
   const inkItemCache = {};
   function inkItemTex(key) {
     if (!inkItemCache[key]) {
@@ -513,6 +513,17 @@ export async function buildArt(THREE) {
   function sealUrl(shape) {
     if (!sealUrls[shape]) sealUrls[shape] = drawSeal(shape).toDataURL('image/png');
     return sealUrls[shape];
+  }
+  /* v0.23: 레벨업 카드 고유 아이콘(카드 UI용 data URL) */
+  const itemIconUrls = {};
+  function itemIconUrl(key) {
+    if (!itemIconUrls[key]) itemIconUrls[key] = drawItem(ITEM_DRAW[key] || 'xp').toDataURL('image/png');
+    return itemIconUrls[key];
+  }
+  const upIconUrls = {};
+  function upIconUrl(id) {
+    if (!upIconUrls[id]) upIconUrls[id] = drawUpgrade(id).toDataURL('image/png');
+    return upIconUrls[id];
   }
   let inkBossPack = null;
   function inkBoss() {
@@ -862,7 +873,7 @@ export async function buildArt(THREE) {
     transitions: (atlas.tiles && atlas.tiles.transitions) || null,
     night: hexColor(pal.night || pal.ground, 0x1e1c1a),
     makeChar: makeChar, makeProp: makeProp, tickChar: tickChar, buildStage3D: buildStage3D,
-    sealUrl: sealUrl, setSpiritShape: setSpiritShape, setStatus: setStatus, setAura: setAura, setTelegraph: setTelegraph,
+    sealUrl: sealUrl, upIconUrl: upIconUrl, itemIconUrl: itemIconUrl, setSpiritShape: setSpiritShape, setStatus: setStatus, setAura: setAura, setTelegraph: setTelegraph,
     applyMap: applyMap, slashTex: slashTex, playFx: playFx,
     trailTex: tex(el['fire-trail'] && el['fire-trail'].file),
     torchGlow: tex('fx/torch-glow.png'),

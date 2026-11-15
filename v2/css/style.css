@@ -355,6 +355,18 @@ body { font-family: "InkSerif", "Apple SD Gothic Neo", "Noto Sans KR", serif; }
   background: transparent; mix-blend-mode: normal; opacity: 1;
   transition: background .7s ease;
 }
+.act-tabs { display: flex; gap: 4px; margin: 6px 0 4px; }
+.act-tab {
+  flex: 1; padding: 5px 2px 4px; border: 0; cursor: pointer; text-align: center;
+  background: rgba(239,228,204,.03); box-shadow: inset 0 0 0 1px rgba(239,228,204,.14);
+  color: var(--paper-dim); font-family: "InkSerif", serif;
+}
+.act-tab b { display: block; font: 700 11px/1.2 "InkSerif", serif; letter-spacing: .04em; color: var(--paper-dim); }
+.act-tab span { display: block; margin-top: 1px; font-size: 9px; letter-spacing: .02em; opacity: .8; }
+.act-tab i { display: block; margin-top: 2px; font-style: normal; font-size: 9px; color: var(--gold); opacity: .8; }
+.act-tab.on { background: rgba(200,40,30,.16); box-shadow: inset 0 0 0 1px var(--gold); }
+.act-tab.on b { color: var(--gold); }
+.act-tab.lock { opacity: .35; }
 .stage-select { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin: 2px 0 8px; }
 .stage-chip {
   position: relative; padding: 7px 2px 5px; border: 0; cursor: pointer;
@@ -369,6 +381,25 @@ body { font-family: "InkSerif", "Apple SD Gothic Neo", "Noto Sans KR", serif; }
 .stage-chip.lock { opacity: .38; }
 .stage-chip .st { display: block; margin-top: 3px; font-size: 9px; letter-spacing: 1px; color: var(--gold); }
 .stage-chip .st i { font-style: normal; opacity: .25; }
+.stage-chip .tm { display: block; margin-top: 1px; font-size: 8px; letter-spacing: 0; color: var(--paper-dim); opacity: .55; }
+
+/* ===== v0.23 레벨업 카드: 고유 아이콘 + 현재→다음 레벨 ===== */
+.choices .btn.up-card {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  box-shadow: inset 3px 0 0 var(--gold), inset 0 0 0 1px rgba(239,228,204,.16);
+}
+.choices .btn.up-card .up-icon {
+  flex: 0 0 34px; width: 34px; height: 34px; image-rendering: auto;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,.6));
+}
+.choices .btn.up-card .up-text { display: block; min-width: 0; }
+.choices .btn.up-card strong { display: inline-block; margin: 0 8px 0 0; font: 400 21px/1.1 "InkBrush", serif; color: var(--gold); }
+.choices .btn.up-card .up-lv {
+  display: inline-block; padding: 1px 6px; font: 700 10px/1.5 "InkSerif", serif; letter-spacing: .06em;
+  color: #0b0a09; background: var(--gold); border-radius: 2px;
+}
+.choices .btn.up-card .up-lv.new { background: rgba(200,40,30,.9); color: #fff2e8; }
+.choices .btn.up-card .up-desc { display: block; margin-top: 3px; font-size: 11.5px; line-height: 1.35; color: var(--paper-dim); }
 .stage-note { margin: 0 0 10px; font-size: 11px; line-height: 1.4; color: var(--paper-dim); min-height: 1.4em; }
 
 .stage-ov { background: radial-gradient(ellipse at 50% 44%, rgba(9,8,7,.5), rgba(2,2,2,.95)); }

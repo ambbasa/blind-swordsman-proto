@@ -65,7 +65,11 @@ export function rockGeo(seed, detail) {
 /* ---------- 재질 ---------- */
 export function makeMaterials(stageId) {
   const stageTint = {
-    1: [1.0, 0.96, 0.9], 2: [0.86, 0.93, 1.12], 3: [0.9, 1.06, 0.92], 4: [1.18, 0.82, 0.78]
+    1: [1.0, 0.96, 0.9], 2: [0.86, 0.93, 1.12], 3: [0.9, 1.06, 0.92], 4: [1.18, 0.82, 0.78],
+    /* v0.23 제2막 안개 산사: 푸른 안개, 설산은 흰빛, 고목은 검푸름, 산문은 보랏빛 회색 */
+    5: [0.78, 0.96, 1.02], 6: [0.9, 0.98, 1.16], 7: [0.84, 1.0, 0.84], 8: [0.94, 0.9, 1.06],
+    /* 제3막 혈월의 나락: 검붉은 기운이 돌·나무·천에 스민다 */
+    9: [1.3, 0.66, 0.66], 10: [1.18, 0.94, 0.8], 11: [1.36, 0.6, 0.62], 12: [1.46, 0.52, 0.56]
   }[stageId] || [1, 1, 1];
   function tint(c) { return new THREE.Color(c[0] * stageTint[0], c[1] * stageTint[1], c[2] * stageTint[2]); }
   const wood = woodSet().map;
@@ -104,6 +108,7 @@ export function makeMaterials(stageId) {
 }
 
 /* ---------- 인스턴스 배치 ---------- */
+let _instColor = null;
 export function instanced(geo, material, items, opts) {
   opts = opts || {};
   if (!items.length) return null;
@@ -115,7 +120,12 @@ export function instanced(geo, material, items, opts) {
     d.scale.set(it.sx != null ? it.sx : 1, it.sy != null ? it.sy : 1, it.sz != null ? it.sz : 1);
     d.updateMatrix();
     mesh.setMatrixAt(i, d.matrix);
-    if (it.color) mesh.setColorAt(i, it.color);
+    /* v0.23: 청크 소품이 [r,g,b] 배열로 색을 실어 보낸다(눈·혈석·해골의 색 구분). */
+    if (it.color) {
+      if (!_instColor) _instColor = new THREE.Color();
+      _instColor.setRGB(it.color[0], it.color[1], it.color[2]);
+      mesh.setColorAt(i, _instColor);
+    }
   });
   mesh.instanceMatrix.needsUpdate = true;
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;

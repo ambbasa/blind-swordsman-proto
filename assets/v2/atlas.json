@@ -1354,6 +1354,54 @@
     "base": "leaves",
     "patches": "path"
    }
+  },
+  "map5": {
+   "name": "안개 석탑",
+   "key": "mist-pagoda",
+   "fog": "fog-0/1 alpha .35-.5 (절차 청크 무대)",
+   "note": "v0.23 3막 12장: 바닥·소품은 inkchunks.js 시드 청크가 세우고, 이 항목은 분위기(atmo) 파일과 스테이지 이름만 맡는다."
+  },
+  "map6": {
+   "name": "설산 폐사찰",
+   "key": "snow-temple",
+   "fog": "fog-0/1 alpha .35-.5 (절차 청크 무대)",
+   "note": "v0.23 3막 12장: 바닥·소품은 inkchunks.js 시드 청크가 세우고, 이 항목은 분위기(atmo) 파일과 스테이지 이름만 맡는다."
+  },
+  "map7": {
+   "name": "고목 골",
+   "key": "dead-grove",
+   "fog": "fog-0/1 alpha .35-.5 (절차 청크 무대)",
+   "note": "v0.23 3막 12장: 바닥·소품은 inkchunks.js 시드 청크가 세우고, 이 항목은 분위기(atmo) 파일과 스테이지 이름만 맡는다."
+  },
+  "map8": {
+   "name": "무명 산문",
+   "key": "nameless-gate",
+   "fog": "fog-0/1 alpha .35-.5 (절차 청크 무대)",
+   "note": "v0.23 3막 12장: 바닥·소품은 inkchunks.js 시드 청크가 세우고, 이 항목은 분위기(atmo) 파일과 스테이지 이름만 맡는다."
+  },
+  "map9": {
+   "name": "혈석 제단",
+   "key": "blood-altar",
+   "fog": "fog-0/1 alpha .35-.5 (절차 청크 무대)",
+   "note": "v0.23 3막 12장: 바닥·소품은 inkchunks.js 시드 청크가 세우고, 이 항목은 분위기(atmo) 파일과 스테이지 이름만 맡는다."
+  },
+  "map10": {
+   "name": "뼈의 강",
+   "key": "bone-river",
+   "fog": "fog-0/1 alpha .35-.5 (절차 청크 무대)",
+   "note": "v0.23 3막 12장: 바닥·소품은 inkchunks.js 시드 청크가 세우고, 이 항목은 분위기(atmo) 파일과 스테이지 이름만 맡는다."
+  },
+  "map11": {
+   "name": "혈월 성채",
+   "key": "blood-fortress",
+   "fog": "fog-0/1 alpha .35-.5 (절차 청크 무대)",
+   "note": "v0.23 3막 12장: 바닥·소품은 inkchunks.js 시드 청크가 세우고, 이 항목은 분위기(atmo) 파일과 스테이지 이름만 맡는다."
+  },
+  "map12": {
+   "name": "나락의 심연",
+   "key": "abyss",
+   "fog": "fog-0/1 alpha .35-.5 (절차 청크 무대)",
+   "note": "v0.23 3막 12장: 바닥·소품은 inkchunks.js 시드 청크가 세우고, 이 항목은 분위기(atmo) 파일과 스테이지 이름만 맡는다."
   }
  },
  "palette": {

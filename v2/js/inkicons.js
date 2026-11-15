@@ -71,7 +71,7 @@ export function drawItem(kind) {
   const rnd = rng(INK_ICONS.seed + kind.length * 17);
   const x = S / 2, y = S / 2;
   const glow = ctx.createRadialGradient(x, y, 30, x, y, 78);
-  const tint = { xp: JADE, coin: GOLD, heal: RED, dashplus: JADE, ice: 'rgba(142,232,255,', fire: RED, poison: 'rgba(176,77,255,', bell: GOLD, herb: 'rgba(96,214,120,', magnet: 'rgba(120,196,255,', bang: 'rgba(255,150,60,' }[kind] || PAPER;
+  const tint = { xp: JADE, coin: GOLD, heal: RED, dashplus: JADE, ice: 'rgba(142,232,255,', fire: RED, poison: 'rgba(176,77,255,', bell: GOLD, charm: GOLD, herb: 'rgba(96,214,120,', magnet: 'rgba(120,196,255,', bang: 'rgba(255,150,60,' }[kind] || PAPER;
   glow.addColorStop(0, tint + '0.45)'); glow.addColorStop(1, tint + '0)');
   ctx.fillStyle = glow; ctx.fillRect(0, 0, S, S);
   disc(ctx, x, y, 52, 'rgba(14,12,14,0.96)', PAPER, rnd);
@@ -133,6 +133,28 @@ export function drawItem(kind) {
     const g2 = ctx.createRadialGradient(x, y, 8, x, y, 46);
     g2.addColorStop(0, 'rgba(120,196,255,0.5)'); g2.addColorStop(1, 'rgba(120,196,255,0)');
     ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(x, y, 46, 0, Math.PI * 2); ctx.fill();
+  } else if (kind === 'charm') {
+    /* 부적 상자(보물함): 황금 테를 두른 먹빛 함에 붉은 봉인 — 한 가지 종과 확실히 구분된다. */
+    ctx.save();
+    ctx.translate(x, y + 2);
+    const body = ctx.createLinearGradient(-30, -24, 30, 26);
+    body.addColorStop(0, 'rgba(96,74,32,1)'); body.addColorStop(0.5, 'rgba(52,42,22,1)'); body.addColorStop(1, 'rgba(26,20,12,1)');
+    ctx.beginPath(); ctx.moveTo(-30, 0); ctx.lineTo(30, 0); ctx.lineTo(26, 26); ctx.lineTo(-26, 26); ctx.closePath();
+    ctx.fillStyle = body; ctx.fill();
+    stroke(ctx, [[-30, 0], [30, 0], [26, 26], [-26, 26], [-30, 0]], 5, GOLD + '0.95)');
+    /* 뚜껑 — 둥근 지붕 */
+    ctx.beginPath(); ctx.moveTo(-32, -2); ctx.quadraticCurveTo(0, -34, 32, -2); ctx.closePath();
+    ctx.fillStyle = 'rgba(70,54,26,1)'; ctx.fill();
+    brush(ctx, curve([-32, -2], [0, -34], [32, -2], 16), 5, GOLD, 0.9, rnd, 5);
+    /* 붉은 봉인 */
+    ctx.fillStyle = RED + '1)'; ctx.fillRect(-9, -6, 18, 20);
+    stroke(ctx, [[-9, -6], [-9, 14]], 2, PAPER + '0.7)');
+    stroke(ctx, [[0, -2], [0, 10]], 3, PAPER + '0.95)');
+    stroke(ctx, [[-6, 2], [6, 2]], 3, PAPER + '0.95)');
+    ctx.restore();
+    const g3 = ctx.createRadialGradient(x, y, 6, x, y, 56);
+    g3.addColorStop(0, 'rgba(230,190,90,0.55)'); g3.addColorStop(1, 'rgba(230,190,90,0)');
+    ctx.fillStyle = g3; ctx.beginPath(); ctx.arc(x, y, 56, 0, Math.PI * 2); ctx.fill();
   } else if (kind === 'bang') {
     /* 화약 부적: 터지는 불꽃 */
     for (let i = 0; i < 8; i++) {
@@ -141,6 +163,87 @@ export function drawItem(kind) {
     }
     ctx.beginPath(); ctx.arc(x, y, 17, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,214,120,1)'; ctx.fill();
     ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,96,40,1)'; ctx.fill();
+  }
+  return c;
+}
+
+/**
+ * 레벨업 카드 아이콘: 먹 원판 위에 그 카드만의 표식을 붓으로 그린다.
+ * 카드가 서로 구분되도록 원소·회복은 기존 아이템 도안을 그대로 쓴다.
+ */
+export function drawUpgrade(id) {
+  if (id === 'ice' || id === 'fire' || id === 'poison' || id === 'heal') return drawItem(id === 'heal' ? 'heal' : id);
+  const S = INK_ICONS.item, c = canvas(S, S), ctx = c.getContext('2d');
+  const rnd = rng(INK_ICONS.seed + (id || '').length * 23 + (id || '').charCodeAt(0));
+  const x = S / 2, y = S / 2;
+  const tint = {
+    dmg: 'rgba(226,232,228,', width: 'rgba(190,232,255,', dash: JADE, ring: 'rgba(150,220,255,',
+    charge: GOLD, spirit: 'rgba(180,200,255,', perfect: 'rgba(255,244,214,', parry: 'rgba(255,196,120,'
+  }[id] || PAPER;
+  const glow = ctx.createRadialGradient(x, y, 28, x, y, 76);
+  glow.addColorStop(0, tint + '0.34)'); glow.addColorStop(1, tint + '0)');
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, S, S);
+  disc(ctx, x, y, 52, 'rgba(14,12,14,0.96)', PAPER, rnd);
+  if (id === 'dmg') {
+    stroke(ctx, [[x - 30, y + 28], [x + 28, y - 30]], 9, 'rgba(226,232,228,0.95)');
+    stroke(ctx, [[x + 26, y + 26], [x - 6, y - 4]], 5, 'rgba(150,160,158,0.85)');
+    for (let i = 0; i < 3; i++) {
+      const a = -0.9 + i * 0.35;
+      stroke(ctx, [[x + Math.cos(a) * 12, y + Math.sin(a) * 12], [x + Math.cos(a) * 34, y + Math.sin(a) * 34]], 3, RED + '0.9)');
+    }
+  } else if (id === 'width') {
+    stroke(ctx, [[x - 34, y + 10], [x + 34, y + 10]], 5, 'rgba(190,232,255,0.95)');
+    stroke(ctx, [[x - 34, y + 24], [x + 34, y + 24]], 3, 'rgba(120,170,200,0.7)');
+    stroke(ctx, [[x - 34, y - 8], [x + 34, y - 8]], 3, 'rgba(120,170,200,0.7)');
+    brush(ctx, [[x - 30, y - 18], [x + 30, y - 18]], 4, PAPER, 0.5, rnd, 4);
+  } else if (id === 'dash') {
+    for (let i = 0; i < 3; i++) {
+      const ox = -24 + i * 22;
+      stroke(ctx, [[x + ox, y - 26], [x + ox + 14, y], [x + ox, y + 26]], 7, JADE + '0.95)');
+    }
+  } else if (id === 'ring') {
+    const ring = [];
+    for (let i = 0; i <= 40; i++) { const a = (i / 40) * Math.PI * 2; ring.push([x + Math.cos(a) * 32, y + Math.sin(a) * 32]); }
+    brush(ctx, ring, 5, 'rgba(150,220,255,0.95)', 0.9, rnd, 6);
+    const inner = [];
+    for (let i = 0; i <= 40; i++) { const a = (i / 40) * Math.PI * 2 + 0.6; inner.push([x + Math.cos(a) * 18, y + Math.sin(a) * 18]); }
+    brush(ctx, inner, 3, 'rgba(150,220,255,0.55)', 0.6, rnd, 4);
+    ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fillStyle = PAPER + '1)'; ctx.fill();
+  } else if (id === 'charge') {
+    const arc = [];
+    for (let i = 0; i <= 34; i++) { const a = -Math.PI * 0.5 + (i / 34) * Math.PI * 1.6; arc.push([x + Math.cos(a) * 30, y + Math.sin(a) * 30]); }
+    stroke(ctx, [[x, y - 34], [x, y + 8]], 6, GOLD + '0.9)');
+    brush(ctx, arc, 7, GOLD, 0.95, rnd, 6);
+    ctx.beginPath(); ctx.arc(x, y + 12, 7, 0, Math.PI * 2); ctx.fillStyle = GOLD + '1)'; ctx.fill();
+  } else if (id === 'spirit') {
+    const b = drawBell('plain');
+    ctx.drawImage(b, x - 13, y - 26, 26, 52);
+    for (let i = 0; i < 3; i++) {
+      const a = -Math.PI * 0.5 + (i / 3) * Math.PI * 2;
+      ctx.beginPath(); ctx.arc(x + Math.cos(a) * 36, y + Math.sin(a) * 36, 5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(180,200,255,0.95)'; ctx.fill();
+    }
+  } else if (id === 'perfect') {
+    stroke(ctx, [[x - 34, y + 18], [x + 34, y + 18]], 6, 'rgba(255,244,214,0.98)');
+    brush(ctx, [[x - 30, y + 18], [x + 30, y + 18]], 3, GOLD, 0.9, rnd, 3);
+    for (let i = -1; i <= 1; i++) {
+      const tx = x + i * 20;
+      stroke(ctx, [[tx, y - 2], [tx, y + 8]], 3, 'rgba(200,206,200,0.8)');
+    }
+    stroke(ctx, [[x, y - 8], [x, y - 34]], 2, 'rgba(255,244,214,0.5)');
+    stroke(ctx, [[x - 6, y - 22], [x + 6, y - 22]], 2, 'rgba(255,244,214,0.5)');
+    ctx.beginPath(); ctx.arc(x, y - 24, 3, 0, Math.PI * 2); ctx.fillStyle = GOLD + '1)'; ctx.fill();
+  } else if (id === 'parry') {
+    /* 칼집(鞘)과 받아치는 궤적 */
+    stroke(ctx, [[x - 6, y - 34], [x - 6, y + 26]], 10, 'rgba(60,50,44,1)');
+    stroke(ctx, [[x - 6, y - 34], [x - 6, y + 26]], 4, 'rgba(150,120,80,0.9)');
+    const arc = [];
+    for (let i = 0; i <= 20; i++) { const a = -0.8 + (i / 20) * 1.7; arc.push([x + 6 + Math.cos(a) * 30, y + Math.sin(a) * 30]); }
+    brush(ctx, arc, 6, 'rgba(255,196,120,0.95)', 0.9, rnd, 5);
+    for (let i = 0; i < 4; i++) {
+      const a = -0.5 + i * 0.5;
+      stroke(ctx, [[x + 6 + Math.cos(a) * 34, y + Math.sin(a) * 34], [x + 6 + Math.cos(a) * 46, y + Math.sin(a) * 46]], 2, 'rgba(255,230,180,0.85)');
+    }
   }
   return c;
 }

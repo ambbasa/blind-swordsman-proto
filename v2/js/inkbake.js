@@ -318,7 +318,17 @@ export function panoramaTexture(stageId) {
     1: { top: [10, 9, 11], bot: [46, 36, 30], moon: [232, 222, 196], tint: [58, 40, 30] },
     2: { top: [7, 9, 14], bot: [34, 44, 66], moon: [186, 205, 235], tint: [26, 36, 60] },
     3: { top: [6, 10, 8], bot: [26, 48, 34], moon: [200, 226, 196], tint: [20, 44, 30] },
-    4: { top: [14, 5, 7], bot: [70, 18, 18], moon: [255, 84, 62], tint: [96, 22, 20] }
+    4: { top: [14, 5, 7], bot: [70, 18, 18], moon: [255, 84, 62], tint: [96, 22, 20] },
+    /* v0.23 제2막 안개 산사 */
+    5: { top: [8, 12, 14], bot: [38, 54, 58], moon: [206, 232, 236], tint: [30, 56, 62] },
+    6: { top: [10, 13, 20], bot: [58, 74, 92], moon: [232, 244, 255], tint: [44, 60, 82] },
+    7: { top: [7, 10, 8], bot: [30, 44, 30], moon: [204, 226, 200], tint: [22, 42, 24] },
+    8: { top: [12, 11, 18], bot: [48, 44, 62], moon: [222, 214, 244], tint: [42, 38, 60] },
+    /* 제3막 혈월의 나락 */
+    9: { top: [16, 4, 6], bot: [86, 20, 22], moon: [255, 96, 74], tint: [110, 24, 24] },
+    10: { top: [13, 9, 7], bot: [66, 48, 34], moon: [255, 198, 150], tint: [88, 58, 40] },
+    11: { top: [20, 3, 6], bot: [104, 14, 20], moon: [255, 70, 56], tint: [130, 18, 22] },
+    12: { top: [8, 2, 4], bot: [52, 4, 8], moon: [255, 44, 36], tint: [86, 8, 12] }
   }[stageId] || { top: [10, 9, 11], bot: [40, 34, 30], moon: [230, 220, 195], tint: [50, 40, 34] };
   const sky = g.createLinearGradient(0, 0, 0, H);
   sky.addColorStop(0, 'rgb(' + P.top.join(',') + ')');
@@ -326,7 +336,7 @@ export function panoramaTexture(stageId) {
   sky.addColorStop(1, 'rgb(' + P.top.join(',') + ')');
   g.fillStyle = sky; g.fillRect(0, 0, W, H);
   /* 달 + 번지는 후광 */
-  const mx = W * 0.665, my = H * 0.30, mr = stageId === 4 ? 62 : 40;
+  const mx = W * 0.665, my = H * 0.30, mr = (stageId >= 9 ? 74 : stageId === 4 ? 62 : 40);
   const halo = g.createRadialGradient(mx, my, mr * 0.4, mx, my, mr * 5.2);
   halo.addColorStop(0, 'rgba(' + P.moon.join(',') + ',0.55)');
   halo.addColorStop(0.25, 'rgba(' + P.moon.join(',') + ',0.16)');
@@ -379,6 +389,95 @@ export function panoramaTexture(stageId) {
         const y = top + rnd() * H * 0.5, len = 26 + rnd() * 54;
         g.beginPath(); g.moveTo(x + w / 2, y); g.lineTo(x + (rnd() > 0.5 ? len : -len), y - 12 - rnd() * 18); g.lineTo(x + w / 2, y + 5); g.closePath(); g.fill();
       }
+    }
+  } else if (stageId === 5) {
+    /* 안개 석탑: 층층 탑 세 기와 자욱한 안개 */
+    for (let i = 0; i < 3; i++) {
+      const bx = W * (0.18 + i * 0.28) + rnd() * 40, tiers = 4 + Math.floor(rnd() * 3), bh = 42 + rnd() * 26;
+      g.fillRect(bx - 26, H * 0.74, 52, H * 0.28);
+      for (let k = 0; k < tiers; k++) {
+        const w = 118 - k * 12, y = H * 0.74 - k * bh;
+        g.fillRect(bx - w * 0.26, y - bh * 0.8, w * 0.52, bh * 0.8);
+        g.beginPath(); g.moveTo(bx - w * 0.5, y - bh * 0.8); g.lineTo(bx, y - bh * 1.35); g.lineTo(bx + w * 0.5, y - bh * 0.8); g.closePath(); g.fill();
+      }
+    }
+    const fogBand = g.createLinearGradient(0, H * 0.55, 0, H * 0.9);
+    fogBand.addColorStop(0, 'rgba(' + P.bot.join(',') + ',0.55)');
+    fogBand.addColorStop(1, 'rgba(7,9,10,0)');
+    g.fillStyle = fogBand; g.fillRect(0, H * 0.55, W, H * 0.4);
+  } else if (stageId === 6) {
+    /* 설산: 눈을 머금은 봉우리와 작은 절 */
+    for (let i = 0; i < 6; i++) {
+      const bx = W * (0.06 + i * 0.17) + rnd() * 40, peak = H * (0.22 + rnd() * 0.2), base = H * 0.78;
+      g.beginPath(); g.moveTo(bx - 190, base); g.lineTo(bx, peak); g.lineTo(bx + 190, base); g.closePath();
+      g.fillStyle = 'rgba(10,12,18,0.92)'; g.fill();
+      g.beginPath(); g.moveTo(bx - 54, peak + 58); g.lineTo(bx, peak); g.lineTo(bx + 54, peak + 58);
+      g.lineTo(bx + 26, peak + 46); g.lineTo(bx, peak + 62); g.lineTo(bx - 26, peak + 46); g.closePath();
+      g.fillStyle = 'rgba(226,238,248,0.5)'; g.fill();
+    }
+    g.fillStyle = 'rgba(8,10,14,0.94)';
+    g.fillRect(W * 0.46, H * 0.66, 150, H * 0.3);
+    g.beginPath(); g.moveTo(W * 0.46 - 40, H * 0.66); g.quadraticCurveTo(W * 0.46 + 75, H * 0.54, W * 0.46 + 190, H * 0.66); g.closePath(); g.fill();
+  } else if (stageId === 7) {
+    /* 고목 골: 잎을 잃은 나무들의 실루엣 */
+    for (let i = 0; i < 22; i++) {
+      const x = rnd() * W, h = H * (0.3 + rnd() * 0.32), w = 4 + rnd() * 6;
+      g.fillRect(x, H * 0.86 - h, w, h);
+      for (let k = 0; k < 5; k++) {
+        const y = H * 0.86 - h + rnd() * h * 0.5, len = 30 + rnd() * 70, sgn = rnd() < 0.5 ? -1 : 1;
+        g.beginPath(); g.moveTo(x + w / 2, y); g.lineTo(x + w / 2 + sgn * len, y - 18 - rnd() * 26); g.lineTo(x + w / 2 + sgn * len * 0.6, y + 4); g.closePath(); g.fill();
+      }
+    }
+  } else if (stageId === 8) {
+    /* 무명 산문: 절 지붕과 석문 */
+    for (let i = 0; i < 4; i++) {
+      const x = W * (0.1 + i * 0.24) + rnd() * 30, w = 220 + rnd() * 120, y = H * 0.7;
+      g.fillRect(x, y, w, H * 0.3);
+      g.beginPath(); g.moveTo(x - 46, y); g.quadraticCurveTo(x + w * 0.5, y - 96, x + w + 46, y); g.lineTo(x + w, y + 14); g.lineTo(x, y + 14); g.closePath(); g.fill();
+    }
+    g.fillRect(W * 0.6, H * 0.5, 30, H * 0.4); g.fillRect(W * 0.72, H * 0.5, 30, H * 0.4);
+    g.fillRect(W * 0.59, H * 0.48, 180, 20);
+  } else if (stageId === 9) {
+    /* 혈석 제단: 뾰족한 혈석과 붉은 원 */
+    for (let i = 0; i < 12; i++) {
+      const x = rnd() * W, h = H * (0.2 + rnd() * 0.36), w = 26 + rnd() * 54;
+      g.beginPath(); g.moveTo(x - w / 2, H * 0.86); g.lineTo(x + (rnd() - 0.5) * 12, H * 0.86 - h); g.lineTo(x + w / 2, H * 0.86); g.closePath(); g.fill();
+    }
+    g.strokeStyle = 'rgba(' + P.moon.join(',') + ',0.35)'; g.lineWidth = 6;
+    g.beginPath(); g.ellipse(W * 0.3, H * 0.82, 150, 40, 0, 0, Math.PI * 2); g.stroke();
+  } else if (stageId === 10) {
+    /* 뼈의 강: 마른 강바닥과 갈비뼈 아치 */
+    for (let i = 0; i < 5; i++) {
+      const x = W * (0.12 + i * 0.19), y = H * 0.8, r = 46 + rnd() * 34;
+      g.strokeStyle = 'rgba(196,184,160,0.22)'; g.lineWidth = 5;
+      for (let k = 0; k < 4; k++) { g.beginPath(); g.arc(x, y, r - k * 9, Math.PI * 1.06, Math.PI * 1.94); g.stroke(); }
+    }
+    g.fillStyle = 'rgba(8,8,9,0.9)';
+    for (let i = 0; i < 8; i++) {
+      const x = rnd() * W, w = 100 + rnd() * 180, h = 50 + rnd() * 70, y = H * 0.72;
+      g.fillRect(x, y, w, H * 0.3);
+    }
+  } else if (stageId === 11) {
+    /* 혈월 성채: 성벽과 망루 */
+    for (let i = 0; i < 5; i++) {
+      const x = i * (W / 5);
+      g.fillRect(x, H * 0.62, W / 5 - 20, H * 0.4);
+      for (let k = 0; k < 9; k++) g.fillRect(x + k * (W / 44), H * 0.58, 24, 30);
+    }
+    [0.14, 0.56, 0.86].forEach(function (u) {
+      g.fillRect(W * u - 44, H * 0.4, 88, H * 0.6);
+      g.beginPath(); g.moveTo(W * u - 64, H * 0.4); g.lineTo(W * u, H * 0.24); g.lineTo(W * u + 64, H * 0.4); g.closePath(); g.fill();
+    });
+  } else if (stageId === 12) {
+    /* 나락의 심연: 하늘에서 떨어지는 검은 뾰족바위와 바닥의 균열 */
+    for (let i = 0; i < 16; i++) {
+      const x = rnd() * W, w = 30 + rnd() * 80, h = H * (0.2 + rnd() * 0.5);
+      g.beginPath(); g.moveTo(x - w / 2, 0); g.lineTo(x + w / 2, 0); g.lineTo(x + (rnd() - 0.5) * 10, h); g.closePath(); g.fill();
+    }
+    g.strokeStyle = 'rgba(' + P.moon.join(',') + ',0.28)'; g.lineWidth = 8;
+    for (let i = 0; i < 6; i++) {
+      const x = rnd() * W;
+      g.beginPath(); g.moveTo(x, H * 0.62); g.lineTo(x + (rnd() - 0.5) * 160, H); g.stroke();
     }
   } else {
     /* 기와집·탑 실루엣 */

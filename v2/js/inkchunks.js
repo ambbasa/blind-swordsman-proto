@@ -19,7 +19,17 @@ const GROUND_STYLE = {
   1: { stone: [0.195, 0.205, 0.21], dirt: [0.095, 0.095, 0.10], moss: 0.22, wet: 0.7, seed: 11 },
   2: { stone: [0.29, 0.32, 0.37], dirt: [0.14, 0.16, 0.21], moss: 0.12, wet: 0.78, seed: 23 },
   3: { stone: [0.28, 0.31, 0.24], dirt: [0.15, 0.18, 0.13], moss: 0.8, wet: 0.5, seed: 37 },
-  4: { stone: [0.36, 0.26, 0.23], dirt: [0.18, 0.12, 0.11], moss: 0.14, wet: 0.45, seed: 41 }
+  4: { stone: [0.36, 0.26, 0.23], dirt: [0.18, 0.12, 0.11], moss: 0.14, wet: 0.45, seed: 41 },
+  /* 제2막 안개 산사 */
+  5: { stone: [0.20, 0.26, 0.28], dirt: [0.09, 0.12, 0.14], moss: 0.42, wet: 0.88, seed: 53 },
+  6: { stone: [0.30, 0.33, 0.38], dirt: [0.14, 0.17, 0.22], moss: 0.10, wet: 0.62, seed: 61 },
+  7: { stone: [0.20, 0.24, 0.18], dirt: [0.10, 0.13, 0.09], moss: 0.74, wet: 0.40, seed: 71 },
+  8: { stone: [0.26, 0.24, 0.30], dirt: [0.12, 0.11, 0.15], moss: 0.30, wet: 0.68, seed: 83 },
+  /* 제3막 혈월의 나락 */
+  9: { stone: [0.32, 0.15, 0.15], dirt: [0.16, 0.06, 0.07], moss: 0.06, wet: 0.72, seed: 97 },
+  10: { stone: [0.30, 0.25, 0.19], dirt: [0.15, 0.12, 0.09], moss: 0.12, wet: 0.34, seed: 103 },
+  11: { stone: [0.28, 0.11, 0.13], dirt: [0.13, 0.04, 0.05], moss: 0.04, wet: 0.66, seed: 113 },
+  12: { stone: [0.22, 0.07, 0.10], dirt: [0.10, 0.02, 0.04], moss: 0.02, wet: 0.80, seed: 127 }
 };
 
 export function chunkOf(v) { return Math.floor(v / CHUNK); }
@@ -42,12 +52,14 @@ function emptyBuckets() {
   };
 }
 
-function push(B, kind, x, y, z, sx, sy, sz, ry, rx, rz) {
-  B[kind].push({
+function push(B, kind, x, y, z, sx, sy, sz, ry, rx, rz, color) {
+  const o = {
     x: x, y: y || 0, z: z,
     sx: sx == null ? 1 : sx, sy: sy == null ? 1 : sy, sz: sz == null ? 1 : sz,
     rx: rx || 0, ry: ry || 0, rz: rz || 0
-  });
+  };
+  if (color) o.color = color;
+  B[kind].push(o);
 }
 
 /* 청크 안 빈 자리: 가운데 동선(반경 clearR)과 이미 놓은 소품을 피한다. */
@@ -205,6 +217,84 @@ function shrineCairn(B, x, z, rnd) {
   push(B, 'ribbon', x, 2.1, z, 0.28, 1.0, 1, rnd() * TAU);
   push(B, 'glow', x, 0.03, z, 2.4, 1, 2.4);
   push(B, 'ao', x, 0, z, 1.6, 1, 1.4);
+}
+
+/* ---------- v0.23 제2막·제3막 소품 ---------- */
+/* 석탑: 받침 + 층층 지붕 + 꼭대기 등. 산사의 방향을 잡아 준다. */
+function stonePagoda(B, x, z, rnd, tiers) {
+  const n = tiers || (3 + Math.floor(rnd() * 3));
+  const base = 1.4 + rnd() * 0.5;
+  push(B, 'rock', x, 0.18, z, base * 1.7, 0.36, base * 1.7, rnd() * TAU);
+  let y = 0.38;
+  for (let i = 0; i < n; i++) {
+    const w = base * (1 - i * 0.15);
+    push(B, 'plaster', x, y + 0.52, z, w, 1.02, w, rnd() * TAU);
+    push(B, 'tile', x, y + 1.1, z, w * 1.55, 0.18, w * 1.55, rnd() * TAU);
+    y += 1.18;
+  }
+  push(B, 'ember', x, y + 0.1, z, 0.32, 0.2, 0.32);
+  push(B, 'glow', x, 0.03, z, 4.4, 1, 4.4);
+  push(B, 'ao', x, 0, z, 3.0, 1, 2.8);
+}
+/* 설송: 눈을 얹은 소나무 — 설산 폐사찰의 표지 */
+function snowPine(B, x, z, rnd) {
+  const h = 3.0 + rnd() * 2.8;
+  push(B, 'wood', x, h * 0.4, z, 0.22, h * 0.8, 0.22, rnd() * TAU);
+  for (let i = 0; i < 3; i++) {
+    const y = h * (0.32 + i * 0.23), sd = 2.5 - i * 0.55;
+    push(B, 'leaf', x, y, z, sd, 1.0, sd, rnd() * TAU, 0, 0, [1.35, 1.5, 1.6]);
+    push(B, 'rock', x, y + 0.46, z, sd * 0.46, 0.13, sd * 0.46, rnd() * TAU, 0, 0, [2.0, 2.15, 2.3]);
+  }
+  push(B, 'ao', x, 0, z, 2.2, 1, 2.0);
+}
+/* 산문: 두 기둥과 긴 들보, 문 앞 등불 */
+function stoneGate(B, x, z, ry, rnd) {
+  const ca = Math.cos(ry), sa = Math.sin(ry);
+  [-1, 1].forEach(function (sgn) {
+    const px = x + ca * 2.0 * sgn, pz = z + sa * 2.0 * sgn;
+    push(B, 'plaster', px, 2.4, pz, 0.8, 4.8, 0.8, ry);
+    push(B, 'tile', px, 4.98, pz, 1.2, 0.3, 1.2, ry + Math.PI / 4);
+    push(B, 'ao', px, 0, pz, 1.6, 1, 1.6);
+  });
+  push(B, 'dark', x, 4.62, z, 5.4, 0.5, 0.7, ry);
+  push(B, 'tile', x, 5.1, z, 6.0, 0.3, 1.5, ry);
+  push(B, 'paper', x, 3.4, z, 0.42, 0.6, 0.42);
+  push(B, 'glow', x, 0.03, z, 5.2, 1, 5.2);
+  if (rnd() < 0.6) banner(B, x + ca * 0.7, z + sa * 0.7, ry, 0.85, 3.0, rnd);
+}
+/* 혈석 제단: 붉은 원반과 여섯 기둥, 가운데 잉걸 */
+function bloodAltar(B, x, z, rnd) {
+  push(B, 'rock', x, 0.1, z, 2.7, 0.22, 2.7, rnd() * TAU, 0, 0, [1.4, 0.72, 0.72]);
+  push(B, 'rock', x, 0.32, z, 1.7, 0.22, 1.7, rnd() * TAU, 0, 0, [1.55, 0.68, 0.68]);
+  for (let i = 0; i < 6; i++) {
+    const a = i / 6 * TAU;
+    push(B, 'dark', x + Math.cos(a) * 1.6, 0.52, z + Math.sin(a) * 1.6, 0.17, 1.0, 0.17, a, 0, 0.18);
+  }
+  push(B, 'ember', x, 0.42, z, 0.9, 0.12, 0.7);
+  push(B, 'glow', x, 0.03, z, 6.2, 1, 6.2);
+  push(B, 'ao', x, 0, z, 3.4, 1, 3.0);
+}
+/* 혈석 뾰족바위 */
+function bloodSpire(B, x, z, rnd) {
+  const n = 3 + Math.floor(rnd() * 3);
+  for (let i = 0; i < n; i++) {
+    const h = 1.6 + rnd() * 3.6, w = 0.5 + rnd() * 0.6;
+    push(B, 'rock', x + (rnd() - 0.5) * 1.4, h * 0.5, z + (rnd() - 0.5) * 1.4, w, h, w,
+      rnd() * TAU, (rnd() - 0.5) * 0.2, (rnd() - 0.5) * 0.2, [1.5, 0.6, 0.6]);
+  }
+  push(B, 'glow', x, 0.03, z, 3.2, 1, 3.2);
+  push(B, 'ao', x, 0, z, 2.6, 1, 2.2);
+}
+/* 뼈 무더기: 갈비와 해골 */
+function bonePile(B, x, z, rnd) {
+  push(B, 'rock', x, 0.06, z, 2.0, 0.12, 1.6, rnd() * TAU, 0, 0, [2.1, 1.9, 1.55]);
+  for (let i = 0; i < 7; i++) {
+    const a = rnd() * TAU, L = 0.6 + rnd() * 1.2;
+    push(B, 'plaster', x + Math.cos(a) * rnd() * 1.2, 0.1 + rnd() * 0.12, z + Math.sin(a) * rnd() * 1.2,
+      0.08, 0.08, L, a, 0, (rnd() - 0.5) * 0.1, [1.65, 1.55, 1.3]);
+  }
+  push(B, 'rock', x, 0.22, z, 0.34, 0.3, 0.36, rnd() * TAU, 0, 0, [1.95, 1.85, 1.55]);
+  push(B, 'ao', x, 0, z, 2.0, 1, 1.7);
 }
 
 /* 청크 하나를 (스테이지, cx, cz) 시드로 짓는다. 월드 좌표 아이템과 항아리 자리를 돌려준다. */
@@ -374,7 +464,7 @@ export function buildChunkData(cx, cz, stageId) {
       push(B, 'stain', W(p.x), 0.016, Z(p.z), 1.4 + rnd() * 2.2, 1, 1.4 + rnd() * 2.2, rnd() * TAU);
       if (rnd() < 0.5) push(B, 'leaf', W(p.x), 0.18, Z(p.z), 0.9 + rnd() * 0.8, 0.7 + rnd() * 0.5, 0.9, rnd() * TAU);
     }
-  } else {
+  } else if (theme === 4) {
     /* 붉은 달: 그을린 잔해 */
     for (let i = 0; i < 4; i++) {
       const p = spot(rnd, clearR + 2.0, occupied);
@@ -424,6 +514,205 @@ export function buildChunkData(cx, cz, stageId) {
       const p = spot(rnd, clearR, occupied);
       if (!p) continue;
       push(B, 'cloth', W(p.x), 1.3 + rnd() * 0.9, Z(p.z), 0.6 + rnd() * 0.5, 1.1 + rnd() * 0.8, 1, rnd() * TAU, 0, (rnd() - 0.5) * 0.2);
+    }
+  }
+
+  else if (theme === 5) {
+    /* 안개 석탑: 탑 두세 기 + 돌등 + 안개 자욱 */
+    for (let i = 0; i < 2 + (rnd() < 0.4 ? 1 : 0); i++) {
+      const p = spot(rnd, clearR + 2.4, occupied);
+      if (!p) continue;
+      stonePagoda(B, W(p.x), Z(p.z), rnd);
+      addOcc(p.x, p.z, 3.0);
+    }
+    for (let i = 0; i < 5; i++) {
+      const p = spot(rnd, clearR - 0.4, occupied);
+      if (!p) continue;
+      if (rnd() < 0.5) stoneLantern(B, W(p.x), Z(p.z), rnd);
+      else push(B, 'rock', W(p.x), 0.16, Z(p.z), 0.6 + rnd() * 0.9, 0.3 + rnd() * 0.5, 0.6 + rnd() * 0.8, rnd() * TAU);
+      addOcc(p.x, p.z, 1.2);
+    }
+    for (let i = 0; i < 6; i++) {
+      const p = spot(rnd, 1.4, occupied);
+      if (!p) continue;
+      push(B, 'stain', W(p.x), 0.016, Z(p.z), 1.6 + rnd() * 2.8, 1, 1.6 + rnd() * 2.8, rnd() * TAU);
+      if (rnd() < 0.35) push(B, 'cloth', W(p.x), 1.4 + rnd() * 0.8, Z(p.z), 0.7, 1.2, 1, rnd() * TAU, 0, (rnd() - 0.5) * 0.2);
+    }
+  } else if (theme === 6) {
+    /* 설산 폐사찰: 눈 덮인 소나무 + 무너진 기둥 + 눈더미 */
+    for (let i = 0; i < 3; i++) {
+      const p = spot(rnd, clearR + 2.0, occupied);
+      if (!p) continue;
+      snowPine(B, W(p.x), Z(p.z), rnd);
+      addOcc(p.x, p.z, 2.4);
+    }
+    for (let i = 0; i < 4; i++) {
+      const p = spot(rnd, clearR - 0.2, occupied);
+      if (!p) continue;
+      const ry = rnd() * TAU;
+      push(B, 'plaster', W(p.x), 0.24, Z(p.z), 0.62, 0.42, 2.6 + rnd() * 2.0, ry, Math.PI / 2 - 0.04, 0.02);
+      push(B, 'tile', W(p.x), 0.44, Z(p.z), 0.9, 0.16, 1.2, ry, 0, 0.1);
+      addOcc(p.x, p.z, 1.6);
+    }
+    if (rnd() < 0.35) {
+      const p = spot(rnd, clearR + 2.2, occupied);
+      if (p) { stoneGate(B, W(p.x), Z(p.z), rnd() < 0.5 ? 0 : Math.PI / 2, rnd); addOcc(p.x, p.z, 3.4); }
+    }
+    for (let i = 0; i < 7; i++) {
+      const p = spot(rnd, 1.2, occupied);
+      if (!p) continue;
+      push(B, 'rock', W(p.x), 0.1, Z(p.z), 1.0 + rnd() * 1.6, 0.16, 1.0 + rnd() * 1.4, rnd() * TAU, 0, 0, [2.0, 2.15, 2.3]);
+      if (rnd() < 0.4) push(B, 'stain', W(p.x), 0.02, Z(p.z), 1.4 + rnd() * 2.2, 1, 1.4 + rnd() * 2.2, rnd() * TAU);
+    }
+  } else if (theme === 7) {
+    /* 고목 골: 잎을 잃은 고목과 낙엽, 바위 */
+    for (let i = 0; i < 3; i++) {
+      const p = spot(rnd, clearR + 2.0, occupied);
+      if (!p) continue;
+      deadTree(B, W(p.x), Z(p.z), rnd);
+      deadTree(B, W(p.x) + 0.9, Z(p.z) - 0.7, rnd);
+      addOcc(p.x, p.z, 2.8);
+    }
+    for (let i = 0; i < 6; i++) {
+      const p = spot(rnd, clearR - 0.4, occupied);
+      if (!p) continue;
+      if (rnd() < 0.55) push(B, 'leaf', W(p.x), 0.22, Z(p.z), 1.2 + rnd() * 1.2, 0.7 + rnd() * 0.5, 1.2, rnd() * TAU, 0, 0, [0.8, 0.72, 0.5]);
+      else push(B, 'rock', W(p.x), 0.16, Z(p.z), 0.6 + rnd() * 0.9, 0.3 + rnd() * 0.5, 0.6 + rnd() * 0.8, rnd() * TAU);
+      addOcc(p.x, p.z, 1.2);
+    }
+    if (rnd() < 0.5) {
+      const p = spot(rnd, clearR + 1.2, occupied);
+      if (p) { shrineCairn(B, W(p.x), Z(p.z), rnd); addOcc(p.x, p.z, 1.6); }
+    }
+    for (let i = 0; i < 5; i++) {
+      const p = spot(rnd, 1.4, occupied);
+      if (!p) continue;
+      push(B, 'stain', W(p.x), 0.016, Z(p.z), 1.4 + rnd() * 2.2, 1, 1.4 + rnd() * 2.2, rnd() * TAU);
+    }
+  } else if (theme === 8) {
+    /* 무명 산문: 석문 + 계단 + 탑 */
+    for (let i = 0; i < 2; i++) {
+      const p = spot(rnd, clearR + 2.6, occupied);
+      if (!p) continue;
+      stoneGate(B, W(p.x), Z(p.z), rnd() < 0.5 ? 0 : Math.PI / 2, rnd);
+      addOcc(p.x, p.z, 3.6);
+    }
+    if (rnd() < 0.7) {
+      const p = spot(rnd, clearR + 3.0, occupied);
+      if (p) { stonePagoda(B, W(p.x), Z(p.z), rnd, 4); addOcc(p.x, p.z, 3.0); }
+    }
+    for (let i = 0; i < 5; i++) {
+      const p = spot(rnd, clearR - 0.6, occupied);
+      if (!p) continue;
+      push(B, 'dark', W(p.x), 0.12, Z(p.z), 1.8, 0.16, 0.7, rnd() * TAU);
+      push(B, 'tile', W(p.x), 0.24, Z(p.z), 2.0, 0.1, 0.9, rnd() * TAU);
+      addOcc(p.x, p.z, 1.4);
+    }
+    for (let i = 0; i < 3; i++) {
+      const p = spot(rnd, clearR, occupied);
+      if (!p) continue;
+      banner(B, W(p.x), Z(p.z), rnd() * TAU, 0.95, 3.0 + rnd() * 1.2, rnd);
+      addOcc(p.x, p.z, 1.0);
+    }
+  } else if (theme === 9) {
+    /* 혈석 제단 */
+    for (let i = 0; i < 2; i++) {
+      const p = spot(rnd, clearR + 2.2, occupied);
+      if (!p) continue;
+      bloodAltar(B, W(p.x), Z(p.z), rnd);
+      addOcc(p.x, p.z, 3.0);
+    }
+    for (let i = 0; i < 4; i++) {
+      const p = spot(rnd, clearR + 1.2, occupied);
+      if (!p) continue;
+      bloodSpire(B, W(p.x), Z(p.z), rnd);
+      addOcc(p.x, p.z, 2.0);
+    }
+    for (let i = 0; i < 5; i++) {
+      const p = spot(rnd, 1.4, occupied);
+      if (!p) continue;
+      push(B, 'stain', W(p.x), 0.016, Z(p.z), 1.6 + rnd() * 2.6, 1, 1.6 + rnd() * 2.6, rnd() * TAU);
+      if (rnd() < 0.4) push(B, 'ember', W(p.x), 0.04, Z(p.z), 0.6, 0.08, 0.5);
+    }
+  } else if (theme === 10) {
+    /* 뼈의 강: 마른 강바닥과 뼈 무더기 */
+    for (let i = 0; i < 4; i++) {
+      const p = spot(rnd, clearR + 0.8, occupied);
+      if (!p) continue;
+      bonePile(B, W(p.x), Z(p.z), rnd);
+      addOcc(p.x, p.z, 1.8);
+    }
+    for (let i = 0; i < 3; i++) {
+      const p = spot(rnd, clearR + 1.8, occupied);
+      if (!p) continue;
+      if (rnd() < 0.5) deadTree(B, W(p.x), Z(p.z), rnd);
+      else bloodSpire(B, W(p.x), Z(p.z), rnd);
+      addOcc(p.x, p.z, 2.2);
+    }
+    for (let i = 0; i < 6; i++) {
+      const p = spot(rnd, 1.2, occupied);
+      if (!p) continue;
+      push(B, 'stain', W(p.x), 0.014, Z(p.z), 2.2 + rnd() * 3.4, 1, 1.0 + rnd() * 1.6, rnd() * TAU);
+      if (rnd() < 0.3) push(B, 'rock', W(p.x), 0.12, Z(p.z), 0.6 + rnd() * 0.8, 0.2, 0.5 + rnd() * 0.6, rnd() * TAU);
+    }
+  } else if (theme === 11) {
+    /* 혈월 성채: 성벽 + 깃발 + 화로 */
+    for (let i = 0; i < 2; i++) {
+      const p = spot(rnd, clearR + 2.4, occupied);
+      if (!p) continue;
+      const ry = rnd() < 0.5 ? 0 : Math.PI / 2;
+      wallRun(B, W(p.x), Z(p.z), 5.5 + rnd() * 4.0, ry + (rnd() - 0.5) * 0.1, rnd);
+      addOcc(p.x, p.z, 3.4);
+    }
+    for (let i = 0; i < 3; i++) {
+      const p = spot(rnd, clearR, occupied);
+      if (!p) continue;
+      banner(B, W(p.x), Z(p.z), rnd() * TAU, 1.0, 3.2 + rnd() * 1.4, rnd);
+      addOcc(p.x, p.z, 1.0);
+    }
+    for (let i = 0; i < 3; i++) {
+      const p = spot(rnd, clearR + 0.6, occupied);
+      if (!p) continue;
+      for (let k = 0; k < 5; k++) {
+        const a = k / 5 * TAU;
+        push(B, 'dark', W(p.x) + Math.cos(a) * 0.5, 0.1, Z(p.z) + Math.sin(a) * 0.5, 0.4, 0.12, 0.16, a, 0, 0);
+      }
+      push(B, 'ember', W(p.x), 0.1, Z(p.z), 0.9, 0.14, 0.7);
+      push(B, 'glow', W(p.x), 0.03, Z(p.z), 4.8, 1, 4.8);
+      push(B, 'ao', W(p.x), 0, Z(p.z), 2.2, 1, 2.0);
+      addOcc(p.x, p.z, 1.4);
+    }
+    for (let i = 0; i < 2; i++) {
+      const p = spot(rnd, clearR + 1.2, occupied);
+      if (!p) continue;
+      bloodSpire(B, W(p.x), Z(p.z), rnd);
+      addOcc(p.x, p.z, 2.0);
+    }
+  } else {
+    /* 나락의 심연: 검붉은 뾰족바위와 제단, 갈라진 땅 */
+    for (let i = 0; i < 3; i++) {
+      const p = spot(rnd, clearR + 1.8, occupied);
+      if (!p) continue;
+      bloodSpire(B, W(p.x), Z(p.z), rnd);
+      addOcc(p.x, p.z, 2.2);
+    }
+    for (let i = 0; i < 2; i++) {
+      const p = spot(rnd, clearR + 2.6, occupied);
+      if (!p) continue;
+      bloodAltar(B, W(p.x), Z(p.z), rnd);
+      addOcc(p.x, p.z, 3.0);
+    }
+    for (let i = 0; i < 8; i++) {
+      const p = spot(rnd, 1.2, occupied);
+      if (!p) continue;
+      push(B, 'stain', W(p.x), 0.014, Z(p.z), 2.6 + rnd() * 4.0, 1, 0.7 + rnd() * 1.2, rnd() * TAU);
+      if (rnd() < 0.5) push(B, 'ember', W(p.x), 0.04, Z(p.z), 0.7 + rnd() * 0.5, 0.08, 0.5 + rnd() * 0.4);
+      if (rnd() < 0.35) push(B, 'dark', W(p.x), 0.3, Z(p.z), 0.16, 0.6, 1.6 + rnd() * 2.0, rnd() * TAU, 0, (rnd() - 0.5) * 0.3);
+    }
+    for (let i = 0; i < 3; i++) {
+      const p = spot(rnd, clearR, occupied);
+      if (!p) continue;
+      push(B, 'cloth', W(p.x), 1.5 + rnd() * 0.9, Z(p.z), 0.7 + rnd() * 0.5, 1.2 + rnd() * 0.8, 1, rnd() * TAU, 0, (rnd() - 0.5) * 0.2);
     }
   }
 
