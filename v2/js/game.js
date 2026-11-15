@@ -8,6 +8,9 @@ import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
 import { drawSonarRing2D } from '../../assets/v2/fx-ink/code/sonarRing.js';
 import { createInkWashPass } from './inkwash.js';
+import { createCinematicPass } from './inkcinematic.js';
+import { createSlashArc } from './inkslash3d.js';
+import { StageAtmosphere } from './inkatmos.js';
 
 const G = window.GPGestures;
 const SAVE_KEY = 'gesture-proto.v2';
@@ -100,7 +103,7 @@ const CFG = {
   bellDur: 8, slowDur: 0.45, slowScale: 0.35,
   sightWaveDur: 0.45,
   /* Fog outside the mind's-eye ring: clear inside fogInner x ring, fully fogged at fogOuter x ring. */
-  fogColor: [7, 6, 8], fogAlpha: 0.9, fogInner: 0.86, fogOuter: 1.16, fogWisps: 44, fogWispAlpha: 0.09
+  fogColor: [7, 6, 8], fogAlpha: 0.84, fogInner: 0.86, fogOuter: 1.16, fogWisps: 28, fogWispAlpha: 0.05
 };
 const RUN_UPGRADES = [
   { id: 'dmg', name: '돌진 데미지', desc: '일섬이 좀비에게 더 큰 상처를 남깁니다.' },
@@ -133,7 +136,7 @@ const STAGES = [
     spawn: { ms: 1150, max: 13, earlyMax: 5, earlyMinMs: 1500 },
     boss: { telegraph: 1.35, charge: 16, adds: 0 },
     starCombo: 8,
-    atmo: { clear: 0x1b1a1c, fog: 0.0075, moon: 1.35, hemi: 0x6a6860, ground: 0x1a1612, moonCol: 0xc8c0b0, tint: 'linear-gradient(180deg, rgba(96,112,130,0.12) 0%, rgba(34,44,54,0.18) 100%)' }
+    atmo: { clear: 0x1b1a1c, fogCol: [21, 18, 15], fog: 0.020, moon: 22.0, amb: 6.0, hemiI: 6.0, fill: 4.2, hemi: 0x6a6860, ground: 0x1a1612, moonCol: 0xc8c0b0, tint: 'linear-gradient(180deg, rgba(96,112,130,0.12) 0%, rgba(34,44,54,0.18) 100%)' }
   },
   {
     id: 2, name: '무너진 성문', sub: '성곽 위에 매달린 원혼', map: 'map2', tag: '가로 · 세로',
@@ -150,7 +153,7 @@ const STAGES = [
     spawn: { ms: 1000, max: 16, earlyMax: 6, earlyMinMs: 1400 },
     boss: { telegraph: 1.2, charge: 18, adds: 0 },
     starCombo: 12,
-    atmo: { clear: 0x141a26, fog: 0.0092, moon: 1.15, hemi: 0x5c6a8c, ground: 0x11141c, moonCol: 0xa9b8dd, tint: 'linear-gradient(180deg, rgba(44,64,150,0.20) 0%, rgba(8,18,58,0.26) 100%)' }
+    atmo: { clear: 0x141a26, fogCol: [12, 17, 26], fog: 0.024, moon: 20.0, amb: 5.6, hemiI: 6.6, fill: 4.0, hemi: 0x5c6a8c, ground: 0x11141c, moonCol: 0xa9b8dd, tint: 'linear-gradient(180deg, rgba(44,64,150,0.20) 0%, rgba(8,18,58,0.26) 100%)' }
   },
   {
     id: 3, name: '대나무 골', sub: '서낭당 너머로 우는 소리', map: 'map3', tag: 'V 두 획',
@@ -168,7 +171,7 @@ const STAGES = [
     spawn: { ms: 900, max: 18, earlyMax: 7, earlyMinMs: 1250 },
     boss: { telegraph: 1.1, charge: 19, adds: 2 },
     starCombo: 16,
-    atmo: { clear: 0x121a15, fog: 0.0098, moon: 1.05, hemi: 0x5d7a63, ground: 0x12160f, moonCol: 0xb4d2b4, tint: 'linear-gradient(180deg, rgba(28,92,60,0.18) 0%, rgba(6,26,16,0.26) 100%)' }
+    atmo: { clear: 0x121a15, fogCol: [11, 19, 14], fog: 0.026, moon: 18.0, amb: 5.4, hemiI: 6.2, fill: 3.6, hemi: 0x6f8472, ground: 0x12160f, moonCol: 0xb4d2b4, tint: 'linear-gradient(180deg, rgba(28,92,60,0.18) 0%, rgba(6,26,16,0.26) 100%)' }
   },
   {
     id: 4, name: '붉은 달', sub: '모든 획이 열린 밤', map: 'map1', tag: '번개 획',
@@ -187,7 +190,7 @@ const STAGES = [
     spawn: { ms: 820, max: 20, earlyMax: 8, earlyMinMs: 1100 },
     boss: { telegraph: 1.0, charge: 21, adds: 3 },
     starCombo: 20,
-    atmo: { clear: 0x1c0f12, fog: 0.0105, moon: 1.25, hemi: 0x8a5a52, ground: 0x1e1210, moonCol: 0xff9c84, tint: 'linear-gradient(180deg, rgba(150,32,28,0.22) 0%, rgba(52,6,8,0.28) 100%)' }
+    atmo: { clear: 0x1c0f12, fogCol: [30, 10, 11], fog: 0.028, moon: 21.0, amb: 6.0, hemiI: 5.8, fill: 4.0, hemi: 0x8a5a52, ground: 0x1e1210, moonCol: 0xff9c84, tint: 'linear-gradient(180deg, rgba(150,32,28,0.22) 0%, rgba(52,6,8,0.28) 100%)' }
   }
 ];
 function stageOf(n) { return STAGES[clamp((n | 0) || 1, 1, STAGES.length) - 1]; }
@@ -313,16 +316,19 @@ function mapIdOf(opts) {
   if (opts.sandbox) return 'map1';
   return stageOf(opts.stage != null ? opts.stage : (save.stage || 1)).map;
 }
-function switchMap(id) {
+function switchMap(id, stageNo) {
   if (!art || !three) return Promise.resolve(null);
   const want = (id && art.atlas && art.atlas.maps && art.atlas.maps[id]) ? id : 'map1';
+  const st = stageNo || (S && S.stageNo) || (save.stage || 1);
   const run = function () {
-    return art.applyMap(three.scene, want, three.map).then(function (m) {
+    return art.applyMap(three.scene, want, three.map, { stage: st }).then(function (m) {
       three.map = m;
-      three.torches = m.lights || [];
-      if (S) S.mapId = m.id;
+      three.torches = [];
+      if (three.atmo) { try { three.atmo.dispose(); } catch (e) {} }
+      try { three.atmo = new StageAtmosphere(three.scene, st, m); } catch (e) { three.atmo = null; }
+      if (S) { S.mapId = m.id; S.mapStage = st; }
       applyFxinkAtmo(m.id);
-      return { id: m.id, name: m.name, key: m.key };
+      return { id: m.id, name: m.name, key: m.key, stageId: st };
     });
   };
   if (three._mapP) three._mapP = three._mapP.then(run, run);
@@ -332,12 +338,21 @@ function switchMap(id) {
   return p;
 }
 
+let DPR_QUERY = 0;
+try {
+  const q = parseFloat(new URLSearchParams(location.search).get('dpr'));
+  if (q > 0) DPR_QUERY = Math.min(2.5, q);
+} catch (e) {}
+
 async function makeWorld() {
   const view = $('view');
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(1);
+  /* 모바일 60fps: 기기 DPR을 2까지만 쓰고, 프레임이 무너지면 1까지 내린다. */
+  const dprCap = DPR_QUERY || Math.min(window.devicePixelRatio || 1, 2);
+  renderer.setPixelRatio(dprCap);
   renderer.setSize(view.clientWidth, view.clientHeight);
-  renderer.shadowMap.enabled = false;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.NoToneMapping;
   const clear = nightColor();
@@ -350,6 +365,7 @@ async function makeWorld() {
 
   const camera = new THREE.PerspectiveCamera(CFG.fov || 38, view.clientWidth / Math.max(1, view.clientHeight), 0.1, 200);
   camera.position.set(CFG.camOff.x, CFG.camOff.y, CFG.camOff.z);
+  camera.lookAt(0, CFG.camLookY, 0);
 
   const amb = new THREE.AmbientLight(0x3a3834, 1.0);
   scene.add(amb);
@@ -357,8 +373,20 @@ async function makeWorld() {
   scene.add(hemi);
   const moon = new THREE.DirectionalLight(0xc8c0b0, 1.45);
   moon.position.set(-18, 28, 10);
-  moon.castShadow = false;
+  moon.castShadow = true;
+  moon.shadow.mapSize.set(1024, 1024);
+  moon.shadow.camera.left = -30; moon.shadow.camera.right = 30;
+  moon.shadow.camera.top = 30; moon.shadow.camera.bottom = -30;
+  moon.shadow.camera.near = 1; moon.shadow.camera.far = 90;
+  moon.shadow.bias = -0.0011;
+  moon.shadow.normalBias = 0.045;
+  moon.target.position.set(0, 0, 0);
   scene.add(moon);
+  scene.add(moon.target);
+  /* 그림자 진 곳을 죽이지 않는 반대편 달빛(그림자 없음) — 먹 그림자가 검은 구멍이 되지 않게. */
+  const fill = new THREE.DirectionalLight(0x93a0b8, 0.85);
+  fill.position.set(14, 12, -16);
+  scene.add(fill);
 
   const sky = new THREE.Mesh(
     new THREE.SphereGeometry(90, 24, 16),
@@ -366,15 +394,30 @@ async function makeWorld() {
   );
   scene.add(sky);
 
-  const map = await art.applyMap(scene, 'map1', null);
-  const world = { renderer: renderer, scene: scene, camera: camera, map: map, torches: map.lights || [], fx: [], slashes: [], view: view, fxForced: fxQForced, amb: amb, hemi: hemi, moon: moon, sky: sky, baseClear: clear };
+  const map = await art.applyMap(scene, 'map1', null, { stage: 1 });
+  const world = {
+    renderer: renderer, scene: scene, camera: camera, map: map, torches: [], fx: [], slashes: [],
+    view: view, fxForced: fxQForced, amb: amb, hemi: hemi, moon: moon, fill: fill, sky: sky, baseClear: clear,
+    dprCap: dprCap, dprNow: dprCap, lowT: 0, atmo: new StageAtmosphere(scene, 1, map)
+  };
   try {
-    world.bloom = setupBloom(renderer, scene, camera, { quality: fxQ, post: function () { return [createInkWashPass()]; } });
+    world.bloom = setupBloom(renderer, scene, camera, {
+      quality: fxQ,
+      post: function () { return [createInkWashPass(), createCinematicPass()]; }
+    });
   } catch (e) { world.bloom = null; }
   try {
     world.ink = new InkParticles(scene, { base: FXINK_BASE, quality: fxQ === 'high' ? 'high' : 'low' });
+    /* 바닥 먹 데칼은 밝아진 2.5D 바닥에서 검은 사각형으로 읽혀 끈다. 튐·터짐은 유지. */
+    if (world.ink.decals) world.ink.decals.mesh.visible = false;
   } catch (e) { world.ink = null; }
   try { prewarmInkSlash(renderer, scene, camera); } catch (e) {}
+  try {
+    renderer.domElement.addEventListener('webglcontextlost', function (e) {
+      e.preventDefault();
+      if (window.console && console.warn) console.warn('[심안] WebGL context lost — 복구를 기다립니다');
+    }, false);
+  } catch (e) {}
   if (!world.fxForced) {
     world.aq = new AutoQuality({
       start: fxQ,
@@ -387,6 +430,20 @@ async function makeWorld() {
     });
   }
   return world;
+}
+
+/* 프레임이 무너지면 해상도를 한 단계 내린다(다시 올리지 않는다). */
+function adaptDpr(real) {
+  if (!three || !three.renderer || DPR_QUERY) return;
+  if (!(real > 0) || real > 0.5) return;
+  const fpsNow = 1 / real;
+  if (fpsNow < 44) three.lowT = (three.lowT || 0) + real;
+  else three.lowT = Math.max(0, (three.lowT || 0) - real * 0.5);
+  if (three.lowT < 3.5 || three.dprNow <= 1.001) return;
+  three.lowT = 0;
+  three.dprNow = Math.max(1, Math.round((three.dprNow - 0.5) * 10) / 10);
+  three.renderer.setPixelRatio(three.dprNow);
+  onResize();
 }
 
 function addEntityVisual(kind, shape) {
@@ -423,6 +480,7 @@ function startRun(opts) {
     cam: { x: 0, z: 0 },
     dashElem: null, bellT: 0, bellShape: null, slowT: 0,
     mapId: mapIdOf(opts.stage != null ? opts : Object.assign({}, opts, { stage: stageNo })),
+    mapStage: opts.sandbox ? 1 : stageNo,
     runNo: 1, pool: SHAPE_UNLOCK.slice(), practiceT: 0, practiceShape: null, practiceSpawns: 0,
     combo: 0, comboIdle: 0, comboMax: 0, kills: 0, coin0: save.coins,
     bursts: [], lastBurst: 0,
@@ -455,8 +513,9 @@ function startRun(opts) {
     appEl.style.removeProperty('--hero-y');
     clearOnebell(true);
   }
-  if (three && three.map && three.map.id !== S.mapId) switchMap(S.mapId);
+  if (three && three.map && (three.map.id !== S.mapId || three.map.stageId !== S.mapStage)) switchMap(S.mapId, S.mapStage);
   else applyFxinkAtmo(S.mapId);
+  if (three && three.atmo) three.atmo.setCenter(0, 6, 0);
   applyStageAtmo(st);
   if (three && three.heroSpr) { three.scene.remove(three.heroSpr); }
   three.heroSpr = addEntityVisual('hero');
@@ -1045,6 +1104,12 @@ function titleChip(shape) {
   const src = art && art.sealUrl ? art.sealUrl(shape) : '';
   return '<span class="hanji-chip" data-shape="' + shape + '" title="' + alt + '"><img src="' + src + '" alt="' + alt + '" width="40" height="40"></span>';
 }
+function previewStageWorld(n) {
+  if (!three || (S && S.playing)) return;
+  const st = stageOf(n || 1);
+  applyStageAtmo(st);
+  if (!three.map || three.map.stageId !== st.id || three.map.id !== st.map) switchMap(st.map, st.id);
+}
 function refreshTitleHelp() {
   /* 마지막에 깨운 스테이지가 이미 깨졌으면 새로 열린 장을 기본 선택으로 보여 준다. */
   if (titleSel == null) titleSel = clamp(save.stage || 1, 1, STAGES.length);
@@ -1085,6 +1150,7 @@ function renderStageSelect(sel) {
       titleSel = +b.getAttribute('data-stage');
       if (audio && audio.bell) audio.bell(0, 'hline');
       refreshTitleHelp();
+      previewStageWorld(titleSel);
     });
   });
 }
@@ -2341,6 +2407,17 @@ function makeSlash(from, to) {
   three.scene.add(s.mesh);
   three.slashes = three.slashes || [];
   three.slashes.push(s);
+  /* 3D 검기 아크: 바닥 궤적 위로 솟는 먹 리본 */
+  try {
+    const arc = createSlashArc({
+      from: from, to: to, elem: S && S.dashElem,
+      coreGain: q === 'off' ? 1.05 : 1.45,
+      height: 0.5 + pathR() * 0.12,
+      width: Math.max(0.9, pathR() * 0.95)
+    });
+    three.scene.add(arc.mesh);
+    three.slashes.push(arc);
+  } catch (e) {}
   if (three.ink) three.ink.slash(from, to);
   fxinkStat.slashes++;
   if (S && S.dashElem === 'fire' && art.trailTex) {
@@ -2945,7 +3022,15 @@ function stepDash(dt) {
 function updateCam(dt) {
   if (!three) return;
   const targetX = S ? S.hero.x : 0, targetZ = S ? S.hero.z : 0;
-  if (!S) return;
+  if (!S) {
+    /* 타이틀: 무대를 천천히 도는 고정 시점 — 3D 무대를 보여 준다. */
+    const t = now() * 0.001;
+    const a = Math.PI / 4 + Math.sin(t * 0.085) * 0.16;
+    const rad = 20.4;
+    three.camera.position.set(Math.cos(a) * rad, CFG.camOff.y, Math.sin(a) * rad);
+    three.camera.lookAt(0, CFG.camLookY, 0);
+    return;
+  }
   S.cam.x += (targetX - S.cam.x) * Math.min(1, dt * 6);
   S.cam.z += (targetZ - S.cam.z) * Math.min(1, dt * 6);
   let sx = 0, sy = 0, sz = 0;
@@ -3301,6 +3386,8 @@ function applyStageAtmo(st) {
       if (a.moonCol != null && three.moon.color) three.moon.color.setHex(a.moonCol);
     }
     if (three.amb) three.amb.intensity = a.amb != null ? a.amb : 1.0;
+    if (three.fill) three.fill.intensity = a.fill != null ? a.fill : 0.85;
+    if (three.hemi && a.hemiI != null) three.hemi.intensity = a.hemiI;
     if (three.hemi && a.hemi != null) three.hemi.color.setHex(a.hemi);
     if (three.hemi && a.ground != null) three.hemi.groundColor.setHex(a.ground);
     if (three.renderer) three.renderer.setClearColor(clear, 1);
@@ -3352,6 +3439,10 @@ function punchAtmoRing(cx, cy, ringR, wave) {
 }
 /* Mind's-eye fog: everything inside the ring is clear; outside lies dark fog. The edge is soft and
    broken by drifting mist so it reads as fog, not a line. */
+function fogRgb() {
+  const a = (S && S.stage && S.stage.atmo) || {};
+  return a.fogCol || CFG.fogColor || [7, 6, 8];
+}
 function drawRingFog(fog, w, h) {
   const pts = ringScreenPts();
   if (!pts || !pts.length) return;
@@ -3360,7 +3451,16 @@ function drawRingFog(fog, w, h) {
   const ex = (x0 + x1) / 2, ey = (y0 + y1) / 2, rx = Math.max(10, (x1 - x0) / 2), ry = Math.max(10, (y1 - y0) / 2);
   const t = (S && S.elapsed) || 0;
   const pulse = (S && S.fogPulse) || 0;
-  fog.fillStyle = 'rgba(' + CFG.fogColor.join(',') + ',' + CFG.fogAlpha + ')';
+  /* 스테이지 색의 먹안개. 심안 가장자리에서 짙고, 화면 먼 곳은 조금 옅어
+     무대의 실루엣(대나무·성문·등불)이 안개 너머로 어렴풋이 읽힌다. */
+  const fc = fogRgb();
+  const hh = S && S.hero ? heroScreen() : { x: w * 0.5, y: h * 0.5 };
+  const rad = Math.max(w, h);
+  const grd = fog.createRadialGradient(hh.x, hh.y, rad * 0.16, hh.x, hh.y, rad * 0.92);
+  grd.addColorStop(0, 'rgba(' + fc.join(',') + ',' + Math.min(0.96, CFG.fogAlpha + 0.04) + ')');
+  grd.addColorStop(0.55, 'rgba(' + fc.join(',') + ',' + CFG.fogAlpha + ')');
+  grd.addColorStop(1, 'rgba(' + fc.join(',') + ',' + Math.max(0.56, CFG.fogAlpha - 0.22) + ')');
+  fog.fillStyle = grd;
   fog.fillRect(0, 0, w, h);
   /* Carve the clear ellipse with a soft rim. */
   fog.save();
@@ -3385,7 +3485,7 @@ function drawRingFog(fog, w, h) {
     fog.rotate(Math.atan2(Math.cos(a) * ry, -Math.sin(a) * rx));
     fog.scale(1, thick / len);
     const gw = fog.createRadialGradient(0, 0, 0, 0, 0, len);
-    gw.addColorStop(0, pale ? 'rgba(160,162,158,' + al.toFixed(3) + ')' : 'rgba(' + CFG.fogColor.join(',') + ',' + al.toFixed(3) + ')');
+    gw.addColorStop(0, pale ? 'rgba(160,162,158,' + al.toFixed(3) + ')' : 'rgba(' + fc.join(',') + ',' + al.toFixed(3) + ')');
     gw.addColorStop(1, 'rgba(160,162,158,0)');
     fog.fillStyle = gw;
     fog.fillRect(-len, -len, len * 2, len * 2);
@@ -3487,16 +3587,20 @@ function loop(ts) {
   }
   updateCam(dt);
   if (three) {
-    (three.torches || []).forEach(function (t, i) {
-      const flick = t.base * (0.85 + Math.sin(ts / 120 + i) * 0.12 + Math.random() * 0.06);
-      if (t.light) t.light.intensity = flick;
-      if (t.glow && t.glow.material) {
-        t.glow.material.opacity = 0.55 + Math.sin(ts / 90 + i) * 0.12;
-        const sc = 0.95 + Math.sin(ts / 80 + i) * 0.08;
-        const gb = t.glow.userData.baseScale || 2.4;
-        t.glow.scale.set(gb * sc, gb * sc, 1);
-      }
-    });
+    if (three.map && three.map.update) three.map.update(raw, ts * 0.001);
+    if (three.atmo) {
+      if (S && S.hero) {
+        three.atmo.setCenter(S.cam.x, 6, S.cam.z);
+        three.atmo.update(raw);
+      } else three.atmo.update(raw);
+    }
+    if (three.moon && three.moon.target) {
+      const hx = S ? S.cam.x : 0, hz = S ? S.cam.z : 0;
+      three.moon.position.set(hx - 18, 28, hz + 10);
+      three.moon.target.position.set(hx, 0, hz);
+      three.moon.target.updateMatrixWorld();
+    }
+    adaptDpr(real);
     const fx = three.fx || [];
     three.fx = fx.filter(function (f) {
       f.life -= raw;
@@ -3611,6 +3715,7 @@ async function boot() {
   three = await makeWorld();
   applyFxinkAtmo((three.map && three.map.id) || 'map1');
   applyStageAtmo(stageOf(titleSel || save.stage || 1));
+  previewStageWorld(titleSel || save.stage || 1);
   loadMarkImages();
   resizeInk();
   guardEvents();
@@ -3630,6 +3735,7 @@ const GPv2 = {
   CFG: CFG, SHAPE_MARK: SHAPE_MARK,
   get save() { return save; },
   get state() { return S; },
+  get three() { return three; },
   get ready() { return !!this._ready; },
   set ready(v) { this._ready = v; },
   resetSave: function () {
@@ -3735,7 +3841,7 @@ const GPv2 = {
   },
   beginStage: beginStage,
   goStageNow: goStageNow,
-  selectStage: function (n) { titleSel = clamp(n | 0, 1, STAGES.length); refreshTitleHelp(); return titleSel; },
+  selectStage: function (n) { titleSel = clamp(n | 0, 1, STAGES.length); refreshTitleHelp(); previewStageWorld(titleSel); return titleSel; },
   stageSelectHtml: function () { return $('titleStages') ? $('titleStages').innerHTML : ''; },
   resultInfo: function () {
     return S ? { won: !!S.won, lost: !!S.lost, stars: S.stars || 0, kills: S.kills || 0, comboMax: S.comboMax || 0, coinGain: S.coinGain || 0, score: S.score || 0, nextStage: S.nextStage || null, stageNo: S.stageNo || 0 } : null;
@@ -3836,6 +3942,53 @@ const GPv2 = {
         if (!S || !S.dash && !(S.dashQueue && S.dashQueue.length) || now() - t0 > 8000) { clearInterval(id); res(S && S.lastDash); }
       }, 16);
     });
+  },
+  visualTune: function (o) {
+    if (o && three) {
+      if (o.amb != null && three.amb) three.amb.intensity = o.amb;
+      if (o.hemi != null && three.hemi) three.hemi.intensity = o.hemi;
+      if (o.moon != null && three.moon) three.moon.intensity = o.moon;
+      if (o.fog != null && three.scene && three.scene.fog) three.scene.fog.density = o.fog;
+      if (three.bloom && three.bloom.post) {
+        three.bloom.post.forEach(function (p) {
+          const u = p.uniforms;
+          if (!u) return;
+          if (u.uStrength && o.inkStrength != null) u.uStrength.value = o.inkStrength;
+          if (u.uExposure && o.exposure != null) u.uExposure.value = o.exposure;
+          if (u.uVignette && o.vignette != null) u.uVignette.value = o.vignette;
+          if (u.uGrain && o.grain != null) u.uGrain.value = o.grain;
+        });
+      }
+    }
+    const ps = (three && three.bloom && three.bloom.post) || [];
+    return {
+      amb: three && three.amb ? three.amb.intensity : 0,
+      hemi: three && three.hemi ? three.hemi.intensity : 0,
+      moon: three && three.moon ? three.moon.intensity : 0,
+      inkStrength: ps[0] && ps[0].uniforms && ps[0].uniforms.uStrength ? ps[0].uniforms.uStrength.value : null,
+      exposure: ps[1] && ps[1].uniforms && ps[1].uniforms.uExposure ? ps[1].uniforms.uExposure.value : null,
+      vignette: ps[1] && ps[1].uniforms && ps[1].uniforms.uVignette ? ps[1].uniforms.uVignette.value : null
+    };
+  },
+  visualInfo: function () {
+    const r = three && three.renderer;
+    return {
+      dpr: r ? r.getPixelRatio() : 0,
+      dprCap: three ? three.dprCap : 0,
+      shadows: !!(r && r.shadowMap && r.shadowMap.enabled),
+      shadowMap: three && three.moon ? three.moon.shadow.mapSize.x : 0,
+      stageId: three && three.map ? three.map.stageId : null,
+      mapId: three && three.map ? three.map.id : null,
+      props: three && three.map && three.map.w3 ? three.map.w3.batches : 0,
+      triangles: three && three.map && three.map.w3 ? three.map.w3.triangles : 0,
+      lights: three && three.map ? (three.map.lights || []).length : 0,
+      atmoFields: three && three.atmo ? three.atmo.fields.length : 0,
+      post: three && three.bloom && three.bloom.composer ? three.bloom.composer.passes.map(function (p) { return p.constructor && p.constructor.name; }) : [],
+      calls: r ? r.info.render.calls : 0,
+      tris: r ? r.info.render.triangles : 0,
+      programs: r ? r.info.programs.length : 0,
+      geometryCalls: r ? r.info.memory.geometries : 0
+    };
   },
   fps: fpsReport,
   clearFps: function () { fps.samples = []; },

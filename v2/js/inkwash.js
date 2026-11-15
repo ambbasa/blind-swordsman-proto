@@ -6,10 +6,10 @@ import { ShaderPass } from '../../assets/v2/fx-ink/code/vendor/three-r170-addons
 export const INKWASH = {
   ink: [0.004, 0.0035, 0.003],
   wash: [0.035, 0.032, 0.028],
-  paper: [0.80, 0.72, 0.56],
-  toneGamma: 0.78,
-  bands: 4.0,
-  bandSoft: 0.55,
+  paper: [0.78, 0.71, 0.57],
+  toneGamma: 0.9,
+  bands: 5.0,
+  bandSoft: 1.0,
   accentSatLo: 0.16,
   accentSatHi: 0.42,
   accentBoost: 1.35,
@@ -20,7 +20,7 @@ export const INKWASH = {
   wobble: 0.0016,
   grain: 0.10,
   vignette: 0.55,
-  strength: 1.0
+  strength: 0.85
 };
 
 const VERT = /* glsl */`varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;

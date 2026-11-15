@@ -1,7 +1,7 @@
 /* Atlas-driven art. Reads ../assets/v2/atlas.json (or window.ART_V2_ATLAS / GP_V2_ATLAS).
  * Never writes into assets/v2. Sizes, anchors, bell centers, flameOffset, palette come from the atlas. */
 import * as Anim from './anim.js';
-import { createInkGroundMaterial } from './inkground.js';
+import { buildStage3D } from './inkprops3d.js';
 import { drawInkBossSheet } from './inkboss.js';
 import { drawHeroSheets, drawZombieSheets, drawZombieVariantSheets, drawSpiritSheet } from './inkchars.js';
 import { drawRattle, drawItem, drawSeal } from './inkicons.js';
@@ -804,69 +804,24 @@ export async function buildArt(THREE) {
     return atlas.props && atlas.props[name];
   }
 
-  async function applyMap(scene, mapId, prev) {
+  /* 2.5D 입체 무대: 잉크 3D 소품·지형·조명을 스테이지별로 세운다.
+     스테이지 4장은 1장과 같은 장터 땅을 쓰지만, 그을린 변형과 붉은 달로 구분한다. */
+  async function applyMap(scene, mapId, prev, opts) {
     if (prev && prev.dispose) prev.dispose();
     const id = (atlas.maps && atlas.maps[mapId]) ? mapId : 'map1';
     currentMapId = id;
     const M = atlas.maps[id];
-    const urls = [];
-    const group = new THREE.Group();
-    group.name = 'map-' + id;
-    const ground = new THREE.Mesh(
-      new THREE.PlaneGeometry(120, 120, 1, 1),
-      createInkGroundMaterial(id, null)
-    );
-    ground.rotation.x = -Math.PI / 2;
-    ground.receiveShadow = true;
-    group.add(ground);
-
-    if (!inkBackdrops[id]) {
-      inkBackdrops[id] = new THREE.CanvasTexture(drawBackdrop(id));
-      inkBackdrops[id].colorSpace = THREE.SRGBColorSpace;
-    }
-    const bg = new THREE.Mesh(
-      new THREE.PlaneGeometry(80, 45),
-      new THREE.MeshBasicMaterial({ map: inkBackdrops[id], fog: true })
-    );
-    bg.position.set(0, 18, -46);
-    group.add(bg);
-
-    const layout = MAP_LAYOUT[id] || MAP_LAYOUT.map1;
-    const lights = [];
-    for (let i = 0; i < layout.length; i++) {
-      const name = layout[i][0], x = layout[i][1], z = layout[i][2];
-      const prop = makeProp(name, propDef(M, name));
-      if (!prop) continue;
-      if (name === 'map2-wall' && x > 0) prop.scale.x = -1;
-      prop.position.set(x, 0, z);
-      group.add(prop);
-      if (prop.userData.flameWorld) {
-        const light = new THREE.PointLight(hexColor(pal.ember || pal.torch, 0xff8a3a), 2.6, 16, 1.6);
-        light.position.set(x, prop.userData.flameWorld.y, z);
-        group.add(light);
-        lights.push({ light: light, glow: prop.userData.glow, base: 2.6 });
-      }
-    }
-
+    const stageId = (opts && opts.stage) || 1;
+    const w3 = buildStage3D(THREE, { mapId: id, stageId: stageId });
+    const group = w3.group;
+    group.name = 'map-' + id + '-' + stageId;
     scene.add(group);
-    function dispose() {
-      scene.remove(group);
-      group.traverse(function (o) {
-        if (o.geometry) o.geometry.dispose();
-        if (o.material) {
-          const arr = Array.isArray(o.material) ? o.material : [o.material];
-          arr.forEach(function (m) { if (m && m.dispose) m.dispose(); });
-        }
-      });
-      const seen = {};
-      urls.forEach(function (u) {
-        if (sharedUrls.indexOf(u) >= 0) return;
-        if (seen[u]) return;
-        seen[u] = 1;
-        release(u);
-      });
-    }
-    return { id: id, name: M.name, key: M.key, group: group, lights: lights, dispose: dispose };
+    return {
+      id: id, name: M.name, key: M.key, group: group, lights: w3.lights || [], w3: w3,
+      stageId: stageId, variant: id + ':' + stageId,
+      update: function (dt, t) { w3.update(dt, t); },
+      dispose: function () { w3.dispose(); }
+    };
   }
 
   function slashTex(elem) {
@@ -904,7 +859,7 @@ export async function buildArt(THREE) {
     pxPerMeter: pxPerMeter, zombieH: zombieH, spiritH: spiritH, bossH: bossH,
     transitions: (atlas.tiles && atlas.tiles.transitions) || null,
     night: hexColor(pal.night || pal.ground, 0x1e1c1a),
-    makeChar: makeChar, makeProp: makeProp, tickChar: tickChar,
+    makeChar: makeChar, makeProp: makeProp, tickChar: tickChar, buildStage3D: buildStage3D,
     sealUrl: sealUrl, setSpiritShape: setSpiritShape, setStatus: setStatus, setAura: setAura, setTelegraph: setTelegraph,
     applyMap: applyMap, slashTex: slashTex, playFx: playFx,
     trailTex: tex(el['fire-trail'] && el['fire-trail'].file),
