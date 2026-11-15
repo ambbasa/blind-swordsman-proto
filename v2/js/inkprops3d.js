@@ -72,8 +72,8 @@ function makeMaterials(stageId) {
   const bamboo = bambooSet();
   const M = {
     ground: null,
-    rock: new THREE.MeshStandardMaterial({ color: tint([0.115, 0.108, 0.1]), roughness: 0.94, metalness: 0.0, flatShading: true }),
-    rockMoss: new THREE.MeshStandardMaterial({ color: tint([0.09, 0.11, 0.075]), roughness: 0.95, flatShading: true }),
+    rock: new THREE.MeshStandardMaterial({ color: tint([0.055, 0.052, 0.05]), roughness: 0.94, metalness: 0.0, flatShading: true }),
+    rockMoss: new THREE.MeshStandardMaterial({ color: tint([0.05, 0.065, 0.045]), roughness: 0.95, flatShading: true }),
     wood: new THREE.MeshStandardMaterial({ map: wood, color: tint([0.62, 0.54, 0.46]), roughness: 0.86, metalness: 0.0 }),
     woodDark: new THREE.MeshStandardMaterial({ map: wood, color: tint([0.3, 0.26, 0.23]), roughness: 0.9 }),
     bamboo: new THREE.MeshStandardMaterial({
@@ -82,12 +82,12 @@ function makeMaterials(stageId) {
     }),
     leaf: new THREE.MeshStandardMaterial({
       map: leafTexture(), alphaTest: 0.42, transparent: false, side: THREE.DoubleSide,
-      color: tint([1.05, 1.12, 0.98]), roughness: 0.78, metalness: 0.0
+      color: tint([0.78, 0.9, 0.72]), roughness: 0.78, metalness: 0.0
     }),
     plaster: new THREE.MeshStandardMaterial({ map: plainSet('plaster').map, color: tint([0.72, 0.7, 0.66]), roughness: 0.96 }),
     tile: new THREE.MeshStandardMaterial({ color: tint([0.055, 0.058, 0.065]), roughness: 0.66, metalness: 0.08, flatShading: true }),
-    cloth: new THREE.MeshStandardMaterial({ map: plainSet('cloth').map, color: tint([0.95, 0.9, 0.86]), roughness: 0.92, side: THREE.DoubleSide }),
-    clothBox: new THREE.MeshStandardMaterial({ map: plainSet('cloth').map, color: tint([0.88, 0.82, 0.78]), roughness: 0.95, side: THREE.FrontSide }),
+    cloth: new THREE.MeshStandardMaterial({ map: plainSet('cloth').map, color: tint([0.78, 0.72, 0.68]), roughness: 0.92, side: THREE.DoubleSide }),
+    clothBox: new THREE.MeshStandardMaterial({ map: plainSet('cloth').map, color: tint([0.62, 0.58, 0.55]), roughness: 0.95, side: THREE.FrontSide }),
     clothBlue: new THREE.MeshStandardMaterial({ map: plainSet('clothBlue').map, color: tint([0.9, 0.94, 1.0]), roughness: 0.92, side: THREE.DoubleSide }),
     ribbon: new THREE.MeshStandardMaterial({ map: plainSet('paper').map, color: 0xffffff, roughness: 0.95, side: THREE.DoubleSide }),
     paper: new THREE.MeshStandardMaterial({
@@ -523,7 +523,7 @@ function buildBamboo(R, T, P) {
   /* 심안 테두리 프레임: 가까운 대나무 군락이 시야를 감싼다 */
   for (let i = 0; i < 10; i++) {
     const a = (i / 10) * TAU + 0.12;
-    const r = 6.6 + rnd() * 2.6;
+    const r = 7.2 + rnd() * 2.8;
     const cx = Math.cos(a) * r, cz = Math.sin(a) * r;
     const n = 3 + Math.floor(rnd() * 3);
     for (let k = 0; k < n; k++) {

@@ -249,7 +249,7 @@ export function plainSet(kind) {
   if (GROUND_CACHE.has(key)) return GROUND_CACHE.get(key);
   const W = 128, c = cv(W, W), g = ctxOf(c);
   const img = g.createImageData(W, W), d = img.data;
-  const col = { plaster: [138, 128, 112], tile: [58, 60, 66], cloth: [116, 36, 28], clothBlue: [52, 70, 104], paper: [226, 208, 168] }[kind] || [120, 120, 120];
+  const col = { plaster: [138, 128, 112], tile: [58, 60, 66], cloth: [94, 52, 44], clothBlue: [52, 70, 104], paper: [226, 208, 168] }[kind] || [120, 120, 120];
   for (let y = 0; y < W; y++) for (let x = 0; x < W; x++) {
     const n = pfbm(x / W, y / W, 6, 4, 7 + kind.length);
     const weave = kind === 'cloth' ? (0.85 + 0.12 * Math.sin(x * 1.7) * Math.sin(y * 1.7) + 0.06 * Math.sin(x * 0.28)) : 1;
