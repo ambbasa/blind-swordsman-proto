@@ -13,7 +13,7 @@ import { createInkWashPass } from './inkwash.js';
 import { createCinematicPass } from './inkcinematic.js';
 import { createSlashArc } from './inkslash3d.js';
 import { StageAtmosphere } from './inkatmos.js';
-import { createChunkWorld, buildChunkData, CHUNK as CHUNK_SIZE, chunkOf } from './inkchunks.js';
+import { createChunkWorld, buildChunkData, chunkOf } from './inkchunks.js';
 
 const G = window.GPGestures;
 const SAVE_KEY = 'gesture-proto.v2';
