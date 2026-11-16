@@ -15,6 +15,9 @@ import { createCinematicPass } from './inkcinematic.js';
 import { createSlashArc } from './inkslash3d.js';
 import { StageAtmosphere } from './inkatmos.js';
 import { createChunkWorld, buildChunkData, chunkOf } from './inkchunks.js';
+import { InkFx, FX_COLORS } from './inkfx.js';
+const inkFx = new InkFx();
+let frameDt = 1 / 60;
 
 const G = window.GPGestures;
 const SAVE_KEY = 'gesture-proto.v2';
@@ -49,7 +52,9 @@ const CFG = {
   coinPerKill: 3,
   idlePerMin: 4, idleMaxHours: 8,
   upgradeBase: 15, atkStep: 0.05, hpStep: 3, coinStep: 0.25, maxLv: 10,
-  xpBase: 4, xpStep: 5, xpPerKill: 1,
+  xpBase: 9, xpStep: 5, xpPerKill: 1,
+  /* Hit feedback: white flash, stagger and knockback (stone resists); death sinks and fades. */
+  flinchDur: 0.14, hitKnockZ: 0.35, stoneKnockMul: 0.35, dieDur: 0.5,
   dashDur: 0.28, pathRadius: 1.35, dashDmg: 2.5, spiritHp: 1,
   /* Zombie kinds: hp grows over the run by (1 + hpGrowth * t / timeLimit). */
   zombieTypes: {
@@ -757,6 +762,9 @@ function clearEntities() {
   if (!S || !three) return;
   function rm(list) { list.forEach(function (e) { if (e.obj) three.scene.remove(e.obj); }); }
   rm(S.spirits || []); rm(S.zombies || []); rm(S.items || []);
+  (three.dying || []).forEach(function (d) { three.scene.remove(d.obj); });
+  three.dying = [];
+  inkFx.clear();
   (three.fx || []).forEach(function (f) { three.scene.remove(f.mesh); });
   three.fx = [];
   if (three.ink && three.ink.clear) three.ink.clear();
@@ -1428,7 +1436,8 @@ function absorbAllItems(except) {
   if (!S) return 0;
   const list = (S.items || []).filter(function (x) { return x.alive && x !== except; });
   let n = 0;
-  list.forEach(function (x) { if (x.alive) { collectItem(x, null); n++; } });
+  const hp = heroScreen();
+  list.forEach(function (x) { if (x.alive) { inkFx.fly(x.x, x.z, hp, FX_COLORS.gold, 1); collectItem(x, null); n++; } });
   if (n && audio && audio.pickup) audio.pickup(n);
   return n;
 }
@@ -1452,6 +1461,8 @@ function firecrackerBurst() {
   });
   S.shake = Math.max(S.shake || 0, 1.0);
   addHitstop(0.1);
+  inkFx.ring(R, FX_COLORS.fire, 0.8);
+  inkFx.ring(R * 0.6, FX_COLORS.gold, 0.6);
   if (audio && !qa.mute) audio.explode();
   showJudge('화약 부적!');
   triggerSightWave();
@@ -2212,6 +2223,10 @@ function drawOverlays(ctx, r, hs) {
     ctx.strokeText('斬', cx, cy);
     ctx.restore();
   }
+  /* 8) 지금 일섬에 실린 원소: 주인공 발밑 오라, 바닥 부적은 남은 시간 고리 */
+  drawHeroElement(ctx, t);
+  /* 9) 체력이 깎인 원귀의 체력 막대 (심안 안이거나 혼령이 붙은 적만) */
+  drawEnemyBars(ctx);
   /* 7) 칼집 패링 섬광 */
   if (S.parryFlash > 0) {
     const k = clamp(S.parryFlash / 0.12, 0, 1);
@@ -2224,6 +2239,73 @@ function drawOverlays(ctx, r, hs) {
     ctx.beginPath(); ctx.arc(hs.x, hs.y, 30 + (1 - k) * 70, 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
   }
+  inkFx.draw(ctx, projectXZ, S.hero, r, frameDt);
+}
+function drawHeroElement(ctx, t) {
+  const el = curElem();
+  if (!el || !S.hero) return;
+  const c = FX_COLORS[el] || FX_COLORS.jade;
+  const R = 0.9;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.beginPath();
+  for (let i = 0; i <= 32; i++) {
+    const a = (i / 32) * Math.PI * 2, w = 1 + 0.08 * Math.sin(a * 5 + t * 6);
+    const p = projectXZ(S.hero.x + Math.cos(a) * R * w, S.hero.z + Math.sin(a) * R * w, 0.05);
+    if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y);
+  }
+  ctx.strokeStyle = 'rgba(' + c.join(',') + ',0.75)'; ctx.lineWidth = 2.5; ctx.stroke();
+  /* rising motes: flames, ice glints or bubbles share one look, coloured by element */
+  for (let i = 0; i < 6; i++) {
+    const u = ((t * 0.8 + i / 6) % 1), a = i * 1.05 + t * 0.5;
+    const p = projectXZ(S.hero.x + Math.cos(a) * R * 0.8, S.hero.z + Math.sin(a) * R * 0.8, 0.1 + u * 1.6);
+    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 5);
+    g.addColorStop(0, 'rgba(' + c.join(',') + ',' + (0.9 * (1 - u)).toFixed(3) + ')'); g.addColorStop(1, 'rgba(' + c.join(',') + ',0)');
+    ctx.fillStyle = g; ctx.fillRect(p.x - 5, p.y - 5, 10, 10);
+  }
+  ctx.restore();
+  if (S.tempElem && S.tempElem.t > 0) {
+    const f = clamp(S.tempElem.t / (CFG.tempElemDur || 12), 0, 1);
+    const hp = projectXZ(S.hero.x, S.hero.z, 2.3);
+    ctx.save();
+    ctx.beginPath(); ctx.arc(hp.x, hp.y, 9, 0, Math.PI * 2); ctx.fillStyle = 'rgba(8,7,9,0.6)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(hp.x, hp.y, 9, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * f);
+    ctx.strokeStyle = 'rgba(' + c.join(',') + ',0.95)'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.restore();
+  }
+}
+function drawEnemyBars(ctx) {
+  const R = ringR() * 1.05;
+  const t = S.elapsed || 0;
+  /* Status motes for kinds without their own status art (brute, stone, elites): flames, frost glints, bubbles. */
+  S.zombies.forEach(function (z) {
+    if (!z.alive || z.isBoss || z.type === 'imp') return;
+    const el = z.frozen > 0 ? 'ice' : z.burn > 0 ? 'fire' : z.poison > 0 ? 'poison' : null;
+    if (!el || dist(z, S.hero) > R * 1.2) return;
+    const c = FX_COLORS[el], zh = (z.obj && z.obj.userData && z.obj.userData.worldH) || 2.4;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 5; i++) {
+      const u = ((t * (el === 'ice' ? 0.4 : 0.9) + i / 5 + z.id * 0.17) % 1);
+      const p = projectXZ(z.x + Math.cos(i * 2.1) * (z.r || 0.6) * 0.8, z.z + Math.sin(i * 2.1) * (z.r || 0.6) * 0.8, zh * (0.15 + 0.5 * u));
+      const rr = el === 'ice' ? 3 : 5;
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, rr);
+      g.addColorStop(0, 'rgba(' + c.join(',') + ',' + (0.9 * Math.sin(Math.PI * u)).toFixed(3) + ')'); g.addColorStop(1, 'rgba(' + c.join(',') + ',0)');
+      ctx.fillStyle = g; ctx.fillRect(p.x - rr, p.y - rr, rr * 2, rr * 2);
+    }
+    ctx.restore();
+  });
+  S.zombies.forEach(function (z) {
+    if (!z.alive || z.isBoss || !(z.maxHp > 0) || z.hp >= z.maxHp - 0.01) return;
+    const held = livingMarks().some(function (m) { return m.target === z; });
+    if (!held && dist(z, S.hero) > R) return;
+    const zh = (z.obj && z.obj.userData && z.obj.userData.worldH) || 2.4;
+    const p = projectXZ(z.x, z.z, zh * 0.78);
+    const w = 26, h = 4, f = clamp(z.hp / z.maxHp, 0, 1);
+    ctx.save();
+    ctx.fillStyle = 'rgba(8,7,9,0.8)'; ctx.fillRect(p.x - w / 2 - 1, p.y - 1, w + 2, h + 2);
+    ctx.fillStyle = 'rgba(214,48,34,0.95)'; ctx.fillRect(p.x - w / 2, p.y, w * f, h);
+    ctx.restore();
+  });
 }
 
 
@@ -2629,6 +2711,7 @@ function castCleave(rec) {
   addHitstop(0.12);
   if (audio) { audio.explode(); audio.bell(0, 'bolt'); }
   if (three && three.ink) three.ink.hit(S.hero.x + 0.5, S.hero.z, 0, 1);
+  inkFx.ring(R, FX_COLORS.jade, 0.7);
   showJudge('참(斬)');
   renderHud();
   return rec;
@@ -2748,10 +2831,15 @@ function hurtZombie(z, amount, why, rec) {
   tintZombie(z);
   if (audio && why === 'slash') audio.hit();
   if (z.hp <= 0) killZombie(z, rec);
-  else if (three && three.ink) {
+  else {
     const d = inkDir(rec, z);
-    three.ink.hit(z.x, z.z, d.x, d.z);
-    fxinkStat.hits++;
+    if (three && three.ink) { three.ink.hit(z.x, z.z, d.x, d.z); fxinkStat.hits++; }
+    /* Stagger: a white flash and a short shove along the cut; the boss and status ticks do not shove. */
+    z.flinchT = CFG.flinchDur || 0.14;
+    if (!z.isBoss && (why === 'slash' || why === 'cleave' || why === 'combo-burst')) {
+      const L = Math.hypot(d.x, d.z) || 1, k = (CFG.hitKnockZ || 0.35) * (z.type === 'stone' ? (CFG.stoneKnockMul || 0.35) : 1);
+      z.x += d.x / L * k; z.z += d.z / L * k;
+    }
   }
 }
 function applyElement(z, elem, rec) {
@@ -2985,6 +3073,26 @@ function addHitstop(sec) {
   const cap = CFG.hitstopKillMax || 0.12;
   S.hitstop = Math.min(cap, (S.hitstop || 0) + (sec || 0));
 }
+/* A slain body sinks and fades over dieDur instead of vanishing on the spot. */
+function startDying(obj) {
+  three.dying = three.dying || [];
+  const mats = [];
+  obj.traverse(function (o) { if (o.material && o.material.opacity != null && o.visible) mats.push([o.material, o.material.opacity]); });
+  if (obj.userData && obj.userData.tele) obj.userData.tele.visible = false;
+  three.dying.push({ obj: obj, t: 0, dur: CFG.dieDur || 0.5, mats: mats, y0: obj.position.y });
+}
+function stepDying(dt) {
+  if (!three || !three.dying || !three.dying.length) return;
+  three.dying = three.dying.filter(function (d) {
+    d.t += dt;
+    const k = Math.min(1, d.t / d.dur);
+    d.mats.forEach(function (m) { m[0].opacity = m[1] * (1 - k); m[0].transparent = true; });
+    d.obj.scale.set(1 + 0.25 * k, 1 - 0.55 * k, 1);
+    d.obj.position.y = d.y0 - 0.3 * k;
+    if (k >= 1) { three.scene.remove(d.obj); return false; }
+    return true;
+  });
+}
 function killZombie(z, rec) {
   if (!z || !z.alive) return;
   z.alive = false;
@@ -2992,7 +3100,7 @@ function killZombie(z, rec) {
   if (S && S.spirits) S.spirits.forEach(function (s) { if (s.target === z) s.target = null; });
   assignSpiritTargets();
   z.marked = false;
-  if (z.obj) three.scene.remove(z.obj);
+  if (z.obj) startDying(z.obj);
   if (three && three.ink) {
     const d = inkDir(rec || (S && S.lastDash), z);
     three.ink.kill(z.x, z.z, d.x, d.z);
@@ -3042,7 +3150,30 @@ function grantKill(mul) {
   const c = Math.round(CFG.coinPerKill * (mul || 1) * coinMult());
   save.coins += c; persist();
 }
+/* Screen point (inside #app) of a HUD element, for pickups flying to it. */
+function hudPoint(id) {
+  const el = $(id), app = $('app');
+  if (!el || !app) return { x: 30, y: 30 };
+  const a = app.getBoundingClientRect(), b = el.getBoundingClientRect();
+  return { x: b.left - a.left + b.width / 2, y: b.top - a.top + b.height / 2 };
+}
+const ITEM_FX = {
+  coin: 'gold', xp: 'jade', heal: 'vermilion', herb: 'vermilion', dashplus: 'jade', ice: 'ice', fire: 'fire', poison: 'poison',
+  bell: 'gold', charm: 'gold', magnet: 'gold', bang: 'fire'
+};
+/* Every pickup bursts in its colour; currency and spirit orbs fly to their HUD counter. */
+function pickupFx(it) {
+  const c = FX_COLORS[ITEM_FX[it.kind] || 'paper'];
+  if (it.kind === 'xp') { inkFx.burst(it.x, it.z, c, { r1: 18, n: 0, dur: 0.3 }); inkFx.fly(it.x, it.z, hudPoint('xpWrap'), c, 1); return; }
+  if (it.kind === 'coin') { inkFx.burst(it.x, it.z, c, { r1: 26, n: 6 }); inkFx.fly(it.x, it.z, hudPoint('coinLabel'), c, 4); return; }
+  const big = it.kind === 'charm' || it.kind === 'bang' || it.kind === 'magnet' || it.kind === 'bell';
+  inkFx.burst(it.x, it.z, c, { r1: big ? 70 : 44, n: big ? 12 : 8, big: big, dur: big ? 0.7 : 0.5 });
+  if (it.kind === 'heal' || it.kind === 'herb') inkFx.fly(it.x, it.z, hudPoint('hpWrap'), c, 3);
+  if (it.kind === 'ice' || it.kind === 'fire' || it.kind === 'poison') inkFx.ring(1.6, c, 0.6);
+  if (it.kind === 'dashplus') inkFx.seal('일섬 ' + S.dashCount, c);
+}
 function collectItem(it, rec) {
+  pickupFx(it);
   it.alive = false;
   if (it.obj) three.scene.remove(it.obj);
   S.items = S.items.filter(function (x) { return x.alive; });
@@ -3116,7 +3247,8 @@ function checkEvolutions(ctx) {
     has[key] = true;
     S.evolved.push(name);
     toast('✦ 진화: ' + name);
-    showJudge('✦ ' + name);
+    inkFx.evo(name, FX_COLORS[S.dashElem || 'gold'] || FX_COLORS.gold);
+    S.slowT = Math.max(S.slowT || 0, 0.5);
     if (audio) audio.bell(0, 'bolt');
   }
   /* 1) 빙결 참격(절대영도): 일섬·얼음 + 경로 폭 Lv2↑ → 착지점 광역 동결·분쇄 */
@@ -3265,6 +3397,21 @@ function openLevelUp() {
   });
   showOv('ov-level');
 }
+const UPGRADE_FX = { dmg: 'vermilion', width: 'jade', dash: 'jade', ring: 'paper', charge: 'gold', heal: 'vermilion', spirit: 'jade', perfect: 'gold', parry: 'paper', ice: 'ice', fire: 'fire', poison: 'poison', bell: 'gold' };
+/* The chosen upgrade stamps over the hero, and the ones that change space show the change. */
+function upgradeFx(id) {
+  const def = RUN_UPGRADES.filter(function (u) { return u.id === id; })[0];
+  const c = FX_COLORS[UPGRADE_FX[id] || 'paper'];
+  inkFx.seal(((def && def.name) || id) + ' Lv' + ((S.upLv && S.upLv[id]) || 1), c);
+  if (id === 'width') {
+    const d = S.lastDash && S.lastDash.segs && S.lastDash.segs.length ? S.lastDash.segs[S.lastDash.segs.length - 1] : null;
+    let dx = 1, dz = -1;
+    if (d && d.to && d.from) { dx = d.to.x - d.from.x; dz = d.to.z - d.from.z; }
+    const L = Math.hypot(dx, dz) || 1;
+    inkFx.band({ x: dx / L, z: dz / L }, pathR(), ringR() * 1.3, c);
+  } else if (id === 'ring') inkFx.ring(ringR(), c, 1.0);
+  else if (id === 'dash' || id === 'spirit' || id === 'ice' || id === 'fire' || id === 'poison') inkFx.ring(2.2, c, 0.7);
+}
 function pickUpgrade(id) {
   if (!S || S.paused !== 'levelup') return false;
   S.upLv = S.upLv || {};
@@ -3297,6 +3444,7 @@ function pickUpgrade(id) {
   }
   else if (id === 'magnet') S.magnetR = Math.min(CFG.magnetMax || 3.8, (S.magnetR || CFG.magnetR || 2.2) + (CFG.magnetStep || 0.6));
   else if (id === 'charge') S.chargeLv = (S.chargeLv || 0) + 1;
+  upgradeFx(id);
   hideOvs(); S.paused = null; renderHud();
   checkEvolutions();
   if (S._pendingLv) { S._pendingLv--; openLevelUp(); }
@@ -3756,8 +3904,9 @@ function step(dt) {
     if (!z.alive) return;
     const d = dist(z, S.hero) || 0.001;
     const frozen = z.frozen > 0 || (z.stun || 0) > 0;
+    if (z.flinchT > 0) z.flinchT = Math.max(0, z.flinchT - dt);
     const bossHandled = z.isBoss ? stepBoss(z, dt) : (qa.noMove ? false : stepEnemySpecial(z, dt, d, frozen));
-    if (!qa.noMove && !frozen && !bossHandled) {
+    if (!qa.noMove && !frozen && !bossHandled && !(z.flinchT > 0 && !z.isBoss)) {
       const kd = CFG.zombieTypes[z.type] || CFG.zombieTypes.imp;
       /* The boss speeds up the farther it is outside the ring, so a dashing hero cannot outrun it. */
       const sp = z.isBoss ? (CFG.bossSpeed || 1) * (1 + (CFG.bossCatchUp || 0) * Math.max(0, d - ringR())) : zsp * kd.speed * (z.slowT > 0 ? (CFG.iceSlowMul || 0.5) : 1);
@@ -3770,6 +3919,11 @@ function step(dt) {
       const st = z.isBoss ? 'idle' : (frozen ? 'frozen' : (z.burn > 0 ? 'burning' : (z.poison > 0 ? 'poisoned' : 'walk')));
       const vx = S.hero.x - z.x, vz = S.hero.z - z.z;
       art.tickChar(z.obj, kind, st, Math.min(0.05, dt), vx, vz);
+    }
+    /* Hit flash over the status tint (tintZombie resets the colour next frame). */
+    if (z.flinchT > 0 && z.obj && z.obj.userData && z.obj.userData.sprite) {
+      const fk = 1 + 1.6 * (z.flinchT / (CFG.flinchDur || 0.14));
+      z.obj.userData.sprite.material.color.setRGB(fk, fk, fk * 0.95);
     }
     if (art.setTelegraph && !z.isBoss) art.setTelegraph(z.obj, !frozen && d < (CFG.telegraphRange || 3.2));
     if (d < z.r + 0.55) {
@@ -4380,6 +4534,7 @@ function loop(ts) {
   let scale = qa.timeScale || 1;
   if (!lastTs) lastTs = ts;
   const real = Math.max(0.0001, (ts - lastTs) / 1000);
+  frameDt = Math.min(0.1, real);
   const raw = Math.min((qa.timeScale && qa.timeScale > 1) ? 0.2 : 0.05, real);
   if (S && S.slowT > 0) {
     S.slowT -= raw;
@@ -4441,6 +4596,7 @@ function loop(ts) {
       three.moon.target.updateMatrixWorld();
     }
     stepQuality(real);
+    stepDying(raw);
     const fx = three.fx || [];
     three.fx = fx.filter(function (f) {
       f.life -= raw;
