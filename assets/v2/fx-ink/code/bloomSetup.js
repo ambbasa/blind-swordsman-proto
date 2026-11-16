@@ -19,7 +19,7 @@ export const BLOOM_PRESETS = {
   //       on a desktop GPU you may pass override:{samples:4} to keep the build's antialias:true look) ; strength / radius / HDR threshold
   high: { res: 0.5, samples: 0, strength: 0.6, radius: 0.45, threshold: 1.0 },
   low: { res: 0.25, samples: 0, strength: 0.5, radius: 0.3, threshold: 1.0 },
-  off: null,   // plain renderer.render — use on very weak devices (slash core then uses uCoreGain 1.2)
+  off: null,   // no bloom pass; the post passes (ink wash, tone mapping) still run when given — plain render only without them
 };
 
 export function setupBloom(renderer, scene, camera, { quality = 'high', override = null, post = null } = {}) {
@@ -28,14 +28,16 @@ export function setupBloom(renderer, scene, camera, { quality = 'high', override
   let composer = null, bloom = null, rt = null, extra = [];
   function build() {
     dispose();
-    if (!P) return;
+    if (!P && !post) return;
     const pr = renderer.getPixelRatio();
-    rt = new THREE.WebGLRenderTarget(Math.max(1, size.x * pr), Math.max(1, size.y * pr), { type: THREE.HalfFloatType, samples: P.samples });
+    rt = new THREE.WebGLRenderTarget(Math.max(1, size.x * pr), Math.max(1, size.y * pr), { type: THREE.HalfFloatType, samples: P ? P.samples : 0 });
     composer = new EffectComposer(renderer, rt);
     composer.addPass(new RenderPass(scene, camera));
-    bloom = new UnrealBloomPass(new THREE.Vector2(size.x * P.res * 2, size.y * P.res * 2), P.strength, P.radius, P.threshold);
-    const base = bloom.setSize.bind(bloom); bloom.setSize = (w, h) => base(Math.max(2, w * P.res * 2), Math.max(2, h * P.res * 2));   // UnrealBloomPass halves internally
-    composer.addPass(bloom);
+    if (P) {
+      bloom = new UnrealBloomPass(new THREE.Vector2(size.x * P.res * 2, size.y * P.res * 2), P.strength, P.radius, P.threshold);
+      const base = bloom.setSize.bind(bloom); bloom.setSize = (w, h) => base(Math.max(2, w * P.res * 2), Math.max(2, h * P.res * 2));   // UnrealBloomPass halves internally
+      composer.addPass(bloom);
+    }
     extra = post ? post() : [];
     extra.forEach((p) => composer.addPass(p));
     composer.addPass(new OutputPass());   // linear HDR -> renderer.outputColorSpace (sRGB) with renderer.toneMapping (NoToneMapping in v2)

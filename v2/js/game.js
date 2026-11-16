@@ -112,7 +112,7 @@ const CFG = {
   zombieSpeed: 2.15, spiritSpeed: 0.55,
   qlLowFps: 44, qlHighFps: 57, qlDownSec: 3.5, qlUpSec: 8,
   camOff: { x: 14.4, y: 22.4, z: 14.4 }, camLookY: 1.2, fov: 62,
-  markMinCss: 12, markMaxCss: 32,
+  markMinCss: 12, seqDotGap: 16, markMaxCss: 32,
   comboTimeout: 2.8,
   /* v0.23 아이템 개편: 자동 흡수·수명 · 원소 각인 · 정확한 획 · 칼집 각성 */
   autoPickR: 1.25, itemLife: 24, tempElemDur: 12, elemLvMax: 3,
@@ -2069,7 +2069,7 @@ function updateMarks() {
     const x = m.x, y = m.y;
     const gsize = m.cssPx || size;
     ctx.save();
-    const gap = size * 0.38;
+    const gap = CFG.seqDotGap || 16; /* fixed: dots are 10-14px wide whatever the glyph size */
     const rowW = (m.seq.length - 1) * gap;
     const rowX = clamp(x - rowW * 0.5, 10, r.width - 10 - rowW);
     const rowY = clamp(y - gsize * 0.5 - 10, 90, r.height - 10);
