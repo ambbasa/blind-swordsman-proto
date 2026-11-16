@@ -17,9 +17,9 @@ export const INKWASH = {
   edgeLo: 0.035,
   edgeHi: 0.16,
   edgeDark: 0.22,
-  wobble: 0.0016,
+  wobble: 0, /* screen warp blurred small figures; the ink look comes from tone, edges and grain */
   grain: 0.10,
-  vignette: 0.55,
+  vignette: 0, /* one vignette only: the cinematic pass owns it */
   strength: 0.85
 };
 

@@ -35,7 +35,7 @@ void main(){
 }`;
 
 export function createCinematicPass(params) {
-  const P = Object.assign({ exposure: 1.32, vignette: 0.72, grain: 0.06, bleed: 0.0016 }, params || {});
+  const P = Object.assign({ exposure: 1.32, vignette: 0.5, grain: 0.06, bleed: 0 }, params || {});
   const pass = new ShaderPass({
     uniforms: {
       tDiffuse: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uTime: { value: 0 },

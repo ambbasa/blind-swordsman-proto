@@ -75,7 +75,7 @@ const CFG = {
   spawnZombieMinMs: 450,
   spawnZombieDelay: 1.2, practiceZombieMs: 3200, practiceZombieMax: 2, earlyZombieMax: 6, earlyZombieUntil: 15, earlyZombieMinMs: 1400,
   openingZombies: 6, openingRing: [0.5, 0.8],
-  spiritStreamAlpha: 0.7, spiritFadeIn: 0.4, spiritAlpha: 0.9, spiritHover: 1.26, spiritCapStart: 1, spiritMax: 5, spiritGlowAlpha: 0.5,
+  spiritStreamAlpha: 0.7, spiritFadeIn: 0.4, spiritAlpha: 1, spiritHover: 1.26, spiritCapStart: 1, spiritMax: 5, spiritGlowAlpha: 0.5,
   /* 혼령 회수 되돌림(hysteresis): 획득 0.95R, 회수 1.15R(=fogOuter). */
   spiritReleaseMul: 1.15, spiritAcquireMul: 1.02,
   /* 제자리 탭 = 칼집 패링 */
@@ -105,6 +105,7 @@ const CFG = {
   aimConeCos: 0.5, aimNearW: 0.35, telegraphRange: 3.2,
   spiritRing: [5, 7.2], zombieRing: [6, 8.5],
   zombieSpeed: 2.15, spiritSpeed: 0.55,
+  qlLowFps: 44, qlHighFps: 57, qlDownSec: 3.5, qlUpSec: 8,
   camOff: { x: 14.4, y: 22.4, z: 14.4 }, camLookY: 1.2, fov: 62,
   markMinCss: 12, markMaxCss: 32,
   comboTimeout: 2.8,
@@ -599,7 +600,7 @@ async function makeWorld() {
   const world = {
     renderer: renderer, scene: scene, camera: camera, map: map, torches: [], fx: [], slashes: [],
     view: view, fxForced: fxQForced, amb: amb, hemi: hemi, moon: moon, fill: fill, sky: sky, baseClear: clear,
-    dprCap: dprCap, dprNow: dprCap, lowT: 0, atmo: new StageAtmosphere(scene, 1, map)
+    dprCap: dprCap, dprNow: dprCap, atmo: new StageAtmosphere(scene, 1, map)
   };
   try {
     world.bloom = setupBloom(renderer, scene, camera, {
@@ -619,32 +620,44 @@ async function makeWorld() {
       if (window.console && console.warn) console.warn('[심안] WebGL context lost — 복구를 기다립니다');
     }, false);
   } catch (e) {}
-  if (!world.fxForced) {
-    world.aq = new AutoQuality({
-      start: fxQ,
-      onChange: function (q) {
-        fxQ = q;
-        if (world.bloom) world.bloom.setQuality(q);
-        if (world.ink) world.ink.setQuality(q === 'high' ? 'high' : 'low');
-        applyFxinkAtmo((S && S.mapId) || (world.map && world.map.id) || 'map1');
-      }
-    });
-  }
+  world.ql = { level: 0, lowT: 0, highT: 0, cool: 0, lockAt: 99, lastUp: -99, t: 0 };
   return world;
 }
 
-/* 프레임이 무너지면 해상도를 한 단계 내린다(다시 올리지 않는다). */
-function adaptDpr(real) {
-  if (!three || !three.renderer || DPR_QUERY) return;
-  if (!(real > 0) || real > 0.5) return;
+/* One quality ladder for the whole look. Going down: shadows off, bloom low, then resolution in steps.
+   Going up again when the frame rate has recovered, so a hitch early in a run does not leave the
+   screen soft for the rest of it. A level that drops again within 10 s of being restored is locked. */
+const QL_LEVELS = 5;
+function applyQuality(level) {
+  const w = three; if (!w) return;
+  const shadows = level < 1;
+  if (w.moon && w.moon.castShadow !== shadows) w.moon.castShadow = shadows;
+  const bq = level < 2 ? fxQualityFromUrl() : 'low';
+  if (w.bloom && w.bloom.quality !== bq && bq !== 'off') {
+    w.bloom.setQuality(bq);
+    if (w.ink) w.ink.setQuality(bq === 'high' ? 'high' : 'low');
+  }
+  const dprSteps = [w.dprCap, w.dprCap, w.dprCap, Math.max(1, w.dprCap - 0.5), Math.max(1, w.dprCap - 1)];
+  const d = Math.round(dprSteps[Math.min(level, QL_LEVELS - 1)] * 10) / 10;
+  if (Math.abs((w.dprNow || 0) - d) > 0.01) { w.dprNow = d; w.renderer.setPixelRatio(d); onResize(); }
+}
+function stepQuality(real) {
+  const w = three;
+  if (!w || !w.renderer || DPR_QUERY || w.fxForced || !w.ql || !(real > 0) || real > 0.5) return;
+  const q = w.ql;
+  q.t += real;
+  if (q.cool > 0) { q.cool -= real; return; }
   const fpsNow = 1 / real;
-  if (fpsNow < 44) three.lowT = (three.lowT || 0) + real;
-  else three.lowT = Math.max(0, (three.lowT || 0) - real * 0.5);
-  if (three.lowT < 3.5 || three.dprNow <= 1.001) return;
-  three.lowT = 0;
-  three.dprNow = Math.max(1, Math.round((three.dprNow - 0.5) * 10) / 10);
-  three.renderer.setPixelRatio(three.dprNow);
-  onResize();
+  q.lowT = fpsNow < CFG.qlLowFps ? q.lowT + real : Math.max(0, q.lowT - real * 0.5);
+  q.highT = fpsNow >= CFG.qlHighFps ? q.highT + real : 0;
+  if (q.lowT >= CFG.qlDownSec && q.level < QL_LEVELS - 1) {
+    if (q.t - q.lastUp < 10) q.lockAt = q.level;
+    q.level++; q.lowT = 0; q.highT = 0; q.cool = 2;
+    applyQuality(q.level);
+  } else if (q.highT >= CFG.qlUpSec && q.level > 0 && q.level - 1 < q.lockAt) {
+    q.level--; q.lowT = 0; q.highT = 0; q.cool = 2; q.lastUp = q.t;
+    applyQuality(q.level);
+  }
 }
 
 function addEntityVisual(kind, shape) {
@@ -1171,6 +1184,7 @@ function setSpiritAlpha(s) {
   const a = (CFG.spiritAlpha || 0.9) * clamp((s.age || 0) / (CFG.spiritFadeIn || 0.4), 0, 1);
   if (ud.sprite && ud.sprite.material) { ud.sprite.material.transparent = true; ud.sprite.material.opacity = a; }
   if (ud.glow && ud.glow.material) ud.glow.material.opacity = (CFG.spiritGlowAlpha || 0.5) * a;
+  if (ud.outline && ud.outline.material) ud.outline.material.opacity = 0.7 * a;
 }
 /* A spirit bound to a zombie hovers over its head and follows it; free (test) spirits stay on the ring. */
 function placeSpirit(s) {
@@ -2885,10 +2899,12 @@ function makeSlash(from, to) {
   const len = Math.max(0.2, Math.hypot(dx, dz));
   const yaw = Math.atan2(dx, dz);
   const q = (three && three.bloom && three.bloom.quality) || fxQ;
+  /* The cut shows the element it actually applies: a ground charm (12 s) over the engraved one. */
+  const elemNow = S ? curElem() : null;
   const s = createInkSlash({
     from: from, to: to,
     width: pathR() * 1.6 * 1.2,
-    elem: S && S.dashElem,
+    elem: elemNow,
     coreGain: q === 'off' ? 1.2 : 1.6
   });
   three.scene.add(s.mesh);
@@ -2897,7 +2913,7 @@ function makeSlash(from, to) {
   /* 3D 검기 아크: 바닥 궤적 위로 솟는 먹 리본 */
   try {
     const arc = createSlashArc({
-      from: from, to: to, elem: S && S.dashElem,
+      from: from, to: to, elem: elemNow,
       coreGain: q === 'off' ? 1.05 : 1.45,
       height: 0.5 + pathR() * 0.12,
       width: Math.max(0.9, pathR() * 0.95)
@@ -2907,7 +2923,7 @@ function makeSlash(from, to) {
   } catch (e) {}
   if (three.ink) three.ink.slash(from, to);
   fxinkStat.slashes++;
-  if (S && S.dashElem === 'fire' && art.trailTex) {
+  if (elemNow === 'fire' && art.trailTex) {
     const tgeo = new THREE.PlaneGeometry(pathR() * 2.2, len);
     const tmat = new THREE.MeshBasicMaterial({
       map: art.trailTex, transparent: true, opacity: 0.85, side: THREE.DoubleSide,
@@ -4424,7 +4440,7 @@ function loop(ts) {
       three.moon.target.position.set(hx, 0, hz);
       three.moon.target.updateMatrixWorld();
     }
-    adaptDpr(real);
+    stepQuality(real);
     const fx = three.fx || [];
     three.fx = fx.filter(function (f) {
       f.life -= raw;
@@ -4462,7 +4478,6 @@ function loop(ts) {
       });
     }
     if (three.ink && three.ink.update) three.ink.update(dt);
-    if (three.aq && !three.fxForced && !qa.noDelay) three.aq.tick(real);
     if (three.bloom && three.bloom.render) three.bloom.render(dt);
     else three.renderer.render(three.scene, three.camera);
     updateMarks();
@@ -4800,7 +4815,7 @@ const GPv2 = {
       rimHero: idle && (idle.file1x || idle.file),
       rimZombie: zWalk && (zWalk.file1x || zWalk.file),
       torch: art && art.torchGlowUrl && art.torchGlowUrl(),
-      aq: three && three.aq && three.aq.q,
+      aq: three && three.ql && three.ql.level,
       forced: !!(three && three.fxForced)
     };
   },

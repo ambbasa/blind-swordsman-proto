@@ -120,6 +120,9 @@ export async function buildArt(THREE) {
     ? atlas.spiritAnim.cell[1] / pxPerMeter
     : heroH * 1.05;
   /* Spirits are small will-o'-wisps over zombies; the shape mark is baked into the orb, a rattle at the side. */
+  /* Outline [scale, opacity] per kind, and the spirits' jade tint (HDR so they bloom). */
+  const CHAR_OUTLINE = { hero: [1.12, 0.9], zombie: [1.1, 0.85], spirit: [1.12, 0.7] };
+  const SPIRIT_TINT = [0.45, 1.7, 1.2];
   const SPIRIT_VIEW_SCALE = 1.45;
   /* 0.26: the orb anchor box in world units (~57% of the orb's diameter). game.js measures the
      spirit's screen centre and foot point from it. */
@@ -452,16 +455,37 @@ export async function buildArt(THREE) {
     }
     group.userData.teleOn = !!on;
   }
+  /* Rim glow and dark outline follow the body sprite's frame, facing and size. */
   function syncRim(group) {
     const spr = group && group.userData && group.userData.sprite;
-    const rim = group && group.userData && group.userData.rim;
-    if (!spr || !rim || !spr.material) return;
-    if (rim.material && spr.material.map) rim.material.map = spr.material.map;
-    const k = 1.12;
-    const sx = Math.abs(spr.scale.x), sy = Math.abs(spr.scale.y);
-    const sign = spr.scale.x < 0 ? -1 : 1;
-    rim.scale.set(sign * sx * k, sy * k, 1);
-    if (spr.center) rim.center.copy(spr.center);
+    if (!spr || !spr.material) return;
+    [[group.userData.rim, 1.12], [group.userData.outline, group.userData.outlineK || 1.1]].forEach(function (pair) {
+      const o = pair[0];
+      if (!o) return;
+      if (o.material && spr.material.map) o.material.map = spr.material.map;
+      const sx = Math.abs(spr.scale.x), sy = Math.abs(spr.scale.y);
+      const sign = spr.scale.x < 0 ? -1 : 1;
+      o.scale.set(sign * sx * pair[1], sy * pair[1], 1);
+      if (spr.center) o.center.copy(spr.center);
+      o.visible = spr.visible;
+    });
+  }
+  /* A dark ink silhouette a little larger than the body, drawn behind it, so pale figures stand off the lit ground. */
+  function addOutline(group, k, opacity) {
+    const spr = group.userData && group.userData.sprite;
+    if (!spr || !spr.material) return;
+    const mat = new THREE.SpriteMaterial({
+      map: spr.material.map, color: 0x000000, transparent: true, depthWrite: false, depthTest: false,
+      opacity: opacity == null ? 0.85 : opacity, alphaTest: 0.05
+    });
+    const o = new THREE.Sprite(mat);
+    o.center.copy(spr.center);
+    o.renderOrder = 1;
+    o.position.z = -0.02;
+    group.add(o);
+    group.userData.outline = o;
+    group.userData.outlineK = k || 1.1;
+    syncRim(group);
   }
   function localBell(sheet, worldH) {
     const fw = (sheet.frame && sheet.frame[0]) || 512;
@@ -600,7 +624,7 @@ export async function buildArt(THREE) {
       group.userData.animPack = pack;
       group.userData.action = after ? 'afterimage' : 'idle';
       group.userData.anim = Anim.createController(sheet, { blend: 0.1 });
-      if (kind === 'hero') addShadow(group, 1.5);
+      if (kind === 'hero') { addShadow(group, 1.5); addOutline(group, CHAR_OUTLINE.hero[0], CHAR_OUTLINE.hero[1]); }
     } else if (kind === 'zombie') {
       const pack = inkChars()[shape === 'brute' || shape === 'stone' ? shape : 'zombie'];
       const sheet = pack.actions.walk;
@@ -613,6 +637,7 @@ export async function buildArt(THREE) {
       group.userData.action = 'walk';
       group.userData.anim = Anim.createController(sheet, { blend: 0.08 });
       addShadow(group, 1.35);
+      addOutline(group, CHAR_OUTLINE.zombie[0], CHAR_OUTLINE.zombie[1]);
       addRim(group, 0x3ec8c0, 1.12);
       /* 정예 원귀: 금빛 테 */
       if (shape === 'elite' && group.userData.rim && group.userData.rim.material) {
@@ -657,7 +682,8 @@ export async function buildArt(THREE) {
         if (!isBoss) { g.material.color.setRGB(0.45, 1.7, 1.15); g.material.opacity = 0.5; }
         else g.material.color.setRGB(1.7, 0.22, 0.14);
       }
-      if (!isBoss && spr.material && spr.material.color) spr.material.color.setRGB(0.75, 1.45, 1.15);
+      if (!isBoss && spr.material && spr.material.color) spr.material.color.setRGB(SPIRIT_TINT[0], SPIRIT_TINT[1], SPIRIT_TINT[2]);
+      if (!isBoss) addOutline(group, CHAR_OUTLINE.spirit[0], CHAR_OUTLINE.spirit[1]);
       const auraFile = atlas.onebell && atlas.onebell.aura && String(atlas.onebell.aura).split(' ')[0];
       if (auraFile && tex(auraFile)) {
         const ak = isBoss ? 1 : SPIRIT_VIEW_SCALE;
@@ -731,7 +757,7 @@ export async function buildArt(THREE) {
       if (spr && spr.material && spr.material.map && anim.sheet) applyUV(spr.material.map, anim.sheet, st.frame, st.dir);
       if (!group.userData.noFlip) applyFlip(spr, st.flip);
       else if (spr) applyFlip(spr, false);
-      if (group.userData.rim) syncRim(group);
+      if (group.userData.rim || group.userData.outline) syncRim(group);
     }
     const rat = group.userData && group.userData.rattle;
     if (rat) {
