@@ -178,7 +178,7 @@ export function drawUpgrade(id) {
   const x = S / 2, y = S / 2;
   const tint = {
     dmg: 'rgba(226,232,228,', width: 'rgba(190,232,255,', dash: JADE, ring: 'rgba(150,220,255,',
-    charge: GOLD, spirit: 'rgba(180,200,255,', perfect: 'rgba(255,244,214,', parry: 'rgba(255,196,120,'
+    charge: GOLD, perfect: 'rgba(255,244,214,', parry: 'rgba(255,196,120,'
   }[id] || PAPER;
   const glow = ctx.createRadialGradient(x, y, 28, x, y, 76);
   glow.addColorStop(0, tint + '0.34)'); glow.addColorStop(1, tint + '0)');
@@ -215,14 +215,7 @@ export function drawUpgrade(id) {
     stroke(ctx, [[x, y - 34], [x, y + 8]], 6, GOLD + '0.9)');
     brush(ctx, arc, 7, GOLD, 0.95, rnd, 6);
     ctx.beginPath(); ctx.arc(x, y + 12, 7, 0, Math.PI * 2); ctx.fillStyle = GOLD + '1)'; ctx.fill();
-  } else if (id === 'spirit') {
-    const b = drawBell('plain');
-    ctx.drawImage(b, x - 13, y - 26, 26, 52);
-    for (let i = 0; i < 3; i++) {
-      const a = -Math.PI * 0.5 + (i / 3) * Math.PI * 2;
-      ctx.beginPath(); ctx.arc(x + Math.cos(a) * 36, y + Math.sin(a) * 36, 5, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(180,200,255,0.95)'; ctx.fill();
-    }
+
   } else if (id === 'perfect') {
     stroke(ctx, [[x - 34, y + 18], [x + 34, y + 18]], 6, 'rgba(255,244,214,0.98)');
     brush(ctx, [[x - 30, y + 18], [x + 30, y + 18]], 3, GOLD, 0.9, rnd, 3);

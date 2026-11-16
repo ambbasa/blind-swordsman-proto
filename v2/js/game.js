@@ -47,7 +47,7 @@ const SHAPE_HINT = {
 };
 /* v1 numbers reused where the new brief is silent. Documented as defaults. */
 const CFG = {
-  hpBase: 10, dmg: 1, bossDmg: 2, iframeMs: 800,
+  hpBase: 10, dmg: 1, bossDmg: 2, bossCoin: 20, iframeMs: 800,
   timeLimit: 75, bossAt: 50, bossShapes: 6,
   coinPerKill: 3,
   idlePerMin: 4, idleMaxHours: 8,
@@ -96,7 +96,7 @@ const CFG = {
     { t: 20, n: 14, mix: { imp: 0.7, brute: 0.3 }, r: [9, 10] },
     { t: 40, n: 20, mix: { imp: 0.6, brute: 0.3, stone: 0.1 }, r: [9, 11], elite: 1 }
   ], waveBoostSec: 8,
-  ringScreenFrac: 0.70, ringMaxFrac: 0.90, ringBoost: 0.14, ringLvMax: 3,
+  ringScreenFrac: 0.70, ringMaxFrac: 0.90, ringBoost: 0.095, /* Lv3 lands on ringMaxFrac (0.70 x 1.285 = 0.90) so each level shows in portrait */ ringLvMax: 3,
   spiritOmega: 2.8, spiritAvoidMax: 0.30, spiritAvoidOmega: 8, bossSpeed: 1.0, bossCatchUp: 0.3, bossSpawnR: 11,
   dashThroughMul: 1.5, dashPastTarget: 0.8, dashPastBodyMul: 1.5, dashPastExtra: 2.0, playBound: 0,
   /* v0.22 보스 결계(아레나): 보스가 서면 이 반경 안에서만 싸운다. */
@@ -139,7 +139,6 @@ const RUN_UPGRADES = [
   { id: 'ring', name: '심안 반경', desc: '심안(먹안개)이 넓어집니다. Lv3이 최대입니다.', maxLv: 3 },
   { id: 'charge', name: '참(斬) 게이지', desc: '참 게이지가 더 빨리 차오릅니다.', maxLv: 5 },
   { id: 'heal', name: '체력 회복', desc: '체력 +5, 이번 판 최대 체력 +2.', maxLv: 99 },
-  { id: 'spirit', name: '혼령 슬롯', desc: '혼령이 하나 더 머뭅니다. 일섬 연쇄가 살아납니다.', maxLv: 3 },
   { id: 'perfect', name: '정확한 획', desc: '획을 깔끔하게 그릴수록(인식 정확도 기준 이상) 일섬이 더 깊이 듭니다.', maxLv: 3 },
   { id: 'parry', name: '칼집 각성', desc: '칼집 패링이 충격파를 내고 참 게이지를 채웁니다.', maxLv: 3 },
   { id: 'ice', name: '얼음 각인', desc: '얼음 일섬 — 빙결과 파열이 강해집니다.', maxLv: 3 },
@@ -2557,7 +2556,9 @@ function resolveDash(d) {
   const hitTo = d.raw || d.to;
   applyPath(d.from, hitTo, S.lastDash, null);
   const boss = S && S.boss;
-  if (boss && boss.alive && segDist(boss.x, boss.z, d.from.x, d.from.z, hitTo.x, hitTo.z) <= pathR() + boss.r) {
+  /* Only a dash aimed at the boss (its spirit, so its current shape) advances the order; grazing it on the way to another spirit does not. */
+  const aimed = d.target && (d.target === boss || d.target.target === boss);
+  if (boss && boss.alive && aimed && segDist(boss.x, boss.z, d.from.x, d.from.z, hitTo.x, hitTo.z) <= pathR() + boss.r) {
     cutBoss(boss);
     if (S.lastDash) S.lastDash.bossCut = true;
   }
@@ -3113,7 +3114,8 @@ function killZombie(z, rec) {
   }
   if (rec && rec.hits && rec.hits.some(function (h) { return h.id === z.id && h.why === 'slash'; })) addHitstop(CFG.hitstopKill || 0.06);
   const kd = CFG.zombieTypes[z.type] || CFG.zombieTypes.imp;
-  grantKill(kd.coin);
+  /* The boss pays its own coin value; its xp does not matter, the run ends on its death. */
+  grantKill(z.isBoss ? (CFG.bossCoin || 20) : kd.coin);
   gainXp(CFG.xpPerKill * kd.xp);
   /* 혼백구 100% + 20% 추가 드롭, 정예는 부적 상자 */
   spawnItem({ type: 'xp', x: z.x, z: z.z });
@@ -3262,8 +3264,10 @@ function checkEvolutions(ctx) {
   if (el === 'fire' && upLv('dash') >= 2) born('fireTrail', '업화 연쇄');
   /* 3) 만독 쇄도: 일섬·독 + 참(斬) 게이지 Lv2↑ → 독폭발 연쇄 + 참 게이지 충전 */
   if (el === 'poison' && upLv('charge') >= 2) born('poisonSpread', '만독 쇄도');
-  if ((S.chargeLv || 0) > 0 && el === 'ice') born('iceCleave', '빙참(氷斬)');
-  if ((S.bellT > 0 || ctx.bell) && S.dashCount >= 3) born('myriadBell', '만종(萬鐘)');
+  /* 4) 빙참: 일섬·얼음 + 참 게이지 Lv2↑ — 모든 진화가 "각인 + 짝 카드 Lv2" 규칙을 따른다. */
+  if (el === 'ice' && upLv('charge') >= 2) born('iceCleave', '빙참(氷斬)');
+  /* 5) 만종: 한 가지 종 + 일섬 횟수 카드 Lv2↑ (바닥의 일섬 +1은 세지 않는다) */
+  if ((S.bellT > 0 || ctx.bell) && upLv('dash') >= 2) born('myriadBell', '만종(萬鐘)');
 }
 /* 빙결 참격: 착지점이 얼어붙고 부서지는 얼음 파편이 퍼진다. */
 function frostLanding(at) {
@@ -3358,7 +3362,6 @@ function upDesc(u) {
     + fmt1(elemScale(CFG.burnDmg || 1, CFG.burnDmgStep || 0.3, next)) + ' 피해/틱';
   if (u.id === 'poison') return '중첩 ' + Math.round(elemScale(CFG.poisonMax || 5, CFG.poisonMaxStep || 1, next)) + ' · 독구름 '
     + fmt1(elemScale(CFG.poisonCloudR || 2, CFG.cloudRStep || 0.6, next)) + 'm';
-  if (u.id === 'spirit') return '혼령 ' + (S.spiritCap || 1) + ' → ' + Math.min(CFG.spiritMax || 5, (S.spiritCap || 1) + 1) + '개 (최대 ' + (CFG.spiritMax || 5) + ')';
   if (u.id === 'perfect') return '정확도 ' + Math.round(((CFG.perfectThresh || 0.8) - (CFG.perfectThreshStep || 0.05) * (next - 1)) * 100)
     + '% 이상이면 ×' + fmt1((CFG.perfectDmgMul || 1.5) + (CFG.perfectStep || 0.15) * (next - 1));
   if (u.id === 'parry') return '패링 반경 ' + fmt1((CFG.parryR || 2.4) + (CFG.parryAwakenR || 0.45) * next) + 'm · 충격파 '
@@ -3402,7 +3405,7 @@ function openLevelUp() {
   });
   showOv('ov-level');
 }
-const UPGRADE_FX = { dmg: 'vermilion', width: 'jade', dash: 'jade', ring: 'paper', charge: 'gold', heal: 'vermilion', spirit: 'jade', perfect: 'gold', parry: 'paper', ice: 'ice', fire: 'fire', poison: 'poison', bell: 'gold' };
+const UPGRADE_FX = { dmg: 'vermilion', width: 'jade', dash: 'jade', ring: 'paper', charge: 'gold', heal: 'vermilion', perfect: 'gold', parry: 'paper', ice: 'ice', fire: 'fire', poison: 'poison', bell: 'gold' };
 /* The chosen upgrade stamps over the hero, and the ones that change space show the change. */
 function upgradeFx(id) {
   const def = RUN_UPGRADES.filter(function (u) { return u.id === id; })[0];
@@ -3415,7 +3418,7 @@ function upgradeFx(id) {
     const L = Math.hypot(dx, dz) || 1;
     inkFx.band({ x: dx / L, z: dz / L }, pathR(), ringR() * 1.3, c);
   } else if (id === 'ring') inkFx.ring(ringR(), c, 1.0);
-  else if (id === 'dash' || id === 'spirit' || id === 'ice' || id === 'fire' || id === 'poison') inkFx.ring(2.2, c, 0.7);
+  else if (id === 'dash' || id === 'ice' || id === 'fire' || id === 'poison') inkFx.ring(2.2, c, 0.7);
 }
 function pickUpgrade(id) {
   if (!S || S.paused !== 'levelup') return false;
@@ -3435,11 +3438,6 @@ function pickUpgrade(id) {
     S.elemLv[id] = Math.min(CFG.elemLvMax || 3, (S.elemLv[id] || 0) + 1);
     setDashElem(id);
     toast(elemNameOf(id) + ' 각인 Lv' + S.elemLv[id]);
-  }
-  else if (id === 'spirit') {
-    S.spiritCap = Math.min(CFG.spiritMax || 5, (S.spiritCap || 1) + 1);
-    refreshSpirits();
-    toast('혼령 슬롯 ' + S.spiritCap);
   }
   else if (id === 'perfect') { toast('정확한 획 Lv' + S.upLv.perfect); }
   else if (id === 'parry') { toast('칼집 각성 Lv' + S.upLv.parry); }
@@ -3477,6 +3475,8 @@ function stepBoss(z, dt) {
   z.state = z.state || 'walk';
   z.stateT = (z.stateT || 0) + dt;
   if (z.state === 'walk') {
+    /* A parry or landing stun holds the boss in place and pauses its walk clock; telegraph and charge are not interrupted. */
+    if ((z.stun || 0) > 0) z.stateT -= dt;
     if (z.stateT > walkT) {
       z.state = 'telegraph'; z.stateT = 0;
       z.aim = { x: S.hero.x, z: S.hero.z };
