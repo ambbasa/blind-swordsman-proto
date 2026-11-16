@@ -62,7 +62,7 @@ const CFG = {
     brute: { hp: 5, speed: 0.9, r: 0.7, dmg: 1, xp: 2, coin: 2 },
     stone: { hp: 10, speed: 0.6, r: 0.9, dmg: 2, xp: 3, coin: 3 },
     /* v0.23 후반 장(5~12장) 변주: 빠른 돌진형·부적 투척형·자폭형 */
-    charger: { hp: 3, speed: 1.1, r: 0.56, dmg: 1, xp: 2, coin: 2, dashSpeed: 5.6, dashRange: 7.5, dashCd: 3.4, dashT: 0.3, tint: 0x8fd8ff },
+    charger: { hp: 3, speed: 1.1, r: 0.56, dmg: 1, xp: 2, coin: 2, dashSpeed: 5.6, dashRange: 7.5, dashCd: 3.4, dashT: 0.3, windT: 0.35, tint: 0x8fd8ff },
     thrower: { hp: 3, speed: 0.78, r: 0.55, dmg: 1, xp: 2, coin: 2, hold: 4.6, throwRange: 10, throwCd: 2.9, shotSpeed: 7.2, tint: 0xd8b6ff },
     bomber: { hp: 2, speed: 1.34, r: 0.5, dmg: 1, xp: 2, coin: 2, fuseR: 2.0, fuse: 0.85, blastR: 2.7, blastDmg: 2, tint: 0xffc06a },
     /* 정예 원귀: 금테를 두른 느린 귀물. 처치하면 부적 상자(강화 3연속)를 떨어뜨린다. */
@@ -140,7 +140,7 @@ const RUN_UPGRADES = [
   { id: 'charge', name: '참(斬) 게이지', desc: '참 게이지가 더 빨리 차오릅니다.', maxLv: 5 },
   { id: 'heal', name: '체력 회복', desc: '체력 +5, 이번 판 최대 체력 +2.', maxLv: 99 },
   { id: 'spirit', name: '혼령 슬롯', desc: '혼령이 하나 더 머뭅니다. 일섬 연쇄가 살아납니다.', maxLv: 3 },
-  { id: 'perfect', name: '정확한 획', desc: '획의 각도와 길이가 바르면 일섬이 더 깊이 듭니다.', maxLv: 3 },
+  { id: 'perfect', name: '정확한 획', desc: '획을 깔끔하게 그릴수록(인식 정확도 기준 이상) 일섬이 더 깊이 듭니다.', maxLv: 3 },
   { id: 'parry', name: '칼집 각성', desc: '칼집 패링이 충격파를 내고 참 게이지를 채웁니다.', maxLv: 3 },
   { id: 'ice', name: '얼음 각인', desc: '얼음 일섬 — 빙결과 파열이 강해집니다.', maxLv: 3 },
   { id: 'fire', name: '화염 각인', desc: '화염 일섬 — 연소가 길고 아프게 붙습니다.', maxLv: 3 },
@@ -226,7 +226,7 @@ const STAGES = [
   {
     id: 5, act: 2, name: '안개 석탑', sub: '구름에 잠긴 탑, 흔들리는 종소리', map: 'map5', tag: '네 획의 밤',
     goal: '네 가지 획이 모두 열린 산길입니다. 탑을 등지고 오는 무리를 베세요.',
-    tip: '몸이 푸르게 빛나며 몸을 낮추는 원귀는 곧 곧장 달려옵니다.',
+    tip: '푸른 테의 원귀가 붉게 웅크리면 곧 곧장 달려옵니다 — 그 순간 일섬으로 비켜서세요.',
     time: 190, eliteAt: 95, bossAt: 150, bossShapes: 6,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 2,
     opening: { n: 8, ring: [0.55, 0.88], brute: 2 },
@@ -243,7 +243,7 @@ const STAGES = [
   },
   {
     id: 6, act: 2, name: '설산 폐사찰', sub: '눈에 덮인 부처, 꺼지지 않은 향', map: 'map6', tag: '눈보라',
-    goal: '눈보라가 심안을 좁힙니다. 부적을 던지는 원귀를 먼저 끊으세요.',
+    goal: '눈 덮인 산사에 부적을 던지는 원귀가 숨어 있습니다. 그들을 먼저 끊으세요.',
     tip: '멀찍이 서서 부적을 던지는 원귀는 일섬으로 파고들어야 합니다.',
     time: 200, eliteAt: 100, bossAt: 158, bossShapes: 7,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 2,
@@ -334,8 +334,8 @@ const STAGES = [
     atmo: { clear: 0x18100f, fogCol: [28, 20, 16], fog: 0.036, moon: 18.0, amb: 6.0, hemiI: 6.0, fill: 4.2, hemi: 0x9a8a76, ground: 0x151010, moonCol: 0xe8c8a8, tint: 'linear-gradient(180deg, rgba(120,88,58,0.22) 0%, rgba(34,18,12,0.32) 100%)' }
   },
   {
-    id: 11, act: 3, name: '혈월 성채', sub: '달이 가장 가까운 성벽', map: 'map11', tag: '정예 둘',
-    goal: '성벽 위의 원혼이 열한 번의 도형을 겁니다. 정예도 둘입니다.',
+    id: 11, act: 3, name: '혈월 성채', sub: '달이 가장 가까운 성벽', map: 'map11', tag: '정예 셋',
+    goal: '성벽 위의 원혼이 열한 번의 도형을 겁니다. 정예도 셋입니다.',
     tip: '정예 원귀의 부적 상자는 강화 3연속 — 놓치지 마세요.',
     time: 240, eliteAt: 118, bossAt: 188, bossShapes: 11,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 4,
@@ -354,7 +354,7 @@ const STAGES = [
   {
     id: 12, act: 3, name: '나락의 심연', sub: '검은 달이 떨어지는 자리', map: 'map12', tag: '올 클리어',
     goal: '열두 번의 도형, 쉼 없는 장판. 마지막 획으로 나락을 끊으세요.',
-    tip: '여기서 베는 모든 획이 정확도 판정을 받습니다 — 천천히, 바르게.',
+    tip: '마지막 귀물은 장판을 다섯 겹으로 깝니다 — 붉은 예고선을 보고 일섬으로 빠져나가세요.',
     time: 250, eliteAt: 125, bossAt: 196, bossShapes: 12,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 4,
     opening: { n: 14, ring: [0.48, 1.0], brute: 4 },
@@ -1386,6 +1386,8 @@ function spawnZombie(opts) {
   /* v0.23 변주 원귀: 테두리 빛으로 종류를 구분한다(돌진=청, 투척=보라, 자폭=주황). */
   if (def.tint && e.obj && e.obj.userData && e.obj.userData.rim && e.obj.userData.rim.material && e.obj.userData.rim.material.color) {
     e.obj.userData.rim.material.color.setHex(def.tint);
+    e.obj.userData.rim.material.opacity = 0.6;
+    e.obj.userData.rimHex = def.tint; e.obj.userData.rimOp = 0.6;
   }
   S.zombies.push(e);
   if (qa.noDelay) snapSpiritsToTargets();
@@ -1431,7 +1433,7 @@ function breakJar(j) {
   showJudge('항아리 파괴');
   return true;
 }
-/* 자석 부적: 필드의 모든 엽전·혼백을 즉시 빨아들인다. */
+/* 자석 부적: 필드의 모든 바닥 아이템(엽전·혼백·회복·부적·종 등)을 즉시 빨아들인다. */
 function absorbAllItems(except) {
   if (!S) return 0;
   const list = (S.items || []).filter(function (x) { return x.alive && x !== except; });
@@ -2175,8 +2177,9 @@ function drawOverlays(ctx, r, hs) {
   if (b && b.alive && b.state === 'telegraph' && b.aim) {
     const dx = b.aim.x - b.x, dz = b.aim.z - b.z, L = Math.hypot(dx, dz) || 1;
     const a = projectXZ(b.x, b.z, 0.12);
-    const e = projectXZ(b.x + dx / L * 9, b.z + dz / L * 9, 0.12);
-    const tf = clamp((b.stateT || 0) / 1.1, 0, 1);
+    const bt = bossTiming(), reach = bt.chargeSp * bt.chargeT;
+    const e = projectXZ(b.x + dx / L * reach, b.z + dz / L * reach, 0.12);
+    const tf = clamp((b.stateT || 0) / bt.teleT, 0, 1);
     ctx.save();
     ctx.strokeStyle = 'rgba(200,40,30,' + (0.30 + 0.45 * tf).toFixed(2) + ')';
     ctx.lineWidth = Math.max(6, worldPerCss() * 1.2);
@@ -2396,7 +2399,8 @@ function scoreDash(rec) {
   if (!S || !rec || rec.scored) return;
   rec.scored = true;
   if (!rec.targets || !rec.targets.length) return;
-  const cut = (rec.hits || []).some(function (h) { return h.why === 'slash'; });
+  /* A boss cut counts too, or the combo would sit at 0 for the whole boss fight. */
+  const cut = rec.bossCut || (rec.hits || []).some(function (h) { return h.why === 'slash'; });
   if (!cut) { S.combo = 0; return; }
   S.combo = (S.combo || 0) + 1;
   S.comboIdle = 0;
@@ -2555,6 +2559,7 @@ function resolveDash(d) {
   const boss = S && S.boss;
   if (boss && boss.alive && segDist(boss.x, boss.z, d.from.x, d.from.z, hitTo.x, hitTo.z) <= pathR() + boss.r) {
     cutBoss(boss);
+    if (S.lastDash) S.lastDash.bossCut = true;
   }
 }
 function landDash(d) {
@@ -2774,7 +2779,7 @@ function spawnEliteEvent() {
   if (audio && !qa.noDelay) audio.drum();
   return 1;
 }
-/* 착지 자석: 반경 안의 혼백구·엽전이 곡선으로 빨려온다. */
+/* 착지 자석: 반경 안의 바닥 아이템이 곡선으로 빨려온다. */
 function magnetPull(at) {
   if (!S) return 0;
   const R = S.magnetR || CFG.magnetR || 1.8;
@@ -3170,7 +3175,7 @@ function pickupFx(it) {
   inkFx.burst(it.x, it.z, c, { r1: big ? 70 : 44, n: big ? 12 : 8, big: big, dur: big ? 0.7 : 0.5 });
   if (it.kind === 'heal' || it.kind === 'herb') inkFx.fly(it.x, it.z, hudPoint('hpWrap'), c, 3);
   if (it.kind === 'ice' || it.kind === 'fire' || it.kind === 'poison') inkFx.ring(1.6, c, 0.6);
-  if (it.kind === 'dashplus') inkFx.seal('일섬 ' + S.dashCount, c);
+  if (it.kind === 'dashplus') inkFx.seal('일섬 ' + (S.dashCount + 1), c); /* pickupFx runs before the count goes up */
 }
 function collectItem(it, rec) {
   pickupFx(it);
@@ -3207,7 +3212,7 @@ function collectItem(it, rec) {
     showJudge('약초 +' + (CFG.herbHeal || 2));
     if (audio && audio.pickup) audio.pickup(1);
   } else if (it.kind === 'magnet') {
-    /* 자석 부적: 바닥의 엽전·혼백을 한 번에 */
+    /* 자석 부적: 바닥 아이템 전부를 한 번에 */
     showJudge('자석 부적!');
     absorbAllItems(it);
   } else if (it.kind === 'bang') {
@@ -3453,20 +3458,30 @@ function pickUpgrade(id) {
 
 /* 보스 돌진 예고(walk → telegraph → charge → stun) 상태기계. 이동을 직접 처리했으면 true.
    스테이지가 오르면 예고가 짧아지고 돌진이 빨라지며, 뒤로 갈수록 경직 뒤에 잔몹을 부른다. */
+/** The stage's boss timings (seconds) and charge speed (m/s), with the shared defaults. */
+function bossTiming() {
+  const B = (S && S.stage && S.stage.boss) || {};
+  return {
+    walkT: B.walk != null ? B.walk : 4.5,
+    teleT: B.telegraph != null ? B.telegraph : 1.1,
+    chargeSp: B.charge != null ? B.charge : 20,
+    chargeT: B.chargeDur != null ? B.chargeDur : 0.45,
+    stunT: B.stun != null ? B.stun : 1.2
+  };
+}
 function stepBoss(z, dt) {
   if (!z || !z.alive || !S) return false;
   const B = (S.stage && S.stage.boss) || {};
-  const walkT = B.walk != null ? B.walk : 4.5;
-  const teleT = B.telegraph != null ? B.telegraph : 1.1;
-  const chargeSp = B.charge != null ? B.charge : 20;
-  const chargeT = B.chargeDur != null ? B.chargeDur : 0.45;
-  const stunT = B.stun != null ? B.stun : 1.2;
+  const bt = bossTiming();
+  const walkT = bt.walkT, teleT = bt.teleT, chargeSp = bt.chargeSp, chargeT = bt.chargeT, stunT = bt.stunT;
   z.state = z.state || 'walk';
   z.stateT = (z.stateT || 0) + dt;
   if (z.state === 'walk') {
     if (z.stateT > walkT) {
       z.state = 'telegraph'; z.stateT = 0;
       z.aim = { x: S.hero.x, z: S.hero.z };
+      /* 장판은 예고와 함께 깔려, 경직(반격 구간)이 오기 전에 모두 터진다. */
+      bossHazards(z);
       if (audio) audio.drum();
     }
     return false;
@@ -3474,7 +3489,6 @@ function stepBoss(z, dt) {
   if (z.state === 'telegraph') {
     if (z.stateT > teleT) {
       z.state = 'charge'; z.stateT = 0;
-      bossHazards(z);
       const dx = (z.aim ? z.aim.x : S.hero.x) - z.x, dz = (z.aim ? z.aim.z : S.hero.z) - z.z;
       const L = Math.hypot(dx, dz) || 1;
       z.chargeDir = { x: dx / L, z: dz / L };
@@ -3489,7 +3503,7 @@ function stepBoss(z, dt) {
     /* 결계 벽에 막히는 돌진 — 밖으로 빠져나가 영웅을 놓치는 일이 없다. */
     const ca = clampPointToArena(z.x, z.z, 1.3);
     z.x = ca.x; z.z = ca.z;
-    if ((S.iframe || 0) <= 0 && dist(z, S.hero) < z.r + 0.7) {
+    if ((S.iframe || 0) <= 0 && !S.dash && dist(z, S.hero) < z.r + 0.7) {
       S.hp -= CFG.bossDmg || 2;
       S.iframe = CFG.iframeMs / 1000;
       S.hurtFlash = CFG.hurtVignette || 0.3;
@@ -3526,11 +3540,12 @@ function stepBoss(z, dt) {
 /* ---------- v0.23 후반 장 변주 적 ----------
    charger: 몸을 낮추고 곧장 달려든다. thrower: 거리를 두고 부적을 던진다.
    bomber: 붙으면 부풀어 터진다. 셋 다 몸빛(테두리)으로 미리 구분된다. */
-function stepEnemySpecial(z, dt, d, frozen) {
+function stepEnemySpecial(z, dt, d, frozen, zsp) {
   if (!S || z.isBoss || frozen) return false;
   const kd = CFG.zombieTypes[z.type];
   if (!kd) return false;
-  const sp = CFG.zombieSpeed * kd.speed * (z.slowT > 0 ? (CFG.iceSlowMul || 0.5) : 1);
+  /* Same walking rule as the basic kinds: tempo, early slow-down, ice slow, and a stop while flinching. */
+  const sp = z.flinchT > 0 ? 0 : zsp * kd.speed * (z.slowT > 0 ? (CFG.iceSlowMul || 0.5) : 1);
   const ux = (S.hero.x - z.x) / (d || 1), uz = (S.hero.z - z.z) / (d || 1);
   if (kd.dashSpeed) {
     z.dashCd = (z.dashCd || 0) - dt;
@@ -3540,10 +3555,15 @@ function stepEnemySpecial(z, dt, d, frozen) {
       z.z += uz * kd.dashSpeed * dt;
       return true;
     }
+    /* Crouch first: it stands still with a red rim, then runs. */
+    if ((z.windT || 0) > 0) {
+      z.windT -= dt;
+      if (z.windT <= 0) z.dashPhase = kd.dashT || 0.3;
+      return true;
+    }
     if (z.dashCd <= 0 && d < (kd.dashRange || 7.5) && d > 1.1) {
       z.dashCd = kd.dashCd || 3.4;
-      z.dashPhase = kd.dashT || 0.3;
-      if (art.setTelegraph) art.setTelegraph(z.obj, true);
+      z.windT = kd.windT || 0.35;
       if (audio && !qa.noDelay && audio.drum) audio.drum();
       return true;
     }
@@ -3628,10 +3648,13 @@ function stepShots(dt) {
     sh.x += sh.vx * dt;
     sh.z += sh.vz * dt;
     if (sh.mesh) { sh.mesh.position.set(sh.x, 0.75, sh.z); sh.mesh.rotation.y += dt * 6; }
-    if (Math.hypot(S.hero.x - sh.x, S.hero.z - sh.z) <= (CFG.shotR || 0.42) + 0.55 && (S.iframe || 0) <= 0 && !S.dash) {
-      heroHurt(CFG.shotDmg || 1, '부적에 맞았습니다.');
+    /* One reach for hit and vanish. A dashing hero cuts the charm out of the air instead. */
+    const reached = Math.hypot(S.hero.x - sh.x, S.hero.z - sh.z) <= (CFG.shotR || 0.42) + 0.55;
+    if (reached) {
+      if (S.dash) inkFx.burst(sh.x, sh.z, FX_COLORS.poison, { r1: 30, n: 6, dur: 0.35 });
+      else if ((S.iframe || 0) <= 0) heroHurt(CFG.shotDmg || 1, '부적에 맞았습니다.');
     }
-    const dead = sh.t >= sh.life || (Math.hypot(S.hero.x - sh.x, S.hero.z - sh.z) <= (CFG.shotR || 0.42) + 0.5);
+    const dead = sh.t >= sh.life || reached;
     if (dead && sh.mesh) three.scene.remove(sh.mesh);
     return !dead;
   });
@@ -3684,10 +3707,13 @@ function bossHazards(z) {
   const B = (S.stage && S.stage.boss) || {};
   const n = B.hazard || 0;
   if (!n || !S) return;
+  /* Stagger shrinks so the last blast lands by the end of the charge, before the stun opens. */
+  const bt = bossTiming(), d0 = CFG.hazardDelay || 1.05;
+  const step = n > 1 ? Math.min(0.18, Math.max(0, bt.teleT + bt.chargeT - d0) / (n - 1)) : 0;
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2 + Math.random() * 0.5;
     const rad = i === 0 ? 0 : 2.6 + Math.random() * 2.2;
-    spawnHazard(S.hero.x + Math.cos(a) * rad, S.hero.z + Math.sin(a) * rad, (CFG.hazardR || 2.5) * (0.8 + Math.random() * 0.3), (CFG.hazardDelay || 1.05) + i * 0.18);
+    spawnHazard(S.hero.x + Math.cos(a) * rad, S.hero.z + Math.sin(a) * rad, (CFG.hazardR || 2.5) * (0.8 + Math.random() * 0.3), d0 + i * step);
   }
 }
 function maybeEnd() {
@@ -3905,7 +3931,7 @@ function step(dt) {
     const d = dist(z, S.hero) || 0.001;
     const frozen = z.frozen > 0 || (z.stun || 0) > 0;
     if (z.flinchT > 0) z.flinchT = Math.max(0, z.flinchT - dt);
-    const bossHandled = z.isBoss ? stepBoss(z, dt) : (qa.noMove ? false : stepEnemySpecial(z, dt, d, frozen));
+    const bossHandled = z.isBoss ? stepBoss(z, dt) : (qa.noMove ? false : stepEnemySpecial(z, dt, d, frozen, zsp));
     if (!qa.noMove && !frozen && !bossHandled && !(z.flinchT > 0 && !z.isBoss)) {
       const kd = CFG.zombieTypes[z.type] || CFG.zombieTypes.imp;
       /* The boss speeds up the farther it is outside the ring, so a dashing hero cannot outrun it. */
@@ -3925,7 +3951,7 @@ function step(dt) {
       const fk = 1 + 1.6 * (z.flinchT / (CFG.flinchDur || 0.14));
       z.obj.userData.sprite.material.color.setRGB(fk, fk, fk * 0.95);
     }
-    if (art.setTelegraph && !z.isBoss) art.setTelegraph(z.obj, !frozen && d < (CFG.telegraphRange || 3.2));
+    if (art.setTelegraph && !z.isBoss) art.setTelegraph(z.obj, !frozen && (d < (CFG.telegraphRange || 3.2) || z.windT > 0 || z.dashPhase > 0));
     if (d < z.r + 0.55) {
       /* 빙결·경직된 귀물은 몸이 굳은 사이 닿아도 해치지 못한다(얼음·충격이 실제로 방어가 된다). */
       if ((S.iframe || 0) <= 0 && !S.dash && !frozen) {
@@ -4316,7 +4342,7 @@ function refreshShop() {
   }
   label($('buyAtk'), '공격력', save.atkLv, '일섬 피해 +' + Math.round(atkBonus() * 100) + '%');
   label($('buyHp'), '영웅 체력', save.hpLv, '최대 체력 ' + (CFG.hpBase + save.hpLv * CFG.hpStep));
-  label($('buyCoin'), '코인 획득', save.coinLv, '획득량 ×' + (1 + save.coinLv * CFG.coinStep).toFixed(2));
+  label($('buyCoin'), '엽전 획득', save.coinLv, '획득량 ×' + (1 + save.coinLv * CFG.coinStep).toFixed(2));
 }
 function buy(stat) {
   const lv = stat === 'atk' ? save.atkLv : stat === 'hp' ? save.hpLv : save.coinLv;
@@ -4721,7 +4747,8 @@ async function boot() {
   refreshTitleHelp();
   const idled = checkIdle();
   if (!idled) showOv('ov-title');
-  persist();
+  /* An unclaimed idle reward keeps the old lastSeen, so a refresh does not lose it. */
+  persist(!idled);
   if (!raf) loop(now());
   window.GPv2.ready = true;
   window.GPv2.assetsUsed = art.used;
@@ -4737,6 +4764,7 @@ const GPv2 = {
   resetSave: function () {
     save.coins = 0; save.atkLv = 0; save.hpLv = 0; save.coinLv = 0;
     save.cleared = 0; save.lastSeen = Date.now(); save.best = 0; save.runs = 0;
+    save.stage = 1; save.stars = {}; save.bestScore = 0;
     try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
     persist(); renderHud(); refreshTitleHelp();
   },

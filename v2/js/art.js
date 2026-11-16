@@ -427,6 +427,8 @@ export async function buildArt(THREE) {
     rim.position.z = -0.03;
     group.add(rim);
     group.userData.rim = rim;
+    group.userData.rimHex = hex || 0x3ec8c0;
+    group.userData.rimOp = mat.opacity;
   }
   function addTelegraph(group, worldH) {
     const glow = tex('fx/spirit-glow.png') || tex('fx/torch-glow.png');
@@ -450,8 +452,10 @@ export async function buildArt(THREE) {
     }
     const rim = group.userData.rim;
     if (rim && rim.material && rim.material.color) {
-      rim.material.color.setHex(on ? 0xc8281e : 0x3ec8c0);
-      rim.material.opacity = on ? 0.7 : 0.42;
+      /* Warning red only while close; otherwise the kind's own rim colour (elite gold, variant tints). */
+      const ud = group.userData;
+      rim.material.color.setHex(on ? 0xc8281e : (ud.rimHex != null ? ud.rimHex : 0x3ec8c0));
+      rim.material.opacity = on ? 0.7 : (ud.rimOp != null ? ud.rimOp : 0.42);
     }
     group.userData.teleOn = !!on;
   }
@@ -643,6 +647,7 @@ export async function buildArt(THREE) {
       if (shape === 'elite' && group.userData.rim && group.userData.rim.material) {
         group.userData.rim.material.color.setHex(0xE8C04A);
         group.userData.rim.material.opacity = 0.6;
+        group.userData.rimHex = 0xE8C04A; group.userData.rimOp = 0.6;
       }
       addTelegraph(group, H);
     } else if (kind === 'spirit' || kind === 'boss') {
