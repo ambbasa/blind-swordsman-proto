@@ -461,19 +461,23 @@ function runLimit() { return (S && S.stage && S.stage.time) || CFG.timeLimit; }
      A = time − bossAt (가용), C = walk(2.6) + 패턴 평균 길이 P + 경직(1.2)
      N = ceil(무늬 수 / 2),  Need = N×C + 봉인 2초,  Slack = A / Need  → 목표 1.4~1.8
    패턴 길이는 문서의 P(추정) 대신 실제 패턴 지속 시간을 넣는다(예고는 모드 배율로 늘/줍힌다). */
+/* 실측한 패턴 지속 시간(초). `GPv2.cycleProbe`가 보스 상태기계를 1/30초로 돌려 잰 값
+   (걷기 2.6 · 경직 1.2 고정). 결계 수축은 기둥을 부수지 않으면 걷기로 풀리는 2.6초로 끝난다. */
 const PAT_COST = {
-  charge: [1.0, 0.45], kiai: [2.2, 0.08], slam: [1.0, 0.2], clones: [8, 0], veil: [5, 0],
-  volley: [0.8, 0], chant: [4.5, 0], shrink: [10, 0], seal: [4, 0]
+  charge: [1.0, 0.03], kiai: [2.3, 0], slam: [1.03, 0], clones: [8.03, 0], veil: [5.03, 0],
+  volley: [0.83, 0], chant: [4.53, 0], shrink: [2.6, 0], seal: [2.0, 0]
 };
 function bossPatternMean(st, tele, shapeAdj) {
   const B = (st && st.boss) || {};
   const list = (B.patterns || []).concat(B.phase2 || []);
   if (!list.length) return 2.5;
   const tm = (tele == null ? 1 : tele);
+  /* 예고 배율은 예고로 시작하는 패턴에만 적용된다(분신·은신·결계는 고정 길이). */
+  const SCALED = { charge: 1, kiai: 1, slam: 1, volley: 1, chant: 1 };
   const sum = list.reduce(function (a, id) {
     const c = PAT_COST[id] || [2.5, 0];
     const t = id === 'charge' ? (B.telegraph != null ? B.telegraph : 1.1) : c[0];
-    return a + t * tm + c[1];
+    return a + (SCALED[id] ? t * tm : t) + c[1];
   }, 0);
   return sum / list.length;
 }
