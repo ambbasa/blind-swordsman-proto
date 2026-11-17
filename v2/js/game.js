@@ -1,4 +1,5 @@
 /* 심안(SIMAN) v2 — 2.5D quarter-view, Three.js, camera-follow dashes.
+   v0.28: 혼령의 창 — 먹안개가 혼령을 삼키지 않게, 링 경계·그 너머·짙은 안개에서도 혼령 몸과 기호가 그대로 읽힌다
    v0.27: 화면별 시야 통일(짧은 축 고정 스케일) · HUD 3줄 개편(넘침·줄바꿈 제거·소리·일시정지) ·
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
@@ -159,7 +160,11 @@ const CFG = {
   bellDur: 8, slowDur: 0.45, slowScale: 0.35,
   sightWaveDur: 0.45,
   /* Fog outside the mind's-eye ring: clear inside fogInner x ring, fully fogged at fogOuter x ring. */
-  fogColor: [7, 6, 8], fogAlpha: 0.84, fogInner: 0.86, fogOuter: 1.16, fogWisps: 28, fogWispAlpha: 0.05
+  fogColor: [7, 6, 8], fogAlpha: 0.84, fogInner: 0.86, fogOuter: 1.16, fogWisps: 28, fogWispAlpha: 0.05,
+  /* 혼령의 창: 혼령은 먹안개를 뚫고 보인다. 링 경계·그 너머·짙은 안개에서도 혼령 몸과 기호가 읽히도록
+     혼령 자리에 부드러운 창을 뚫는다(중심 지움 정도 / 구슬·몸 높이 대비 반지름 / 최소·최대 px). */
+  spiritLightClear: 0.84, spiritLightOrb: 2.4, spiritLightBody: 0.72, spiritLightPx: 26,
+  spiritLightBoss: 1.45, spiritLightMax: 120
 };
 const RUN_UPGRADES = [
   { id: 'dmg', name: '돌진 데미지', desc: '일섬이 더 큰 상처를 남깁니다.', maxLv: 99 },
@@ -2202,7 +2207,7 @@ function updateMarks() {
     const on = !(ox < -20 || oy < -20 || ox > r.width + 20 || oy > r.height + 20);
     const item = {
       x: orb.x, y: orb.y, ox: ox, oy: oy, cssPx: glyphPx, orbR: orb.r, onScreen: on,
-      shape: spiritShape(s), boss: !!s.isBoss, id: s.id, aim: s.id === aimId,
+      shape: spiritShape(s), boss: !!(s.isBoss || (s.target && s.target.isBoss)), id: s.id, aim: s.id === aimId,
       seq: s === bossSpirit ? (S.boss.seq || []).slice() : null, seqI: s === bossSpirit ? (S.boss.seqI || 0) : 0,
       bellPx: bellPx, bodyPx: bodyPx
     };
@@ -5486,6 +5491,44 @@ function drawRingFog(fog, w, h) {
     fog.fillRect(-len, -len, len * 2, len * 2);
     fog.restore();
   }
+  /* Mist banks are painted after the clear ellipse, so the spirit windows go on top of them too. */
+  punchSpiritLights(fog, w, h);
+}
+/* 혼령 창의 반지름(px): 구슬 지름과 몸 높이에서 뽑아, 혼령 몸+기호가 통째로 들어가는 크기. */
+function spiritLightR(m) {
+  const orbR = (m && m.orbR) || 9;
+  const bodyPx = (m && m.bodyPx) || 36;
+  let r = Math.max(CFG.spiritLightPx || 26, orbR * (CFG.spiritLightOrb || 2.4), bodyPx * (CFG.spiritLightBody || 0.72));
+  if (m && m.boss) r *= CFG.spiritLightBoss || 1.45;
+  return Math.min(CFG.spiritLightMax || 120, r);
+}
+/* 살아 있는 혼령 자리의 먹안개를 지워, 어두운 영역이 혼령을 삼키지 않게 한다.
+   혼령은 주인공이 기호를 읽어야 하는 표적이므로, 안개 밖으로 나가도 그 몸과 기호는 보여야 한다. */
+function punchSpiritLights(fog, w, h) {
+  const marks = (lastMarkMetrics && lastMarkMetrics.marks) || [];
+  if (!marks.length) return;
+  const clear = CFG.spiritLightClear != null ? CFG.spiritLightClear : 0.84;
+  const lights = [];
+  for (let i = 0; i < marks.length; i++) {
+    const m = marks[i];
+    if (!m || m.onScreen === false) continue;
+    if (!(m.x > -60 && m.x < w + 60 && m.y > -60 && m.y < h + 60)) continue;
+    /* 구슬 중심은 머리 위라, 창은 몸 쪽으로 조금 내려 잡아 어깨·머리까지 밝힌다. */
+    lights.push({ x: m.x, y: m.y + ((m.bodyPx || 36) * 0.18), r: spiritLightR(m) });
+  }
+  if (!lights.length) return;
+  fog.save();
+  fog.globalCompositeOperation = 'destination-out';
+  for (let i = 0; i < lights.length; i++) {
+    const L = lights[i];
+    const g = fog.createRadialGradient(L.x, L.y, 0, L.x, L.y, L.r);
+    g.addColorStop(0, 'rgba(0,0,0,' + clear.toFixed(3) + ')');
+    g.addColorStop(0.58, 'rgba(0,0,0,' + (clear * 0.9).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    fog.fillStyle = g;
+    fog.beginPath(); fog.arc(L.x, L.y, L.r, 0, Math.PI * 2); fog.fill();
+  }
+  fog.restore();
 }
 function drawSightFog() {
   const c = $('sightFog');
