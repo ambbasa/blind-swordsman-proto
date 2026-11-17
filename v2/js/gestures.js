@@ -311,6 +311,87 @@
     return sc;
   }
 
+  /* v0.26 기물 전용 제스처(보스전에서만 인식): 삼각 △, 반달 ◡, 소용돌이 @.
+     기존 무늬(선·V·O·ㅁ·⚡)와 겹치지 않는 모양만 골랐다. */
+  function cornerAngles(simple) {
+    var n = simple.length, out = [], i, p0, p1, p2, a1, a2, ang;
+    for (i = 0; i < n; i++) {
+      p0 = simple[(i - 1 + n) % n]; p1 = simple[i]; p2 = simple[(i + 1) % n];
+      a1 = Math.atan2(p0.y - p1.y, p0.x - p1.x);
+      a2 = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+      ang = Math.abs(a2 - a1);
+      if (ang > Math.PI) ang = 2 * Math.PI - ang;
+      out.push(ang * 180 / Math.PI);
+    }
+    return out;
+  }
+  function smoothPts(pts, k) {
+    var out = [], i, j, n = pts.length;
+    for (i = 0; i < n; i++) {
+      var x = 0, y = 0, c = 0;
+      for (j = Math.max(0, i - k); j <= Math.min(n - 1, i + k); j++) { x += pts[j].x; y += pts[j].y; c++; }
+      out.push({ x: x / c, y: y / c });
+    }
+    out[0] = { x: pts[0].x, y: pts[0].y }; out[n - 1] = { x: pts[n - 1].x, y: pts[n - 1].y };
+    return out;
+  }
+  function scoreTri(pts, bb, L) {
+    if (Math.min(bb.w, bb.h) < 28) return 0;
+    var closure = dist(pts[0], pts[pts.length - 1]) / Math.max(bb.diag, 1);
+    var simple = simplify(pts, Math.max(6, bb.diag * 0.1));
+    if (simple.length >= 2 && dist(simple[0], simple[simple.length - 1]) < bb.diag * 0.2) simple = simple.slice(0, simple.length - 1);
+    if (simple.length !== 3) return 0;
+    var angs = cornerAngles(simple), i, sc = 1;
+    for (i = 0; i < 3; i++) sc *= clamp01((angs[i] - 20) / 15) * clamp01((125 - angs[i]) / 20);
+    var loops = Math.abs(totalTurn(pts)) / (2 * Math.PI);
+    sc *= clamp01((0.34 - closure) / 0.2);
+    /* An open path counts only two of the three corners (~0.67 turns), so the floor sits at half a turn. */
+    sc *= clamp01((loops - 0.5) / 0.1) * clamp01((1.4 - loops) / 0.3);
+    return sc;
+  }
+  /* Largest turn over any 3 resampled steps: a V spends it at one corner, an arc spreads it out. */
+  function maxTurnWindow(pts, w) {
+    var i, j, m = 0, angs = [];
+    for (i = 1; i < pts.length; i++) angs.push(Math.atan2(pts[i].y - pts[i - 1].y, pts[i].x - pts[i - 1].x));
+    for (i = 0; i + w < angs.length; i++) {
+      var t = 0;
+      for (j = i + 1; j <= i + w; j++) {
+        var d = angs[j] - angs[j - 1];
+        while (d > Math.PI) d -= 2 * Math.PI;
+        while (d < -Math.PI) d += 2 * Math.PI;
+        t += d;
+      }
+      if (Math.abs(t) > m) m = Math.abs(t);
+    }
+    return m;
+  }
+  function scoreArc(pts, bb, L) {
+    if (Math.max(bb.w, bb.h) < 40) return 0;
+    var chord = dist(pts[0], pts[pts.length - 1]) / L;
+    var loops = Math.abs(totalTurn(pts)) / (2 * Math.PI);
+    var sharp = maxTurnWindow(pts, 3);
+    var sc = 1;
+    sc *= clamp01((chord - 0.4) / 0.12) * clamp01((0.84 - chord) / 0.1);
+    sc *= clamp01((loops - 0.3) / 0.1) * clamp01((0.72 - loops) / 0.1);
+    sc *= clamp01((1.0 - sharp) / 0.35);
+    return sc;
+  }
+  function scoreSpiral(pts, bb, L) {
+    if (Math.min(bb.w, bb.h) < 36) return 0;
+    var loops = Math.abs(totalTurn(pts)) / (2 * Math.PI);
+    if (loops < 1.35) return 0;
+    var c = centroid(pts), n = pts.length, i, mi = (n - 1) / 2, mr = 0, rs = [];
+    for (i = 0; i < n; i++) { rs.push(dist(pts[i], c)); mr += rs[i]; }
+    mr /= n;
+    var sxy = 0, sxx = 0, syy = 0;
+    for (i = 0; i < n; i++) { sxy += (i - mi) * (rs[i] - mr); sxx += (i - mi) * (i - mi); syy += (rs[i] - mr) * (rs[i] - mr); }
+    var corr = Math.abs(sxy / Math.sqrt(Math.max(1e-9, sxx * syy)));
+    var sc = 1;
+    sc *= clamp01((loops - 1.35) / 0.3) * clamp01((4.5 - loops) / 1.0);
+    sc *= clamp01((corr - 0.55) / 0.25);
+    return sc;
+  }
+
   function densify(pts, step) {
     step = step || 10;
     if (!pts || pts.length < 2) return (pts || []).slice();
@@ -336,7 +417,8 @@
     return len <= 22 && Math.max(box.w, box.h) <= 16;
   }
 
-  var LABELS = { vline: 'ㅣ', hline: '—', vee: 'V', circle: 'O', bolt: '⚡', tap: '탭', square: 'ㅁ' };
+  var LABELS = { vline: 'ㅣ', hline: '—', vee: 'V', circle: 'O', bolt: '⚡', tap: '탭', square: 'ㅁ', tri: '△', arc: '◡', spiral: '@' };
+  var TOTEM = ['tri', 'arc', 'spiral'];
   var COMBAT = ['vline', 'hline', 'vee', 'circle', 'square', 'tap'];
 
   function recognize(raw, opts) {
@@ -374,6 +456,18 @@
       bolt: scoreBoltAny(rs, bb, pathLen(rs)),
       axisLine: axis ? axis.score : 0
     };
+    /* 기물 제스처는 opts.totem일 때(보스전에 기물이 서 있을 때)만 겨룬다. 평소 인식은 그대로다. */
+    if (opts.totem) {
+      /* 손 떨림이 꺾임·회전량을 부풀리지 않게 한 번 고른 뒤 잰다. */
+      var sm = smoothPts(rs, 2), sbb = bbox(sm), sL = pathLen(sm);
+      var tScores = { tri: scoreTri(rs, bb, pathLen(rs)), arc: scoreArc(sm, sbb, sL), spiral: scoreSpiral(sm, sbb, sL) };
+      var tk = null, ts = 0;
+      TOTEM.forEach(function (k) { scores[k] = tScores[k]; if (tScores[k] > ts) { ts = tScores[k]; tk = k; } });
+      var rival = Math.max(scores.vee || 0, scores.circle || 0, scores.square || 0, (opts.allowBolt ? scores.bolt || 0 : 0), axis ? axis.score : 0);
+      if (tk && ts >= 0.45 && ts + 0.05 >= rival) {
+        return { type: tk, reason: null, scores: scores, label: LABELS[tk], best: tk, bestScore: ts };
+      }
+    }
     var allowBolt = !!opts.allowBolt;
     var keys = ['vline', 'hline', 'vee', 'circle', 'square'];
     if (allowBolt) keys = keys.concat(['bolt']);
@@ -405,14 +499,17 @@
     return { type: best, reason: null, scores: scores, label: LABELS[best], best: best, bestScore: bestS };
   }
 
-  var NAMES = { vline: '세로선', hline: '가로선', vee: 'V자', circle: '동그라미', square: '네모', tap: '탭', bolt: '번개' };
+  var NAMES = { vline: '세로선', hline: '가로선', vee: 'V자', circle: '동그라미', square: '네모', tap: '탭', bolt: '번개', tri: '삼각', arc: '반달', spiral: '소용돌이' };
   var TIPS = {
     hline: '가로로 길게 그어 보세요.',
     vline: '세로로 길게 그어 보세요.',
     vee: 'V는 꼭짓점을 더 깊게 그려 보세요.',
     square: '네모는 네 변을 닫아 보세요.',
     circle: '동그라미는 더 둥글게 닫아 보세요.',
-    tap: '점을 찍거나 짧게 눌러 보세요.'
+    tap: '점을 찍거나 짧게 눌러 보세요.',
+    tri: '세모는 세 꼭짓점을 또렷하게 닫아 보세요.',
+    arc: '반달은 꺾지 말고 둥글게 반만 그려 보세요.',
+    spiral: '소용돌이는 두 바퀴쯤 감으며 넓혀 보세요.'
   };
   function readMessage(rec) {
     if (!rec) return '';
@@ -441,7 +538,8 @@
     simplify: simplify,
     LABELS: LABELS,
     NAMES: NAMES,
-    COMBAT: COMBAT
+    COMBAT: COMBAT,
+    TOTEM: TOTEM
   };
   root.GPGestures = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;

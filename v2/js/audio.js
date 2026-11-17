@@ -246,6 +246,23 @@ export function createAudio() {
     bell();
   }
 
+  /* v0.26 보스 패턴: 징(금빛 예고·패링 창이 열리는 순간)과 기모으기의 차오르는 소리. */
+  function gong() {
+    if (quiet) return;
+    const c = resume(); if (!c) return;
+    const t0 = c.currentTime;
+    tone(t0, 196, 1.3, 0.24, 'sine', sfxGain, 186);
+    tone(t0, 398, 0.9, 0.08, 'triangle', sfxGain, 390);
+    noise(t0, 0.05, 'bandpass', 900, 1.5, 0.12);
+  }
+  function charge(dur) {
+    if (quiet) return;
+    const c = resume(); if (!c) return;
+    const t0 = c.currentTime;
+    tone(t0, 90, dur, 0.1, 'sawtooth', sfxGain, 360);
+    tone(t0, 180, dur, 0.05, 'sine', sfxGain, 720);
+  }
+
   function buk(t0, heavy) {
     if (!bgmGain) return;
     tone(t0, heavy ? 72 : 96, heavy ? 0.18 : 0.1, heavy ? 0.28 : 0.12, 'sine', bgmGain, heavy ? 38 : 60);
@@ -341,6 +358,8 @@ export function createAudio() {
     explode: explode,
     parry: parry,
     drum: drum,
+    gong: gong,
+    charge: charge,
     setLastPans: setLastPans,
     lastPans: function () { return lastPans.slice(); },
     startBgm: startBgm,
