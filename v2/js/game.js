@@ -16,6 +16,7 @@ import { createCinematicPass } from './inkcinematic.js';
 import { createSlashArc } from './inkslash3d.js';
 import { StageAtmosphere } from './inkatmos.js';
 import { createChunkWorld, buildChunkData, chunkOf } from './inkchunks.js';
+import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariants } from './prewarm.js';
 import { InkFx, FX_COLORS } from './inkfx.js';
 import { createTelemetry } from './telemetry.js';
 const inkFx = new InkFx();
@@ -803,6 +804,8 @@ function startRun(opts) {
   const st = stageOf(stageNo);
   hideOvs();
   clearEntities();
+  /* 소개 카드를 거치지 않고 바로 시작하는 경로(QA·"다시" 버튼)도 예열은 반드시 거친다. */
+  if (!shadersWarmed()) warmShaders();
   S = {
     playing: true, paused: null, won: false, lost: false, sandbox: !!opts.sandbox,
     stage: st, stageNo: opts.sandbox ? 0 : stageNo,
@@ -1080,14 +1083,9 @@ function isOnScreen(ent, margin) {
   const m = margin == null ? 20 : margin;
   return !(p.x < -m || p.y < -m || p.x > r.width + m || p.y > r.height + m);
 }
-/* 프레임당 한 번만 레이아웃을 읽는다(isOnScreen가 수십 번 불려도 리플로를 반복하지 않게). */
+/* 프레임당 한 번만 레이아웃을 읽는다 — 이제 viewBox 캐시를 그대로 쓴다(창 크기가 바뀔 때만 잰다). */
 let _frameId = 0, _rectCache = { id: -1, r: null };
-function hostRect() {
-  if (_rectCache.id === _frameId) return _rectCache.r;
-  const host = $('app') || $('ink');
-  _rectCache = { id: _frameId, r: host ? host.getBoundingClientRect() : { width: 375, height: 667 } };
-  return _rectCache.r;
-}
+function hostRect() { return viewBox(); }
 function livingThreats() {
   if (!S) return [];
   return (S.zombies || []).filter(function (z) { return z.alive && !z.hidden; });
@@ -1143,8 +1141,7 @@ function seedOpeningSpirits() {
 function releaseSpirit(s) {
   if (!s || s.kind !== 'spirit' || !s.alive) return;
   if (audio && !qa.mute) {
-    const host = $('app') || $('ink');
-    const w = host ? host.getBoundingClientRect().width : 375;
+    const w = viewBox().width;
     const scr = screenOf(s);
     const pan = clamp((scr.x / Math.max(1, w)) * 2 - 1, -1, 1);
     if (audio.bellCut) audio.bellCut(pan, spiritShape(s));
@@ -1448,14 +1445,23 @@ function openArena(cx, cz) {
   S.arena = { x: cx || 0, z: cz || 0, r: r, t: 0 };
   if (!three) return S.arena;
   const a = makeArenaGroup(r);
+  a.group.scale.set(1, 1, 1);
+  a.t = 0;
   a.group.position.set(S.arena.x, 0, S.arena.z);
-  three.scene.add(a.group);
+  a.group.visible = true;
+  /* 예열 때 만든 결계를 그대로 장면에 둔다(보스 순간에 처음 붙이지 않는다). */
+  if (a.group.parent !== three.scene) three.scene.add(a.group);
   three.arena = a;
   applyCameraLens();
   return S.arena;
 }
+/* 결계는 판마다 같은 모양이라 한 번만 만들어 재사용한다.
+   매번 새로 만들면 재질이 새로 생기고(→ 프로그램 재링크) 지오메트리도 다시 올라간다. */
+let _arenaCache = null;
 /** The barrier's ring, inner ring and wall, as one group (also used to pre-compile its shaders). */
 function makeArenaGroup(r) {
+  if (_arenaCache && _arenaCache.r === r) return _arenaCache.a;
+  if (_arenaCache) { _arenaCache.a.group.traverse(function (o) { if (o.geometry) o.geometry.dispose(); }); }
   const group = new THREE.Group();
   group.name = 'boss-arena';
   const ringGeo = new THREE.RingGeometry(r - 0.42, r, 128, 1);
@@ -1488,39 +1494,116 @@ function makeArenaGroup(r) {
   wall.position.y = 1.4;
   wall.renderOrder = 4;
   group.add(wall);
-  return { group: group, ring: ring, inner: inner, wall: wall, ringMat: ringMat, innerMat: innerMat, wallMat: wallMat, t: 0 };
+  const out = { group: group, ring: ring, inner: inner, wall: wall, ringMat: ringMat, innerMat: innerMat, wallMat: wallMat, t: 0, r: r };
+  _arenaCache = { r: r, a: out };
+  return out;
 }
-/* 판 시작 전 셰이더 예열: 무대 전체와, 보스전에 처음 나오는 재질(결계·장판·부적·보스)을 미리 컴파일한다.
-   안 그러면 첫 프레임과 보스 등장 순간에 컴파일이 몰려 화면이 멈춘다. */
+/* ---------- 판 시작 전 예열(pre-warm) ----------
+   "가끔 갑자기 멈춤"은 게임 로직이 아니라 **처음 쓰는 재질의 셰이더 링크**와 **캔버스 텍스처의 첫 업로드**
+   때문이다(v0.29 실측: 보스 소환 프레임 309.7ms에 프로그램 32→46). 그래서 소개 카드가 떠 있는 동안
+   이 판에 등장할 수 있는 모든 재질 변형을 한 번 실제로 컴파일하고, 그 재질을 붙들고 있어서
+   three가 프로그램을 해제하지 못하게 한다 → 런 중 renderer.info.programs 가 늘지 않는다. */
+function prewarmRecipes() {
+  const R = [];
+  const add = function (label, make) { R.push({ label: label, make: make }); };
+  /* 영웅·잔상·원귀 종류별 그림 + 상태이상 시트(얼음/불/독) */
+  add('hero', function () { return art.makeChar('hero'); });
+  add('afterimage', function () { return art.makeChar('afterimage'); });
+  Object.keys(CFG.zombieTypes || {}).forEach(function (t) {
+    add('zombie:' + t, function () { return art.makeChar('zombie', t); });
+  });
+  add('zombie:status', function () {
+    const g = art.makeChar('zombie', 'imp');
+    ['frozen', 'burning', 'poisoned'].forEach(function (st) { art.tickChar(g, 'zombie', st, 0.016, 0, 1); });
+    return g;
+  });
+  /* 혼령: 기호 8종의 먹획을 시트에 굽는 비용이 크다 → 여기서 전부 굽고 올린다.
+     qa.warmCore 는 계측용으로 한 종만 굽는다(굽기 비용 제외, 재질은 동일). */
+  const warmShapes = qa.warmCore ? ['hline'] : Object.keys(SHAPE_MARK);
+  warmShapes.forEach(function (sh) {
+    add('spirit:' + sh, function () {
+      const g = art.makeChar('spirit', sh);      // 기호를 시트에 굽는다(비싼 캔버스 작업)
+      const spr = g && g.userData && g.userData.sprite;
+      /* 굽기 결과는 캐시에 남고, 큰 텍스처(512×5120)는 GPU에 올리지 않는다 — 기호 8종을 모두 올리면
+         80MB가 넘는다. 실제 혼령이 처음 나올 때 한 번만 올라간다(10ms 안팎). */
+      if (spr && spr.material && art.glowTex) { spr.material.map = art.glowTex; spr.material.needsUpdate = true; }
+      return g;
+    });
+  });
+  add('boss', function () { return art.makeChar('boss', 'hline'); });
+  /* 아이템 12종 */
+  ['xp', 'heal', 'coin', 'elem-ice', 'elem-fire', 'elem-poison', 'one-bell', 'dash-plus', 'herb', 'magnet', 'bang', 'charm']
+    .forEach(function (k) { add('item:' + k, function () { return art.makeChar(k); }); });
+  /* 3D 이펙트 시트(터짐·얼음 파편·독 폭발) */
+  ['ink-splat', 'ice-shatter', 'poison-burst', 'fire-trail'].forEach(function (name) {
+    add('fx:' + name, function () {
+      const f = art.playFx(three.scene, name, 0, 0, 1.7);
+      if (!f) return null;
+      three.scene.remove(f.mesh);
+      return f.mesh;
+    });
+  });
+  /* 보스전: 결계(실제로 쓰는 그 그룹) · 부적 기둥 · 기물 · 탄막 · 되받기 · 장판 */
+  add('arena', function () { return makeArenaGroup(CFG.arenaR || 12).group; });
+  add('pillar', function () { return makePillarObj(); });
+  add('totem', function () { return makeTotemObj(); });
+  add('shot', function () { return new THREE.Mesh(shotGeo(), shotMaterial()); });
+  add('shot:gold', function () { return new THREE.Mesh(shotGeo(), goldShotMaterial()); });
+  add('reflect', function () { return makeReflectMesh(); });
+  add('hazard', function () {
+    const m = new THREE.Mesh(hazardGeo(), new THREE.MeshBasicMaterial({
+      color: 0xff5a3c, transparent: true, opacity: 0.34, depthWrite: false, blending: THREE.AdditiveBlending
+    }));
+    m.rotation.x = -Math.PI / 2;
+    return m;
+  });
+  /* 일섬 검기: 바닥 먹 궤적 · 솟는 리본 아크 · 화염 잔불 */
+  ['jade', 'fire', 'ice', 'poison', 'lightning'].forEach(function (el) {
+    add('slash:' + el, function () {
+      const s = createInkSlash({ from: { x: 0, z: 0 }, to: { x: 0, z: 1 }, elem: el });
+      return s.mesh;
+    });
+  });
+  add('slash-arc', function () {
+    const s = createSlashArc({ from: { x: 0, z: 0 }, to: { x: 0, z: 1 }, elem: 'fire' });
+    return s.mesh;
+  });
+  add('trail', function () { return new THREE.Mesh(new THREE.PlaneGeometry(1, 1), trailMaterial()); });
+  /* 기본 재질 변형(fog·투명·면·맵·alphaTest) 총망라 — 생성부를 못 따라간 변형까지 덮는다. */
+  materialVariants(THREE, art.glowTex || art.trailTex || null).forEach(function (r) { R.push(r); });
+  return R;
+}
+let _warmP = null;
 function warmShaders() {
-  if (!three || !three.renderer || !three.renderer.compileAsync) return Promise.resolve();
-  const g = new THREE.Group(), own = new THREE.Group();
-  g.position.set(0, -500, 0);
-  g.add(own);
-  own.add(makeArenaGroup(12).group);
-  const haz = new THREE.Mesh(new THREE.CircleGeometry(1, 8), new THREE.MeshBasicMaterial({ color: 0xff5a3c, transparent: true, opacity: 0.34, depthWrite: false, blending: THREE.AdditiveBlending }));
-  own.add(haz);
-  const shot = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), new THREE.MeshBasicMaterial({ color: 0xc9a6ff, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
-  own.add(shot);
-  own.add(makePillarObj());
-  own.add(makeTotemObj());
-  /* 보스 그림은 공유 재질을 쓰므로 붙였다 떼기만 한다(버리지 않는다). */
-  try { g.add(addEntityVisual('boss', 'hline')); } catch (e) {}
-  three.scene.add(g);
-  const done = function () {
-    three.scene.remove(g);
-    own.traverse(function (o) { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
-  };
-  return three.renderer.compileAsync(three.scene, three.camera).then(done, done);
+  if (!three || !three.renderer) return Promise.resolve();
+  if (_warmP) return _warmP;
+  _warmP = warmScene({
+    THREE: THREE, renderer: three.renderer, scene: three.scene, camera: three.camera,
+    recipes: prewarmRecipes(),
+    textures: [art.trailTex, art.torchGlow, art.glowTex, art.shadowTex,
+      art.images && art.images.inkStroke, art.images && art.images.inkLit, art.images && art.images.inkDab]
+  }).then(function (r) {
+    three.warm = r;
+    /* 결계는 판이 시작될 때부터 장면에 두고 숨겨 둔다(보스 순간에 처음 세우지 않게). */
+    try {
+      const a = makeArenaGroup(CFG.arenaR || 12);
+      a.group.visible = false;
+      if (a.group.parent !== three.scene) three.scene.add(a.group);
+    } catch (e) {}
+    if (window.console && console.info) console.info('[심안] 셰이더 예열 ' + r.ms + 'ms · 레시피 ' + r.recipes + ' · 텍스처 ' + r.textures + ' · 프로그램 ' + r.programs);
+    return r;
+  }, function () { return null; });
+  return _warmP;
 }
 function closeArena(instant) {
   if (three && three.arena) {
     const a = three.arena;
-    three.scene.remove(a.group);
-    a.group.traverse(function (o) {
-      if (o.geometry) o.geometry.dispose();
-      if (o.material) o.material.dispose();
-    });
+    /* 결계는 장면에 둔 채로 숨기기만 한다 — 지웠다 다시 만들면 재질·프로그램이 다시 올라간다. */
+    a.group.visible = false;
+    a.group.scale.set(1, 1, 1);
+    a.t = 0;
+    a.ring.scale.set(1, 1, 1);
+    a.inner.scale.set(1, 1, 1);
     three.arena = null;
   }
   if (S) S.arena = null;
@@ -1844,16 +1927,30 @@ function segDist(px, pz, ax, az, bx, bz) {
 
 function projectXZ(x, z, y) {
   if (!three || !three.camera) return { x: 0, y: 0 };
-  const host = $('app') || $('ink');
-  const r = host.getBoundingClientRect();
+  const box = viewBox();
   if (!_proj.v) _proj.v = new THREE.Vector3();
   _proj.v.set(x, y == null ? 0.4 : y, z).project(three.camera);
-  return { x: (_proj.v.x * 0.5 + 0.5) * r.width, y: (-_proj.v.y * 0.5 + 0.5) * r.height };
+  return { x: (_proj.v.x * 0.5 + 0.5) * box.width, y: (-_proj.v.y * 0.5 + 0.5) * box.height };
 }
+/* 화면 상자(#app)는 뷰포트를 꽉 채우므로, 창 크기가 그대로면 다시 재지 않는다.
+   예전에는 projectXZ 가 호출될 때마다 getBoundingClientRect 를 불러 한 프레임에 150~250번
+   레이아웃을 강제했다(모바일에서 프레임 비용의 큰 몫). */
+const _vb = { width: 375, height: 667, left: 0, top: 0 };
+let _vbKey = '';
+let _heroCssX = '', _heroCssY = '';
+let _atmoMask = '';
 function viewBox() {
-  const host = $('app') || $('ink');
-  return host ? host.getBoundingClientRect() : { width: 375, height: 667, left: 0, top: 0 };
+  const key = (window.innerWidth || 0) + 'x' + (window.innerHeight || 0) + 'x' + (window.devicePixelRatio || 1);
+  if (key !== _vbKey) {
+    const host = $('app') || $('ink');
+    if (!host) return _vb;
+    const r = host.getBoundingClientRect();
+    _vb.width = r.width; _vb.height = r.height; _vb.left = r.left; _vb.top = r.top;
+    _vbKey = key;
+  }
+  return _vb;
 }
+function invalidateViewBox() { _vbKey = ''; }
 function heroScreen() {
   const y = (three && three.heroSpr && three.heroSpr.userData && three.heroSpr.userData.worldH)
     ? three.heroSpr.userData.worldH * 0.45 : 0.85;
@@ -2101,12 +2198,39 @@ function markCssSize(w) {
   return clamp(Math.round(min * Math.sqrt((w || 375) / 375)), min, max);
 }
 
+/* 2D 오버레이의 방사형 그라디언트를 한 번만 구워 스프라이트로 재사용한다.
+   예전에는 영혼 흐름·안개 물결·혼령 창이 프레임마다 createRadialGradient를 30~110번 새로 만들었다
+   (매번 새 객체 → GC 압박 + 래스터라이즈 비용). 이제 drawImage 한 번으로 끝난다. */
+const _glowSprites = {};
+function glowSprite(key, stops, size) {
+  if (_glowSprites[key]) return _glowSprites[key];
+  const n = size || 64;
+  const c = document.createElement('canvas');
+  c.width = n; c.height = n;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
+  stops.forEach(function (s) { grd.addColorStop(s[0], s[1]); });
+  g.fillStyle = grd;
+  g.fillRect(0, 0, n, n);
+  _glowSprites[key] = c;
+  return c;
+}
+function drawGlow(ctx, img, x, y, rx, ry, alpha) {
+  if (!(alpha > 0) || !(rx > 0) || !(ry > 0)) return;
+  const a = ctx.globalAlpha;
+  ctx.globalAlpha = a * Math.min(1, alpha);
+  ctx.drawImage(img, x - rx, y - ry, rx * 2, ry * 2);
+  ctx.globalAlpha = a;
+}
+
 /* Soul stream: a soft jade wisp drawn from each spirit into the hero.
    v0.27: the spirit body stays the bright thing — the tether is a thin, dim ink wisp, not a beam. */
-function drawSoulStreams(ctx) {
+function drawSoulStreams(ctx, marks) {
   const t = (S.elapsed || 0);
   const hs = heroScreen();
-  livingMarks().forEach(function (sp, si) {
+  const ribbon = glowSprite('soul-ribbon', [[0, 'rgba(110,214,176,1)'], [1, 'rgba(110,214,176,0)']], 32);
+  const mote = glowSprite('soul-mote', [[0, 'rgba(170,240,215,1)'], [0.5, 'rgba(88,190,160,0.636)'], [1, 'rgba(88,190,160,0)']], 32);
+  (marks || livingMarks()).forEach(function (sp, si) {
     if (!sp.target || !sp.target.alive || !sp.obj) return;
     const a0 = (CFG.spiritStreamAlpha || 0.55) * clamp((sp.age || 0) / (CFG.spiritFadeIn || 0.4), 0, 1);
     const from = screenOf(sp);
@@ -2123,20 +2247,14 @@ function drawSoulStreams(ctx) {
     /* Faint ribbon: a hair thin at the hero, never wider than a few pixels of glow. */
     for (let k = 0; k < 18; k++) {
       const u = k / 17, p = at(u), r = 5.0 * (1 - u) + 1.4;
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
-      g.addColorStop(0, 'rgba(110,214,176,' + (a0 * 0.11).toFixed(3) + ')'); g.addColorStop(1, 'rgba(110,214,176,0)');
-      ctx.fillStyle = g; ctx.fillRect(p.x - r, p.y - r, r * 2, r * 2);
+      drawGlow(ctx, ribbon, p.x, p.y, r, r, a0 * 0.11);
     }
     /* A few dim motes drifting into the hero — no white core, no bright bead. */
     for (let k = 0; k < 4; k++) {
       const u = ((t * 0.42 + k / 4 + si * 0.13) % 1);
       const p = at(u), r = 3.4 * (1 - u * 0.7);
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 2.4);
       const wa = a0 * Math.sin(Math.PI * u) * 0.5;
-      g.addColorStop(0, 'rgba(170,240,215,' + (wa * 0.55).toFixed(3) + ')');
-      g.addColorStop(0.5, 'rgba(88,190,160,' + (wa * 0.35).toFixed(3) + ')');
-      g.addColorStop(1, 'rgba(88,190,160,0)');
-      ctx.fillStyle = g; ctx.fillRect(p.x - r * 2.4, p.y - r * 2.4, r * 4.8, r * 4.8);
+      drawGlow(ctx, mote, p.x, p.y, r * 2.4, r * 2.4, wa * 0.55);
     }
     ctx.restore();
   });
@@ -2159,8 +2277,7 @@ function inkColorFor(type) { return INK_OF[type] || '#6B6B6B'; }
 function updateMarks() {
   const c = $('marks');
   if (!c) return;
-  const host = $('app') || $('view') || c;
-  const r = host.getBoundingClientRect();
+  const r = viewBox();
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   if (c.width !== Math.floor(r.width * dpr) || c.height !== Math.floor(r.height * dpr)) {
     c.width = Math.max(1, Math.floor(r.width * dpr));
@@ -2197,13 +2314,14 @@ function updateMarks() {
       ringLv: S.ringLv || 0, pts: pts, kind: 'ellipse'
     };
   }
-  drawSoulStreams(ctx);
+  drawSoulStreams(ctx, livingMarks());
   const placed = [];
   const arrows = [];
   const aimId = S.aimTarget && S.aimTarget.alive ? S.aimTarget.id : null;
   /* The boss's shape order rides on its spirit's bell; the boss itself carries no mark. */
-  const bossSpirit = (S.boss && S.boss.alive && S.boss.state !== 'clones') ? livingMarks().filter(function (s) { return s.target === S.boss; })[0] : null;
-  livingMarks().forEach(function (s) {
+  const marks = livingMarks();
+  const bossSpirit = (S.boss && S.boss.alive && S.boss.state !== 'clones') ? marks.filter(function (s) { return s.target === S.boss; })[0] : null;
+  marks.forEach(function (s) {
     if (!s.obj) return;
     const bp = bellScreen(s);
     const ox = bp.x, oy = bp.y;
@@ -2280,7 +2398,7 @@ function updateMarks() {
     ctx.restore();
   });
   if (aimId && S.hero && three && three.camera) {
-    const tgt = livingMarks().filter(function (s) { return s.id === aimId; })[0];
+    const tgt = marks.filter(function (s) { return s.id === aimId; })[0];
     if (tgt) {
       _proj.v.set(S.hero.x, 0.4, S.hero.z).project(three.camera);
       const hx = (_proj.v.x * 0.5 + 0.5) * r.width;
@@ -2546,8 +2664,7 @@ let _audio = null;
 function ringSpiritBell(sp) {
   if (!audio || !sp) return;
   audio.setQuiet(qa.mute, qa.noDelay);
-  const host = $('app') || $('ink');
-  const w = host ? host.getBoundingClientRect().width : 375;
+  const w = viewBox().width;
   const scr = screenOf(sp);
   const pan = Math.max(-1, Math.min(1, (scr.x / Math.max(1, w)) * 2 - 1));
   audio.bell(pan, spiritShape(sp));
@@ -3233,11 +3350,7 @@ function makeSlash(from, to) {
   fxinkStat.slashes++;
   if (elemNow === 'fire' && art.trailTex) {
     const tgeo = new THREE.PlaneGeometry(pathR() * 2.2, len);
-    const tmat = new THREE.MeshBasicMaterial({
-      map: art.trailTex, transparent: true, opacity: 0.85, side: THREE.DoubleSide,
-      depthWrite: false, blending: THREE.AdditiveBlending
-    });
-    const trail = new THREE.Mesh(tgeo, tmat);
+    const trail = new THREE.Mesh(tgeo, trailMaterial());
     trail.rotation.set(-Math.PI / 2, 0, yaw);
     trail.position.set((from.x + to.x) / 2, 0.06, (from.z + to.z) / 2);
     three.scene.add(trail);
@@ -3920,14 +4033,37 @@ function bomberBlast(z) {
   });
   hurtZombie(z, 999, 'bomb', S.lastDash);
 }
-/* ---------- 투척 부적 ---------- */
-let _shotMat = null, _shotGeo = null;
+/* ---------- 투척 부적 ----------
+   탄·장판·불꽃 잔불·반사패 재질은 하나씩만 만들어 쓴다(같은 재질 = 같은 셰이더 프로그램). */
+let _shotMat = null, _shotGeo = null, _shotGoldMat = null, _hazGeo = null, _trailMat = null;
+function shotGeo() {
+  if (!_shotGeo) _shotGeo = new THREE.SphereGeometry(0.22, 8, 6);
+  return _shotGeo;
+}
+function shotMaterial() {
+  if (!_shotMat) _shotMat = new THREE.MeshBasicMaterial({ color: 0xc9a6ff, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false });
+  return _shotMat;
+}
+function goldShotMaterial() {
+  if (!_shotGoldMat) _shotGoldMat = new THREE.MeshBasicMaterial({ color: 0xffd25a, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false });
+  return _shotGoldMat;
+}
+function hazardGeo() {
+  if (!_hazGeo) _hazGeo = new THREE.CircleGeometry(1, 28);
+  return _hazGeo;
+}
+/* 화염 일섬이 남기는 잔불 바닥 */
+function trailMaterial() {
+  if (!_trailMat) _trailMat = new THREE.MeshBasicMaterial({
+    map: art && art.trailTex, transparent: true, opacity: 0.85, side: THREE.DoubleSide,
+    depthWrite: false, blending: THREE.AdditiveBlending
+  });
+  return _trailMat;
+}
 function spawnShot(from) {
   if (!S || !three) return null;
   const kd = CFG.zombieTypes.thrower || {};
-  if (!_shotGeo) _shotGeo = new THREE.SphereGeometry(0.22, 8, 6);
-  if (!_shotMat) _shotMat = new THREE.MeshBasicMaterial({ color: 0xc9a6ff, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false });
-  const mesh = new THREE.Mesh(_shotGeo, _shotMat);
+  const mesh = new THREE.Mesh(shotGeo(), shotMaterial());
   mesh.position.set(from.x, 0.75, from.z);
   three.scene.add(mesh);
   const d = Math.hypot(S.hero.x - from.x, S.hero.z - from.z) || 1;
@@ -3964,13 +4100,11 @@ function stepShots(dt) {
   });
 }
 /* ---------- 보스 다중 장판 ---------- */
-let _hazGeo = null;
 function spawnHazard(x, z, r, delay) {
   if (!S || !three) return null;
   const R = r || CFG.hazardR || 2.5;
-  if (!_hazGeo) _hazGeo = new THREE.CircleGeometry(1, 28);
   const mat = new THREE.MeshBasicMaterial({ color: 0xff5a3c, transparent: true, opacity: 0.34, depthWrite: false, blending: THREE.AdditiveBlending });
-  const mesh = new THREE.Mesh(_hazGeo, mat);
+  const mesh = new THREE.Mesh(hazardGeo(), mat);
   mesh.rotation.x = -Math.PI / 2;
   mesh.position.set(x, 0.06, z);
   mesh.scale.set(R, R, 1);
@@ -4313,8 +4447,7 @@ function stepBossPat(z, dt) {
     z.bellT = (z.bellT || 0) - dt;
     if (z.bellT <= 0) {
       z.bellT = V.bell;
-      const host = $('app') || $('ink');
-      const w = host ? host.getBoundingClientRect().width : 375;
+      const w = viewBox().width;
       const p = projectXZ(z.x, z.z, 1.5);
       if (audio) audio.bell(clamp((p.x / Math.max(1, w)) * 2 - 1, -1, 1), z.shape);
       z.ping = 0.6;
@@ -4541,16 +4674,14 @@ function dashAtBoss(z, type) {
   return rec;
 }
 /* 부적 탄막: 부채꼴. 금빛 부적은 탭으로 되받아 보스를 벤다. */
-let _shotGoldMat = null;
 function spawnBossShot(z, a, gold) {
   const sh = spawnShot({ x: z.x, z: z.z });
   if (!sh) return null;
   const sp = bossPat().volley.speed;
   sh.vx = Math.cos(a) * sp; sh.vz = Math.sin(a) * sp;
   if (gold) {
-    if (!_shotGoldMat) _shotGoldMat = new THREE.MeshBasicMaterial({ color: 0xffd25a, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false });
     sh.gold = true;
-    sh.mesh.material = _shotGoldMat;
+    sh.mesh.material = goldShotMaterial();
     sh.mesh.scale.setScalar(1.6);
   }
   return sh;
@@ -5626,6 +5757,7 @@ function applyCameraLens() {
 }
 function onResize() {
   if (!three) return;
+  invalidateViewBox();
   applyCameraLens();
   const w = three.view.clientWidth, h = Math.max(1, three.view.clientHeight);
   three.renderer.setSize(w, h);
@@ -5698,13 +5830,14 @@ function punchAtmoRing(cx, cy, ringR, wave) {
   const root = $('fxinkAtmo');
   if (!root) return;
   if (!(wave > 0.02) || !(ringR > 0)) {
-    root.style.webkitMaskImage = '';
-    root.style.maskImage = '';
+    if (_atmoMask !== '') { root.style.webkitMaskImage = ''; root.style.maskImage = ''; _atmoMask = ''; }
     return;
   }
   const inner = Math.max(0, ringR - 22);
   const outer = ringR + 22;
   const img = 'radial-gradient(circle at ' + cx + 'px ' + cy + 'px,#fff 0,#fff ' + inner + 'px,transparent ' + inner + 'px,transparent ' + outer + 'px,#fff ' + outer + 'px)';
+  if (img === _atmoMask) return;
+  _atmoMask = img;
   root.style.webkitMaskImage = img;
   root.style.maskImage = img;
 }
@@ -5744,6 +5877,9 @@ function drawRingFog(fog, w, h) {
   fog.restore();
   /* Drifting mist along the rim: long thin banks stretched along the edge, pale and dark, slowly sliding. */
   const n = CFG.fogWisps;
+  const paleImg = glowSprite('wisp-pale', [[0, 'rgba(160,162,158,1)'], [1, 'rgba(160,162,158,0)']], 64);
+  const fogCol = fc.join(',');
+  const fogImg = glowSprite('wisp-fog-' + fogCol, [[0, 'rgba(' + fogCol + ',1)'], [1, 'rgba(' + fogCol + ',0)']], 64);
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2 + t * 0.035 * (i % 2 ? 1 : -1) + Math.sin(i * 7.3) * 0.25;
     const rr = 1.04 + 0.08 * Math.sin(t * 0.4 + i * 1.7);
@@ -5751,15 +5887,12 @@ function drawRingFog(fog, w, h) {
     const len = rx * (0.32 + 0.12 * Math.sin(t * 0.5 + i * 2.3)), thick = len * 0.28;
     const pale = i % 3 !== 0;
     const al = pale ? CFG.fogWispAlpha * (0.6 + 0.4 * Math.sin(t * 0.7 + i)) : 0.3;
+    if (!(al > 0.001) || !(len > 0.5)) continue;
     fog.save();
     fog.translate(px, py);
     fog.rotate(Math.atan2(Math.cos(a) * ry, -Math.sin(a) * rx));
-    fog.scale(1, thick / len);
-    const gw = fog.createRadialGradient(0, 0, 0, 0, 0, len);
-    gw.addColorStop(0, pale ? 'rgba(160,162,158,' + al.toFixed(3) + ')' : 'rgba(' + fc.join(',') + ',' + al.toFixed(3) + ')');
-    gw.addColorStop(1, 'rgba(160,162,158,0)');
-    fog.fillStyle = gw;
-    fog.fillRect(-len, -len, len * 2, len * 2);
+    fog.globalAlpha = al;
+    fog.drawImage(pale ? paleImg : fogImg, -len, -thick, len * 2, thick * 2);
     fog.restore();
   }
   /* Mist banks are painted after the clear ellipse, so the spirit windows go on top of them too. */
@@ -5779,25 +5912,16 @@ function punchSpiritLights(fog, w, h) {
   const marks = (lastMarkMetrics && lastMarkMetrics.marks) || [];
   if (!marks.length) return;
   const clear = CFG.spiritLightClear != null ? CFG.spiritLightClear : 0.84;
-  const lights = [];
+  const hole = glowSprite('fog-hole', [[0, 'rgba(0,0,0,1)'], [0.58, 'rgba(0,0,0,0.9)'], [1, 'rgba(0,0,0,0)']], 64);
+  fog.save();
+  fog.globalCompositeOperation = 'destination-out';
   for (let i = 0; i < marks.length; i++) {
     const m = marks[i];
     if (!m || m.onScreen === false) continue;
     if (!(m.x > -60 && m.x < w + 60 && m.y > -60 && m.y < h + 60)) continue;
     /* 구슬 중심은 머리 위라, 창은 몸 쪽으로 조금 내려 잡아 어깨·머리까지 밝힌다. */
-    lights.push({ x: m.x, y: m.y + ((m.bodyPx || 36) * 0.18), r: spiritLightR(m) });
-  }
-  if (!lights.length) return;
-  fog.save();
-  fog.globalCompositeOperation = 'destination-out';
-  for (let i = 0; i < lights.length; i++) {
-    const L = lights[i];
-    const g = fog.createRadialGradient(L.x, L.y, 0, L.x, L.y, L.r);
-    g.addColorStop(0, 'rgba(0,0,0,' + clear.toFixed(3) + ')');
-    g.addColorStop(0.58, 'rgba(0,0,0,' + (clear * 0.9).toFixed(3) + ')');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    fog.fillStyle = g;
-    fog.beginPath(); fog.arc(L.x, L.y, L.r, 0, Math.PI * 2); fog.fill();
+    const R = spiritLightR(m);
+    drawGlow(fog, hole, m.x, m.y + ((m.bodyPx || 36) * 0.18), R, R, clear);
   }
   fog.restore();
 }
@@ -5806,7 +5930,7 @@ function drawSightFog() {
   const sc = $('sonarRing');
   const host = $('app') || c;
   if (!c || !host) return;
-  const box = host.getBoundingClientRect();
+  const box = viewBox();
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   sizeOverlayCanvas(c, host, dpr, box);
   if (sc) sizeOverlayCanvas(sc, host, dpr, box);
@@ -5825,8 +5949,10 @@ function drawSightFog() {
   const cx = (S.hero ? heroScreen() : { x: w * 0.5 }).x, cy = (S.hero ? heroScreen() : { y: h * 0.5 }).y;
   fog.setTransform(dpr, 0, 0, dpr, 0, 0);
   const hs = S.hero ? heroScreen() : { x: w * 0.5, y: h * 0.5 };
-  host.style.setProperty('--hero-x', hs.x.toFixed(1) + 'px');
-  host.style.setProperty('--hero-y', hs.y.toFixed(1) + 'px');
+  /* --hero-x/y 는 CSS 레이어가 읽는다. 같은 값이면 다시 쓰지 않는다(스타일 재계산 방지). */
+  const hxs = hs.x.toFixed(1) + 'px', hys = hs.y.toFixed(1) + 'px';
+  if (hxs !== _heroCssX) { host.style.setProperty('--hero-x', hxs); _heroCssX = hxs; }
+  if (hys !== _heroCssY) { host.style.setProperty('--hero-y', hys); _heroCssY = hys; }
   drawRingFog(fog, w, h);
   const ringCtx = sc ? sc.getContext('2d') : fog;
   if (sc) ringCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -5922,13 +6048,18 @@ function loop(ts) {
     }
     stepQuality(real);
     stepDying(raw);
+    /* 매 프레임 배열을 새로 만들지 않고 제자리에서 걸러낸다(GC 압박 감소). */
     const fx = three.fx || [];
-    three.fx = fx.filter(function (f) {
+    let fxN = 0;
+    for (let i = 0; i < fx.length; i++) {
+      const f = fx[i];
       f.life -= raw;
       fadeFx(f.mesh, Math.max(0, f.life / f.max * 0.85));
-      if (f.life <= 0) { three.scene.remove(f.mesh); return false; }
-      return true;
-    });
+      if (f.life <= 0) { three.scene.remove(f.mesh); continue; }
+      fx[fxN++] = f;
+    }
+    fx.length = fxN;
+    three.fx = fx;
     if (three.heroSpr && art.tickChar) {
       const st = (S && S.dash) ? 'dash' : 'idle';
       let hvx = 0, hvz = 0;
@@ -5951,12 +6082,15 @@ function loop(ts) {
       tmap.offset.set(fr / f.n, 0);
     });
     if (three.slashes && three.slashes.length) {
-      three.slashes = three.slashes.filter(function (s) {
-        if (s.update && s.update(dt)) return true;
+      const sl = three.slashes;
+      let w = 0;
+      for (let i = 0; i < sl.length; i++) {
+        const s = sl[i];
+        if (s.update && s.update(dt)) { sl[w++] = s; continue; }
         if (s.mesh) three.scene.remove(s.mesh);
         if (s.dispose) s.dispose();
-        return false;
-      });
+      }
+      sl.length = w;
     }
     if (three.ink && three.ink.update) three.ink.update(dt);
     if (three.bloom && three.bloom.render) three.bloom.render(dt);
@@ -6094,6 +6228,46 @@ const GPv2 = {
     persist(); renderHud(); refreshTitleHelp();
   },
   setQa: function (o) { Object.keys(o || {}).forEach(function (k) { qa[k] = o[k]; }); if (audio) audio.setQuiet(qa.mute, qa.noDelay); },
+  /* QA 훅: 예열 상태·소요 시간 */
+  warmNow: function () { return warmShaders(); },
+  warmInfo: function () { return warmInfo(); },
+  /* QA: 지금까지 먹획을 구운 혼령 기호 */
+  bakedShapes: function () { return art.spiritInkShapes ? art.spiritInkShapes() : null; },
+  /* QA: 예열 후에도 '새 프로그램'을 만드는 레시피를 찾는다(각 레시피를 실제 렌더 경로에 넣고 컴파일). */
+  warmCensus: function () {
+    const out = [];
+    const R = three.renderer, SC = three.scene, CAM = three.camera;
+    prewarmRecipes().forEach(function (r) {
+      const p0 = R.info.programs.length;
+      let obj = null;
+      try { obj = r.make(); } catch (e) { out.push({ label: r.label, err: String(e).slice(0, 40) }); return; }
+      if (!obj) return;
+      SC.add(obj);
+      try { R.compile(SC, CAM); } catch (e) {}
+      const dp = R.info.programs.length - p0;
+      SC.remove(obj);
+      if (dp !== 0) out.push({ label: r.label, dp: dp });
+    });
+    return out;
+  },
+  /* QA: 레시피별 제작 비용을 한 번에 하나씩 재며 window.__WR 에 쌓는다(페이지가 멈춰도 진행을 볼 수 있게). */
+  warmProfile: function (only) {
+    if (window.__WR) return window.__WR.length;
+    window.__WR = [];
+    const list = prewarmRecipes().filter(function (r) { return !only || String(r.label).indexOf(only) === 0; });
+    let i = 0;
+    const step = function () {
+      if (i >= list.length) { window.__WR.push({ done: true }); return; }
+      const r = list[i++];
+      const t0 = performance.now();
+      let ok = true;
+      try { r.make(); } catch (e) { ok = String(e).slice(0, 60); }
+      window.__WR.push({ label: r.label, ms: Math.round(performance.now() - t0), ok: ok });
+      setTimeout(step, 0);
+    };
+    setTimeout(step, 0);
+    return 0;
+  },
   startRun: startRun,
   spawnSpirit: function (o) { return spawnSpirit(o); },
   spawnBoss: function (o) { return spawnBoss(o); },

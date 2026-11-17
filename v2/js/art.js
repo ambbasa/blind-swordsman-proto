@@ -852,6 +852,8 @@ export async function buildArt(THREE) {
     transitions: (atlas.tiles && atlas.tiles.transitions) || null,
     night: hexColor(pal.night || pal.ground, 0x1e1c1a),
     makeChar: makeChar, tickChar: tickChar, buildStage3D: buildStage3D,
+    /* QA: 지금까지 먹획을 구운 혼령 기호 목록(예열 검증용) */
+    spiritInkShapes: function () { return Object.keys(spiritInkCache); },
     sealUrl: sealUrl, upIconUrl: upIconUrl, itemIconUrl: itemIconUrl, setSpiritShape: setSpiritShape, setStatus: setStatus, setAura: setAura, setTelegraph: setTelegraph,
     applyMap: applyMap, slashTex: slashTex, playFx: playFx,
     trailTex: tex(el['fire-trail'] && el['fire-trail'].file),

@@ -50,7 +50,16 @@ export function setupBloom(renderer, scene, camera, { quality = 'high', override
     render(dt) { extra.forEach((p) => p.tick && p.tick(dt)); if (composer) composer.render(dt); else renderer.render(scene, camera); },
     get post() { return extra; },
     setSize(w, h) { size.set(w, h); if (composer) composer.setSize(w, h); },
-    setQuality(nq) { if (nq === q || !(nq in BLOOM_PRESETS)) return; q = nq; P = preset(q); build(); },
+    /* Quality change without rebuilding the chain: a rebuild would create new pass materials and
+       therefore relink ~10 shader programs on the very frame the frame rate was already bad.
+       The presets differ only in buffer resolution and bloom strength/radius, so resize + retune. */
+    setQuality(nq) {
+      if (nq === q || !(nq in BLOOM_PRESETS)) return;
+      q = nq; P = preset(q);
+      if (!composer || (!bloom && P)) { build(); return; }
+      if (bloom) { bloom.strength = P.strength; bloom.radius = P.radius; bloom.threshold = P.threshold; }
+      composer.setSize(size.x, size.y);   // the wrapped bloom.setSize applies P.res
+    },
     setStrength(s) { if (bloom) bloom.strength = s; },   // e.g. combo burst: 1.4 for 0.3 s, then back
     dispose,
   };
