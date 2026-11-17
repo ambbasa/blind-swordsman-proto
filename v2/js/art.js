@@ -692,6 +692,14 @@ export async function buildArt(THREE) {
       }
       if (!isBoss && spr.material && spr.material.color) spr.material.color.setRGB(SPIRIT_TINT[0], SPIRIT_TINT[1], SPIRIT_TINT[2]);
       if (!isBoss) addOutline(group, CHAR_OUTLINE.spirit[0], CHAR_OUTLINE.spirit[1]);
+      else {
+        /* v0.27 P1-6: 보스에 항상 켜지는 한지빛 윤곽광 — 붉은 12장 안개·화면 아래에서도 몸과 자세가 읽힌다. */
+        addRim(group, 0xF2E2C0, 1.07);
+        if (group.userData.rim && group.userData.rim.material) {
+          group.userData.rim.material.opacity = 0.55;
+          group.userData.rimOp = 0.55;
+        }
+      }
       const auraFile = atlas.onebell && atlas.onebell.aura && String(atlas.onebell.aura).split(' ')[0];
       if (auraFile && tex(auraFile)) {
         const ak = isBoss ? 1 : SPIRIT_VIEW_SCALE;

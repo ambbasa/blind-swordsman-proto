@@ -27,21 +27,28 @@
     <div id="beatPulse" aria-hidden="true"></div>
     <div id="judgeFlash" hidden></div>
     <header id="hud">
-      <div class="hud-row">
+      <div class="hud-row row-top">
         <span id="stageLabel">심안</span>
         <span id="timer">75</span>
-        <span id="dashLabel">일섬 1</span>
         <span id="coinLabel">엽전 0</span>
         <span id="comboLabel">콤보 0</span>
       </div>
-      <div class="hud-row">
-        <div id="hpWrap"><span id="hpPips"></span></div>
+      <div class="hud-row row-stat">
+        <span id="hpWrap"><span id="hpPips"></span><span id="hpMore"></span></span>
         <div id="chargeWrap" aria-label="참 게이지"><div id="chargeFill"></div></div>
         <span id="chargeText">참 0</span>
         <div id="xpWrap"><div id="xpFill"></div></div>
         <span id="lvlLabel">Lv 1</span>
       </div>
+      <div class="hud-row row-dash">
+        <span id="dashLabel">일섬 1</span>
+      </div>
+      <div id="hudBtns">
+        <button type="button" id="btnMute" aria-label="소리" title="소리">♪</button>
+        <button type="button" id="btnPause" aria-label="일시정지" title="일시정지">❙❙</button>
+      </div>
     </header>
+    <div id="guide" hidden></div>
     <div id="toast" hidden></div>
 
     <div id="ov-title" class="ov show">
@@ -101,6 +108,15 @@
         <button type="button" id="btnIdleTake" class="btn primary">받기</button>
         <button type="button" id="btnIdleDouble" class="btn ad">광고로 두 배 받기</button>
         <p class="ad-note">실제 광고는 나오지 않습니다 (자리만).</p>
+      </div>
+    </div>
+    <div id="ov-pause" class="ov">
+      <div class="card pause-card">
+        <h2>쉼</h2>
+        <p class="pause-note">숨을 고르는 동안 판이 멈춥니다.</p>
+        <button type="button" id="btnResume" class="btn primary">계속</button>
+        <button type="button" id="btnMute2" class="btn">소리 끄기</button>
+        <button type="button" id="btnQuit" class="btn">나가기</button>
       </div>
     </div>
     <div id="ov-level" class="ov">

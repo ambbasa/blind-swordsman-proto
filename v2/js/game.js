@@ -1,7 +1,7 @@
 /* 심안(SIMAN) v2 — 2.5D quarter-view, Three.js, camera-follow dashes.
-   v0.23: 아이템 전수 개편(원소 각인 Lv1~3 · 임시 원소 부적 · 혼령 슬롯 · 정확한 획 · 칼집 각성 ·
-          카드 아이콘/레벨 표시 · 바닥 종 만종 진화) + 3막 12장 스테이지 확장(신규 적 3종 ·
-          보스 다중 장판 · 막/장 단위 스테이지 선택). */
+   v0.27: 화면별 시야 통일(짧은 축 고정 스케일) · HUD 3줄 개편(넘침·줄바꿈 제거·소리·일시정지) ·
+          혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
+          첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import * as THREE from 'three';
 import { probeAssets, buildArt } from './art.js';
 import * as Anim from './anim.js';
@@ -51,9 +51,9 @@ const SHAPE_HINT = {
 const CFG = {
   hpBase: 10, dmg: 1, bossDmg: 2, bossCoin: 20, iframeMs: 800,
   timeLimit: 75, bossAt: 50, bossShapes: 6,
-  coinPerKill: 3,
+  coinPerKill: 2,
   idlePerMin: 4, idleMaxHours: 8,
-  upgradeBase: 15, atkStep: 0.05, hpStep: 3, coinStep: 0.25, maxLv: 10,
+  upgradeBase: 20, atkStep: 0.05, hpStep: 3, coinStep: 0.25, maxLv: 10,
   xpBase: 9, xpStep: 5, xpPerKill: 1,
   /* Hit feedback: white flash, stagger and knockback (stone resists); death sinks and fades. */
   flinchDur: 0.14, hitKnockZ: 0.35, stoneKnockMul: 0.35, dieDur: 0.5,
@@ -82,7 +82,7 @@ const CFG = {
   spawnZombieMinMs: 450,
   spawnZombieDelay: 1.2, practiceZombieMs: 3200, practiceZombieMax: 2, earlyZombieMax: 6, earlyZombieUntil: 15, earlyZombieMinMs: 1400,
   openingZombies: 6, openingRing: [0.5, 0.8],
-  spiritStreamAlpha: 0.7, spiritFadeIn: 0.4, spiritAlpha: 1, spiritHover: 1.26, spiritCapStart: 1, spiritMax: 5, spiritGlowAlpha: 0.5,
+  spiritStreamAlpha: 0.55, spiritFadeIn: 0.4, spiritAlpha: 1, spiritHover: 1.26, spiritCapStart: 1, spiritMax: 5, spiritGlowAlpha: 0.5,
   /* 혼령 회수 되돌림(hysteresis): 획득 1.02R, 회수 1.15R(안개 경계 fogOuter 1.16 바로 안). */
   spiritReleaseMul: 1.15, spiritAcquireMul: 1.02,
   /* 제자리 탭 = 칼집 패링 */
@@ -227,7 +227,7 @@ const STAGES = [
       { t: 126, n: 34, mix: { imp: 0.5, brute: 0.32, stone: 0.18 }, r: [9.5, 12.5], elite: 1 }
     ],
     spawn: { ms: 660, max: 40, earlyMax: 11, earlyMinMs: 1100 },
-    boss: { telegraph: 1.1, charge: 19, adds: 2, hazard: 1, patterns: ['clones', 'charge', 'veil', 'kiai'], seal: true },
+    boss: { telegraph: 1.1, charge: 19, adds: 0, hazard: 1, patterns: ['clones', 'charge', 'veil', 'kiai'], seal: true },
     starCombo: 26,
     atmo: { clear: 0x121a15, fogCol: [11, 19, 14], fog: 0.026, moon: 18.0, amb: 5.4, hemiI: 6.2, fill: 3.6, hemi: 0x6f8472, ground: 0x12160f, moonCol: 0xb4d2b4, tint: 'linear-gradient(180deg, rgba(28,92,60,0.18) 0%, rgba(6,26,16,0.26) 100%)' }
   },
@@ -245,7 +245,7 @@ const STAGES = [
       { t: 122, n: 36, mix: { imp: 0.45, brute: 0.33, stone: 0.22 }, r: [9.5, 12.5], elite: 1 }
     ],
     spawn: { ms: 580, max: 45, earlyMax: 12, earlyMinMs: 1000 },
-    boss: { telegraph: 1.0, charge: 21, adds: 3, hazard: 1, patterns: ['volley', 'chant', 'shrink', 'charge'], phase2: ['clones', 'kiai'], seal: true },
+    boss: { telegraph: 1.0, charge: 21, adds: 0, hazard: 1, patterns: ['volley', 'chant', 'shrink', 'charge'], phase2: ['clones', 'kiai'], seal: true },
     starCombo: 32,
     atmo: { clear: 0x1c0f12, fogCol: [30, 10, 11], fog: 0.028, moon: 21.0, amb: 6.0, hemiI: 5.8, fill: 4.0, hemi: 0x8a5a52, ground: 0x1e1210, moonCol: 0xff9c84, tint: 'linear-gradient(180deg, rgba(150,32,28,0.22) 0%, rgba(52,6,8,0.28) 100%)' }
   },
@@ -265,7 +265,7 @@ const STAGES = [
       { t: 126, n: 38, mix: { imp: 0.42, brute: 0.26, charger: 0.18, thrower: 0.08, stone: 0.06 }, r: [9.5, 12.5], elite: 1 }
     ],
     spawn: { ms: 620, max: 44, earlyMax: 12, earlyMinMs: 1050 },
-    boss: { telegraph: 1.05, charge: 19, adds: 2, hazard: 2 },
+    boss: { telegraph: 1.05, charge: 19, adds: 0, hazard: 2, patterns: ['charge', 'kiai', 'slam'], seal: true },
     starCombo: 30,
     atmo: { clear: 0x101a1e, fogCol: [14, 24, 28], fog: 0.032, moon: 17.0, amb: 5.2, hemiI: 6.4, fill: 3.4, hemi: 0x6f8a92, ground: 0x0d1417, moonCol: 0xbcd8dc, tint: 'linear-gradient(180deg, rgba(38,86,96,0.20) 0%, rgba(6,20,26,0.30) 100%)' }
   },
@@ -283,7 +283,7 @@ const STAGES = [
       { t: 132, n: 40, mix: { imp: 0.36, brute: 0.24, thrower: 0.18, charger: 0.12, stone: 0.1 }, r: [9.5, 12.5], elite: 1 }
     ],
     spawn: { ms: 600, max: 46, earlyMax: 12, earlyMinMs: 1000 },
-    boss: { telegraph: 1.0, charge: 20, adds: 2, hazard: 3 },
+    boss: { telegraph: 1.0, charge: 20, adds: 0, hazard: 3, patterns: ['volley', 'charge', 'slam', 'kiai'], seal: true },
     starCombo: 34,
     atmo: { clear: 0x161d25, fogCol: [22, 30, 40], fog: 0.034, moon: 16.0, amb: 5.4, hemiI: 6.8, fill: 3.6, hemi: 0x8aa0b4, ground: 0x11161d, moonCol: 0xdcecf8, tint: 'linear-gradient(180deg, rgba(120,160,200,0.20) 0%, rgba(14,24,38,0.30) 100%)' }
   },
@@ -301,7 +301,7 @@ const STAGES = [
       { t: 134, n: 42, mix: { imp: 0.32, brute: 0.24, bomber: 0.18, charger: 0.16, stone: 0.1 }, r: [9.5, 12.5], elite: 1 }
     ],
     spawn: { ms: 570, max: 48, earlyMax: 13, earlyMinMs: 980 },
-    boss: { telegraph: 0.95, charge: 21, adds: 3, hazard: 3 },
+    boss: { telegraph: 0.95, charge: 21, adds: 0, hazard: 3, patterns: ['clones', 'charge', 'veil', 'kiai'], phase2: ['slam'], seal: true },
     starCombo: 38,
     atmo: { clear: 0x121a14, fogCol: [16, 24, 18], fog: 0.030, moon: 17.5, amb: 5.3, hemiI: 6.2, fill: 3.4, hemi: 0x74886e, ground: 0x0f1410, moonCol: 0xbfd6bc, tint: 'linear-gradient(180deg, rgba(46,84,52,0.20) 0%, rgba(8,20,10,0.30) 100%)' }
   },
@@ -319,7 +319,7 @@ const STAGES = [
       { t: 140, n: 44, mix: { imp: 0.3, brute: 0.24, thrower: 0.18, charger: 0.16, bomber: 0.12 }, r: [9.5, 13], elite: 1 }
     ],
     spawn: { ms: 540, max: 50, earlyMax: 13, earlyMinMs: 950 },
-    boss: { telegraph: 0.92, charge: 22, adds: 3, hazard: 4 },
+    boss: { telegraph: 0.92, charge: 22, adds: 0, hazard: 4, patterns: ['chant', 'charge', 'slam', 'kiai'], phase2: ['veil'], seal: true },
     starCombo: 42,
     atmo: { clear: 0x171a22, fogCol: [24, 26, 34], fog: 0.036, moon: 15.5, amb: 5.6, hemiI: 7.0, fill: 3.8, hemi: 0x8c8ea4, ground: 0x13151b, moonCol: 0xd6d2e8, tint: 'linear-gradient(180deg, rgba(92,86,150,0.18) 0%, rgba(14,14,30,0.30) 100%)' }
   },
@@ -339,9 +339,9 @@ const STAGES = [
       { t: 142, n: 46, mix: { imp: 0.26, brute: 0.24, charger: 0.2, bomber: 0.16, stone: 0.14 }, r: [9.5, 13], elite: 1 }
     ],
     spawn: { ms: 520, max: 52, earlyMax: 14, earlyMinMs: 920 },
-    boss: { telegraph: 0.9, charge: 22, adds: 3, hazard: 4 },
+    boss: { telegraph: 0.9, charge: 22, adds: 0, hazard: 4, patterns: ['shrink', 'charge', 'kiai', 'volley'], phase2: ['clones'], seal: true },
     starCombo: 46,
-    atmo: { clear: 0x1e0e11, fogCol: [34, 12, 14], fog: 0.034, moon: 19.0, amb: 6.2, hemiI: 5.6, fill: 4.0, hemi: 0x8e5a5a, ground: 0x1a0d0e, moonCol: 0xff8a72, tint: 'linear-gradient(180deg, rgba(150,28,34,0.26) 0%, rgba(44,4,8,0.32) 100%)' }
+    atmo: { clear: 0x1e0e11, fogCol: [34, 12, 14], fog: 0.030, moon: 22.0, amb: 7.4, hemiI: 6.2, fill: 4.6, hemi: 0xa8746e, ground: 0x1e0f10, moonCol: 0xff9a80, tint: 'linear-gradient(180deg, rgba(150,28,34,0.20) 0%, rgba(44,4,8,0.24) 100%)' }
   },
   {
     id: 10, act: 3, name: '뼈의 강', sub: '마른 강바닥에 쌓인 뼈', map: 'map10', tag: '혼령 넷',
@@ -357,7 +357,7 @@ const STAGES = [
       { t: 146, n: 48, mix: { imp: 0.24, brute: 0.24, thrower: 0.2, charger: 0.16, bomber: 0.16 }, r: [9.5, 13], elite: 1 }
     ],
     spawn: { ms: 500, max: 54, earlyMax: 14, earlyMinMs: 900 },
-    boss: { telegraph: 0.88, charge: 23, adds: 3, hazard: 4 },
+    boss: { telegraph: 0.88, charge: 23, adds: 0, hazard: 4, patterns: ['chant', 'slam', 'clones', 'charge', 'kiai'], phase2: ['volley'], seal: true },
     starCombo: 50,
     atmo: { clear: 0x18100f, fogCol: [28, 20, 16], fog: 0.036, moon: 18.0, amb: 6.0, hemiI: 6.0, fill: 4.2, hemi: 0x9a8a76, ground: 0x151010, moonCol: 0xe8c8a8, tint: 'linear-gradient(180deg, rgba(120,88,58,0.22) 0%, rgba(34,18,12,0.32) 100%)' }
   },
@@ -375,9 +375,9 @@ const STAGES = [
       { t: 150, n: 50, mix: { imp: 0.22, brute: 0.24, charger: 0.2, bomber: 0.18, stone: 0.16 }, r: [9.5, 13], elite: 1 }
     ],
     spawn: { ms: 480, max: 56, earlyMax: 15, earlyMinMs: 880 },
-    boss: { telegraph: 0.85, charge: 24, adds: 4, hazard: 5 },
+    boss: { telegraph: 0.85, charge: 24, adds: 0, hazard: 5, patterns: ['volley', 'veil', 'charge', 'slam', 'kiai'], phase2: ['clones', 'chant'], seal: true },
     starCombo: 54,
-    atmo: { clear: 0x22090d, fogCol: [40, 10, 14], fog: 0.038, moon: 20.0, amb: 6.4, hemiI: 5.4, fill: 4.4, hemi: 0x9a4e4e, ground: 0x1c090c, moonCol: 0xff6a5a, tint: 'linear-gradient(180deg, rgba(170,20,30,0.28) 0%, rgba(48,2,8,0.34) 100%)' }
+    atmo: { clear: 0x22090d, fogCol: [40, 10, 14], fog: 0.030, moon: 23.0, amb: 7.8, hemiI: 6.4, fill: 5.0, hemi: 0xb0706a, ground: 0x220b0e, moonCol: 0xff8a72, tint: 'linear-gradient(180deg, rgba(170,20,30,0.20) 0%, rgba(48,2,8,0.24) 100%)' }
   },
   {
     id: 12, act: 3, name: '나락의 심연', sub: '검은 달이 떨어지는 자리', map: 'map12', tag: '올 클리어',
@@ -393,9 +393,9 @@ const STAGES = [
       { t: 150, n: 52, mix: { imp: 0.18, brute: 0.24, charger: 0.22, bomber: 0.2, thrower: 0.16 }, r: [9.5, 13.5], elite: 1 }
     ],
     spawn: { ms: 460, max: 58, earlyMax: 15, earlyMinMs: 860 },
-    boss: { telegraph: 0.8, charge: 25, adds: 4, hazard: 5 },
+    boss: { telegraph: 0.8, charge: 25, adds: 0, hazard: 5, patterns: ['shrink', 'chant', 'volley', 'slam', 'kiai', 'charge'], phase2: ['clones', 'veil'], seal: true },
     starCombo: 58,
-    atmo: { clear: 0x2a0709, fogCol: [46, 6, 10], fog: 0.042, moon: 22.0, amb: 6.6, hemiI: 5.2, fill: 4.6, hemi: 0xa84a48, ground: 0x22060a, moonCol: 0xff4a3c, tint: 'linear-gradient(180deg, rgba(190,12,24,0.32) 0%, rgba(54,0,6,0.38) 100%)' }
+    atmo: { clear: 0x2a0709, fogCol: [40, 8, 12], fog: 0.028, moon: 26.0, amb: 8.4, hemiI: 7.2, fill: 5.4, hemi: 0xc08a80, ground: 0x2a0b10, moonCol: 0xff7a5c, tint: 'linear-gradient(180deg, rgba(150,16,26,0.20) 0%, rgba(44,2,8,0.24) 100%)' }
   }
 ];
 function actOf(n) { return Math.max(1, Math.min(3, Math.ceil((n | 0) / 4))); }
@@ -414,7 +414,7 @@ function clamp(n, a, b) { return n < a ? a : n > b ? b : n; }
 function dist(a, b) { const dx = a.x - b.x, dz = a.z - b.z; return Math.hypot(dx, dz); }
 function now() { return performance.now(); }
 
-const save = { coins: 0, atkLv: 0, hpLv: 0, coinLv: 0, lastSeen: Date.now(), runs: 0, stage: 1, stars: {}, bestScore: 0 };
+const save = { coins: 0, atkLv: 0, hpLv: 0, coinLv: 0, lastSeen: Date.now(), runs: 0, stage: 1, stars: {}, bestScore: 0, totemTip: false, muted: false };
 const qa = { timeScale: 1, noDelay: false, sandbox: false, noMove: false };
 let S = null, art = null, three = null, raf = 0, lastTs = 0, toastT = 0;
 const audio = createAudio();
@@ -443,7 +443,7 @@ function loadSave() {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return;
     const o = JSON.parse(raw);
-    ['coins', 'atkLv', 'hpLv', 'coinLv', 'lastSeen', 'runs', 'stage', 'stars', 'bestScore'].forEach(function (k) {
+    ['coins', 'atkLv', 'hpLv', 'coinLv', 'lastSeen', 'runs', 'stage', 'stars', 'bestScore', 'totemTip', 'muted'].forEach(function (k) {
       if (o[k] != null) save[k] = o[k];
     });
     if (!save.stars || typeof save.stars !== 'object') save.stars = {};
@@ -456,24 +456,45 @@ function persist(touch) {
 }
 
 function showOv(id) {
-  ['ov-title', 'ov-shop', 'ov-result', 'ov-idle', 'ov-level', 'ov-stage'].forEach(function (k) {
+  ['ov-title', 'ov-shop', 'ov-result', 'ov-idle', 'ov-level', 'ov-stage', 'ov-pause'].forEach(function (k) {
     $(k).classList.toggle('show', k === id);
   });
   if (id === 'ov-title') refreshTitleHelp();
 }
 function hideOvs() {
-  ['ov-title', 'ov-shop', 'ov-result', 'ov-idle', 'ov-level', 'ov-stage'].forEach(function (k) { $(k).classList.remove('show'); });
+  ['ov-title', 'ov-shop', 'ov-result', 'ov-idle', 'ov-level', 'ov-stage', 'ov-pause'].forEach(function (k) { $(k).classList.remove('show'); });
 }
 function toast(msg) {
   const el = $('toast');
   el.hidden = false; el.textContent = msg;
   toastT = now() + 1600;
 }
+/* 판 안내 문구(첫 진입·참 준비·기물 학습). 조작을 막지 않는 한 줄 칩. */
+let guideUntil = 0;
+function showGuide(html, sec) {
+  const el = $('guide');
+  if (!el) return;
+  el.innerHTML = html;
+  el.hidden = false;
+  el.classList.add('show');
+  /* 만료는 게임 시간 기준 — 느린 기기·로딩 중에 안내가 먼저 사라지지 않는다. */
+  guideUntil = (S ? (S.elapsed || 0) + (sec || 4.5) : 0);
+}
+function hideGuide() {
+  const el = $('guide');
+  if (!el) return;
+  el.classList.remove('show');
+  guideUntil = 0;
+}
 function fillHp() {
   const n = maxHp(), cur = S ? S.hp : n;
+  /* 12개까지만 핍으로 그리고, 넘는 최대 체력은 +N으로 적는다(2줄로 넘치지 않게). */
+  const show = Math.min(12, n);
   let h = '', i;
-  for (i = 0; i < n; i++) h += '<i' + (i < cur ? '' : ' class="off"') + '></i>';
+  for (i = 0; i < show; i++) h += '<i' + (i < cur ? '' : ' class="off"') + '></i>';
   $('hpPips').innerHTML = h;
+  const more = $('hpMore');
+  if (more) more.textContent = n > show ? '+' + (n - show) : '';
 }
 function xpNeed(lv) { return CFG.xpBase + (lv - 1) * CFG.xpStep; }
 function renderHud() {
@@ -508,14 +529,70 @@ function renderHud() {
   renderCharge();
   fillHp();
 }
+/* v0.27: 판 중 소리 토글·일시정지·나가기 */
+function setMuted(m) {
+  save.muted = !!m;
+  qa.mute = !!m;
+  persist();
+  if (audio) audio.setQuiet(!!m, qa.noDelay);
+  const b = $('btnMute'), b2 = $('btnMute2');
+  if (b) {
+    b.textContent = m ? '✕' : '♪';
+    b.classList.toggle('off', !!m);
+    b.setAttribute('aria-label', m ? '소리 켜기' : '소리 끄기');
+  }
+  if (b2) b2.textContent = m ? '소리 켜기' : '소리 끄기';
+  return save.muted;
+}
+function pauseRun() {
+  if (!S || !S.playing || S.paused) return false;
+  S.paused = 'manual';
+  hideGuide();
+  showOv('ov-pause');
+  if (audio) audio.stopBgm();
+  return true;
+}
+function resumeRun() {
+  if (!S || S.paused !== 'manual') return false;
+  S.paused = null;
+  hideOvs();
+  if (audio) { audio.setQuiet(!!save.muted, qa.noDelay); audio.startBgm(); }
+  return true;
+}
+/* 판을 접고 타이틀로 — 결과 카드를 띄우지 않는다. */
+function quitRun() {
+  const had = !!S;
+  if (S) { S.playing = false; S.paused = null; S.dash = null; S.dashQueue = []; }
+  hideGuide();
+  hideOvs();
+  clearEntities();
+  closeArena(true);
+  S = null;
+  if (audio) audio.stopBgm();
+  if (three) {
+    three.camera.position.set(CFG.camOff.x, CFG.camOff.y, CFG.camOff.z);
+    three.camera.lookAt(0, CFG.camLookY, 0);
+  }
+  applyCameraLens();
+  renderHud();
+  showOv('ov-title');
+  return had;
+}
 function renderCharge() {
   const w = $('chargeWrap'), t = $('chargeText');
   if (!w) return;
   const max = CFG.cleaveCharge || 100;
   const c = (S && S.charge) || 0;
-  w.classList.toggle('full', c >= max);
+  const full = c >= max;
+  w.classList.toggle('full', full);
   $('chargeFill').style.width = Math.min(100, (c / max) * 100) + '%';
-  if (t) t.textContent = c >= max ? '참 준비' : '참 ' + Math.floor(c);
+  if (t) t.textContent = full ? '참 준비 (O)' : '참 ' + Math.floor(c);
+  /* 게이지가 처음 꽉 찬 순간, 무엇을 그려야 하는지 한 번 알려 준다. */
+  if (full && S && S.playing && !S.chargeReadyHint) {
+    S.chargeReadyHint = true;
+    showGuide('참 준비 — <b>O</b>를 그려 참(斬)을 터뜨리세요', 3.6);
+    if (audio && audio.gong) audio.gong();
+  }
 }
 
 /* ---------- three.js world ---------- */
@@ -780,6 +857,13 @@ function startRun(opts) {
     snapSpiritsToTargets();
   }
   triggerSightWave();
+  hideGuide();
+  if (!opts.sandbox) {
+    /* 첫 진입 안내: 이 판에서 무엇을 그려야 하는지 한 줄. 조작을 막지 않는다. */
+    const sh = S.practiceShape || (S.pool && S.pool[0]) || 'hline';
+    const hint = SHAPE_HINT[sh] || '혼령의 종 모양을 따라 그어 보세요';
+    showGuide('<b>' + (SHAPE_MARK[sh] || '') + '</b> ' + hint + ' — 그으면 일섬', stageNo === 1 ? 7 : 5);
+  }
   if (!raf) loop(now());
 }
 
@@ -866,7 +950,8 @@ function refreshRingPoly(force) {
   const R = ringR();
   const cam = three && three.camera;
   const key = (h.x || 0).toFixed(3) + ',' + (h.z || 0).toFixed(3) + ',' + (R || 0).toFixed(3)
-    + ',' + (cam ? cam.fov : 0) + ',' + (typeof innerWidth === 'number' ? innerWidth : 0);
+    + ',' + (cam ? cam.fov : 0) + ',' + (typeof innerWidth === 'number' ? innerWidth : 0)
+    + ',' + (cam ? cam.position.x.toFixed(2) + ',' + cam.position.z.toFixed(2) : '');
   if (!force && S.ringPoly && S.ringPoly.length && S._ringKey === key) return S.ringPoly;
   S._ringKey = key;
   S.ringPoly = groundCirclePts(R, 0);
@@ -1295,7 +1380,7 @@ function spawnBoss(opts) {
     id: ++S._id, kind: 'zombie', shape: seq[0], x: p.x, z: p.z, r: 1.1,
     alive: true, hp: opts.hp != null ? opts.hp : 99,
     frozen: 0, burn: 0, burnTick: 0, poison: 0, poisonT: 0, poisonTick: 0, stun: 0,
-    marked: false, isBoss: true, seq: seq, seqI: 0, poise: (CFG.bossPat || {}).poise || 3
+    marked: false, isBoss: true, seq: seq, seqI: 0, poise: (CFG.bossPat || {}).poise || 3, firstWalk: true
   };
   const vis = e.shape;
   e.obj = addEntityVisual('boss', vis);
@@ -1307,6 +1392,11 @@ function spawnBoss(opts) {
   openArena(S.hero.x, S.hero.z);
   S.summonT = 0;
   for (let i = 0; i < ((CFG.bossPat || {}).summon || {}).keep; i++) summonDodgeTarget(e);
+  if (!S.totemSeen) {
+    S.totemSeen = true;
+    if (!save.totemTip) { save.totemTip = true; persist(); }
+    showGuide('기물 <b>△ ◡ @</b> — 그 무늬를 그리면 그 기물로 일섬합니다', 6.5);
+  }
   assignSpiritTargets();
   return e;
 }
@@ -1340,6 +1430,7 @@ function openArena(cx, cz) {
   a.group.position.set(S.arena.x, 0, S.arena.z);
   three.scene.add(a.group);
   three.arena = a;
+  applyCameraLens();
   return S.arena;
 }
 /** The barrier's ring, inner ring and wall, as one group (also used to pre-compile its shaders). */
@@ -1412,6 +1503,7 @@ function closeArena(instant) {
     three.arena = null;
   }
   if (S) S.arena = null;
+  applyCameraLens();
 }
 function stepArena(dt) {
   const a = three && three.arena;
@@ -1749,9 +1841,11 @@ function heroScreen() {
 function screenRingPx() {
   const box = viewBox();
   const lv = (S && S.ringLv) || 0;
+  /* 짧은 축 기준 — 세로·가로 어느 쪽에서도 시야 원이 화면의 같은 비율을 차지한다. */
   let frac = (CFG.ringScreenFrac || 0.70) * (1 + (CFG.ringBoost || 0.14) * lv);
   const capFrac = CFG.ringMaxFrac || 0.90;
-  const diam = Math.min(box.width * frac, Math.min(box.width, box.height) * capFrac);
+  const short = Math.min(box.width, box.height);
+  const diam = Math.min(short * frac, short * capFrac);
   return Math.max(40, diam / 2);
 }
 function unprojectToY(sx, sy, y0) {
@@ -1986,41 +2080,42 @@ function markCssSize(w) {
   return clamp(Math.round(min * Math.sqrt((w || 375) / 375)), min, max);
 }
 
-/* Soul stream: a blurred jade wisp flows from each spirit into the hero, as if being drawn in. */
+/* Soul stream: a soft jade wisp drawn from each spirit into the hero.
+   v0.27: the spirit body stays the bright thing — the tether is a thin, dim ink wisp, not a beam. */
 function drawSoulStreams(ctx) {
   const t = (S.elapsed || 0);
   const hs = heroScreen();
   livingMarks().forEach(function (sp, si) {
     if (!sp.target || !sp.target.alive || !sp.obj) return;
-    const a0 = (CFG.spiritStreamAlpha || 0.7) * clamp((sp.age || 0) / (CFG.spiritFadeIn || 0.4), 0, 1);
+    const a0 = (CFG.spiritStreamAlpha || 0.55) * clamp((sp.age || 0) / (CFG.spiritFadeIn || 0.4), 0, 1);
     const from = screenOf(sp);
     const dx = hs.x - from.x, dy = hs.y - from.y, L = Math.hypot(dx, dy) || 1;
     const nx = -dy / L, ny = dx / L;
-    const bend = Math.min(40, L * 0.18) * (si % 2 ? 1 : -1);
+    const bend = Math.min(26, L * 0.12) * (si % 2 ? 1 : -1);
     const cx = (from.x + hs.x) / 2 + nx * bend, cy = (from.y + hs.y) / 2 + ny * bend;
     function at(u) {
-      const v = 1 - u, w = Math.sin(u * Math.PI * 3 - t * 6 + si) * 6 * (1 - u);
+      const v = 1 - u, w = Math.sin(u * Math.PI * 3 - t * 6 + si) * 5 * (1 - u);
       return { x: v * v * from.x + 2 * v * u * cx + u * u * hs.x + nx * w, y: v * v * from.y + 2 * v * u * cy + u * u * hs.y + ny * w };
     }
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    /* Hazy ribbon, wide at the spirit and thin at the hero. */
-    for (let k = 0; k < 24; k++) {
-      const u = k / 23, p = at(u), r = 10 * (1 - u) + 2;
+    /* Faint ribbon: a hair thin at the hero, never wider than a few pixels of glow. */
+    for (let k = 0; k < 18; k++) {
+      const u = k / 17, p = at(u), r = 5.0 * (1 - u) + 1.4;
       const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
-      g.addColorStop(0, 'rgba(46,230,166,' + (a0 * 0.16).toFixed(3) + ')'); g.addColorStop(1, 'rgba(46,230,166,0)');
+      g.addColorStop(0, 'rgba(110,214,176,' + (a0 * 0.11).toFixed(3) + ')'); g.addColorStop(1, 'rgba(110,214,176,0)');
       ctx.fillStyle = g; ctx.fillRect(p.x - r, p.y - r, r * 2, r * 2);
     }
-    /* Wisps drifting toward the hero, shrinking as they are drawn in. */
-    for (let k = 0; k < 5; k++) {
-      const u = ((t * 0.55 + k / 5 + si * 0.13) % 1);
-      const p = at(u), r = 7 * (1 - u * 0.7);
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 2.2);
-      const wa = a0 * Math.sin(Math.PI * u);
-      g.addColorStop(0, 'rgba(226,255,244,' + (wa * 0.9).toFixed(3) + ')');
-      g.addColorStop(0.4, 'rgba(46,230,166,' + (wa * 0.45).toFixed(3) + ')');
-      g.addColorStop(1, 'rgba(46,230,166,0)');
-      ctx.fillStyle = g; ctx.fillRect(p.x - r * 2.2, p.y - r * 2.2, r * 4.4, r * 4.4);
+    /* A few dim motes drifting into the hero — no white core, no bright bead. */
+    for (let k = 0; k < 4; k++) {
+      const u = ((t * 0.42 + k / 4 + si * 0.13) % 1);
+      const p = at(u), r = 3.4 * (1 - u * 0.7);
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 2.4);
+      const wa = a0 * Math.sin(Math.PI * u) * 0.5;
+      g.addColorStop(0, 'rgba(170,240,215,' + (wa * 0.55).toFixed(3) + ')');
+      g.addColorStop(0.5, 'rgba(88,190,160,' + (wa * 0.35).toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(88,190,160,0)');
+      ctx.fillStyle = g; ctx.fillRect(p.x - r * 2.4, p.y - r * 2.4, r * 4.8, r * 4.8);
     }
     ctx.restore();
   });
@@ -3128,6 +3223,27 @@ function cutSpirit(s) {
   if (s.isBoss) {
     /* 무릎 꿇은 보스는 네모 봉인만 받는다. */
     if (s.state === 'seal' || s.state === 'sealing') return;
+    /* v0.27 P1-2: 걷기·예고·기모으기·영창·탄막 예고 동안은 칼이 튕긴다.
+       패턴을 보고 빈틈(경직·기세 붕괴·돌진 통과·분신 진짜·은신 추적)을 노려야 절단이 들어간다.
+       예외 두 가지: ① 등장 직후 첫 걷기는 완전 무적 — 첫 패턴을 반드시 보게 한다.
+                     ② 그 뒤 걷기에는 한 호흡(1.6초)에 한 번만 '빈틈' 절단이 들어간다. */
+    var vuln = s.state === 'stun' || s.state === 'groggy' || s.state === 'charge' || s.state === 'clones' || s.state === 'veil';
+    if (!vuln) {
+      var gapOk = s.state === 'walk' && !s.firstWalk
+        && ((S.elapsed || 0) - (s.walkCutAt == null ? -9 : s.walkCutAt)) >= 1.6;
+      if (!gapOk) {
+        if (!S.bossArmorTip) {
+          S.bossArmorTip = true;
+          toast('예고·걷기 중에는 칼이 튕깁니다 — 한 호흡에 한 번, 빈틈을 노리세요');
+        }
+        if (!(S.armorJudgeT > 0)) { showJudge('튕겨냈다'); S.armorJudgeT = 0.5; }
+        if (audio && audio.whiff) audio.whiff();
+        addCharge(2);
+        return;
+      }
+      s.walkCutAt = S.elapsed || 0;
+      showJudge('빈틈!');
+    }
     s.seqI++;
     /* 돌진 뒤 경직(등 뒤)·기세 붕괴 중에 베면 절단이 두 번 들어간다 — 예고→회피→반격 파훼. */
     if (s.state === 'stun' || s.state === 'groggy') { s.seqI++; showJudge('파훼!'); }
@@ -3438,7 +3554,10 @@ function elemScale(base, step, lv) { return base + step * Math.max(0, (lv || 0) 
 function fmt1(v) { return (Math.round(v * 10) / 10).toString(); }
 function upDesc(u) {
   const next = upLv(u.id) + 1;
-  if (u.id === 'ring') return '심안 반경 Lv' + (S.ringLv || 0) + ' → Lv' + Math.min(CFG.ringLvMax || 3, next) + ' (최대)';
+  if (u.id === 'ring') {
+    const nextLv = Math.min(CFG.ringLvMax || 3, upLv('ring') + 1);
+    return '심안 반경 Lv' + (S.ringLv || 0) + ' → Lv' + nextLv + (nextLv >= (CFG.ringLvMax || 3) ? ' (최대)' : '');
+  }
   if (u.id === 'ice') return '빙결 ' + fmt1(elemScale(CFG.iceDur || 2.5, CFG.iceDurStep || 0.5, next)) + '초 · 파열 '
     + fmt1(elemScale(CFG.shatterDmg || 4, CFG.shatterStep || 1, next)) + ' 피해';
   if (u.id === 'fire') return '연소 ' + fmt1(elemScale(CFG.burnDur || 3, CFG.burnDurStep || 0.5, next)) + '초 · '
@@ -3885,10 +4004,10 @@ function stepBossSummons(dt) {
 function makeTotemObj() {
   const g = new THREE.Group();
   if (!three) return g;
-  const post = new THREE.Mesh(new THREE.BoxGeometry(0.55, 1.9, 0.55), new THREE.MeshBasicMaterial({ color: 0x24202a }));
+  const post = new THREE.Mesh(new THREE.BoxGeometry(0.55, 1.9, 0.55), new THREE.MeshBasicMaterial({ color: 0x4c4456 }));
   post.position.y = 0.95;
   g.add(post);
-  const cap = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.18, 0.9), new THREE.MeshBasicMaterial({ color: 0x3a3442 }));
+  const cap = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.18, 0.9), new THREE.MeshBasicMaterial({ color: 0x6f6680 }));
   cap.position.y = 1.98;
   g.add(cap);
   const charm = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.8, 0.04), new THREE.MeshBasicMaterial({ color: 0xc9a6ff, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
@@ -3936,6 +4055,7 @@ function nextBossPattern(z) {
 }
 function startBossPattern(z, id) {
   z.pat = id; z.stateT = 0;
+  z.firstWalk = false;
   const P = bossPat();
   if (id === 'kiai') {
     z.state = 'kiai'; z.kiai = { lock: false, open: false, t: P.kiai.t };
@@ -4278,7 +4398,7 @@ function startShrink(z) {
 function makePillarObj() {
   const g = new THREE.Group();
   if (!three) return g;
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.42, 2.6, 10), new THREE.MeshBasicMaterial({ color: 0x3a1410 }));
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.42, 2.6, 10), new THREE.MeshBasicMaterial({ color: 0x6a2a20 }));
   body.position.y = 1.3;
   g.add(body);
   const band = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.4, 0.06), new THREE.MeshBasicMaterial({ color: 0xffd25a, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
@@ -4529,6 +4649,7 @@ function starsFor(win) {
 function endRun(win, msg) {
   if (!S || S.won || S.lost) return;
   S.won = win; S.lost = !win; S.playing = false; S.paused = 'result'; S.dash = null;
+  hideGuide();
   closeArena();
   const st = S.stage || stageOf(1);
   const stars = starsFor(win);
@@ -4597,6 +4718,7 @@ function step(dt) {
   S.elapsed += dt; S.timeLeft -= dt;
   if (S.iframe > 0) S.iframe -= dt;
   if (S.parryCd > 0) S.parryCd = Math.max(0, S.parryCd - dt);
+  if (S.armorJudgeT > 0) S.armorJudgeT = Math.max(0, S.armorJudgeT - dt);
   if (S.parryFlash > 0) S.parryFlash = Math.max(0, S.parryFlash - dt);
   if (S.cleaveFx > 0) S.cleaveFx = Math.max(0, S.cleaveFx - dt);
   if (S.cleaveFx <= 0 && S._cleaveLv > 0 && !S.paused && S.playing) {
@@ -4838,6 +4960,7 @@ function finishCurrentDash() {
 }
 function stepDash(dt) {
   if (!S || !S.dash) return;
+  if (S.paused === 'manual') return;
   const d = S.dash;
   d.t += dt;
   const u = clamp(d.t / d.dur, 0, 1);
@@ -4863,6 +4986,17 @@ function updateCam(dt) {
   }
   S.cam.x += (targetX - S.cam.x) * Math.min(1, dt * 6);
   S.cam.z += (targetZ - S.cam.z) * Math.min(1, dt * 6);
+  /* 보스가 결계 안에 서면 시선을 살짝 보스 쪽으로 옮겨, 몸 앞쪽이 화면 아래로 잘리지 않게 한다. */
+  let fx = S.cam.x, fz = S.cam.z;
+  const b = S.boss;
+  if (b && b.alive && !b.hidden && arenaActive()) {
+    const bx = b.x - S.hero.x, bz = b.z - S.hero.z, bd = Math.hypot(bx, bz) || 1;
+    const k = Math.min(2.6, bd * 0.3);
+    fx += bx / bd * k; fz += bz / bd * k;
+  }
+  if (!S.focus) S.focus = { x: fx, z: fz };
+  S.focus.x += (fx - S.focus.x) * Math.min(1, dt * 5);
+  S.focus.z += (fz - S.focus.z) * Math.min(1, dt * 5);
   let sx = 0, sy = 0, sz = 0;
   if (S.recoil && S.recoil.t > 0) {
     S.recoil.t -= dt;
@@ -4877,8 +5011,8 @@ function updateCam(dt) {
     const a = S.shake * 0.55;
     sx += (Math.random() - 0.5) * a; sy = (Math.random() - 0.5) * a; sz += (Math.random() - 0.5) * a;
   }
-  three.camera.position.set(S.cam.x + CFG.camOff.x + sx, CFG.camOff.y + sy, S.cam.z + CFG.camOff.z + sz);
-  three.camera.lookAt(S.cam.x, CFG.camLookY, S.cam.z);
+  three.camera.position.set(S.focus.x + CFG.camOff.x + sx, CFG.camOff.y + sy, S.focus.z + CFG.camOff.z + sz);
+  three.camera.lookAt(S.focus.x, CFG.camLookY, S.focus.z);
 }
 
 /* ---------- ink + input ---------- */
@@ -4968,7 +5102,7 @@ function localPts(e) {
 }
 function onDown(e) {
   if (pointers.down) return;
-  if (e.target.closest && e.target.closest('.ov.show, .btn')) return;
+  if (e.target.closest && e.target.closest('.ov.show, .btn, #hudBtns button')) return;
   pointers.down = true; pointers.id = e.pointerId; pointers.pts = [localPts(e)];
   try { $('app').setPointerCapture(e.pointerId); } catch (err) {}
   paintInk(pointers.pts, 1);
@@ -5101,14 +5235,14 @@ function finishStroke(pts, opts) {
   rec.combo = S.combo;
   /* 선입력 버퍼: 돌진 중에 들어온 획은 버리지 않고 200ms 예약한다. */
   if (S.dash || (S.dashQueue && S.dashQueue.length)) {
-    S.inputBuf = { type: rec.type, dir: dir, t0: now(), ttl: CFG.inputBufMs || 200, quality: rec.bestScore };
+    S.inputBuf = { type: rec.type, dir: dir, t0: now(), ttl: CFG.inputBufMs || 200, quality: (rec.q != null ? rec.q : rec.bestScore) };
     inkFade = 0.20;
     showJudge('예약');
     rec.buffered = true;
     rec.targets = [];
     return rec;
   }
-  const dash = beginDash(rec.type, { dir: dir, quality: rec.bestScore });
+  const dash = beginDash(rec.type, { dir: dir, quality: (rec.q != null ? rec.q : rec.bestScore) });
   rec.targets = dash && dash.targets;
   rec.dash = dash;
   return rec;
@@ -5186,7 +5320,25 @@ function buy(stat) {
 
 function activeFov() {
   if (!three || !three.view) return CFG.fov || 62;
-  return CFG.fov || 62;
+  return viewFov(three.view.clientWidth || 390, Math.max(1, three.view.clientHeight || 844));
+}
+/* v0.27 화면 통일: 화면의 짧은 축이 언제나 같은 세계 폭(≈16.6m)을 담게 한다.
+   360·390·430·가로·데스크톱에서 캐릭터·시야 원의 픽셀 크기가 같아지고, 넓은 축만 더 많이 보인다.
+   (예전에는 세로 FOV가 고정이라 가로 화면에서 세상이 2배쯤 작게 보였다.) */
+const VIEW_REF = { shortPx: 390, span: 16.6, growMax: 1.6 };
+function viewSpanFor(shortPx) {
+  const k = Math.sqrt(Math.max(120, shortPx) / VIEW_REF.shortPx);
+  return VIEW_REF.span * clamp(k, 0.7, VIEW_REF.growMax);
+}
+function camDist() { return Math.hypot(CFG.camOff.x, CFG.camOff.y, CFG.camOff.z) || 30; }
+function viewFov(w, h) {
+  const short = Math.min(w, h), span = viewSpanFor(short);
+  const aspect = w / Math.max(1, h);
+  const tanV = (aspect >= 1) ? (span / (2 * camDist())) : (span / (2 * camDist() * aspect));
+  const fov = 2 * Math.atan(tanV) * 180 / Math.PI;
+  /* 보스 결계에서는 조금 물러나 보스의 예고 동작까지 화면에 담는다. */
+  const arena = arenaActive() ? 1.10 : 1;
+  return clamp(fov * arena, 24, 78);
 }
 function applyCameraLens() {
   if (!three) return;
@@ -5194,6 +5346,7 @@ function applyCameraLens() {
   three.camera.aspect = w / h;
   three.camera.fov = activeFov();
   three.camera.updateProjectionMatrix();
+  if (S) S._lensKey = (w | 0) + 'x' + (h | 0) + ':' + three.camera.fov.toFixed(2);
 }
 function onResize() {
   if (!three) return;
@@ -5402,6 +5555,7 @@ function loop(ts) {
     fps.last = f;
   }
   if (toastT && now() > toastT) { $('toast').hidden = true; toastT = 0; }
+  if (guideUntil && S && (S.elapsed || 0) >= guideUntil) hideGuide();
   if (pendingStage && now() >= pendingStage.until && (pendingStage.ready || now() >= pendingStage.until + 8000)) goStageNow(true);
   if (S && S.comboBurstT > 0) {
     S.comboBurstT -= raw;
@@ -5519,8 +5673,18 @@ function guardEvents() {
   window.addEventListener('pointerup', onUp);
   window.addEventListener('pointercancel', onUp);
   window.addEventListener('resize', onResize);
+  window.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    if (S && S.paused === 'manual') resumeRun();
+    else if (S && S.playing) pauseRun();
+  });
 }
 function bindUi() {
+  if ($('btnMute')) $('btnMute').addEventListener('click', function (e) { e.stopPropagation(); setMuted(!save.muted); });
+  if ($('btnMute2')) $('btnMute2').addEventListener('click', function () { setMuted(!save.muted); });
+  if ($('btnPause')) $('btnPause').addEventListener('click', function (e) { e.stopPropagation(); pauseRun(); });
+  if ($('btnResume')) $('btnResume').addEventListener('click', function () { resumeRun(); });
+  if ($('btnQuit')) $('btnQuit').addEventListener('click', function () { quitRun(); });
   $('btnStart').addEventListener('click', function () { beginStage(upcomingRun()); });
   $('btnShop').addEventListener('click', function () { refreshShop(); showOv('ov-shop'); });
   $('btnShopClose').addEventListener('click', function () {
@@ -5562,6 +5726,7 @@ function fpsReport() {
 
 async function boot() {
   loadSave();
+  qa.mute = !!save.muted;
   await probeAssets();
   art = await buildArt(THREE);
   three = await makeWorld();
@@ -5606,6 +5771,71 @@ const GPv2 = {
   spawnZombie: function (o) { return spawnZombie(o); },
   addSpirit: function (o) { return addSpirit(o || { force: true }); },
   setSpiritCount: function (n) { return setSpiritCount(n); },
+  /* v0.27 QA 훅: 화면 통일·HUD·안내 문구 */
+  lensInfo: function () {
+    const w = three && three.view ? three.view.clientWidth : 0;
+    const h = three && three.view ? Math.max(1, three.view.clientHeight) : 1;
+    return {
+      w: w, h: h, short: Math.min(w, h), fov: (three && three.camera && three.camera.fov) || 0,
+      span: viewSpanFor(Math.min(w, h)), camDist: camDist(), arena: arenaActive(),
+      ringPx: (lastMarkMetrics && lastMarkMetrics.ring && lastMarkMetrics.ring.px) || (S && S.ringPx) || 0,
+      ringR: S ? ringR() : 0, focus: S && S.focus ? { x: S.focus.x, z: S.focus.z } : null,
+      hero: S ? { x: S.hero.x, z: S.hero.z } : null
+    };
+  },
+  hudInfo: function () {
+    const rect = function (id) { const e = $(id); if (!e) return null; const r = e.getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height), text: e.textContent }; };
+    const hud = $('hud'), row = document.querySelector('#hud .row-top'), pips = $('hpPips');
+    const doc = document.documentElement;
+    return {
+      hudH: hud ? Math.round(hud.getBoundingClientRect().height) : 0,
+      overflowX: doc.scrollWidth - doc.clientWidth,
+      rowOverflow: row ? row.scrollWidth - row.clientWidth : 0,
+      hudOverflow: hud ? hud.scrollWidth - hud.clientWidth : 0,
+      stage: rect('stageLabel'), timer: rect('timer'), coin: rect('coinLabel'), combo: rect('comboLabel'),
+      chargeText: rect('chargeText'), dashLabel: rect('dashLabel'), lvl: rect('lvlLabel'),
+      pips: pips ? { n: pips.querySelectorAll('i').length, h: Math.round(pips.getBoundingClientRect().height), w: Math.round(pips.getBoundingClientRect().width) } : null,
+      hpMore: rect('hpMore'),
+      vw: window.innerWidth, vh: window.innerHeight
+    };
+  },
+  guideText: function () { const g = $('guide'); return g && g.classList.contains('show') ? g.textContent : ''; },
+  /* 렌더 프레임 없이 카메라를 수렴시켜 투영만 잰다 — 헤드리스 소프트웨어 렌더 대책. */
+  /* 보스 그림·윤곽광만 따로 세워 본다(결계 없이) — 헤드리스 결계 렌더가 느리기 때문. */
+  bossVisualProbe: function (shape) {
+    if (!three) return null;
+    if (this._bv && this._bv.parent) three.scene.remove(this._bv);
+    const obj = addEntityVisual('boss', shape || 'hline');
+    obj.position.set(0, 0, 0);
+    three.scene.add(obj);
+    if (art.tickChar) art.tickChar(obj, 'boss', 'idle', 0.016, 0, 1);
+    this._bv = obj;
+    const ud = obj.userData || {};
+    return { hasRim: !!ud.rim, rimOp: ud.rim && ud.rim.material ? ud.rim.material.opacity : null, rimHex: ud.rimHex, worldH: ud.worldH, bell: ud.bellLocal };
+  },
+  /* 스테이지 분위기만 적용해 수치를 읽는다(맵 재구성 없이) — 12장 대비 검증용. */
+  atmoProbe: function (n) {
+    const st = stageOf(n || 1);
+    applyStageAtmo(st);
+    const T = three;
+    return {
+      stage: st.id, fog: T.scene.fog ? +T.scene.fog.density.toFixed(4) : null,
+      moon: T.moon && T.moon.intensity, amb: T.amb && T.amb.intensity, hemi: T.hemi && T.hemi.intensity,
+      fill: T.fill && T.fill.intensity, fogCol: st.atmo.fogCol, tint: st.atmo.tint,
+      clear: T.scene.background && T.scene.background.getHexString ? '#' + T.scene.background.getHexString() : null
+    };
+  },
+  camSettle: function (n) {
+    if (!S || !three) return null;
+    for (let i = 0; i < (n || 14); i++) { S.cam.x = S.hero.x; S.cam.z = S.hero.z; updateCam(0.2); }
+    three.camera.updateMatrixWorld(true);
+    return { focus: { x: +S.focus.x.toFixed(2), z: +S.focus.z.toFixed(2) }, pos: three.camera.position.toArray().map(function (v) { return +v.toFixed(2); }), fov: three.camera.fov };
+  },
+  overlayShown: function () { return ['ov-title', 'ov-shop', 'ov-result', 'ov-idle', 'ov-level', 'ov-stage', 'ov-pause'].filter(function (k) { return $(k) && $(k).classList.contains('show'); }); },
+  setMuted: setMuted,
+  pauseRun: pauseRun,
+  resumeRun: resumeRun,
+  quitRun: quitRun,
   ringInfo: function () { updateMarks(); const rg = lastMarkMetrics && lastMarkMetrics.ring; return { r: ringR(), px: (rg && rg.px) || (S && S.ringPx), rx: rg && rg.rx, ry: rg && rg.ry, cx: rg && rg.cx, cy: rg && rg.cy, lv: S && (S.ringLv || 0), frac: rg && rg.frac, fov: (three && three.camera && three.camera.fov) || (CFG.fov), max: CFG.spiritMax, cssPx: lastMarkMetrics && lastMarkMetrics.cssPx, bellPx: lastMarkMetrics && lastMarkMetrics.bellPx, bodyPx: lastMarkMetrics && lastMarkMetrics.bodyPx, kind: rg && rg.kind, pts: rg && rg.pts, markStyle: lastMarkMetrics && lastMarkMetrics.markStyle }; },
   heroScreen: function () { return S && S.hero ? heroScreen() : { x: 0, y: 0 }; },
   unproject: function (sx, sy, y0) { return unprojectToY(sx, sy, y0 == null ? 0.2 : y0); },
@@ -5675,6 +5905,41 @@ const GPv2 = {
       shots: (S.shots || []).length, gold: (S.shots || []).filter(function (q) { return q.gold; }).length } : null;
   },
   bossPattern: function (id) { const b = S && S.boss; if (!b || !b.alive) return null; startBossPattern(b, id); return b.state; },
+  /* v0.27 QA: 걷기 무적 규칙을 프레임 없이 직접 확인한다(일섬→절단 경로와 같은 함수). */
+  cutProbe: function (state) {
+    const b = S && S.boss;
+    if (!b || !b.alive) return null;
+    if (state) { b.state = state; b.stateT = 0; }
+    const before = b.seqI;
+    cutBoss(b);
+    return { state: b.state, before: before, after: b.seqI, alive: b.alive, judged: (document.getElementById('judgeFlash') || {}).textContent };
+  },
+  /* 장면(결계) 없이 상태별 절단 규칙만 추린다 — 헤드리스에서 결계 렌더가 느리기 때문. */
+  bossArmorProbe: function () {
+    if (!S) return null;
+    const prev = S.boss;
+    const out = {};
+    const mk = function (state, extra) {
+      const o = { id: -1, isBoss: true, alive: true, state: state, stateT: 0, seq: ['hline', 'hline', 'hline', 'hline', 'hline', 'hline'], seqI: 0, r: 1.1, poise: 3, x: 3, z: 0, obj: null, marked: false, hp: 99, clones: [] };
+      if (extra) Object.keys(extra).forEach(function (k) { o[k] = extra[k]; });
+      return o;
+    };
+    ['walk', 'telegraph', 'kiai', 'slamTele', 'volleyTele', 'stun', 'groggy', 'charge', 'seal'].forEach(function (st) {
+      const fake = mk(st, { firstWalk: false });
+      S.boss = fake;
+      cutBoss(fake);
+      out[st] = { seqI: fake.seqI, state: fake.state, alive: fake.alive };
+      S.boss = prev;
+    });
+    /* 첫 걷기(등장 직후)는 완전 무적 */
+    let f = mk('walk', { firstWalk: true });
+    S.boss = f; cutBoss(f); out['walk(first)'] = { seqI: f.seqI };
+    /* 그 뒤 걷기: 한 번은 빈틈, 곸바로 다음은 튕김 */
+    f = mk('walk', { firstWalk: false, walkCutAt: null });
+    S.boss = f; cutBoss(f); const a1 = f.seqI; cutBoss(f); out['walk(빈틈)'] = { first: a1, second: f.seqI };
+    S.boss = prev;
+    return out;
+  },
   bossTap: function () { return kiaiTap(); },
   bossStroke: function (type) { if (type === 'square') return sealStroke(); return chantStroke(type); },
   veilStroke: function (pts) { return veilStroke(pts); },

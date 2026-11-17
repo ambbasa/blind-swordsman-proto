@@ -177,10 +177,11 @@
     var axis = ny >= nx ? 'vline' : 'hline';
     var lean = Math.max(ny, nx);
     var score = clamp01((lean - 0.62) / 0.25) * 0.9 + 0.1;
-    return { type: axis, score: score, tie: Math.abs(ny - nx) < 0.06 };
+    return { type: axis, score: score, tie: Math.abs(ny - nx) < 0.06, dev: dev };
   }
   function scoreVee(pts, bb, L) {
-    if (bb.w < 28 || bb.h < 28) return 0;
+    /* 손으로 그린 얕은 V는 높이가 20px 남짓이다 — 높이 문턱을 낮추고 꼭짓점 각도로 거른다. */
+    if (bb.w < 28 || bb.h < 13) return 0;
     var vi = vertexIndex(pts);
     var t = vi / (pts.length - 1);
     if (t < 0.18 || t > 0.82) return 0;
@@ -231,7 +232,8 @@
     var aspect = bb.w / bb.h; if (aspect < 1) aspect = 1 / aspect;
     var circ = L / (2 * Math.PI * Math.max(rs.mean, 1));
     var sc = 1;
-    sc *= clamp01((0.32 - closure) / 0.32);
+    /* 끝을 40° 남짓 열어 둔 O도 동그라미로 읽는다(사람 손은 잘 닫지 않는다). */
+    sc *= clamp01((0.46 - closure) / 0.26);
     sc *= clamp01((0.38 - rs.cv) / 0.38);
     sc *= clamp01((cover - 0.62) / 0.28);
     sc *= clamp01((loops - 0.62) / 0.28) * clamp01((1.45 - loops) / 0.4);
@@ -241,7 +243,9 @@
   }
   function scoreBolt(pts, bb, L) {
     if (bb.h < 24) return 0;
-    var simple = simplify(pts, Math.max(8, bb.diag * 0.13));
+    /* 좁은 지그재그(폭 20px)도 살리도록 단순화 여유를 획 폭에 맞춘다. */
+    var eps = Math.max(6, Math.min(bb.diag * 0.13, Math.max(6, bb.w * 0.35)));
+    var simple = simplify(pts, eps);
     if (simple.length < 3 || simple.length > 7) return 0;
     var netY = simple[simple.length - 1].y - simple[0].y;
     if (netY / bb.h < 0.2 && bb.h / bb.w < 0.7) {
@@ -262,6 +266,11 @@
     sc *= clamp01((simple.length - 2.9) / 1.2) * clamp01((7.4 - simple.length) / 2.6);
     sc *= clamp01((closure - 0.2) / 0.3);
     sc *= clamp01((Math.max(bb.w, bb.h) - 30) / 40);
+    /* 폭이 길이의 4%도 안 되면 지그재그가 아니라 손 떨림이 있는 직선으로 본다. */
+    var thin = Math.min(bb.w, bb.h) / Math.max(1, Math.max(bb.w, bb.h));
+    sc *= clamp01((thin - 0.045) / 0.06);
+    /* 진짜 번개의 꺾임은 몇 점 사이에서 급하게 꺾인다. 완만한 물결(손 떨림)은 배제. */
+    sc *= clamp01((maxTurnWindow(pts, 3) - 0.55) / 0.40);
     /* must not be a plain V (3 corners) or circle */
     if (flips < 2) sc *= 0.6;
     return sc;
@@ -365,15 +374,37 @@
     }
     return m;
   }
+  /* 꺾임이 몰린 구간의 개수: V는 1곳, 반달(U자)은 2곳, 네모는 3~4곳. */
+  function sharpRuns(pts, thresh) {
+    var i, runs = 0, inRun = false, prev;
+    for (i = 1; i < pts.length; i++) {
+      var ang = Math.atan2(pts[i].y - pts[i - 1].y, pts[i].x - pts[i - 1].x);
+      var sharp = false;
+      if (i > 1) {
+        var d = ang - prev;
+        while (d > Math.PI) d -= 2 * Math.PI;
+        while (d < -Math.PI) d += 2 * Math.PI;
+        sharp = Math.abs(d) > thresh;
+      }
+      prev = ang;
+      if (sharp) { if (!inRun) { runs++; inRun = true; } }
+      else inRun = false;
+    }
+    return runs;
+  }
   function scoreArc(pts, bb, L) {
     if (Math.max(bb.w, bb.h) < 40) return 0;
     var chord = dist(pts[0], pts[pts.length - 1]) / L;
     var loops = Math.abs(totalTurn(pts)) / (2 * Math.PI);
     var sharp = maxTurnWindow(pts, 3);
+    var runs = sharpRuns(pts, 0.35);
     var sc = 1;
-    sc *= clamp01((chord - 0.4) / 0.12) * clamp01((0.84 - chord) / 0.1);
+    /* U자로 그린 반달은 양 끝이 곧게 내려와 코드 대비 길이가 짧다 — 하한을 0.26까지 연다. */
+    sc *= clamp01((chord - 0.26) / 0.12) * clamp01((0.86 - chord) / 0.1);
     sc *= clamp01((loops - 0.3) / 0.1) * clamp01((0.72 - loops) / 0.1);
-    sc *= clamp01((1.0 - sharp) / 0.35);
+    /* 부드러운 호는 꺾임이 없고, U자는 꺾인 두 모서리를 허용한다(V의 한 꼭짓점은 배제). */
+    if (runs <= 1) sc *= clamp01((1.0 - sharp) / 0.35);
+    else sc *= clamp01((2.6 - sharp) / 0.8) * (runs <= 2 ? 1 : 0.3);
     return sc;
   }
   function scoreSpiral(pts, bb, L) {
@@ -435,7 +466,7 @@
     var L0 = pathLen(pts);
     var bb0 = bbox(pts);
     if (isTap(pts, L0, bb0)) {
-      return { type: 'tap', reason: null, scores: { tap: 1 }, label: LABELS.tap, best: 'tap', bestScore: 1 };
+      return { type: 'tap', reason: null, scores: { tap: 1 }, label: LABELS.tap, best: 'tap', bestScore: 1, q: 1 };
     }
     /* Fast flicks often arrive with 2–5 samples. Densify first, then judge by length/shape. */
     pts = densify(pts, 10);
@@ -465,7 +496,7 @@
       TOTEM.forEach(function (k) { scores[k] = tScores[k]; if (tScores[k] > ts) { ts = tScores[k]; tk = k; } });
       var rival = Math.max(scores.vee || 0, scores.circle || 0, scores.square || 0, (opts.allowBolt ? scores.bolt || 0 : 0), axis ? axis.score : 0);
       if (tk && ts >= 0.45 && ts + 0.05 >= rival) {
-        return { type: tk, reason: null, scores: scores, label: LABELS[tk], best: tk, bestScore: ts };
+        return { type: tk, reason: null, scores: scores, label: LABELS[tk], best: tk, bestScore: ts, q: clamp01(ts) };
       }
     }
     var allowBolt = !!opts.allowBolt;
@@ -487,16 +518,30 @@
       best = 'circle'; bestS = scores.circle;
     }
     var stable = best === 'circle' || best === 'square';
+    /* 좁은 번개(⚡)는 폭이 좁아 세로선으로 보이기 쉽다 — 지그재그가 확인되면 축 흡수보다 먼저 인정한다. */
+    var boltStrong = allowBolt && (scores.bolt || 0) >= 0.5;
     /* 대각선 흡수: 충분히 곧은 획은 가장 가까운 축의 직선으로 확정한다. */
     var axisPick = null;
-    if (axis && axis.score >= TH && axis.score + 0.10 >= bestS) { axisPick = axis; best = axis.type; bestS = axis.score; }
+    if (!boltStrong && axis && axis.score >= TH && axis.score + 0.10 >= bestS) { axisPick = axis; best = axis.type; bestS = axis.score; }
+    if (boltStrong) { best = 'bolt'; bestS = Math.max(bestS, scores.bolt || 0); }
     if (axisPick && axisPick.tie) {
-      return { type: axis.type, reason: null, tie: true, scores: scores, label: LABELS[axis.type], best: axis.type, bestScore: bestS, axis: axis.type };
+      return { type: axis.type, reason: null, tie: true, scores: scores, label: LABELS[axis.type], best: axis.type, bestScore: bestS, axis: axis.type, q: qualityOf(axis.type, rs, axis, scores, bestS) };
     }
     if (!best || bestS < TH || (second > 0 && bestS - second < MARGIN && second >= TH * 0.9 && !stable)) {
-      return { type: null, reason: best ? 'ambiguous' : 'unknown', scores: scores, label: null, best: best, bestScore: bestS };
+      return { type: null, reason: best ? 'ambiguous' : 'unknown', scores: scores, label: null, best: best, bestScore: bestS, q: 0 };
     }
-    return { type: best, reason: null, scores: scores, label: LABELS[best], best: best, bestScore: bestS };
+    return { type: best, reason: null, scores: scores, label: LABELS[best], best: best, bestScore: bestS, q: qualityOf(best, rs, axis, scores, bestS) };
+  }
+  /* '정확한 획' 판정용 품질(0~1): 직선은 축에서 벗어난 정도, 나머지는 모양 점수.
+     모양 점수는 모든 방향에서 1.00에 붙는 직선과 달리 휘고 삐뚤어질수록 떨어진다. */
+  function qualityOf(type, pts, axis, scores, bestS) {
+    if (type === 'vline' || type === 'hline') {
+      var a = pts[0], b = pts[pts.length - 1];
+      var dev = (axis && axis.dev != null) ? axis.dev : (lineDev(pts, a, b) / Math.max(1, pathLen(pts)));
+      return clamp01(1 - dev / 0.10);
+    }
+    if (type === 'vee') return clamp01(((bestS || 0) - 0.35) / 0.55);
+    return clamp01(bestS || 0);
   }
 
   var NAMES = { vline: '세로선', hline: '가로선', vee: 'V자', circle: '동그라미', square: '네모', tap: '탭', bolt: '번개', tri: '삼각', arc: '반달', spiral: '소용돌이' };
@@ -508,7 +553,7 @@
     circle: '동그라미는 더 둥글게 닫아 보세요.',
     tap: '점을 찍거나 짧게 눌러 보세요.',
     tri: '세모는 세 꼭짓점을 또렷하게 닫아 보세요.',
-    arc: '반달은 꺾지 말고 둥글게 반만 그려 보세요.',
+    arc: '반달(◡)은 U자처럼 둥글게 반만 그어 보세요.',
     spiral: '소용돌이는 두 바퀴쯤 감으며 넓혀 보세요.'
   };
   function readMessage(rec) {
