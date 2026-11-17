@@ -1,0 +1,163 @@
+{
+ "generatedAt": "2026-11-17T08:47:30+00:00",
+ "matrix": {
+  "arc": {
+   "arc": 26,
+   "bolt": 0,
+   "circle": 0,
+   "hline": 0,
+   "none": 19,
+   "spiral": 0,
+   "square": 0,
+   "tap": 0,
+   "tri": 0,
+   "vee": 0,
+   "vline": 0
+  },
+  "bolt": {
+   "arc": 0,
+   "bolt": 103,
+   "circle": 0,
+   "hline": 0,
+   "none": 2,
+   "spiral": 0,
+   "square": 0,
+   "tap": 0,
+   "tri": 0,
+   "vee": 0,
+   "vline": 0
+  },
+  "circle": {
+   "arc": 0,
+   "bolt": 0,
+   "circle": 39,
+   "hline": 0,
+   "none": 6,
+   "spiral": 0,
+   "square": 0,
+   "tap": 0,
+   "tri": 0,
+   "vee": 0,
+   "vline": 0
+  },
+  "hline": {
+   "arc": 0,
+   "bolt": 0,
+   "circle": 0,
+   "hline": 29,
+   "none": 16,
+   "spiral": 0,
+   "square": 0,
+   "tap": 0,
+   "tri": 0,
+   "vee": 0,
+   "vline": 0
+  },
+  "spiral": {
+   "arc": 0,
+   "bolt": 0,
+   "circle": 0,
+   "hline": 0,
+   "none": 0,
+   "spiral": 45,
+   "square": 0,
+   "tap": 0,
+   "tri": 0,
+   "vee": 0,
+   "vline": 0
+  },
+  "square": {
+   "arc": 0,
+   "bolt": 0,
+   "circle": 0,
+   "hline": 0,
+   "none": 0,
+   "spiral": 0,
+   "square": 45,
+   "tap": 0,
+   "tri": 0,
+   "vee": 0,
+   "vline": 0
+  },
+  "tap": {
+   "arc": 0,
+   "bolt": 0,
+   "circle": 0,
+   "hline": 0,
+   "none": 0,
+   "spiral": 0,
+   "square": 0,
+   "tap": 45,
+   "tri": 0,
+   "vee": 0,
+   "vline": 0
+  },
+  "tri": {
+   "arc": 0,
+   "bolt": 0,
+   "circle": 0,
+   "hline": 0,
+   "none": 5,
+   "spiral": 0,
+   "square": 5,
+   "tap": 0,
+   "tri": 35,
+   "vee": 0,
+   "vline": 0
+  },
+  "vee": {
+   "arc": 0,
+   "bolt": 0,
+   "circle": 0,
+   "hline": 0,
+   "none": 1,
+   "spiral": 0,
+   "square": 0,
+   "tap": 0,
+   "tri": 0,
+   "vee": 44,
+   "vline": 0
+  },
+  "vline": {
+   "arc": 0,
+   "bolt": 0,
+   "circle": 0,
+   "hline": 0,
+   "none": 12,
+   "spiral": 0,
+   "square": 0,
+   "tap": 0,
+   "tri": 0,
+   "vee": 0,
+   "vline": 33
+  }
+ },
+ "metrics": {
+  "boltRate": 0.981,
+  "circleRate": 0.8667,
+  "hlineAsBolt": 0.0,
+  "lineAsBolt": 0.0,
+  "narrowBoltRate": 0.9833,
+  "squareRate": 1.0,
+  "tapRate": 1.0,
+  "totemRates": {
+   "arc": 0.5778,
+   "spiral": 1.0,
+   "tri": 0.7778
+  },
+  "veeRate": 0.9778,
+  "vlineAsBolt": 0.0
+ },
+ "n": 510,
+ "narrow": {
+  "bolt": 59,
+  "n": 60
+ },
+ "seed": 20261129,
+ "thresholds": {
+  "circleMin": 0.85,
+  "lineAsBoltMax": 0.01,
+  "narrowBoltMin": 0.9
+ },
+ "version": "v0.29"
+}

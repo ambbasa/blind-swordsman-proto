@@ -176,11 +176,29 @@ export function createAudio() {
     noise(t0, 0.02, 'bandpass', 6000, 2.4, BELL.clink * 0.6, out);
   }
 
-  /* 패링 실패: 허공을 가른 짧은 바람 소리. */
-  function whiff() {
+  /* 한 순간에 겹치는 소리 수 상한(v0.29 §3.1: 동시 재생 6).
+     한 획에 다섯을 베어도 소리가 찢어지지 않게, 0.25초 안의 소리 수를 세어 넘치면 새 소리를 뺀다. */
+  let voicePans = [];
+  function voiceOk() {
+    const t = (ctx ? ctx.currentTime : 0);
+    voicePans = voicePans.filter(function (q) { return t - q < 0.25; });
+    if (voicePans.length >= 6) return false;
+    voicePans.push(t);
+    return true;
+  }
+
+  /* 패링 실패: 허공을 가른 짧은 바람 소리. high=true면 칼이 튕긴 쇳소리(더 높고 짧게). */
+  function whiff(high) {
     if (quiet) return;
     const c = resume(); if (!c) return;
+    if (!voiceOk()) return;
     const t0 = c.currentTime;
+    if (high) {
+      noise(t0, 0.05, 'highpass', 2600, 1.1, 0.13);
+      tone(t0, 1180, 0.05, 0.045, 'triangle', sfxGain, 760);
+      tone(t0, 2360, 0.03, 0.03, 'sine', sfxGain, 1900);
+      return;
+    }
     noise(t0, 0.09, 'highpass', 900, 0.7, 0.16);
     tone(t0, 620, 0.08, 0.05, 'sine', sfxGain, 300);
   }
@@ -203,28 +221,39 @@ export function createAudio() {
   function drum() {
     if (quiet) return;
     const c = resume(); if (!c) return;
+    if (!voiceOk()) return;
     const t0 = c.currentTime;
     tone(t0, 72, 0.22, 0.38, 'sine', sfxGain, 36);
     noise(t0, 0.1, 'lowpass', 420, 0.7, 0.22);
   }
 
-  function slash() {
+  /* 칼날 층: 획이 길수록 음이 조금 높아진다(0~2도). 짧은 획은 낮고 둔탁하게. */
+  function slash(lenRatio) {
     if (quiet) return;
     const c = resume(); if (!c) return;
+    if (!voiceOk()) return;
     const t0 = c.currentTime;
+    const k = Math.pow(2, (lenRatio == null ? 1 : clamp01(lenRatio) * 2) / 12);
     /* 샤악 — airy blade */
-    noise(t0, 0.11, 'highpass', 1800, 0.8, 0.28);
-    noise(t0, 0.08, 'bandpass', 4200, 2.4, 0.16);
-    tone(t0, 1400, 0.09, 0.07, 'triangle', sfxGain, 420);
+    noise(t0, 0.11, 'highpass', 1800 * k, 0.8, 0.28);
+    noise(t0, 0.08, 'bandpass', 4200 * k, 2.4, 0.16);
+    tone(t0, 1400 * k, 0.09, 0.07, 'triangle', sfxGain, 420 * k);
   }
+  function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
 
-  function hit() {
+  /* 살 층: 일반 명중. perfect=true면 '정확한 획' 한 겹을 더 얹는다. */
+  function hit(perfect) {
     if (quiet) return;
     const c = resume(); if (!c) return;
+    if (!voiceOk()) return;
     const t0 = c.currentTime;
     tone(t0, 90, 0.16, 0.32, 'sine', sfxGain, 45);
     tone(t0, 180, 0.1, 0.12, 'triangle', sfxGain, 80);
     noise(t0, 0.09, 'lowpass', 900, 0.6, 0.2);
+    if (perfect) {
+      tone(t0, 1560, 0.08, 0.06, 'sine', sfxGain, 1180);
+      noise(t0, 0.05, 'bandpass', 3200, 2, 0.07);
+    }
   }
 
   function explode() {

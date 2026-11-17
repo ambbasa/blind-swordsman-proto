@@ -17,7 +17,9 @@ import { createSlashArc } from './inkslash3d.js';
 import { StageAtmosphere } from './inkatmos.js';
 import { createChunkWorld, buildChunkData, chunkOf } from './inkchunks.js';
 import { InkFx, FX_COLORS } from './inkfx.js';
+import { createTelemetry } from './telemetry.js';
 const inkFx = new InkFx();
+const telemetry = createTelemetry({ version: '0.29' });
 let frameDt = 1 / 60;
 
 const G = window.GPGestures;
@@ -110,7 +112,7 @@ const CFG = {
     walk: 2.6, poise: 3, groggyT: 3.0, dodgeSlow: 0.5, dodgeR: 1.4,
     kiai: { t: 2.2, win: 0.4, grace: 0.08, dmg: 2, charge: 20 },
     slam: { tele: 1.0, r: 3.0, dmg: 2, stun: 1.0 },
-    clones: { n: 3, t: 8, r: 0.72, dmg: 1, bell: 1.1 },
+    clones: { n: 3, t: 8, r: 0.72, dmg: 1, bell: 0.9 },
     veil: { t: 5, bell: 1.0, cone: 0.82, ambushTele: 0.7, dist: [6, 9] },
     volley: { n: 7, spread: 1.0, gold: 2, tele: 0.8, speed: 7.5 },
     chant: { n: 3, t: 4.5, dmg: 2, stun: 1.6 },
@@ -136,6 +138,14 @@ const CFG = {
   landBounce: 0.28, landBounceT: 0.16, landRippleDur: 0.45,
   landIframe: 0.25, landShockR: 1.6, landPush: 1.2, landStun: 0.3, landPast: 1.0,
   hitstopKill: 0.06, hitstopKillMax: 0.12, hitHitstop: 0.08, hitKnock: 0.6,
+  /* v0.29 §3.1 타격감: 일반 명중에 히트스톱을 넣고, 파훼는 더 길게, 칼 튕길 때는 짧은 쇳소리. */
+  hitstopHit: 0.035, hitstopHitCap: 0.06, hitstopBreak: 0.10, hitstopBounce: 0.03, killSplatScale: 1.4,
+  /* v0.29 §4.1 기물 역공: 보스 예고 중 기물로 일섬하면 기물이 먹궤적이 되어 날아가 보스를 1.0초 경직시킨다. */
+  reflectStun: 1.0, reflectCharge: 12, reflectPoise: 1,
+  /* v0.29 §4.2 빈틈 고리: 걷는 보스 발밑에 1.6초마다 차오르는 고리. 다 차기 전에 그은 획은 0.5초까지 선입력한다. */
+  gapPeriod: 1.6, gapFlash: 0.5, gapBufWait: 0.5,
+  /* v0.29 §3.4 공정성: 판에서 처음 맞는 '피할 수 없는' 공격은 피해 1, 피격 무적 중에는 다음 공격이 발동하지 않는다. */
+  firstForcedDmg: 1, chainGuard: 0.8,
   recoilU: 0.12, recoilT: 0.12, hurtVignette: 0.3,
   aimConeCos: 0.5, aimNearW: 0.35, telegraphRange: 3.2,
   zombieRing: [6, 8.5],
@@ -782,6 +792,7 @@ function addEntityVisual(kind, shape) {
   return group;
 }
 function placeGroup(g, x, z, bob) {
+  if (!g) return;   /* 그림 없는 판정용 개체(QA·임시 기물) — 위치를 옮길 몸이 없다 */
   g.position.set(x, bob || 0, z);
 }
 
@@ -821,10 +832,14 @@ function startRun(opts) {
     waveDone: {}, waveIds: [], wavesFired: [], fogPulse: 0, noMarkT: 0,
     evo: {}, evolved: [], preview: null, lastAxis: 'vline',
     /* v0.22: 무한 청크·묵항아리·보스 결계·진화 레벨 */
-    upLv: {}, jarsBroken: 0, shots: [], hazards: [], arena: null, eliteDone: false, eliteAt: st.eliteAt || 0
+    upLv: {}, jarsBroken: 0, shots: [], hazards: [], arena: null, eliteDone: false, eliteAt: st.eliteAt || 0,
+    /* v0.29: 기물 역류·빈틈 선입력·공정성·연출 */
+    reflects: [], gapBuf: null, firstForcedHit: false, goldEdge: 0
   };
   S.runNo = opts.sandbox ? SHAPE_UNLOCK.length : stageNo;
   S.pool = opts.sandbox ? SHAPE_UNLOCK.slice() : (st.shapes || SHAPE_UNLOCK.slice()).slice();
+  /* §13 데이터: 판 시작(장·모드·판 번호). 기기 안에만 쌓인다. */
+  telemetry.event('stage_start', { stage: opts.sandbox ? 0 : stageNo, mode: 'jeongseok', run: opts.sandbox ? 0 : (save.runs || 0) + 1, sandbox: !!opts.sandbox });
   if (!opts.sandbox) {
     /* 스테이지의 새 획을 먼저 연습할 시간을 준다(첫 10초는 잔몹 상한 2). */
     S.practiceShape = S.pool[S.pool.length - 1];
@@ -889,7 +904,8 @@ function clearEntities() {
   three.slashes = [];
   (S.shots || []).forEach(function (sh) { if (sh.mesh) three.scene.remove(sh.mesh); });
   (S.hazards || []).forEach(function (h) { if (h.mesh) three.scene.remove(h.mesh); });
-  S.shots = []; S.hazards = [];
+  (S.reflects || []).forEach(function (r) { if (r.mesh) three.scene.remove(r.mesh); });
+  S.shots = []; S.hazards = []; S.reflects = [];
 }
 
 function livingMarks() {
@@ -2284,6 +2300,17 @@ function updateMarks() {
 function drawOverlays(ctx, r, hs) {
   if (!S) return;
   const t = S.elapsed || 0;
+  /* §3.1 금빛 화면 가장자리 번쩍임: 받아치기·역류·파훼 — 화면을 가리지 않게 가장자리만. */
+  if (S.goldEdge > 0) {
+    const k = clamp(S.goldEdge / 0.2, 0, 1);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,214,110,' + (0.55 * k).toFixed(3) + ')';
+    ctx.lineWidth = 10 + 10 * k;
+    ctx.shadowColor = 'rgba(255,214,110,' + (0.8 * k).toFixed(3) + ')';
+    ctx.shadowBlur = 26 * k;
+    ctx.strokeRect(2, 2, r.width - 4, r.height - 4);
+    ctx.restore();
+  }
   const pv = S.preview;
   /* 1) 확정 예고선: 손을 떼기 전에 예상 착지까지 먹선으로 보여 준다. */
   if (pv && pv.show && pv.to && S.hero) {
@@ -2480,6 +2507,11 @@ function drawEnemyBars(ctx) {
 
 
 
+function secondScore(rec) {
+  if (!rec || !rec.scores) return 0;
+  const vals = Object.keys(rec.scores).map(function (k) { return rec.scores[k] || 0; }).sort(function (a, b) { return b - a; });
+  return +(vals[1] || 0).toFixed(2);
+}
 function failHint() {
   if (!S) return 'ㅣ — V 중에 그려 보세요';
   if (S.practiceShape && (S.practiceT > 0 || S.practiceSpawns > 0) && SHAPE_HINT[S.practiceShape]) {
@@ -2715,7 +2747,8 @@ function startSeg() {
   S.lastDash.segs.push({ from: from, to: raw, r: pathR() });
   S.lastDash.vfxAt = S.lastDash.vfxAt || now();
   afterimages(from, to);
-  if (audio) audio.slash();
+  /* §3.1: 칼날 소리는 획이 길수록 조금 높다(0~2도). */
+  if (audio) audio.slash(S.strokeLenRatio == null ? 0.55 : S.strokeLenRatio);
   triggerSightWave();
 }
 function resolveDash(d) {
@@ -2821,6 +2854,7 @@ function doParry(rec) {
     }
   });
   r.parry = { hits: hits.length, reflected: refl };
+  telemetry.event('parry', { target: 'parry', hits: hits.length, reflected: refl, result: (hits.length || refl) ? 'hit' : 'miss' });
   if (hits.length || refl) {
     S.parryCd = CFG.parryCd || 0.45;
     S.iframe = Math.max(S.iframe || 0, CFG.parryIframe || 0.2);
@@ -3011,7 +3045,11 @@ function hurtZombie(z, amount, why, rec) {
   z.hp -= amount;
   if (rec) rec.hits.push({ id: z.id, dmg: amount, hp: z.hp, why: why });
   tintZombie(z);
-  if (audio && why === 'slash') audio.hit();
+  /* §3.1: 일반 명중에도 짧은 히트스톱. 한 획에 여러 마리를 베어도 1번, 0.06초를 넘기지 않는다. */
+  if (why === 'slash') {
+    if (rec && !rec.hitstopDone) { rec.hitstopDone = true; addStrokeHitstop(rec, CFG.hitstopHit || 0.035); }
+    if (audio) audio.hit(!!(rec && rec.perfect));
+  }
   if (z.hp <= 0) killZombie(z, rec);
   else {
     const d = inkDir(rec, z);
@@ -3222,6 +3260,13 @@ function afterimages(from, to) {
   }
 }
 function cutBoss(s) { cutSpirit(s); }
+/* §4.2 빈틈 고리: 걷는 보스의 빈틈은 1.6초에 한 번 열린다. 다음 빈틈까지의 진행을 돌려준다. */
+function gapInfo(s) {
+  const period = CFG.gapPeriod || 1.6;
+  const t = (S.elapsed || 0) - ((s && s.walkCutAt != null) ? s.walkCutAt : -9);
+  const u = clamp(t / period, 0, 1);
+  return { open: u >= 1, progress: u, readyIn: Math.max(0, period - t), period: period };
+}
 function cutSpirit(s) {
   if (!s || !s.alive) return;
   if (s.kind === 'spirit') return;
@@ -3234,15 +3279,16 @@ function cutSpirit(s) {
                      ② 그 뒤 걷기에는 한 호흡(1.6초)에 한 번만 '빈틈' 절단이 들어간다. */
     var vuln = s.state === 'stun' || s.state === 'groggy' || s.state === 'charge' || s.state === 'clones' || s.state === 'veil';
     if (!vuln) {
-      var gapOk = s.state === 'walk' && !s.firstWalk
-        && ((S.elapsed || 0) - (s.walkCutAt == null ? -9 : s.walkCutAt)) >= 1.6;
+      var gapOk = s.state === 'walk' && !s.firstWalk && gapInfo(s).open;
       if (!gapOk) {
         if (!S.bossArmorTip) {
           S.bossArmorTip = true;
           toast('예고·걷기 중에는 칼이 튕깁니다 — 한 호흡에 한 번, 빈틈을 노리세요');
         }
         if (!(S.armorJudgeT > 0)) { showJudge('튕겨냈다'); S.armorJudgeT = 0.5; }
-        if (audio && audio.whiff) audio.whiff();
+        /* §3.1: 튕긴 이유를 소리로 — 짧고 높은 쇳소리 + 0.03초 정지. */
+        if (audio && audio.whiff) audio.whiff(true);
+        addHitstop(CFG.hitstopBounce || 0.03);
         addCharge(2);
         return;
       }
@@ -3251,7 +3297,8 @@ function cutSpirit(s) {
     }
     s.seqI++;
     /* 돌진 뒤 경직(등 뒤)·기세 붕괴 중에 베면 절단이 두 번 들어간다 — 예고→회피→반격 파훼. */
-    if (s.state === 'stun' || s.state === 'groggy') { s.seqI++; showJudge('파훼!'); }
+    var broke = (s.state === 'stun' || s.state === 'groggy');
+    if (broke) { s.seqI++; showJudge('파훼!'); }
     /* 분신 속 진짜, 안개 속 귀물을 찾아 벤 일섬은 경직을 연다. */
     if (s.state === 'clones' || s.state === 'veil') {
       showJudge(s.state === 'clones' ? '진짜!' : '찾았다!');
@@ -3259,7 +3306,14 @@ function cutSpirit(s) {
       s.state = 'stun'; s.stateT = 0; s.stunT = 0;
     }
     addCharge(CFG.cleaveGainBoss || 10);
-    addHitstop(CFG.hitstopKill || 0.06);
+    /* §3.1: 파훼는 히트스톱 0.10초 + 보스 혼령 무늬가 금빛으로 깨지는 연출. */
+    if (broke) {
+      addHitstop(CFG.hitstopBreak || 0.10);
+      S.goldEdge = Math.max(S.goldEdge || 0, 0.18);
+      inkFx.burst(s.x, s.z, FX_COLORS.gold, { r1: 46, n: 10, dur: 0.5 });
+      inkFx.ring(2.4, FX_COLORS.gold, 0.4);
+      if (audio) audio.drum();
+    } else addHitstop(CFG.hitstopKill || 0.06);
     if (s.seqI >= s.seq.length) {
       s.seqI = s.seq.length;
       if (bossSealOn() && !s.sealed) startSeal(s);
@@ -3282,6 +3336,16 @@ function addHitstop(sec) {
   if (!S) return;
   const cap = CFG.hitstopKillMax || 0.12;
   S.hitstop = Math.min(cap, (S.hitstop || 0) + (sec || 0));
+}
+/* §3.1 한 획의 정지 예산: 명중·처치가 몇 번 들어가든 0.06초를 넘기지 않는다. */
+function addStrokeHitstop(rec, sec) {
+  if (!rec) { addHitstop(sec); return; }
+  const cap = CFG.hitstopHitCap || 0.06;
+  const used = rec.hsUsed || 0;
+  const add = Math.min(sec || 0, Math.max(0, cap - used));
+  if (add <= 0) return;
+  rec.hsUsed = used + add;
+  addHitstop(add);
 }
 /* A slain body sinks and fades over dieDur instead of vanishing on the spot. */
 function startDying(obj) {
@@ -3313,10 +3377,12 @@ function killZombie(z, rec) {
   if (z.obj) startDying(z.obj);
   if (three && three.ink) {
     const d = inkDir(rec || (S && S.lastDash), z);
-    three.ink.kill(z.x, z.z, d.x, d.z);
+    /* §3.1: 처치의 먹 번짐은 반경 ×1.4 — 한 획에 여러 마리가 사라져도 '벌었다'가 보이게. */
+    three.ink.kill(z.x, z.z, d.x, d.z, { scale: CFG.killSplatScale || 1.4 });
     fxinkStat.kills++;
   }
-  if (rec && rec.hits && rec.hits.some(function (h) { return h.id === z.id && h.why === 'slash'; })) addHitstop(CFG.hitstopKill || 0.06);
+  if (audio && rec && !z.isBoss) audio.drum();
+  if (rec && rec.hits && rec.hits.some(function (h) { return h.id === z.id && h.why === 'slash'; })) addStrokeHitstop(rec, CFG.hitstopKill || 0.06);
   const kd = CFG.zombieTypes[z.type] || CFG.zombieTypes.imp;
   /* The boss pays its own coin value; its xp does not matter, the run ends on its death. */
   grantKill(z.isBoss ? (CFG.bossCoin || 20) : kd.coin);
@@ -3633,6 +3699,10 @@ function pickUpgrade(id) {
   const def = RUN_UPGRADES.filter(function (u) { return u.id === id; })[0];
   if (def && (S.upLv[id] || 0) >= (def.maxLv || 99)) return false;
   S.upLv[id] = (S.upLv[id] || 0) + 1;
+  /* §13 데이터: 제시 3장·고른 카드·레벨 — 카드 선택률(밸런스)을 나중에 잴 수 있게. */
+  telemetry.event('card_pick', {
+    offered: (S.levelPicks || []).map(function (u) { return u.id; }), picked: id, lv: S.upLv[id]
+  });
   if (id === 'dmg') S.dashDmg += 1;
   else if (id === 'width') S.pathR += 0.55;
   else if (id === 'dash') S.dashCount += 1;
@@ -3690,6 +3760,15 @@ function stepBoss(z, dt) {
   if (z.state === 'walk') {
     /* A parry or landing stun holds the boss in place and pauses its walk clock; telegraph and charge are not interrupted. */
     if ((z.stun || 0) > 0) z.stateT -= dt;
+    /* §4.2 빈틈 고리: 다 차면 하얗게 빛나며 짧은 방울 소리가 난다 — '지금이다'를 소리와 빛으로 같이 알린다. */
+    if (z.gapFlashT > 0) z.gapFlashT = Math.max(0, z.gapFlashT - dt);
+    if (!z.firstWalk) {
+      const g = gapInfo(z);
+      if (g.open && (z.gapRangAt == null || (S.elapsed - z.gapRangAt) >= (CFG.gapPeriod || 1.6) - 0.02)) {
+        z.gapRangAt = S.elapsed; z.gapFlashT = CFG.gapFlash || 0.5;
+        if (audio && !z.stun) audio.bell(0, 'hline');
+      }
+    } else z.gapRangAt = null;
     if (pats) {
       if (z.stateT > (bossPat().walk || walkT)) nextBossPattern(z);
       return false;
@@ -3816,6 +3895,7 @@ function heroHurt(n, why) {
   if (!S || !S.playing) return;
   if ((S.iframe || 0) > 0 || S.dash) return;
   S.hp -= n;
+  if (S.hp <= 0) S.deathWhy = why || '귀물에게 닿았습니다.';
   S.iframe = CFG.iframeMs / 1000;
   S.hurtFlash = CFG.hurtVignette || 0.3;
   S.hitstop = Math.max(S.hitstop || 0, CFG.hitHitstop || 0.08);
@@ -4006,6 +4086,74 @@ function stepBossSummons(dt) {
   inkFx.burst(t.x, t.z, FX_COLORS.poison, { r1: 24, n: 5, dur: 0.3 });
   S.totemNext = null;
 }
+/* v0.29 §4.1 기물 역공: 보스가 예고 중일 때(telegraph·slamTele·volleyTele·kiai) 기물로 일섬하면
+   기물이 먹 궤적이 되어 보스에게 날아간다 → 경직 1.0초 + 참 +12 + 기세 1칸.
+   예고가 아닐 때 부수면 예전처럼 참 +3. 한 번의 예고에 역류는 1번만. */
+function bossReflectWindow(z) {
+  return !!z && z.alive && (z.state === 'telegraph' || z.state === 'slamTele' || z.state === 'volleyTele' || z.state === 'kiai');
+}
+function reflectReady() {
+  const z = S && S.boss;
+  return !!(z && bossReflectWindow(z) && !z.reflectUsed);
+}
+let _reflectGeo = null, _reflectMat = null;
+function makeReflectMesh() {
+  if (!_reflectGeo) _reflectGeo = new THREE.PlaneGeometry(1.3, 0.7);
+  if (!_reflectMat) _reflectMat = new THREE.MeshBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const m = new THREE.Mesh(_reflectGeo, _reflectMat);
+  m.position.y = 1.1;
+  return m;
+}
+function reflectTotem(t, b) {
+  if (!t || !t.alive) return;
+  t.alive = false;
+  if (t.obj && three) three.scene.remove(t.obj);
+  b.reflectUsed = true;
+  S.reflects = S.reflects || [];
+  const mesh = makeReflectMesh();
+  mesh.position.set(t.x, 1.1, t.z);
+  if (three) three.scene.add(mesh);
+  S.reflects.push({ x: t.x, z: t.z, t: 0, mesh: mesh });
+  S.shake = Math.max(S.shake || 0, 0.3);
+  inkFx.burst(t.x, t.z, FX_COLORS.gold, { r1: 40, n: 8, dur: 0.4 });
+  inkFx.ring(1.8, FX_COLORS.gold, 0.4);
+  showJudge('역류!');
+  if (audio) audio.gong();
+  assignSpiritTargets();
+}
+function reflectHit(b) {
+  if (!b || !b.alive) return;
+  endBossSide(b);
+  b.state = 'stun'; b.stateT = 0; b.stunT = CFG.reflectStun || 1.0;
+  addCharge(CFG.reflectCharge || 12);
+  addHitstop(CFG.hitstopBreak || 0.10);
+  S.goldEdge = Math.max(S.goldEdge || 0, 0.18);
+  S.shake = Math.max(S.shake || 0, 0.75);
+  inkFx.ring(2.6, FX_COLORS.gold, 0.5);
+  inkFx.burst(b.x, b.z, FX_COLORS.gold, { r1: 54, n: 12, dur: 0.5 });
+  showJudge('역류 명중!');
+  toast('기물이 되돌아가 귀물이 휘청입니다 — 지금 베세요');
+  if (audio) { audio.drum(); audio.hit(false); }
+  bossPoise(b, CFG.reflectPoise || 1);
+}
+function stepReflects(dt) {
+  if (!S || !S.reflects || !S.reflects.length) return;
+  S.reflects = S.reflects.filter(function (r) {
+    r.t += dt;
+    const b = S.boss;
+    if (!b || !b.alive) { if (r.mesh && three) three.scene.remove(r.mesh); return false; }
+    const dx = b.x - r.x, dz = b.z - r.z, L = Math.hypot(dx, dz) || 1;
+    const sp = 15;
+    r.x += dx / L * sp * dt; r.z += dz / L * sp * dt;
+    if (r.mesh) { r.mesh.position.set(r.x, 1.1, r.z); r.mesh.rotation.y += dt * 12; }
+    if (L < (b.r || 1) + 0.6 || r.t > 3) {
+      if (L < (b.r || 1) + 0.6) reflectHit(b);
+      if (r.mesh && three) three.scene.remove(r.mesh);
+      return false;
+    }
+    return true;
+  });
+}
 function makeTotemObj() {
   const g = new THREE.Group();
   if (!three) return g;
@@ -4022,6 +4170,9 @@ function makeTotemObj() {
 }
 function breakTotem(t) {
   if (!t.alive) return;
+  /* §4.1: 보스가 예고 중이면 부수는 대신 되돌려 보낸다. */
+  const b = S && S.boss;
+  if (b && bossReflectWindow(b) && !b.reflectUsed) { reflectTotem(t, b); return; }
   t.alive = false;
   if (t.obj && three) three.scene.remove(t.obj);
   if (art && art.playFx && three) { const fx = art.playFx(three.scene, 'ink-splat', t.x, t.z, 1.4); if (fx) three.fx.push(fx); }
@@ -4061,6 +4212,8 @@ function nextBossPattern(z) {
 function startBossPattern(z, id) {
   z.pat = id; z.stateT = 0;
   z.firstWalk = false;
+  z.reflectUsed = false;
+  telemetry.event('boss_pattern', { p: id, stage: S && S.stageNo, start: true });
   const P = bossPat();
   if (id === 'kiai') {
     z.state = 'kiai'; z.kiai = { lock: false, open: false, t: P.kiai.t };
@@ -4083,6 +4236,7 @@ function startBossPattern(z, id) {
 }
 function startCharge(z) {
   z.state = 'telegraph'; z.stateT = 0; z.pat = 'charge';
+  z.reflectUsed = false;
   z.aim = { x: S.hero.x, z: S.hero.z };
   z.dodged = false;
   bossHazards(z);
@@ -4090,6 +4244,7 @@ function startCharge(z) {
 }
 function startSlam(z, tele) {
   z.state = 'slamTele'; z.stateT = 0;
+  z.reflectUsed = false;
   z.slam = { x: S.hero.x, z: S.hero.z, tele: tele };
   bossCue(z, 'red', 'slam');
 }
@@ -4109,7 +4264,10 @@ function stepBossPat(z, dt) {
     }
     if (z.stateT >= T + K.grace) {
       inkFx.ring(arenaR(), FX_COLORS.gold, 0.6);
-      heroHurtForce(K.dmg, '귀물의 기합에 휩쓸렸습니다.');
+      /* §3.4 대응 2개: 기물 뒤에 숨었으면(기물·보스 선분 0.8m 안) 피해 1로 경감. */
+      const cover = totemCover(z);
+      if (cover) showJudge('기물 뒤로!');
+      heroHurtForce(cover ? 1 : K.dmg, '귀물의 기합에 휩쓸렸습니다.', { note: cover });
       z.state = 'walk'; z.stateT = 0; z.kiai = null;
     }
     return true;
@@ -4181,7 +4339,10 @@ function stepBossPat(z, dt) {
   if (st === 'chant') {
     if (z.stateT > P.chant.t) {
       inkFx.ring(arenaR(), FX_COLORS.jade, 0.7);
-      heroHurtForce(P.chant.dmg, '영창이 터졌습니다.');
+      /* §3.4 대응 2개: 무늬 3개 중 2개 이상을 끊었으면 피해 1. */
+      const broken = z.chant ? z.chant.i : 0;
+      if (broken >= 2) showJudge('거의 끊었다');
+      heroHurtForce(broken >= 2 ? 1 : P.chant.dmg, '영창이 터졌습니다.', { note: broken >= 2 });
       z.state = 'walk'; z.stateT = 0; z.chant = null;
     }
     return true;
@@ -4204,10 +4365,22 @@ function stepBossPat(z, dt) {
   }
   return null;
 }
-/** Damage that the dash does not dodge (the kiai blast, a broken chant, a fake's counter, the closing barrier). */
-function heroHurtForce(n, why) {
-  if (!S || !S.playing) return;
-  S.hp -= n;
+/** Damage that the dash does not dodge (the kiai blast, a broken chant, a fake's counter, the closing barrier).
+    v0.29 §3.4 공정성: 피격 무적 중에는 연쇄로 발동하지 않고, 판에서 처음 맞는 큰 피해는 1로 깎는다. */
+function heroHurtForce(n, why, opts) {
+  if (!S || !S.playing) return false;
+  opts = opts || {};
+  /* §3.4 연쇄 금지: 방금다 맞은 뒤 무적(0.8초) 중에는 다음 공격이 예고만 하고 발동하지 않는다. */
+  if ((S.iframe || 0) > 0.05) { if (opts.note) showJudge('막아냈다'); return false; }
+  let dmg = n;
+  /* §3.4 첫 실패 완화: 이 판에서 처음 맞는 '피할 수 없는' 공격은 피해 1. */
+  if (dmg >= 2 && !S.firstForcedHit) {
+    S.firstForcedHit = true;
+    dmg = CFG.firstForcedDmg || 1;
+    showJudge('처음은 가볍게');
+  }
+  S.hp -= dmg;
+  if (S.hp <= 0) S.deathWhy = why;
   S.iframe = CFG.iframeMs / 1000;
   S.hurtFlash = CFG.hurtVignette || 0.3;
   S.shake = Math.max(S.shake || 0, 0.8);
@@ -4216,10 +4389,24 @@ function heroHurtForce(n, why) {
   if (audio) audio.explode();
   renderHud();
   if (S.hp <= 0) endRun(false, why);
+  return true;
+}
+/* §3.4 대응 2개(기모으기): 보스와 주인공 사이 선분 0.8m 안에 기물이 있으면 몸을 숨긴 것 — 피해 1. */
+function totemCover(boss) {
+  if (!boss || !S || !S.hero) return false;
+  const ax = S.hero.x, az = S.hero.z, bx = boss.x, bz = boss.z;
+  const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz || 1;
+  return bossMinions().some(function (t) {
+    const u = ((t.x - ax) * dx + (t.z - az) * dz) / L2;
+    if (u <= 0.05 || u >= 0.95) return false;
+    const px = ax + dx * u, pz = az + dz * u;
+    return Math.hypot(t.x - px, t.z - pz) <= 0.8;
+  });
 }
 function bossJustDodge(z) {
   S.slowT = Math.max(S.slowT || 0, bossPat().dodgeSlow || 0.5);
   showJudge('간발!');
+  telemetry.event('boss_pattern', { p: z.pat || null, result: 'dodge', t: +(z.stateT || 0).toFixed(2) });
   bossPoise(z, 1);
 }
 /** Knocks pips off the boss's poise; at zero it breaks into a long stun (groggy). */
@@ -4248,14 +4435,25 @@ function kiaiTap() {
   const K = bossPat().kiai;
   if (z.kiai.lock) { showJudge('흐트러졌다'); return { kiai: 'locked' }; }
   if (z.stateT < z.kiai.t - K.win) {
+    /* §3.4 재시도: 이른 탭은 판당 한 번 봐준다 — 두 번째 이른 탭부터 실패. */
+    z.kiai.early = (z.kiai.early || 0) + 1;
+    telemetry.event('parry', { target: 'kiai', errMs: Math.round((z.stateT - (z.kiai.t - K.win)) * 1000), result: 'early' });
+    if (z.kiai.early <= 1) {
+      showJudge('아직 — 조금만 더');
+      if (audio && audio.whiff) audio.whiff();
+      return { kiai: 'earlyGrace' };
+    }
     z.kiai.lock = true;
     showJudge('이르다!');
-    if (audio && audio.whiff) audio.whiff();
+    if (audio && audio.whiff) audio.whiff(true);
     return { kiai: 'early' };
   }
+  telemetry.event('parry', { target: 'kiai', errMs: Math.round((z.stateT - (z.kiai.t - K.win)) * 1000), result: 'parry' });
   S.parryFlash = 0.25;
   S.iframe = Math.max(S.iframe || 0, 0.5);
   addHitstop(0.15);
+  /* §3.1: 받아치기에는 화면 가장자리 금빛 번쩍임 0.2초. */
+  S.goldEdge = Math.max(S.goldEdge || 0, 0.2);
   addCharge(K.charge || 20);
   if (audio) audio.parry();
   inkFx.ring(4, FX_COLORS.gold, 0.5);
@@ -4431,11 +4629,13 @@ function breakPillar(p) {
 function endShrink(crush) {
   const sk = S.arena && S.arena.shrink;
   if (!sk) return;
+  /* §3.4 대응 2개: 기둥을 2개 이상 부쉈으면 짓눌림이 가볍다(피해 1). */
+  const broken = sk.pillars.filter(function (p) { return !p.alive; }).length;
   sk.pillars.forEach(function (p) { if (p.alive) { p.alive = false; if (p.obj && three) three.scene.remove(p.obj); } });
   S.arena.shrink = null;
   S.arena.r = S.arena.r0 || CFG.arenaR || 12;
   if (three && three.arena) three.arena.group.scale.set(1, 1, 1);
-  if (crush) heroHurtForce(bossPat().shrink.dmg, '좁아진 결계에 짓눌렸습니다.');
+  if (crush) heroHurtForce(broken >= 2 ? 1 : bossPat().shrink.dmg, '좁아진 결계에 짓눌렸습니다.', { note: broken >= 2 });
   assignSpiritTargets();
 }
 function stepShrink(dt) {
@@ -4480,6 +4680,7 @@ function chantStroke(type) {
   z.chant = null;
   z.state = 'stun'; z.stateT = 0; z.stunT = bossPat().chant.stun;
   showJudge('영창 파훼!');
+  telemetry.event('boss_pattern', { p: 'chant', result: 'break', t: 0 });
   bossPoise(z, 1);
   return true;
 }
@@ -4503,15 +4704,20 @@ function drawBossPat(ctx, r, hs) {
     ctx.fillText('封', r.width * 0.5, r.height * 0.42);
     ctx.restore();
   }
-  /* 기물: 발밑 보랏빛 고리. 다음에 쏠 기물은 쏘기 직전 밝게 맥동한다. */
+  /* 기물: 발밑 보랏빛 고리. 다음에 쏠 기물은 쏘기 직전 밝게 맥동한다.
+     §4.1: 지금 역류할 수 있는 순간(보스 예고 중)이면 고리가 금빛으로 바뀐다 — '받아쳐라'의 색이다. */
   if (z && z.alive) {
     const M = bossPat().summon, tt = S.elapsed || 0, wpc0 = worldPerCss();
+    const canReflect = reflectReady();
     ctx.save();
     bossMinions().forEach(function (q) {
     const f = projectXZ(q.x, q.z, 0.05);
     const warn = q === S.totemNext && (S.totemShotT || 0) < M.shotWarn;
-    ctx.lineWidth = warn ? 4 : 2;
-    ctx.strokeStyle = warn ? 'rgba(201,166,255,' + (0.6 + 0.4 * Math.sin(tt * 30)).toFixed(3) + ')' : 'rgba(201,166,255,0.45)';
+    ctx.lineWidth = canReflect ? 4 : (warn ? 4 : 2);
+    const col = canReflect
+      ? 'rgba(232,192,74,' + (0.65 + 0.35 * Math.sin(tt * 9)).toFixed(3) + ')'
+      : (warn ? 'rgba(201,166,255,' + (0.6 + 0.4 * Math.sin(tt * 30)).toFixed(3) + ')' : 'rgba(201,166,255,0.45)');
+    ctx.strokeStyle = col;
     ctx.beginPath(); ctx.ellipse(f.x, f.y, 0.9 * wpc0, 0.5 * wpc0, 0, 0, Math.PI * 2); ctx.stroke();
     });
     ctx.restore();
@@ -4546,8 +4752,21 @@ function drawBossPat(ctx, r, hs) {
       ctx.fill();
     }
   }
-  /* 기모으기 게이지: 주인공 둘레의 고리, 끝의 금빛 칸에서 탭 */
-  if (z.state === 'kiai' && z.kiai) {
+  /* §4.2 빈틈 고리: 걷는 동안 1.6초에 걸쳐 차오르고, 다 차면 하얗게 번진다(방울 소리와 함께). */
+  if (onScr && z.state === 'walk' && !z.firstWalk) {
+    const g = gapInfo(z), rx = 2.6 * wpc, ry = rx * 0.55;
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(244,236,214,0.22)';
+    ctx.beginPath(); ctx.ellipse(bp.x, bp.y, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = g.open ? 'rgba(255,255,250,0.95)' : 'rgba(226,212,180,0.8)';
+    ctx.beginPath(); ctx.ellipse(bp.x, bp.y, rx, ry, 0, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * g.progress); ctx.stroke();
+    if (z.gapFlashT > 0) {
+      const k = z.gapFlashT / (CFG.gapFlash || 0.5);
+      ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(255,255,255,' + (0.75 * k).toFixed(3) + ')';
+      ctx.beginPath(); ctx.ellipse(bp.x, bp.y, rx * (1 + (1 - k) * 0.35), ry * (1 + (1 - k) * 0.35), 0, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+  /* 기모으기 게이지: 주인공 둘레의 고리, 끝의 금빛 칸에서 탭 */  if (z.state === 'kiai' && z.kiai) {
     const K = P.kiai, T = z.kiai.t, f = clamp(z.stateT / T, 0, 1), g0 = (T - K.win) / T;
     const R = 62, a0 = -Math.PI / 2, A = function (u) { return a0 + Math.PI * 2 * u; };
     const open = z.stateT >= T - K.win, lock = z.kiai.lock;
@@ -4675,6 +4894,16 @@ function endRun(win, msg) {
   }
   save.bestScore = Math.max(save.bestScore || 0, score);
   persist();
+  /* §13 데이터: 판 결과·사망 원인·fps. 상용 튜닝(클리어율·시간 예산·공정성)의 바탕이다. */
+  const fprep = fpsReport();
+  telemetry.event('stage_end', {
+    stage: S.stageNo || st.id, win: !!win, time: +(S.elapsed || 0).toFixed(1),
+    hp: Math.max(0, S.hp), hpMax: maxHp(), stars: stars, kills: S.kills || 0,
+    comboMax: S.comboMax || 0, level: S.level || 1, bossState: S.boss ? S.boss.state : null
+  });
+  if (!win) telemetry.event('death', { cause: S.deathWhy || msg, hp: Math.max(0, S.hp), bossState: S.boss ? S.boss.state : null, t: +(S.elapsed || 0).toFixed(1) });
+  telemetry.event('fps', { stage: S.stageNo || st.id, avg: +fprep.avg.toFixed(1), low: +fprep.min.toFixed(1), q: (three && three.bloom) ? three.bloom.quality : null });
+  telemetry.save();
   if (audio) audio.stopBgm();
   const nextSt = STAGES[(S.stageNo || st.id)];
   $('resultKicker').textContent = S.stageNo ? (S.stageNo + '장 · ' + st.name) : '연습';
@@ -4892,6 +5121,7 @@ function step(dt) {
       /* 빙결·경직된 귀물은 몸이 굳은 사이 닿아도 해치지 못한다(얼음·충격이 실제로 방어가 된다). */
       if ((S.iframe || 0) <= 0 && !S.dash && !frozen) {
         S.hp -= z.isBoss ? (CFG.bossDmg || 2) : ((CFG.zombieTypes[z.type] || {}).dmg || CFG.dmg);
+        if (S.hp <= 0) S.deathWhy = z.isBoss ? 'boss-contact' : ('zombie:' + z.type);
         S.iframe = CFG.iframeMs / 1000;
         S.hitstop = Math.max(S.hitstop || 0, CFG.hitHitstop || 0.08);
         S.hurtFlash = CFG.hurtVignette || 0.3;
@@ -4916,6 +5146,9 @@ function step(dt) {
   stepShots(dt);
   stepHazards(dt);
   stepShrink(dt);
+  stepReflects(dt);
+  stepGapBuffer();
+  if (S.goldEdge > 0) S.goldEdge = Math.max(0, S.goldEdge - dt);
   if (S.sealFx > 0) S.sealFx = Math.max(0, S.sealFx - dt);
   clampHeroToArena();
   refreshSpirits();
@@ -5197,6 +5430,12 @@ function finishStroke(pts, opts) {
   if (!S || !S.playing || S.paused) return null;
   const rec = G.recognize(pts, { allowBolt: true, totem: !!(S && S.boss && S.boss.alive && bossMinions().length) });
   S.lastRec = rec;
+  /* §13 데이터: 획 하나하나의 의도/결과/점수/2등 점수/길이/실패 이유 — 인식 튜닝의 원자료다. */
+  telemetry.event('stroke', {
+    want: (S.aimTarget && S.aimTarget.alive) ? spiritShape(S.aimTarget) : null,
+    got: rec.type || null, best: rec.best || null, score: +(rec.bestScore || 0).toFixed(2),
+    second: secondScore(rec), len: Math.round(G.pathLen(pts)), why: rec.reason || null
+  });
   S.aimTarget = null;
   S.preview = null;
   const read = (G.readMessage && G.readMessage(rec)) || '';
@@ -5238,6 +5477,8 @@ function finishStroke(pts, opts) {
   S.lastStrokeDir = dir;
   rec.dir = dir;
   rec.combo = S.combo;
+  /* 칼날 소리의 높이: 화면에서 그린 획 길이를 0~1로 옮긴다(80px~280px). */
+  S.strokeLenRatio = clamp((G.pathLen(pts) - 80) / 200, 0, 1);
   /* 선입력 버퍼: 돌진 중에 들어온 획은 버리지 않고 200ms 예약한다. */
   if (S.dash || (S.dashQueue && S.dashQueue.length)) {
     S.inputBuf = { type: rec.type, dir: dir, t0: now(), ttl: CFG.inputBufMs || 200, quality: (rec.q != null ? rec.q : rec.bestScore) };
@@ -5247,10 +5488,40 @@ function finishStroke(pts, opts) {
     rec.targets = [];
     return rec;
   }
+  /* §4.2 빈틈 선입력: 걷는 보스의 빈틈이 0.5초 안에 열리면, 튕길 획을 버리지 않고 그 순간 자동으로 낸다. */
+  if (bufferGapStroke(rec, dir)) { rec.gapBuffered = true; return rec; }
   const dash = beginDash(rec.type, { dir: dir, quality: (rec.q != null ? rec.q : rec.bestScore) });
   rec.targets = dash && dash.targets;
   rec.dash = dash;
   return rec;
+}
+/* §4.2: 빈틈이 0.5초 안에 열리는 순간에 그은 획은 선입력으로 잡아 둔다 — 튕기고 다시 긋는 일을 줄인다. */
+function bufferGapStroke(rec, dir) {
+  const b = S && S.boss;
+  if (!b || !b.alive || b.state !== 'walk' || b.firstWalk) return false;
+  if (rec.type !== (b.seq && b.seq[b.seqI])) return false;
+  const g = gapInfo(b);
+  if (g.open || g.readyIn > (CFG.gapBufWait || 0.5)) return false;
+  S.gapBuf = { type: rec.type, dir: dir, quality: (rec.q != null ? rec.q : rec.bestScore), t0: now() };
+  inkFade = 0.20;
+  showJudge('빈틈 준비');
+  rec.buffered = true;
+  rec.targets = [];
+  return true;
+}
+function stepGapBuffer() {
+  if (!S || !S.gapBuf) return;
+  const b = S.boss;
+  const age = now() - S.gapBuf.t0;
+  if (!b || !b.alive || b.state !== 'walk' || age > (CFG.gapBufWait || 0.5) * 1000 + 150) { S.gapBuf = null; return; }
+  if (!gapInfo(b).open) return;
+  const q = S.gapBuf;
+  S.gapBuf = null;
+  if (S.dash || (S.dashQueue && S.dashQueue.length)) return;
+  /* 빈틈을 노리고 그은 획은 그 방향(조준 콘)과 상관없이 보스에게 난다 — 그것이 이 획의 의도다. */
+  const rec = dashAtBoss(b, q.type);
+  if (rec) { rec.quality = q.quality; S.dashQuality = q.quality; }
+  showJudge('빈틈!');
 }
 function syntheticPath(type, x, y, s) {
   s = s || 70;
@@ -5728,6 +5999,21 @@ function bindUi() {
   if ($('btnPause')) $('btnPause').addEventListener('click', function (e) { e.stopPropagation(); pauseRun(); });
   if ($('btnResume')) $('btnResume').addEventListener('click', function () { resumeRun(); });
   if ($('btnQuit')) $('btnQuit').addEventListener('click', function () { quitRun(); });
+  /* v0.29 §13: 기록 보내기(선택)와 내보내기. 아직 서버가 없어 '켬'은 동의 표시만 남긴다. */
+  function syncRecBtn() {
+    const b = $('btnRec');
+    if (b) b.textContent = '기록 보내기: ' + (telemetry.isOptIn() ? '켬' : '끔');
+  }
+  if ($('btnRec')) $('btnRec').addEventListener('click', function () {
+    telemetry.setOptIn(!telemetry.isOptIn()); syncRecBtn();
+    toast(telemetry.isOptIn() ? '기록 보내기에 동의했습니다 (아직 서버 없음 — 기기에만 쌓임)' : '기록 보내기를 껐습니다');
+  });
+  if ($('btnRecOut')) $('btnRecOut').addEventListener('click', function () {
+    telemetry.save();
+    if (telemetry.download()) toast('기록을 파일로 내보냈습니다 (' + telemetry.stats().total + '개)');
+    else toast('내보내지 못했습니다');
+  });
+  syncRecBtn();
   $('btnStart').addEventListener('click', function () { beginStage(upcomingRun()); });
   $('btnShop').addEventListener('click', function () { refreshShop(); showOv('ov-shop'); });
   $('btnShopClose').addEventListener('click', function () {
@@ -5997,6 +6283,46 @@ const GPv2 = {
     return b.state;
   },
   recognize: function (pts, opt) { return G.recognize(pts, opt); },
+  /* v0.29 QA 훅: 빈틈 고리·기물 역류·타격감·공정성·기록 */
+  gapInfo: function () { const b = S && S.boss; return b && b.alive ? gapInfo(b) : null; },
+  gapBuf: function () { return S && S.gapBuf ? { type: S.gapBuf.type, age: Math.round(now() - S.gapBuf.t0) } : null; },
+  reflectState: function () {
+    const b = S && S.boss;
+    return { ready: reflectReady(), used: !!(b && b.reflectUsed), flying: ((S && S.reflects) || []).length, totems: bossMinions().length, bossState: b ? b.state : null };
+  },
+  hitstop: function () { return S ? +(S.hitstop || 0).toFixed(3) : 0; },
+  goldEdge: function () { return S ? +(S.goldEdge || 0).toFixed(3) : 0; },
+  fairness: function () { return S ? { firstForcedHit: !!S.firstForcedHit, iframe: +(S.iframe || 0).toFixed(2), hp: S.hp, deathWhy: S.deathWhy || null } : null; },
+  hurtForce: function (n, why, opts) { return heroHurtForce(n, why, opts); },
+  /* §3.4 검증용: 보스와 주인공 사이에 임시 기물을 세운다(그림 없이 판정만). */
+  fakeTotem: function (x, z) {
+    if (!S) return null;
+    const t = { id: ++S._id, kind: 'zombie', type: 'totem', shape: 'tri', x: x, z: z, r: 0.6, alive: true, hp: 1, isTotem: true, frozen: 0, burn: 0, poison: 0, stun: 0, marked: false, obj: null };
+    S.zombies.push(t);
+    return { id: t.id, x: t.x, z: t.z };
+  },
+  /* 결정론적 진행: rAF 없이 게임 로직만 n스텝 돌린다(헤드리스 3fps 환경의 시간 시험용). */
+  stepN: function (n, dt) {
+    if (!S) return null;
+    n = n || 1; dt = dt || 1 / 60;
+    for (var i = 0; i < n; i++) {
+      S.hitstop = 0;
+      if (S.playing && !S.paused) step(dt);
+      stepDash(dt);
+    }
+    updateMarks();
+    return { elapsed: +(S.elapsed || 0).toFixed(2), state: S.boss ? S.boss.state : null, hp: S.hp };
+  },
+  telemetryStats: function () { return telemetry.stats(); },
+  telemetryEvents: function (name) { const all = telemetry.all(); return name ? all.filter(function (e) { return e.n === name; }) : all; },
+  exportTelemetry: function () { telemetry.save(); return telemetry.exportJSON(); },
+  clearTelemetry: function () { telemetry.clear(); return telemetry.stats(); },
+  /* 보스전 시간 예산(§4.3)은 v0.30이지만, 지금 실측할 수 있게 재료를 내준다. */
+  bossClock: function () {
+    const b = S && S.boss, st = S && S.stage;
+    return b && st ? { state: b.state, t: +(b.stateT || 0).toFixed(2), elapsed: +(S.elapsed || 0).toFixed(1), left: +(S.timeLeft || 0).toFixed(1),
+      seqI: b.seqI, seqN: b.seq.length, poise: b.poise, phase2: !!b.phase2 } : null;
+  },
   failHint: failHint,
   titleHelp: refreshTitleHelp,
   upcomingRun: upcomingRun,

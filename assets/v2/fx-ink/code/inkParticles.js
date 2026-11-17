@@ -94,7 +94,7 @@ export class InkParticles {
   }
   slash(from, to) { const mx = (from.x + to.x) / 2, mz = (from.z + to.z) / 2; this._spray(mx, mz, to.x - from.x, to.z - from.z, this.Q.perSlash, false); }
   hit(x, z, dx = 1, dz = 0, { crimson = true } = {}) { this._spray(x, z, dx, dz, this.Q.perHit, crimson); this._burst(x, z); this.decal(x, z, this.P.decal.hit); }
-  kill(x, z, dx = 1, dz = 0, { crimson = true } = {}) { const l = Math.hypot(dx, dz) || 1; this._spray(x, z, dx, dz, this.Q.perKill, crimson); this._burst(x, z); this.decal(x + dx / l * 0.6, z + dz / l * 0.6, this.P.decal.kill); }
+  kill(x, z, dx = 1, dz = 0, { crimson = true, scale = 1 } = {}) { const l = Math.hypot(dx, dz) || 1; this._spray(x, z, dx, dz, this.Q.perKill, crimson); this._burst(x, z); this.decal(x + dx / l * 0.6, z + dz / l * 0.6, this.P.decal.kill * scale); }
   update(dt) {
     this.clock += dt; const P = this.P, D = this.drops, K = this.decals, B = this.bursts;
     for (let i = 0; i < this.d.length; i++) { const s = this.d[i]; if (s.life <= 0) { D.size[i] = 0; continue; }

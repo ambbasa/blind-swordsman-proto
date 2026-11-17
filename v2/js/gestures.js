@@ -241,12 +241,45 @@
     sc *= clamp01((circ - 0.62) / 0.25) * clamp01((1.5 - circ) / 0.45);
     return sc;
   }
+  /* v0.29 §2.1 — 번개는 '지그재그'일 때만이다.
+     v0.27의 좁은 번개 완화 뒤로 손 떨림이 있는 세로선이 번개로 읽히는 회귀가 있었다
+     (세로선을 그었는데 자동 조준 번개가 엉뚱한 혼령으로 돌진).
+     ① 진행 방향에 수직인 폭 / 길이 ≥ 0.18 — 손 떨림은 대개 0.05~0.12다.
+     ② 60° 이상 꺾임이 2곳 이상 — 완만한 물결(휘어진 직선)은 번개가 아니다.
+     곧은 정도(≥0.9)가 높은 획을 축 흡수가 먼저 가져가는 규칙은 recognize()가 맡는다. */
+  var BOLT_MIN_ASPECT = 0.18, BOLT_MIN_CORNER = 60;
+  function boltCorners(pts, eps) {
+    var simple = simplify(pts, eps), i, n = simple.length, out = [];
+    for (i = 1; i < n - 1; i++) {
+      var a1 = Math.atan2(simple[i - 1].y - simple[i].y, simple[i - 1].x - simple[i].x);
+      var a2 = Math.atan2(simple[i + 1].y - simple[i].y, simple[i + 1].x - simple[i].x);
+      var d = Math.abs(a2 - a1);
+      if (d > Math.PI) d = 2 * Math.PI - d;
+      out.push(d * 180 / Math.PI);
+    }
+    return { n: n, corners: out };
+  }
+  /* 번개의 기하 검사: {aspect, sharp, straight, ok} — 회전시킨(위→아래) 좌표에서 잰다.
+     ① 폭/길이는 획 그대로(raw)에서 잰다 — 좁은 번개(폭 20px)의 폭이 뭉개지지 않게.
+     ② 꺾임은 손떨림을 한 번 걸러낸(smooth 3) 경로에서 잰다 — 잡음으로 생긴 가짜 꺾임을 빼기 위해서다. */
+  function boltGeometry(pts, bb, epsMul) {
+    var m = epsMul == null ? 0.14 : epsMul;
+    var sm = smoothPts(pts, 3), sbb = bbox(sm);
+    var eps = Math.max(5, Math.min(sbb.diag * 0.06, Math.max(5, sbb.w * m)));
+    var c = boltCorners(sm, eps);
+    var sharp = c.corners.filter(function (d) { return d >= BOLT_MIN_CORNER; }).length;
+    var aspect = bb.h > 0 ? bb.w / bb.h : 0;
+    return { aspect: aspect, sharp: sharp, corners: c.corners, n: c.n, straight: straightness(pts), ok: aspect >= BOLT_MIN_ASPECT && sharp >= 2 };
+  }
   function scoreBolt(pts, bb, L) {
     if (bb.h < 24) return 0;
     /* 좁은 지그재그(폭 20px)도 살리도록 단순화 여유를 획 폭에 맞춘다. */
     var eps = Math.max(6, Math.min(bb.diag * 0.13, Math.max(6, bb.w * 0.35)));
     var simple = simplify(pts, eps);
     if (simple.length < 3 || simple.length > 7) return 0;
+    /* §2.1①·②: 폭이 좁거나 꺾임이 완만하면 번개가 아니다. */
+    var geo = boltGeometry(pts, bb);
+    if (!geo.ok) return 0;
     var netY = simple[simple.length - 1].y - simple[0].y;
     if (netY / bb.h < 0.2 && bb.h / bb.w < 0.7) {
       // horizontal Z still ok if 3 segments zigzag
@@ -500,6 +533,8 @@
       }
     }
     var allowBolt = !!opts.allowBolt;
+    /* §2.1③: 충분히 곧은 획(곧은 정도 ≥ 0.9)은 번개 후보에서 뺀다 — 직선은 그은 방향대로 가는 편이 덜 억울하다. */
+    if (allowBolt && straightness(rs) >= 0.9) scores.bolt = 0;
     var keys = ['vline', 'hline', 'vee', 'circle', 'square'];
     if (allowBolt) keys = keys.concat(['bolt']);
     var best = null, bestS = 0, second = 0;
@@ -518,6 +553,9 @@
       best = 'circle'; bestS = scores.circle;
     }
     var stable = best === 'circle' || best === 'square';
+    /* §2.1④: 세로선·가로선과 번개가 2등 안에서 0.08 이내로 붙으면 직선으로 읽는다. */
+    if (allowBolt && (best === 'vline' || best === 'hline') && (scores.bolt || 0) > 0
+        && (scores.bolt || 0) >= bestS - 0.08) { scores.bolt = 0; }
     /* 좁은 번개(⚡)는 폭이 좁아 세로선으로 보이기 쉽다 — 지그재그가 확인되면 축 흡수보다 먼저 인정한다. */
     var boltStrong = allowBolt && (scores.bolt || 0) >= 0.5;
     /* 대각선 흡수: 충분히 곧은 획은 가장 가까운 축의 직선으로 확정한다. */
@@ -575,6 +613,9 @@
       return scoreLineAxis(d, bb, pathLen(d));
     },
     veeApex: veeApex,
+    boltGeometry: boltGeometry,
+    straightness: straightness,
+    BOLT: { minAspect: BOLT_MIN_ASPECT, minCorner: BOLT_MIN_CORNER },
     readMessage: readMessage,
     resample: resample,
     densify: densify,
