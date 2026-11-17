@@ -5,7 +5,6 @@ import { buildStage3D } from './inkprops3d.js';
 import { drawInkBossSheet } from './inkboss.js';
 import { drawHeroSheets, drawZombieSheets, drawZombieVariantSheets, drawSpiritSheet } from './inkchars.js';
 import { drawRattle, drawItem, drawSeal, drawUpgrade } from './inkicons.js';
-import { drawProp, drawBackdrop, INK_PROPS } from './inkprops.js';
 
 const BASE = '../assets/v2/';
 const ITEM_KEY = {
@@ -17,7 +16,6 @@ const ITEM_KEY = {
   /* 정예 원귀의 부적 상자 */
   charm: 'charm'
 };
-const SHAPE_MARK = { vline: 'I', hline: 'H', vee: 'V', circle: 'O' };
 
 function canvas(w, h) {
   const c = document.createElement('canvas');
@@ -325,7 +323,7 @@ export async function buildArt(THREE) {
     : heroH * 1.7;
 
   const need = [];
-  function want(url, opt) { if (url && need.indexOf(url) < 0) { need.push({ url: url, opt: opt || {} }); sharedUrls.push(url); } }
+  function want(url, opt) { if (url && sharedUrls.indexOf(url) < 0) { need.push({ url: url, opt: opt || {} }); sharedUrls.push(url); } }
   function sheetFile(s) { return s && (s.file || s.file1x); }
   /* Prefer @1x for large 8-dir action sheets so headless SW GL stays interactive. */
   function animFile(s) { return s && (s.file1x || s.file); }
@@ -785,69 +783,6 @@ export async function buildArt(THREE) {
     group.userData.aura.material.opacity = on ? 0.85 : 0;
   }
 
-  const inkPropCache = {};
-  const inkBackdrops = {};
-  function makeProp(name, def) {
-    if (!inkPropCache[name]) {
-      const r = drawProp(name);
-      if (!r) return null;
-      const t = new THREE.CanvasTexture(r.canvas);
-      t.colorSpace = THREE.SRGBColorSpace;
-      inkPropCache[name] = { tex: t, size: r.size, anchor: r.anchor, flame: r.flame };
-    }
-    const P = inkPropCache[name];
-    const k = unit * INK_PROPS.scale;
-    const spr = imgSprite(P.tex, P.size[0] * k, P.size[1] * k, { cy: 0, alphaTest: 0.1 });
-    spr.center.set(P.anchor[0] / P.size[0], 1 - P.anchor[1] / P.size[1]);
-    const g = new THREE.Group();
-    g.add(spr);
-    g.userData.prop = def || null;
-    g.userData.sprite = spr;
-    if (P.flame && torchGlowTex()) {
-      const glo = imgSprite(torchGlowTex(), 2.4 * INK_PROPS.scale, 2.4 * INK_PROPS.scale, { cy: 0.5, add: true, opacity: 0.7 });
-      glo.position.set(P.flame[0] * k, -P.flame[1] * k, 0.01);
-      glo.userData.baseScale = 2.4 * INK_PROPS.scale;
-      g.add(glo);
-      g.userData.glow = glo;
-      g.userData.flameWorld = { x: P.flame[0] * k, y: -P.flame[1] * k };
-    }
-    return g;
-  }
-
-  const MAP_LAYOUT = {
-    map1: [
-      ['choga-hut', 12, -8], ['choga-hut', -16, -14],
-      ['palace-wall', 16, -16], ['palace-wall', -18, 6],
-      ['ssari-fence', -8, -4], ['ssari-fence', 7, 9], ['ssari-fence', -3, 11],
-      ['reeds', 6, -6], ['reeds', -11, 9],
-      ['vegetable-patch', -12, 2],
-      ['torch', -7, 7], ['torch', 10, -3],
-      ['stone-lantern', 9, 4], ['stone-lantern', -6, -10],
-      ['boulder', 2, 13], ['boulder', -14, -17]
-    ],
-    map2: [
-      ['map2-gate', 0, -22],
-      ['map2-wall', -12, -16], ['map2-wall', 12, -16],
-      ['map2-banner', -8, -8], ['map2-banner', 10, -10],
-      ['map2-rubble', 8, 6], ['map2-rubble', -10, 8], ['map2-rubble', 2, 14],
-      ['map2-barricade', -4, 4], ['map2-barricade', 6, 2],
-      ['map2-haetae', -6, -12], ['map2-haetae', 6, -12]
-    ],
-    map3: [
-      ['map3-bamboo', -14, -8], ['map3-bamboo', 14, -6], ['map3-bamboo', -10, 12], ['map3-bamboo', 12, 10],
-      ['map3-jangseung', -6, 4],
-      ['map3-seonangdang', 8, -10],
-      ['map3-bridge', 0, -16],
-      ['map3-rock', -8, -4], ['map3-rock', 10, 6],
-      ['map3-cairn', 4, 8]
-    ]
-  };
-
-  function propDef(map, name) {
-    if (map.props && !Array.isArray(map.props) && map.props[name]) return map.props[name];
-    return atlas.props && atlas.props[name];
-  }
-
   /* 2.5D 입체 무대: 잉크 3D 소품·지형·조명을 스테이지별로 세운다.
      스테이지 4장은 1장과 같은 장터 땅을 쓰지만, 그을린 변형과 붉은 달로 구분한다. */
   async function applyMap(scene, mapId, prev, opts) {
@@ -903,7 +838,7 @@ export async function buildArt(THREE) {
     pxPerMeter: pxPerMeter, zombieH: zombieH, spiritH: spiritH, bossH: bossH,
     transitions: (atlas.tiles && atlas.tiles.transitions) || null,
     night: hexColor(pal.night || pal.ground, 0x1e1c1a),
-    makeChar: makeChar, makeProp: makeProp, tickChar: tickChar, buildStage3D: buildStage3D,
+    makeChar: makeChar, tickChar: tickChar, buildStage3D: buildStage3D,
     sealUrl: sealUrl, upIconUrl: upIconUrl, itemIconUrl: itemIconUrl, setSpiritShape: setSpiritShape, setStatus: setStatus, setAura: setAura, setTelegraph: setTelegraph,
     applyMap: applyMap, slashTex: slashTex, playFx: playFx,
     trailTex: tex(el['fire-trail'] && el['fire-trail'].file),

@@ -176,11 +176,12 @@ export class EmberField {
 }
 
 export class StageAtmosphere {
-  constructor(scene, stageId, map) {
+  constructor(scene, stageId) {
     this.fields = [];
     const rnd = Math.random;
     const add = function (f) { this.fields.push(f); }.bind(this);
     const mk = function (o) { return new DriftField(scene, o); };
+    const mote = function (o) { return mk(Object.assign({ texture: moteTexture(), mode: 0 }, o)); };
     if (stageId === 3) {
       add(mk({ count: 150, texture: leafTexture(), mode: 0, box: [34, 18, 34], size: 0.22, fall: 0.32, drift: 0.5, color: 0xcfe0c4, opacity: 0.75, rot: 1.4 }));
       add(mk({ count: 90, texture: moteTexture(), mode: 0, box: [30, 16, 30], size: 0.05, fall: 0.16, color: 0x9fb6a4, opacity: 0.4, rot: 0.5 }));
@@ -188,24 +189,44 @@ export class StageAtmosphere {
     } else if (stageId === 2) {
       add(mk({ count: 170, texture: moteTexture(), mode: 0, box: [32, 18, 32], size: 0.055, fall: 0.28, color: 0xbfcbe0, opacity: 0.42, rot: 0.6 }));
       add(mk({ count: 70, texture: moteTexture(), mode: 0, box: [30, 16, 30], size: 0.03, fall: 0.5, color: 0xdde6f5, opacity: 0.3, rot: 0.8 }));
+    } else if (stageId === 6) {
+      /* 설산 폐사찰: 굵은 눈송이와 가는 눈발 */
+      add(mote({ count: 260, box: [32, 18, 32], size: 0.11, fall: 0.9, drift: 0.7, color: 0xf2f6ff, opacity: 0.7, rot: 0.4 }));
+      add(mote({ count: 160, box: [30, 16, 30], size: 0.045, fall: 1.4, drift: 0.9, color: 0xe2ecfa, opacity: 0.45, rot: 0.6 }));
+    } else if (stageId === 7) {
+      /* 고목 골: 마른 낙엽과 흙먼지 */
+      add(mk({ count: 120, texture: leafTexture(), mode: 0, box: [34, 18, 34], size: 0.2, fall: 0.38, drift: 0.6, color: 0xc8a070, opacity: 0.7, rot: 1.6 }));
+      add(mote({ count: 90, box: [30, 16, 30], size: 0.05, fall: 0.2, color: 0xa89878, opacity: 0.35, rot: 0.5 }));
+    } else if (stageId >= 5 && stageId <= 8) {
+      /* 안개 석탑 · 무명 산문: 느리게 떠도는 물안개 알갱이와 푸른 반딧불 */
+      add(mote({ count: 60, box: [34, 8, 34], size: 0.5, fall: 0.05, drift: 0.4, color: 0xcfd8e4, opacity: 0.12, rot: 0.2 }));
+      add(mote({ count: 150, box: [32, 18, 32], size: 0.05, fall: 0.22, color: 0xc0cad8, opacity: 0.38, rot: 0.6 }));
+      add(mk({ count: 36, texture: moteTexture(), mode: 1, box: [26, 7, 26], size: 0.08, color: 0x8fd0ff, opacity: 0.75, additive: true, rot: 0 }));
+    } else if (stageId >= 9) {
+      /* 혈월의 나락: 내려앉는 재와 떠오르는 핏빛 불티 */
+      add(mote({ count: 220, box: [32, 18, 32], size: 0.06, fall: 0.24, drift: 0.5, color: 0x8a8480, opacity: 0.45, rot: 0.9 }));
+      add(mk({ count: 70, texture: moteTexture(), mode: 1, box: [28, 8, 28], size: 0.07, color: 0xff4a3a, opacity: 0.8, additive: true, rot: 0 }));
     } else {
       add(mk({ count: 200, texture: moteTexture(), mode: 0, box: [32, 18, 32], size: 0.05, fall: 0.34, color: stageId === 4 ? 0xd8a898 : 0xc8c2b4, opacity: 0.4, rot: 0.7 }));
       add(mk({ count: 26, texture: moteTexture(), mode: 0, box: [28, 12, 28], size: 0.16, fall: 0.12, color: stageId === 4 ? 0x6a4038 : 0x8a8478, opacity: 0.16, rot: 1.2 }));
     }
-    /* 등불 불티 */
-    const emitters = [];
-    (map.firePits || []).forEach(function (p) { emitters.push(p); });
-    (map.braziers || []).forEach(function (p) { emitters.push(p); });
-    if (map.pools) {
-      map.pools.slice(0, 6).forEach(function (p) { emitters.push({ x: p.x, y: 1.2, z: p.z }); });
-    }
-    if (emitters.length) add(new EmberField(scene, emitters, { per: stageId === 4 ? 38 : 26, size: 0.1, color: stageId === 4 ? 0xff5a32 : 0xff9a42 }));
+    /* 등불 불티: the chunk world hands its bonfires over with setEmitters on every rebuild. */
+    this.scene = scene;
+    this.ember = null;
+    this.emberOpt = { per: stageId === 4 ? 38 : 26, size: 0.1, color: stageId === 4 || stageId >= 9 ? 0xff5a32 : 0xff9a42 };
     this.center = new THREE.Vector3(0, 6, 0);
   }
   setCenter(x, y, z) {
     this.center.set(x, y, z);
     this.fields.forEach(function (f) { if (f.setCenter) f.setCenter(x, y, z); });
   }
+  /** Replaces the ember emitters (world points {x, y, z}); called when the chunk window moves. */
+  setEmitters(list) {
+    if (this.ember) { this.fields.splice(this.fields.indexOf(this.ember), 1); this.ember.dispose(); this.ember = null; }
+    if (!list || !list.length) return;
+    this.ember = new EmberField(this.scene, list, this.emberOpt);
+    this.fields.push(this.ember);
+  }
   update(dt) { this.fields.forEach(function (f) { f.update(dt); }); }
-  dispose() { this.fields.forEach(function (f) { f.dispose(); }); this.fields = []; }
+  dispose() { this.fields.forEach(function (f) { f.dispose(); }); this.fields = []; this.ember = null; }
 }

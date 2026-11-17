@@ -81,7 +81,7 @@ const CFG = {
   spawnZombieDelay: 1.2, practiceZombieMs: 3200, practiceZombieMax: 2, earlyZombieMax: 6, earlyZombieUntil: 15, earlyZombieMinMs: 1400,
   openingZombies: 6, openingRing: [0.5, 0.8],
   spiritStreamAlpha: 0.7, spiritFadeIn: 0.4, spiritAlpha: 1, spiritHover: 1.26, spiritCapStart: 1, spiritMax: 5, spiritGlowAlpha: 0.5,
-  /* 혼령 회수 되돌림(hysteresis): 획득 0.95R, 회수 1.15R(=fogOuter). */
+  /* 혼령 회수 되돌림(hysteresis): 획득 1.02R, 회수 1.15R(안개 경계 fogOuter 1.16 바로 안). */
   spiritReleaseMul: 1.15, spiritAcquireMul: 1.02,
   /* 제자리 탭 = 칼집 패링 */
   parryR: 2.4, parryPush: 1.6, parryStun: 0.35, parryDmg: 0.5, parryCd: 0.45, parryFailCd: 0.2, parryIframe: 0.2, parryHitstop: 0.05,
@@ -95,25 +95,25 @@ const CFG = {
   waves: [
     { t: 20, n: 14, mix: { imp: 0.7, brute: 0.3 }, r: [9, 10] },
     { t: 40, n: 20, mix: { imp: 0.6, brute: 0.3, stone: 0.1 }, r: [9, 11], elite: 1 }
-  ], waveBoostSec: 8,
+  ],
   ringScreenFrac: 0.70, ringMaxFrac: 0.90, ringBoost: 0.095, /* Lv3 lands on ringMaxFrac (0.70 x 1.285 = 0.90) so each level shows in portrait */ ringLvMax: 3,
   spiritOmega: 2.8, spiritAvoidMax: 0.30, spiritAvoidOmega: 8, bossSpeed: 1.0, bossCatchUp: 0.3, bossSpawnR: 11,
-  dashThroughMul: 1.5, dashPastTarget: 0.8, dashPastBodyMul: 1.5, dashPastExtra: 2.0, playBound: 0,
+  dashThroughMul: 1.5, dashPastTarget: 0.8, dashPastBodyMul: 1.5, dashPastExtra: 2.0,
   /* v0.22 보스 결계(아레나): 보스가 서면 이 반경 안에서만 싸운다. */
-  arenaR: 12, arenaRing: 0.5, arenaPulse: 1.4,
+  arenaR: 12,
   /* v0.22 묵항아리: 부수면 세 가지 픽업 중 하나 */
-  jarR: 0.62, jarDropWeights: { herb: 0.4, magnet: 0.3, bang: 0.3 }, herbHeal: 2, bangR: 15,
+  jarDropWeights: { herb: 0.4, magnet: 0.3, bang: 0.3 }, herbHeal: 2, bangR: 15,
   landBounce: 0.28, landBounceT: 0.16, landRippleDur: 0.45,
   landIframe: 0.25, landShockR: 1.6, landPush: 1.2, landStun: 0.3, landPast: 1.0,
   hitstopKill: 0.06, hitstopKillMax: 0.12, hitHitstop: 0.08, hitKnock: 0.6,
   recoilU: 0.12, recoilT: 0.12, hurtVignette: 0.3,
   aimConeCos: 0.5, aimNearW: 0.35, telegraphRange: 3.2,
-  spiritRing: [5, 7.2], zombieRing: [6, 8.5],
-  zombieSpeed: 2.15, spiritSpeed: 0.55,
+  zombieRing: [6, 8.5],
+  zombieSpeed: 2.15,
   qlLowFps: 44, qlHighFps: 57, qlDownSec: 3.5, qlUpSec: 8,
   camOff: { x: 14.4, y: 22.4, z: 14.4 }, camLookY: 1.2, fov: 62,
   markMinCss: 12, seqDotGap: 16, markMaxCss: 32,
-  comboTimeout: 2.8,
+  comboTimeout: 2.8, bpm: 100,
   /* v0.23 아이템 개편: 자동 흡수·수명 · 원소 각인 · 정확한 획 · 칼집 각성 */
   autoPickR: 1.25, itemLife: 24, tempElemDur: 12, elemLvMax: 3,
   iceDurStep: 0.5, shatterStep: 1, burnDurStep: 0.5, burnDmgStep: 0.3,
@@ -374,7 +374,6 @@ const ACT_NAMES = { 1: '폐허의 도성', 2: '안개 산사', 3: '혈월의 나
 function stageOf(n) { return STAGES[clamp((n | 0) || 1, 1, STAGES.length) - 1]; }
 function curStage() { return (S && S.stage) || stageOf(save.stage || 1); }
 function stageWaves() { const st = curStage(); return (st && st.waves) || CFG.waves || []; }
-function stageBoss() { const st = curStage(); return (st && st.boss) || {}; }
 /* 한 판의 제한 시간(스테이지별). 적 성장·포위 가속의 기준. */
 function runLimit() { return (S && S.stage && S.stage.time) || CFG.timeLimit; }
 /* 보스 결계(아레나): 보스가 살아 있는 동안만 성립한다. */
@@ -386,7 +385,7 @@ function clamp(n, a, b) { return n < a ? a : n > b ? b : n; }
 function dist(a, b) { const dx = a.x - b.x, dz = a.z - b.z; return Math.hypot(dx, dz); }
 function now() { return performance.now(); }
 
-const save = { coins: 0, atkLv: 0, hpLv: 0, coinLv: 0, cleared: 0, lastSeen: Date.now(), best: 0, runs: 0, stage: 1, stars: {}, bestScore: 0 };
+const save = { coins: 0, atkLv: 0, hpLv: 0, coinLv: 0, lastSeen: Date.now(), runs: 0, stage: 1, stars: {}, bestScore: 0 };
 const qa = { timeScale: 1, noDelay: false, sandbox: false, noMove: false };
 let S = null, art = null, three = null, raf = 0, lastTs = 0, toastT = 0;
 const audio = createAudio();
@@ -415,7 +414,7 @@ function loadSave() {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return;
     const o = JSON.parse(raw);
-    ['coins', 'atkLv', 'hpLv', 'coinLv', 'cleared', 'lastSeen', 'best', 'runs', 'stage', 'stars', 'bestScore'].forEach(function (k) {
+    ['coins', 'atkLv', 'hpLv', 'coinLv', 'lastSeen', 'runs', 'stage', 'stars', 'bestScore'].forEach(function (k) {
       if (o[k] != null) save[k] = o[k];
     });
     if (!save.stars || typeof save.stars !== 'object') save.stars = {};
@@ -512,7 +511,7 @@ function switchMap(id, stageNo) {
       three.map = m;
       three.torches = [];
       if (three.atmo) { try { three.atmo.dispose(); } catch (e) {} }
-      try { three.atmo = new StageAtmosphere(three.scene, st, m); } catch (e) { three.atmo = null; }
+      try { three.atmo = new StageAtmosphere(three.scene, st); } catch (e) { three.atmo = null; }
       setupChunkWorld(st, m.id);
       if (S) { S.mapId = m.id; S.mapStage = st; }
       applyFxinkAtmo(m.id);
@@ -569,7 +568,7 @@ async function makeWorld() {
   scene.background = new THREE.Color(clear);
   scene.fog = new THREE.FogExp2(clear, 0.007);
 
-  const camera = new THREE.PerspectiveCamera(CFG.fov || 38, view.clientWidth / Math.max(1, view.clientHeight), 0.1, 200);
+  const camera = new THREE.PerspectiveCamera(CFG.fov || 62, view.clientWidth / Math.max(1, view.clientHeight), 0.1, 200);
   camera.position.set(CFG.camOff.x, CFG.camOff.y, CFG.camOff.z);
   camera.lookAt(0, CFG.camLookY, 0);
 
@@ -604,7 +603,7 @@ async function makeWorld() {
   const world = {
     renderer: renderer, scene: scene, camera: camera, map: map, torches: [], fx: [], slashes: [],
     view: view, fxForced: fxQForced, amb: amb, hemi: hemi, moon: moon, fill: fill, sky: sky, baseClear: clear,
-    dprCap: dprCap, dprNow: dprCap, atmo: new StageAtmosphere(scene, 1, map)
+    dprCap: dprCap, dprNow: dprCap, atmo: new StageAtmosphere(scene, 1)
   };
   try {
     world.bloom = setupBloom(renderer, scene, camera, {
@@ -665,11 +664,7 @@ function stepQuality(real) {
 }
 
 function addEntityVisual(kind, shape) {
-  const group = art.makeChar ? art.makeChar(kind, shape) : new THREE.Group();
-  if (!art.makeChar) {
-    const spr = spriteMat((art.item && art.item[kind]) || art.hero, kind === 'hero' ? 2.7 : 2.2);
-    group.add(spr);
-  }
+  const group = art.makeChar(kind, shape);
   three.scene.add(group);
   return group;
 }
@@ -707,13 +702,13 @@ function startRun(opts) {
     ringR: 0, ringLv: 0, bounce: null, landRipple: null,
     spiritCap: opts.sandbox ? CFG.spiritCapStart : Math.max(1, st.spiritCap || CFG.spiritCapStart),
     /* v0.15~v0.17: 참 게이지·패링·선입력·웨이브·자석·진화 */
-    charge: 0, chargeLv: 0, magnetR: CFG.magnetR || 1.8,
+    charge: 0, chargeLv: 0, magnetR: CFG.magnetR || 2.2,
     parryCd: 0, parryFlash: 0, parryHits: [], cleaveFx: 0, cleaveCount: 0,
     inputBuf: null, comboGrace: 0,
-    waveDone: {}, waveBoostT: 0, waveIds: [], wavesFired: [], fogPulse: 0, noMarkT: 0,
+    waveDone: {}, waveIds: [], wavesFired: [], fogPulse: 0, noMarkT: 0,
     evo: {}, evolved: [], preview: null, lastAxis: 'vline',
     /* v0.22: 무한 청크·묵항아리·보스 결계·진화 레벨 */
-    upLv: {}, jarsBroken: 0, hazardSeq: 0, shots: [], hazards: [], arena: null, arenaFx: 0, eliteDone: false, eliteAt: st.eliteAt || 0
+    upLv: {}, jarsBroken: 0, shots: [], hazards: [], arena: null, eliteDone: false, eliteAt: st.eliteAt || 0
   };
   S.runNo = opts.sandbox ? SHAPE_UNLOCK.length : stageNo;
   S.pool = opts.sandbox ? SHAPE_UNLOCK.slice() : (st.shapes || SHAPE_UNLOCK.slice()).slice();
@@ -822,9 +817,7 @@ function fitGroundRingR() {
   }
   return Math.max(1.4, hi);
 }
-function worldRingRFromScreen() { return fitGroundRingR(); }
 function baseRingR() { return fitGroundRingR(); }
-function capRingR(r) { return Math.max(1.4, r); }
 function ringR() {
   if (S && S.ringR > 0) return S.ringR;
   return baseRingR();
@@ -1033,7 +1026,7 @@ function assignSpiritTargets() {
   const R = ringR();
   const cap = Math.min(CFG.spiritMax || 5, S.spiritCap || CFG.spiritCapStart || 3);
   const outR = R * (CFG.spiritReleaseMul || 1.15);
-  const inR = R * (CFG.spiritAcquireMul || 0.95);
+  const inR = R * (CFG.spiritAcquireMul || 1.02);
   /* 1) 대상이 죽었거나 안개 밖(1.15R)으로 벗어난 혼령은 즉시 회수한다. */
   livingMarks().forEach(function (s) {
     if (s.free) return;
@@ -1188,7 +1181,7 @@ function setSpiritAlpha(s) {
   const ud = s && s.obj && s.obj.userData;
   if (!ud) return;
   /* Fades in when the zombie enters the ring, then stays. */
-  const a = (CFG.spiritAlpha || 0.9) * clamp((s.age || 0) / (CFG.spiritFadeIn || 0.4), 0, 1);
+  const a = (CFG.spiritAlpha || 1) * clamp((s.age || 0) / (CFG.spiritFadeIn || 0.4), 0, 1);
   if (ud.sprite && ud.sprite.material) { ud.sprite.material.transparent = true; ud.sprite.material.opacity = a; }
   if (ud.glow && ud.glow.material) ud.glow.material.opacity = (CFG.spiritGlowAlpha || 0.5) * a;
   if (ud.outline && ud.outline.material) ud.outline.material.opacity = 0.7 * a;
@@ -1199,7 +1192,7 @@ function placeSpirit(s) {
   if (!z || !z.alive || s.free) { placeSpiritOnRing(s); return; }
   const ud = (z.obj && z.obj.userData) || {};
   const zh = ud.worldH || 2.4;
-  let bob = zh * (CFG.spiritHover || 0.62);
+  let bob = zh * (CFG.spiritHover || 1.26);
   /* 보스는 덩치가 커서(월드 높이 × 배율) 머리 높이를 눈 위치로 삼아 그 바로 위에 띄운다. */
   if (z.isBoss) {
     const eye = (ud.bellLocal && ud.bellLocal.y) || zh * 0.55;
@@ -1914,8 +1907,8 @@ function clearOnebell(immediate) {
 const _proj = { v: null };
 let lastMarkMetrics = { cssPx: 40, minCss: 40, w: 0, h: 0, marks: [] };
 function markCssSize(w) {
-  const min = CFG.markMinCss || 28;
-  const max = CFG.markMaxCss || 36;
+  const min = CFG.markMinCss || 12;
+  const max = CFG.markMaxCss || 32;
   return clamp(Math.round(min * Math.sqrt((w || 375) / 375)), min, max);
 }
 
@@ -1988,7 +1981,7 @@ function updateMarks() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, r.width, r.height);
   const size = markCssSize(r.width);
-  lastMarkMetrics = { cssPx: size, minCss: CFG.markMinCss || 40, w: r.width, h: r.height, marks: [] };
+  lastMarkMetrics = { cssPx: size, minCss: CFG.markMinCss || 12, w: r.width, h: r.height, marks: [] };
   if (!S || !three) return;
   if (!_proj.v) _proj.v = new THREE.Vector3();
   if (S.playing && S.hero) {
@@ -2749,7 +2742,6 @@ function fireWave(w) {
     const z = spawnZombie({ x: S.hero.x + Math.cos(ang) * rr[1], z: S.hero.z + Math.sin(ang) * rr[1], type: 'elite' });
     if (z) { z.elite = true; S.waveIds.push(z.id); }
   }
-  S.waveBoostT = CFG.waveBoostSec || 8;
   S.fogPulse = 1;
   S.shake = Math.max(S.shake || 0, 0.6);
   triggerSightWave();
@@ -2773,7 +2765,6 @@ function spawnEliteEvent() {
     const z = spawnZombie({ x: S.hero.x + Math.cos(a) * R * 1.08, z: S.hero.z + Math.sin(a) * R * 1.08, type: i % 3 === 2 ? 'brute' : 'imp' });
     if (z) S.waveIds.push(z.id);
   }
-  S.waveBoostT = Math.max(S.waveBoostT || 0, 3);
   S.shake = Math.max(S.shake || 0, 0.5);
   toast('정예 원귀가 부적 상자를 지고 옵니다');
   showJudge('정예 원귀');
@@ -2783,7 +2774,7 @@ function spawnEliteEvent() {
 /* 착지 자석: 반경 안의 바닥 아이템이 곡선으로 빨려온다. */
 function magnetPull(at) {
   if (!S) return 0;
-  const R = S.magnetR || CFG.magnetR || 1.8;
+  const R = S.magnetR || CFG.magnetR || 2.2;
   let n = 0;
   S.items.forEach(function (it) {
     if (!it.alive) return;
@@ -3034,12 +3025,8 @@ function makeSlash(from, to) {
 function afterimages(from, to) {
   for (let i = 1; i <= 4; i++) {
     const u = i / 5;
-    const g = art.makeChar ? art.makeChar('afterimage') : new THREE.Group();
-    if (!art.makeChar) {
-      const spr = spriteMat(art.hero, 2.5);
-      spr.material.opacity = 0.35 - i * 0.06;
-      g.add(spr);
-    } else if (g.userData.sprite) {
+    const g = art.makeChar('afterimage');
+    if (g.userData.sprite) {
       const mat = g.userData.sprite.material;
       mat.opacity = 0.28 - i * 0.05;
       if (mat.blending != null) mat.blending = THREE.NormalBlending;
@@ -3740,7 +3727,6 @@ function endRun(win, msg) {
   const score = (S.kills || 0) * 10 + (S.comboMax || 0) * 5 + stars * 100 + (win ? 150 : 0);
   S.stars = stars; S.coinGain = coinsGain; S.score = score;
   if (win) {
-    save.cleared = Math.max(save.cleared || 0, 1);
     save.stars = save.stars || {};
     save.stars[st.id] = Math.max(save.stars[st.id] || 0, stars);
     const next = Math.min(STAGES.length, (S.stageNo || st.id) + 1);
@@ -3811,7 +3797,6 @@ function step(dt) {
     openLevelUp();
   }
   if (S.fogPulse > 0) S.fogPulse = Math.max(0, S.fogPulse - dt / 0.6);
-  if (S.waveBoostT > 0) S.waveBoostT = Math.max(0, S.waveBoostT - dt);
   if (S.comboGrace > 0) S.comboGrace = Math.max(0, S.comboGrace - dt);
   if (S.inputBuf) {
     const busy = !!S.dash || (S.dashQueue && S.dashQueue.length);
@@ -3840,7 +3825,7 @@ function step(dt) {
     }
   }
   if (S.practiceT > 0) S.practiceT -= dt;
-  if (S.sightWave > 0 && !qa.freezeWave) S.sightWave = Math.max(0, S.sightWave - dt / (CFG.sightWaveDur || 0.7));
+  if (S.sightWave > 0 && !qa.freezeWave) S.sightWave = Math.max(0, S.sightWave - dt / (CFG.sightWaveDur || 0.45));
   if (S.combo > 0) {
     /* 선입력으로 이어진 연쇄는 판정을 조금 더 봐준다. */
     if (!(S.comboGrace > 0)) {
@@ -3955,7 +3940,7 @@ function step(dt) {
     if (d < z.r + 0.55) {
       /* 빙결·경직된 귀물은 몸이 굳은 사이 닿아도 해치지 못한다(얼음·충격이 실제로 방어가 된다). */
       if ((S.iframe || 0) <= 0 && !S.dash && !frozen) {
-        S.hp -= z.isBoss ? (CFG.bossDmg || 3) : ((CFG.zombieTypes[z.type] || {}).dmg || CFG.dmg);
+        S.hp -= z.isBoss ? (CFG.bossDmg || 2) : ((CFG.zombieTypes[z.type] || {}).dmg || CFG.dmg);
         S.iframe = CFG.iframeMs / 1000;
         S.hitstop = Math.max(S.hitstop || 0, CFG.hitHitstop || 0.08);
         S.hurtFlash = CFG.hurtVignette || 0.3;
@@ -4358,8 +4343,7 @@ function buy(stat) {
 }
 
 function activeFov() {
-  if (!three || !three.view) return CFG.fov || 40;
-  const a = three.view.clientWidth / Math.max(1, three.view.clientHeight);
+  if (!three || !three.view) return CFG.fov || 62;
   return CFG.fov || 62;
 }
 function applyCameraLens() {
@@ -4606,6 +4590,11 @@ function loop(ts) {
   if (three) {
     /* v0.22 무한 청크: 영웅이 청크를 넘으면 3×3 창을 밀고 새 청크를 세운다. */
     if (three.chunks) three.chunks.update(raw, ts * 0.001, S ? S.hero.x : 0, S ? S.hero.z : 0);
+    /* Hand the window's bonfires to the ember field whenever the chunks rebuild or the atmosphere is replaced. */
+    if (three.chunks && three.atmo && (three.emberAt !== three.chunks.stats.rebuilds || three.emberAtmo !== three.atmo)) {
+      three.emberAt = three.chunks.stats.rebuilds; three.emberAtmo = three.atmo;
+      three.atmo.setEmitters(three.chunks.embers);
+    }
     if (three.map && three.map.follow) three.map.follow(S ? S.cam.x : 0, S ? S.cam.z : 0);
     stepArena(raw);
     if (three.map && three.map.update) three.map.update(raw, ts * 0.001);
@@ -4763,7 +4752,7 @@ const GPv2 = {
   set ready(v) { this._ready = v; },
   resetSave: function () {
     save.coins = 0; save.atkLv = 0; save.hpLv = 0; save.coinLv = 0;
-    save.cleared = 0; save.lastSeen = Date.now(); save.best = 0; save.runs = 0;
+    save.lastSeen = Date.now(); save.runs = 0;
     save.stage = 1; save.stars = {}; save.bestScore = 0;
     try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
     persist(); renderHud(); refreshTitleHelp();
@@ -5148,7 +5137,7 @@ const GPv2 = {
       charge: S && S.charge, cleaveCount: S && S.cleaveCount, cleaveFx: S && S.cleaveFx,
       parry: S && { cd: S.parryCd || 0, hits: (S.parryHits || []).slice(), flash: S.parryFlash || 0 },
       inputBuf: (S && S.inputBuf) ? { type: S.inputBuf.type, age: now() - S.inputBuf.t0 } : null,
-      wave: S && { fired: (S.wavesFired || []).slice(), boost: S.waveBoostT || 0, pending: (S.waveIds || []).length },
+      wave: S && { fired: (S.wavesFired || []).slice(), pending: (S.waveIds || []).length },
       evo: S && Object.keys(S.evo || {}), evolved: S && (S.evolved || []).slice(),
       magnetR: S && S.magnetR,
       marks: (lastMarkMetrics && lastMarkMetrics.marks) || [],

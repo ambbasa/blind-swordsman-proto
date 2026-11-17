@@ -325,9 +325,8 @@ export function buildChunkData(cx, cz, stageId) {
       const p = spot(rnd, clearR + 2.0, occupied);
       if (!p) continue;
       const ry = rnd() * TAU;
-      marketStall(B, W(p.x), Z(p.z), ry, rnd, stageId === 4 ? rnd() < 0.7 : rnd() < 0.16);
+      marketStall(B, W(p.x), Z(p.z), ry, rnd, rnd() < 0.16);
       addOcc(p.x, p.z, 2.6);
-      if (stageId === 4) burntStall(B, W(p.x + (rnd() - 0.5) * 4), Z(p.z + (rnd() - 0.5) * 4), rnd() * TAU, rnd);
     }
     if (rnd() < 0.62) {
       const p = spot(rnd, clearR + 3.0, occupied);
@@ -339,7 +338,7 @@ export function buildChunkData(cx, cz, stageId) {
         };
         put(0, -d / 2, w, h, 0.28, h / 2);
         put(-w / 2, 0, 0.28, h, d, h / 2);
-        if (stageId !== 4 || rnd() < 0.4) put(w / 2, 0, 0.28, h * 0.82, d, h * 0.41);
+        put(w / 2, 0, 0.28, h * 0.82, d, h * 0.41);
         push(B, 'ao', W(p.x), 0, Z(p.z), w * 1.15, 1, d * 1.1);
         addOcc(p.x, p.z, 3.6);
         /* 기와 지붕 두 장 */
@@ -348,7 +347,7 @@ export function buildChunkData(cx, cz, stageId) {
             w * 0.74, 0.22, d * 0.66, ry, 0.42 * sgn);
         });
         push(B, 'wood', W(p.x), h + 0.96, Z(p.z), w * 0.76, 0.2, 0.22, ry);
-        if (stageId !== 4) push(B, 'paper', W(p.x), h - 0.3, Z(p.z) + 0.4, 0.44, 0.56, 0.44);
+        push(B, 'paper', W(p.x), h - 0.3, Z(p.z) + 0.4, 0.44, 0.56, 0.44);
       }
     }
     for (let i = 0; i < 5; i++) {
@@ -981,6 +980,8 @@ export function createChunkWorld(opts) {
       batches.push(mesh);
     }
 
+    /* Bonfire spots of the 3x3 window, for the floating embers (StageAtmosphere.setEmitters). */
+    world.embers = all.ember.map(function (e) { return { x: e.x, y: (e.y || 0.12) + 0.2, z: e.z }; });
     world.jars = jars;
     placeJars(jars);
     world.stats.chunks = 9;
