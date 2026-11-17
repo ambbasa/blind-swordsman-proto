@@ -49,6 +49,7 @@
       </div>
     </header>
     <div id="guide" hidden></div>
+    <button type="button" id="btnSkip" class="skip-chip" hidden>건너뛰기</button>
     <div id="toast" hidden></div>
 
     <div id="ov-title" class="ov show">
@@ -61,8 +62,18 @@
         <div class="act-tabs" id="actTabs" role="tablist" aria-label="막 선택"></div>
         <div class="stage-select" id="titleStages" role="group" aria-label="스테이지 선택"></div>
         <p class="stage-note" id="titleStageNote"></p>
+        <div class="mode-row" id="titleModes" role="group" aria-label="난이도 모드"></div>
+        <p class="mode-note" id="titleModeNote"></p>
         <button type="button" id="btnStart" class="btn primary">출전</button>
-        <button type="button" id="btnShop" class="btn">성장</button>
+        <div class="title-foot">
+          <button type="button" id="btnTrain" class="btn small">수련</button>
+          <button type="button" id="btnShop" class="btn">성장</button>
+          <button type="button" id="btnA11y" class="btn small">설정</button>
+        </div>
+        <div class="a11y-row" id="titleA11y" hidden>
+          <button type="button" id="btnCb1" class="btn small">색약 팔레트: 끔</button>
+          <button type="button" id="btnShake1" class="btn small">화면 흔들림: 켬</button>
+        </div>
       </div>
     </div>
     <div id="ov-shop" class="ov">
@@ -97,6 +108,8 @@
         <p id="resultBody"></p>
         <ul class="result-stats" id="resultStats"></ul>
         <p class="result-next" id="resultNext"></p>
+        <p class="result-help" id="resultHelp" hidden></p>
+        <button type="button" id="btnTrainOffer" class="btn" hidden>수련 모드로 한 판</button>
         <button type="button" id="btnResultShop" class="btn">성장</button>
         <button type="button" id="btnResultGo" class="btn primary">다시</button>
       </div>
@@ -116,6 +129,10 @@
         <p class="pause-note">숨을 고르는 동안 판이 멈춥니다.</p>
         <button type="button" id="btnResume" class="btn primary">계속</button>
         <button type="button" id="btnMute2" class="btn">소리 끄기</button>
+        <div class="a11y-row">
+          <button type="button" id="btnCb" class="btn small">색약 팔레트: 끔</button>
+          <button type="button" id="btnShake" class="btn small">화면 흔들림: 켬</button>
+        </div>
         <div class="rec-row">
           <button type="button" id="btnRec" class="btn small">기록 보내기: 끔</button>
           <button type="button" id="btnRecOut" class="btn small">기록 내보내기</button>

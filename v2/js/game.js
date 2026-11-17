@@ -1,4 +1,6 @@
 /* 심안(SIMAN) v2 — 2.5D quarter-view, Three.js, camera-follow dashes.
+   v0.30: 난이도 모드(수련·정석·고수) · 동적 보정 · 첫 10초 몸통 튜토리얼 · '처음 보는 순간' 규칙 ·
+          색약 팔레트와 화면 흔들림 끄기 · 보스전 시간 예산 실측·조정(§4.3)
    v0.28: 혼령의 창 — 먹안개가 혼령을 삼키지 않게, 링 경계·그 너머·짙은 안개에서도 혼령 몸과 기호가 그대로 읽힌다
    v0.27: 화면별 시야 통일(짧은 축 고정 스케일) · HUD 3줄 개편(넘침·줄바꿈 제거·소리·일시정지) ·
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
@@ -20,7 +22,7 @@ import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariant
 import { InkFx, FX_COLORS } from './inkfx.js';
 import { createTelemetry } from './telemetry.js';
 const inkFx = new InkFx();
-const telemetry = createTelemetry({ version: '0.29' });
+const telemetry = createTelemetry({ version: '0.30' });
 let frameDt = 1 / 60;
 
 const G = window.GPGestures;
@@ -175,8 +177,42 @@ const CFG = {
   /* 혼령의 창: 혼령은 먹안개를 뚫고 보인다. 링 경계·그 너머·짙은 안개에서도 혼령 몸과 기호가 읽히도록
      혼령 자리에 부드러운 창을 뚫는다(중심 지움 정도 / 구슬·몸 높이 대비 반지름 / 최소·최대 px). */
   spiritLightClear: 0.84, spiritLightOrb: 2.4, spiritLightBody: 0.72, spiritLightPx: 26,
-  spiritLightBoss: 1.45, spiritLightMax: 120
+  spiritLightBoss: 1.45, spiritLightMax: 120,
+  /* v0.30 §8.1 첫 10초 몸통 튜토리얼: 느린 화면 + 유도 획 → 첫 성공 → 제자리 탭. */
+  tut: { slow0: 0.45, firstSlow: 0.75, firstDur: 0.8, tapAt: 5.0, tapSlow: 0.35, tapSlowDur: 0.6, end: 10 },
+  /* v0.30 §8.2 '처음 보는 순간': 한 번 본 것은 다시 늦추지 않는다(저장 단위 기록). */
+  firstPatTele: 1.6, firstPatSlow: 0.5, firstPatSlowDur: 0.6, firstShapeGuide: 0.8, totemPractice: 3.0,
+  /* v0.30 §7.3 동적 보정: 같은 장 연패 시 조용히 돕는다(고수 모드 제외). */
+  help2Charge: 30, help3Tele: 1.1, helpOfferAt: 4,
+  /* v0.30 §4.3 보스전 시간 예산: 목표 여유 비율 1.4~1.8, 수용 기준 '시간 초과 패배 10% 이하'. */
+  budget: { walk: 2.6, stun: 1.2, seal: 2, K: 2, slackMin: 1.4, slackMax: 1.8, overMax: 0.10 }
 };
+/* v0.30 §7.2 난이도 모드: 예고 ×, 받는 피해 ×(최소 1), 원귀 속도 ×, 보스 무늬 ±, 별 상한, 엽전 ×.
+   고수는 12장을 클리어해야 열린다(§17 추천안: 수련 모드 별 상한 2개 유지). */
+const MODES = {
+  train: { id: 'train', name: '수련', tag: '천천히 익힌다', tele: 1.5, dmg: 0.5, spd: 0.85, bossShapes: -2, starCap: 2, coin: 0.7, gold: false },
+  jeongseok: { id: 'jeongseok', name: '정석', tag: '기본 난이도', tele: 1.0, dmg: 1.0, spd: 1.0, bossShapes: 0, starCap: 3, coin: 1.0, gold: false },
+  gosu: { id: 'gosu', name: '고수', tag: '금별', tele: 0.85, dmg: 1.5, spd: 1.1, bossShapes: 2, starCap: 3, coin: 1.4, gold: true }
+};
+const MODE_ORDER = ['train', 'jeongseok', 'gosu'];
+const MODE_NOTE = {
+  train: '예고 ×1.5 · 받는 피해 ×0.5 · 별 2개까지 · 엽전 ×0.7',
+  jeongseok: '예고 ×1 · 받는 피해 ×1 · 별 3개 · 엽전 ×1',
+  gosu: '예고 ×0.85 · 받는 피해 ×1.5 · 보스 무늬 +2 · 금별 · 엽전 ×1.4'
+};
+function modeOf(id) { return MODES[id] || MODES.jeongseok; }
+function curMode() { return modeOf((S && S.mode) || save.mode || 'jeongseok'); }
+/** 고수 모드는 12장을 깨야 열린다. */
+function gosuUnlocked() { return ((save.stars || {})[STAGES.length] || 0) > 0; }
+/** 이 판의 예고 배율(모드 × 동적 보정). 첫 등장 연출은 이 값 위에 한 번 더 곱한다. */
+function teleMul() { return (S && S.teleMul) || curMode().tele; }
+/** 받는 피해: 모드 배율(최소 1). */
+function modeDmg(n) { return Math.max(1, Math.round((n || 0) * curMode().dmg)); }
+function modeSpd() { return curMode().spd; }
+function modeCoin() { return curMode().coin; }
+/** 별 상한: 수련은 2개까지. */
+function starCap() { return curMode().starCap; }
+
 const RUN_UPGRADES = [
   { id: 'dmg', name: '돌진 데미지', desc: '일섬이 더 큰 상처를 남깁니다.', maxLv: 99 },
   { id: 'width', name: '경로 폭', desc: '베기 선이 넓어져 더 많은 것을 스칩니다.', maxLv: 6 },
@@ -325,7 +361,7 @@ const STAGES = [
     id: 8, act: 2, name: '무명 산문', sub: '이름 없는 절의 마지막 문', map: 'map8', tag: '산문 앞',
     goal: '산문을 지키는 원혼이 길고 긴 도형을 듭니다. 아홉 번의 절단.',
     tip: '보스가 부르는 잔몹은 참(斬)으로 한꺼번에 쓸어 담으세요.',
-    time: 220, eliteAt: 110, bossAt: 172, bossShapes: 9,
+    time: 220, eliteAt: 110, bossAt: 162, bossShapes: 9,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 3,
     opening: { n: 10, ring: [0.5, 0.92], brute: 3 },
     mix: [[0, { imp: 0.58, brute: 0.26, thrower: 0.16 }], [18, { imp: 0.42, brute: 0.26, thrower: 0.18, charger: 0.14 }], [46, { imp: 0.32, brute: 0.24, thrower: 0.18, charger: 0.14, bomber: 0.12 }]],
@@ -345,7 +381,7 @@ const STAGES = [
     id: 9, act: 3, name: '혈석 제단', sub: '붉은 돌이 숨 쉬는 제단', map: 'map9', tag: '혈석',
     goal: '혈석이 빛을 머금습니다. 제단에 닿기 전에 모두 베세요.',
     tip: '다중 장판이 깔리면 빛나는 땅을 밟지 마세요 — 터지기 전에 빠져나옵니다.',
-    time: 225, eliteAt: 112, bossAt: 176, bossShapes: 9,
+    time: 225, eliteAt: 112, bossAt: 166, bossShapes: 9,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 3,
     opening: { n: 11, ring: [0.5, 0.92], brute: 3 },
     mix: [[0, { imp: 0.52, brute: 0.26, charger: 0.22 }], [18, { imp: 0.38, brute: 0.26, charger: 0.2, bomber: 0.16 }], [44, { imp: 0.28, brute: 0.24, charger: 0.18, bomber: 0.16, stone: 0.14 }]],
@@ -363,7 +399,7 @@ const STAGES = [
     id: 10, act: 3, name: '뼈의 강', sub: '마른 강바닥에 쌓인 뼈', map: 'map10', tag: '혼령 넷',
     goal: '혼령이 넷까지 머뭅니다. 넷을 한 번에 꿰는 획을 노리세요.',
     tip: '혼령 슬롯 카드가 있으면 넷이 동시에 종을 듭니다.',
-    time: 230, eliteAt: 115, bossAt: 180, bossShapes: 10,
+    time: 230, eliteAt: 115, bossAt: 170, bossShapes: 10,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 4,
     opening: { n: 12, ring: [0.5, 0.95], brute: 3 },
     mix: [[0, { imp: 0.48, brute: 0.26, thrower: 0.26 }], [16, { imp: 0.36, brute: 0.26, thrower: 0.2, charger: 0.18 }], [42, { imp: 0.26, brute: 0.24, thrower: 0.18, charger: 0.16, bomber: 0.16 }]],
@@ -381,7 +417,7 @@ const STAGES = [
     id: 11, act: 3, name: '혈월 성채', sub: '달이 가장 가까운 성벽', map: 'map11', tag: '정예 셋',
     goal: '성벽 위의 원혼이 열한 번의 도형을 겁니다. 정예도 셋입니다.',
     tip: '정예 원귀의 부적 상자는 강화 3연속 — 놓치지 마세요.',
-    time: 240, eliteAt: 118, bossAt: 188, bossShapes: 11,
+    time: 240, eliteAt: 118, bossAt: 176, bossShapes: 11,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 4,
     opening: { n: 12, ring: [0.48, 0.95], brute: 4 },
     mix: [[0, { imp: 0.44, brute: 0.26, charger: 0.3 }], [16, { imp: 0.32, brute: 0.26, charger: 0.22, bomber: 0.2 }], [40, { imp: 0.24, brute: 0.24, charger: 0.2, bomber: 0.18, stone: 0.14 }]],
@@ -399,7 +435,7 @@ const STAGES = [
     id: 12, act: 3, name: '나락의 심연', sub: '검은 달이 떨어지는 자리', map: 'map12', tag: '올 클리어',
     goal: '열두 번의 도형, 쉼 없는 장판. 마지막 획으로 나락을 끊으세요.',
     tip: '마지막 귀물은 장판을 다섯 겹으로 깝니다 — 붉은 예고선을 보고 일섬으로 빠져나가세요.',
-    time: 250, eliteAt: 125, bossAt: 196, bossShapes: 12,
+    time: 250, eliteAt: 125, bossAt: 186, bossShapes: 12,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 4,
     opening: { n: 14, ring: [0.48, 1.0], brute: 4 },
     mix: [[0, { imp: 0.4, brute: 0.26, charger: 0.34 }], [14, { imp: 0.28, brute: 0.26, charger: 0.24, bomber: 0.22 }], [38, { imp: 0.2, brute: 0.24, charger: 0.22, bomber: 0.2, thrower: 0.14 }]],
@@ -421,6 +457,51 @@ function curStage() { return (S && S.stage) || stageOf(save.stage || 1); }
 function stageWaves() { const st = curStage(); return (st && st.waves) || CFG.waves || []; }
 /* 한 판의 제한 시간(스테이지별). 적 성장·포위 가속의 기준. */
 function runLimit() { return (S && S.stage && S.stage.time) || CFG.timeLimit; }
+/* v0.30 §4.3 보스전 시간 예산.
+     A = time − bossAt (가용), C = walk(2.6) + 패턴 평균 길이 P + 경직(1.2)
+     N = ceil(무늬 수 / 2),  Need = N×C + 봉인 2초,  Slack = A / Need  → 목표 1.4~1.8
+   패턴 길이는 문서의 P(추정) 대신 실제 패턴 지속 시간을 넣는다(예고는 모드 배율로 늘/줍힌다). */
+const PAT_COST = {
+  charge: [1.0, 0.45], kiai: [2.2, 0.08], slam: [1.0, 0.2], clones: [8, 0], veil: [5, 0],
+  volley: [0.8, 0], chant: [4.5, 0], shrink: [10, 0], seal: [4, 0]
+};
+function bossPatternMean(st, tele, shapeAdj) {
+  const B = (st && st.boss) || {};
+  const list = (B.patterns || []).concat(B.phase2 || []);
+  if (!list.length) return 2.5;
+  const tm = (tele == null ? 1 : tele);
+  const sum = list.reduce(function (a, id) {
+    const c = PAT_COST[id] || [2.5, 0];
+    const t = id === 'charge' ? (B.telegraph != null ? B.telegraph : 1.1) : c[0];
+    return a + t * tm + c[1];
+  }, 0);
+  return sum / list.length;
+}
+function bossBudget(stageNo, modeId, opt) {
+  opt = opt || {};
+  const st = stageOf(stageNo || (save.stage || 1));
+  const m = modeOf(modeId || save.mode || 'jeongseok');
+  const B = CFG.budget;
+  const A = Math.max(0, st.time - st.bossAt);
+  const shapes = Math.max(2, (st.bossShapes || CFG.bossShapes) + (opt.shapeAdj != null ? opt.shapeAdj : m.bossShapes));
+  const P = opt.P != null ? opt.P : bossPatternMean(st, m.tele, m.bossShapes);
+  const C = opt.C != null ? opt.C : ((B.walk || 2.6) + P + (B.stun || 1.2));
+  const N = Math.ceil(shapes / (B.K || 2));
+  const need = N * C + (B.seal || 2);
+  return {
+    stage: st.id, mode: m.id, A: +A.toFixed(1), time: st.time, bossAt: st.bossAt,
+    shapes: shapes, P: +P.toFixed(2), C: +C.toFixed(2), N: N, need: +need.toFixed(1),
+    slack: +(A / Math.max(0.1, need)).toFixed(2), ok: (A / Math.max(0.1, need)) >= (B.slackMin || 1.4)
+  };
+}
+function budgetTable(opt) {
+  return STAGES.map(function (st) {
+    return {
+      stage: st.id, bossAt: st.bossAt, time: st.time, shapes: st.bossShapes,
+      train: bossBudget(st.id, 'train', opt), jeongseok: bossBudget(st.id, 'jeongseok', opt), gosu: bossBudget(st.id, 'gosu', opt)
+    };
+  });
+}
 /* 보스 결계(아레나): 보스가 살아 있는 동안만 성립한다. */
 function arenaActive() { return !!(S && S.arena && S.boss && S.boss.alive); }
 function arenaR() { return (S && S.arena && S.arena.r) || (CFG.arenaR || 12); }
@@ -430,7 +511,9 @@ function clamp(n, a, b) { return n < a ? a : n > b ? b : n; }
 function dist(a, b) { const dx = a.x - b.x, dz = a.z - b.z; return Math.hypot(dx, dz); }
 function now() { return performance.now(); }
 
-const save = { coins: 0, atkLv: 0, hpLv: 0, coinLv: 0, lastSeen: Date.now(), runs: 0, stage: 1, stars: {}, bestScore: 0, totemTip: false, muted: false };
+const save = { coins: 0, atkLv: 0, hpLv: 0, coinLv: 0, lastSeen: Date.now(), runs: 0, stage: 1, stars: {}, bestScore: 0, totemTip: false, muted: false,
+  /* v0.30: 난이도 모드 · 첫 경험 기록(저장 단위) · 접근성 · 같은 장 연패 · 수련 권유 기록 */
+  mode: 'jeongseok', tutorialDone: 0, moments: {}, a11y: { colorblind: 0, shake: 0 }, streak: null, trainOffered: null };
 const qa = { timeScale: 1, noDelay: false, sandbox: false, noMove: false };
 let S = null, art = null, three = null, raf = 0, lastTs = 0, toastT = 0;
 const audio = createAudio();
@@ -459,10 +542,18 @@ function loadSave() {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return;
     const o = JSON.parse(raw);
-    ['coins', 'atkLv', 'hpLv', 'coinLv', 'lastSeen', 'runs', 'stage', 'stars', 'bestScore', 'totemTip', 'muted'].forEach(function (k) {
+    ['coins', 'atkLv', 'hpLv', 'coinLv', 'lastSeen', 'runs', 'stage', 'stars', 'bestScore', 'totemTip', 'muted',
+      'mode', 'tutorialDone', 'moments', 'a11y', 'streak', 'trainOffered'].forEach(function (k) {
       if (o[k] != null) save[k] = o[k];
     });
     if (!save.stars || typeof save.stars !== 'object') save.stars = {};
+    if (!save.moments || typeof save.moments !== 'object') save.moments = {};
+    if (!save.a11y || typeof save.a11y !== 'object') save.a11y = { colorblind: 0, shake: 0 };
+    save.a11y.colorblind = save.a11y.colorblind ? 1 : 0;
+    save.a11y.shake = save.a11y.shake ? 1 : 0;
+    if (!MODES[save.mode]) save.mode = 'jeongseok';
+    if (save.mode === 'gosu' && !gosuUnlocked()) save.mode = 'jeongseok';
+    save.tutorialDone = save.tutorialDone ? 1 : 0;
     save.stage = clamp(save.stage | 0 || 1, 1, STAGES.length);
   } catch (e) {}
 }
@@ -579,6 +670,8 @@ function resumeRun() {
 function quitRun() {
   const had = !!S;
   if (S) { S.playing = false; S.paused = null; S.dash = null; S.dashQueue = []; }
+  const sk = $('btnSkip');
+  if (sk) sk.hidden = true;
   hideGuide();
   hideOvs();
   clearEntities();
@@ -608,6 +701,11 @@ function renderCharge() {
     S.chargeReadyHint = true;
     showGuide('참 준비 — <b>O</b>를 그려 참(斬)을 터뜨리세요', 3.6);
     if (audio && audio.gong) audio.gong();
+  }
+  /* §8.2 참 게이지 100을 처음 보는 순간: 화면 가운데에 O 유도 획을 한 번 보여 준다. */
+  if (full && S && S.playing && markSeen('charge')) {
+    S.chargeGuide = 2.2;
+    telemetry.event('first_moment', { kind: 'charge', stage: S.stageNo });
   }
 }
 
@@ -797,6 +895,292 @@ function placeGroup(g, x, z, bob) {
   g.position.set(x, bob || 0, z);
 }
 
+/* ---------- v0.30 §11 접근성 · §8.2 '처음 보는 순간' · §7.3 동적 보정 · §8.1 몸통 튜토리얼 ----------
+   난이도·연패·첫 경험은 모두 save에 남긴다(기기 안, 개인정보 없음). */
+function a11yCb() { return !!(save.a11y && save.a11y.colorblind); }
+/** 화면 흔들림을 줄이는 설정(켜면 흔들림 ×0.3, 느린 화면은 0.6배까지). */
+function a11yShake() { return !!(save.a11y && save.a11y.shake); }
+function setA11y(key, v) {
+  save.a11y = save.a11y || { colorblind: 0, shake: 0 };
+  save.a11y[key] = v ? 1 : 0;
+  persist();
+  syncA11yUi();
+  return !!save.a11y[key];
+}
+function syncA11yUi() {
+  const cb = a11yCb(), sh = a11yShake();
+  [['btnCb', '색약 팔레트'], ['btnCb1', '색약 팔레트']].forEach(function (p) {
+    const b = $(p[0]); if (b) { b.textContent = p[1] + ': ' + (cb ? '켬' : '끔'); b.classList.toggle('on', cb); }
+  });
+  [['btnShake', '화면 흔들림'], ['btnShake1', '화면 흔들림']].forEach(function (p) {
+    const b = $(p[0]); if (b) { b.textContent = p[1] + ': ' + (sh ? '줄임' : '켬'); b.classList.toggle('on', sh); }
+  });
+}
+/* §8.2 저장 단위 기록: 한 번 본 순간은 다시 늦추지 않는다(무늬·패턴·기물·칼 튕김·참). */
+function seen(k) { return !!(save.moments && save.moments[k]); }
+function markSeen(k) {
+  save.moments = save.moments || {};
+  if (qa && qa.noFirstMoments) return false;
+  if (save.moments[k]) return false;
+  save.moments[k] = 1;
+  persist();
+  return true;
+}
+/* §7.3 같은 장 연패 기억. */
+function streakOf(stageNo) {
+  const s = save.streak;
+  return (s && (s.stage | 0) === (stageNo | 0)) ? (s.n | 0) : 0;
+}
+function bumpStreak(stageNo, win) {
+  const n = win ? 0 : Math.min(9, streakOf(stageNo) + 1);
+  save.streak = n ? { stage: stageNo | 0, n: n } : null;
+  persist();
+  return n;
+}
+/** 느린 화면을 한 가지 통로로 모은다(튜토리얼·첫 등장·간발). 흔들림을 줄인 설정이면 0.6배까지. */
+function addSlow(mul, dur) {
+  if (!S) return;
+  let m = mul, d = dur;
+  if (a11yShake() || reducedMotion()) { m = Math.max(0.6, m); d = Math.max(d, 0.001) * 0.6; }
+  S.slowMul = Math.min(S.slowMul || 1, m);
+  S.slowMulT = Math.max(S.slowMulT || 0, d);
+}
+function reducedMotion() {
+  try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; }
+}
+/* 무늬·기물의 유도 획 모양(화면 좌표). 유도 획·첫 등장 안내·기물 연습이 같은 함수를 쓴다. */
+function ghostShapePath(type, cx, cy, s) {
+  const p = [];
+  const line = function (x1, y1, x2, y2, n) {
+    n = n || 20;
+    for (let i = 0; i < n; i++) { const t = i / (n - 1); p.push({ x: x1 + (x2 - x1) * t, y: y1 + (y2 - y1) * t }); }
+  };
+  if (type === 'vline') line(cx, cy - s, cx, cy + s, 18);
+  else if (type === 'vee') { line(cx - s * 0.8, cy - s * 0.7, cx, cy + s * 0.8, 12); line(cx, cy + s * 0.8, cx + s * 0.8, cy - s * 0.7, 12); }
+  else if (type === 'bolt') { line(cx + s * 0.25, cy - s, cx - s * 0.25, cy - s * 0.15, 8); line(cx - s * 0.25, cy - s * 0.15, cx + s * 0.3, cy + s * 0.12, 7); line(cx + s * 0.3, cy + s * 0.12, cx - s * 0.25, cy + s, 9); }
+  else if (type === 'circle') { for (let i = 0; i <= 44; i++) { const a = -Math.PI * 0.5 + Math.PI * 2 * (i / 44); p.push({ x: cx + Math.cos(a) * s * 0.8, y: cy + Math.sin(a) * s * 0.8 }); } }
+  else if (type === 'square') { line(cx - s * 0.7, cy - s * 0.7, cx + s * 0.7, cy - s * 0.7, 10); line(cx + s * 0.7, cy - s * 0.7, cx + s * 0.7, cy + s * 0.7, 10); line(cx + s * 0.7, cy + s * 0.7, cx - s * 0.7, cy + s * 0.7, 10); line(cx - s * 0.7, cy + s * 0.7, cx - s * 0.7, cy - s * 0.7, 10); }
+  else if (type === 'tri') { line(cx, cy - s * 0.8, cx + s * 0.8, cy + s * 0.6, 10); line(cx + s * 0.8, cy + s * 0.6, cx - s * 0.8, cy + s * 0.6, 10); line(cx - s * 0.8, cy + s * 0.6, cx, cy - s * 0.8, 10); }
+  else if (type === 'arc') { for (let i = 0; i <= 26; i++) { const a = Math.PI * (i / 26); p.push({ x: cx - Math.cos(a) * s * 0.85, y: cy + Math.sin(a) * s * 0.6 }); } }
+  else if (type === 'spiral') { for (let i = 0; i <= 60; i++) { const t = i / 60, a = t * Math.PI * 4.0 - 0.4, r = s * (0.1 + 0.75 * t); p.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r }); } }
+  else line(cx - s, cy, cx + s, cy, 18);
+  return p;
+}
+/** 반여명의 획 가이드: 콸리콸 흐르는 점선. 대각 위에 작은 획이 머리무리에서 나가는 방향으로 움직인다. */
+function drawGhostPath(ctx, pts, color, alpha, width) {
+  if (!pts || pts.length < 2) return;
+  const t = (S && S.elapsed) || 0;
+  ctx.save();
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = color; ctx.globalAlpha = alpha * 0.35;
+  ctx.lineWidth = (width || 5) + 3;
+  ctx.beginPath();
+  pts.forEach(function (p, i) { if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); });
+  ctx.stroke();
+  ctx.globalAlpha = alpha;
+  ctx.lineWidth = width || 5;
+  ctx.setLineDash([12, 10]);
+  ctx.lineDashOffset = -((t * 90) % 22);
+  ctx.beginPath();
+  pts.forEach(function (p, i) { if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); });
+  ctx.stroke();
+  ctx.setLineDash([]);
+  /* 머리(그리는 방향): 마지막 두 점의 방향으로 화살촉 */
+  const a = pts[pts.length - 2], b = pts[pts.length - 1];
+  const ang = Math.atan2(b.y - a.y, b.x - a.x);
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(b.x, b.y);
+  ctx.lineTo(b.x - Math.cos(ang - 0.5) * 15, b.y - Math.sin(ang - 0.5) * 15);
+  ctx.lineTo(b.x - Math.cos(ang + 0.5) * 15, b.y - Math.sin(ang + 0.5) * 15);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+/* ---------- §8.1 첫 10초 몸통 튜토리얼 ---------- */
+function tutorialOn() { return !!(S && S.tutorial && S.tutorial.on && S.playing && !S.paused); }
+function startTutorial(force) {
+  if (!S) return null;
+  if (!force && S.stageNo !== 1) return null;
+  S.tutorial = { on: true, t: 0, first: false, firstAt: -1, tapDone: false };
+  S.tutSlow = CFG.tut.slow0;
+  const b = $('btnSkip');
+  if (b) b.hidden = false;
+  return S.tutorial;
+}
+function endTutorial(reason) {
+  if (!S || !S.tutorial) return false;
+  S.tutorial = null;
+  S.tutSlow = 1;
+  hideGuide();
+  const b = $('btnSkip');
+  if (b) b.hidden = true;
+  save.tutorialDone = 1;
+  persist();
+  telemetry.event('tutorial', { done: reason || 'end' });
+  return true;
+}
+/** 튜토리얼·첫 등장 연출은 게임 시간이 아니라 실제 시간으로 센다(느린 화면에 안 밀리게). */
+function stepTutorial(real) {
+  if (!S) return;
+  if (S.slowMulT > 0) {
+    S.slowMulT -= real;
+    if (S.slowMulT <= 0) { S.slowMulT = 0; S.slowMul = 1; }
+  }
+  const T = S.tutorial;
+  if (!T || !T.on) { S.tutSlow = 1; return; }
+  T.t += real;
+  tickTutorial();
+}
+/** 단계 문턱(5초 제자리 탭·10초 종료)을 한 곳에 모은다 — QA에서는 advanceTutorial로 결정론적으로 돌린다. */
+function tickTutorial() {
+  const T = S && S.tutorial;
+  if (!T || !T.on) return;
+  if (!T.first) S.tutSlow = CFG.tut.slow0;
+  else if (T.firstAt >= 0 && (T.t - T.firstAt) < CFG.tut.firstDur) S.tutSlow = CFG.tut.firstSlow;
+  else S.tutSlow = 1;
+  if (!T.tapSpawned && T.t >= CFG.tut.tapAt) {
+    T.tapSpawned = true;
+    /* 제자리 탭 단계: 앞에서 귀물 하나가 다가온다. 탭은 패링 — 실패해도 피해 없음. */
+    if (!reducedMotion()) addSlow(CFG.tut.tapSlow, CFG.tut.tapSlowDur);
+    const p = S.hero;
+    spawnZombie({ x: p.x + Math.cos(-Math.PI / 2) * 2.6, z: p.z + Math.sin(-Math.PI / 2) * 2.6, type: 'imp' });
+    showGuide('제자리 탭', 2.4);
+    if (audio && audio.gong) audio.gong();
+  }
+  if (S.playing) S.iframe = Math.max(S.iframe || 0, 0.25);
+  if (T.t >= CFG.tut.end) endTutorial('end');
+}
+function tutorialFirstSuccess() {
+  const T = S && S.tutorial;
+  if (!T || !T.on || T.first) return false;
+  T.first = true; T.firstAt = T.t;
+  addHitstop(0.05);
+  if (audio && audio.slash) audio.slash();
+  showGuide('일섬!', 1.6);
+  return true;
+}
+/* 안내를 그릴 대상: 튜토리얼의 첫 혼령 */
+function guideSpirit() {
+  const ms = livingMarks();
+  if (!ms.length) return null;
+  return ms.slice().sort(function (a, b) { return dist(a, S.hero) - dist(b, S.hero); })[0];
+}
+function drawTutorial(ctx, r, hs) {
+  if (!S) return;
+  const T = S.tutorial;
+  const t = S.elapsed || 0;
+  /* 참 게이지 100 첫 안내: 화면 가운데 O 유도 획 1회 */
+  if (S.chargeGuide > 0) {
+    S.chargeGuide -= frameDt;
+    const k = clamp(S.chargeGuide / 2.2, 0, 1);
+    drawGhostPath(ctx, ghostShapePath('circle', r.width * 0.5, r.height * 0.42, Math.min(r.width, r.height) * 0.16), 'rgba(91,232,196,1)', 0.35 + 0.35 * k, 6);
+    ctx.save(); ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(244,236,214,' + (0.7 * k).toFixed(2) + ')';
+    ctx.font = '700 15px serif'; ctx.fillText('O — 참(斬)', r.width * 0.5, r.height * 0.42 + Math.min(r.width, r.height) * 0.16 + 26); ctx.restore();
+  }
+  /* 새 무늬 첫 혼령: 0.8초 반투명 유도 획 */
+  if (S.newShape && S.newShape.guide > 0) {
+    S.newShape.guide -= frameDt;
+    const sp = guideSpirit();
+    if (sp) {
+      const p = projectXZ(sp.x, sp.z, 0.9);
+      const a = clamp(S.newShape.guide / (CFG.firstShapeGuide || 0.8), 0, 1);
+      drawGhostPath(ctx, ghostShapePath(spiritShape(sp), p.x, p.y, Math.max(26, Math.min(r.width, r.height) * 0.075)), 'rgba(244,236,214,1)', a, 6);
+    }
+  }
+  /* 기물 연습: 보스 등장 직후 3초, 가장 가까운 기물로 유도 획 */
+  if (S.totemGuide > 0) {
+    S.totemGuide -= frameDt;
+    const tt = bossMinions().slice().sort(function (a, b) { return dist(a, S.hero) - dist(b, S.hero); })[0];
+    if (tt) {
+      const p = projectXZ(tt.x, tt.z, 0.9);
+      const a = clamp(S.totemGuide / (CFG.totemPractice || 3), 0, 1);
+      drawGhostPath(ctx, ghostShapePath(tt.shape || 'tri', p.x, p.y, Math.max(24, Math.min(r.width, r.height) * 0.07)), 'rgba(201,166,255,1)', a, 6);
+    }
+  }
+  /* 첫 칼 튕김: 빈틈 고리를 가리키는 화살표 */
+  if (S.bounceArrow > 0) {
+    S.bounceArrow -= frameDt;
+    const b = S.boss;
+    if (b && b.alive) {
+      const p = projectXZ(b.x, b.z, 0.05), k = clamp(S.bounceArrow / 3, 0, 1);
+      const wpc = worldPerCss(), rx = 2.6 * wpc, ry = rx * 0.55;
+      ctx.save(); ctx.globalAlpha = 0.5 + 0.4 * k; ctx.strokeStyle = 'rgba(255,240,200,0.95)'; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.ellipse(p.x, p.y, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+      const ang = -Math.PI * 0.5 + Math.sin(t * 2) * 0.25;
+      const ax = p.x + Math.cos(ang) * rx * 1.55, ay = p.y + Math.sin(ang) * ry * 4.0;
+      ctx.beginPath(); ctx.moveTo(ax, ay);
+      ctx.lineTo(ax + Math.cos(ang + Math.PI * 0.85) * 16, ay + Math.sin(ang + Math.PI * 0.85) * 16);
+      ctx.lineTo(ax + Math.cos(ang - Math.PI * 0.85) * 16, ay + Math.sin(ang - Math.PI * 0.85) * 16);
+      ctx.closePath(); ctx.fillStyle = 'rgba(255,240,200,0.95)'; ctx.fill(); ctx.restore();
+    }
+  }
+  if (!T || !T.on) return;
+  /* 0~0.5초: 첫 혼령 위로 획이 흐른다 + 그 방향으로 손가락 길 안내 */
+  if (!T.first) {
+    const sp = guideSpirit();
+    if (sp) {
+      const p = projectXZ(sp.x, sp.z, 0.9);
+      const sh = spiritShape(sp);
+      drawGhostPath(ctx, ghostShapePath(sh, p.x, p.y, Math.max(30, Math.min(r.width, r.height) * 0.085)), 'rgba(244,236,214,1)', 0.8, 7);
+      /* 손가락 궤적: 주인공에서 혼령으로 */
+      ctx.save(); ctx.globalAlpha = 0.5; ctx.strokeStyle = 'rgba(120,240,200,0.9)'; ctx.lineWidth = 2;
+      ctx.setLineDash([6, 8]); ctx.lineDashOffset = -((t * 70) % 14);
+      ctx.beginPath(); ctx.moveTo(hs.x, hs.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+      ctx.setLineDash([]);
+      /* 길잡이 원 */
+      ctx.globalAlpha = 0.35 + 0.2 * Math.sin(t * 5);
+      ctx.beginPath(); ctx.arc(hs.x, hs.y, 26, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+  }
+  /* 5.0초 제자리 탭 단계: 주인공 주위 패링 링 */
+  if (T.tapSpawned && !T.tapDone) {
+    const R = (CFG.parryR || 2.4) * worldPerCss();
+    ctx.save();
+    ctx.strokeStyle = 'rgba(232,192,74,' + (0.45 + 0.35 * Math.sin(t * 6)).toFixed(3) + ')';
+    ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(hs.x, hs.y, R, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([5, 7]); ctx.lineDashOffset = -((t * 40) % 12);
+    ctx.strokeStyle = 'rgba(255,240,200,0.7)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(hs.x, hs.y, R * 0.7, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]); ctx.restore();
+  }
+}
+/* ---------- §7.2·§7.3 타이틀 난이도 UI ---------- */
+function renderModes() {
+  const box = $('titleModes');
+  if (!box) return;
+  const gosu = gosuUnlocked();
+  const cur = MODES[save.mode] ? save.mode : 'jeongseok';
+  box.querySelectorAll('[data-mode]').forEach(function (b) { b.remove(); });
+  box.innerHTML = MODE_ORDER.map(function (id) {
+    const m = MODES[id];
+    const lock = id === 'gosu' && !gosu;
+    const on = id === cur && !lock;
+    return '<button type="button" class="mode-btn' + (on ? ' on' : '') + (lock ? ' lock' : '') + '" data-mode="' + id + '"' + (lock ? ' disabled aria-disabled="true"' : '') + '>'
+      + '<b>' + m.name + '</b><span>' + (lock ? '12장 클리어' : m.tag) + '</span></button>';
+  }).join('');
+  box.querySelectorAll('[data-mode]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      const id = b.getAttribute('data-mode');
+      if (id === 'gosu' && !gosuUnlocked()) { toast('고수 모드는 12장을 깨면 열립니다'); return; }
+      setMode(id);
+      if (audio && audio.bell) audio.bell(0, 'hline');
+    });
+  });
+  const note = $('titleModeNote');
+  if (note) note.textContent = MODE_NOTE[cur] || '';
+}
+function setMode(id) {
+  if (!MODES[id]) return save.mode;
+  if (id === 'gosu' && !gosuUnlocked()) return save.mode;
+  save.mode = id;
+  persist();
+  renderModes();
+  refreshTitleHelp();
+  return save.mode;
+}
+
 /* ---------- game state ---------- */
 function startRun(opts) {
   opts = opts || {};
@@ -804,8 +1188,9 @@ function startRun(opts) {
   const st = stageOf(stageNo);
   hideOvs();
   clearEntities();
-  /* 소개 카드를 거치지 않고 바로 시작하는 경로(QA·"다시" 버튼)도 예열은 반드시 거친다. */
-  if (!shadersWarmed()) warmShaders();
+  /* 소개 카드를 거치지 않고 바로 시작하는 경로(QA·다시 버튼)도 예열은 반드시 거친다.
+     다만 QA에서 소프트웨어 GL이라 셰이더 컴파일이 분 단위가 되는 환경이면 qa.skipWarm으로 빠진다. */
+  if (!qa.skipWarm && !shadersWarmed()) warmShaders();
   S = {
     playing: true, paused: null, won: false, lost: false, sandbox: !!opts.sandbox,
     stage: st, stageNo: opts.sandbox ? 0 : stageNo,
@@ -837,18 +1222,45 @@ function startRun(opts) {
     /* v0.22: 무한 청크·묵항아리·보스 결계·진화 레벨 */
     upLv: {}, jarsBroken: 0, shots: [], hazards: [], arena: null, eliteDone: false, eliteAt: st.eliteAt || 0,
     /* v0.29: 기물 역류·빈틈 선입력·공정성·연출 */
-    reflects: [], gapBuf: null, firstForcedHit: false, goldEdge: 0
+    reflects: [], gapBuf: null, firstForcedHit: false, goldEdge: 0,
+    /* v0.30: 난이도·동적 보정·첫 경험 */
+    mode: curMode().id, bossShapeAdj: curMode().bossShapes, teleMul: 1, streak: 0, help: [],
+    tutorial: null, tutSlow: 1, newShape: null, chargeGuide: 0, totemGuide: 0, bounceArrow: 0,
+    slowMul: 1, slowMulT: 0, noScore: !!opts.replay, goldStar: false, bossSeenAt: 0
   };
   S.runNo = opts.sandbox ? SHAPE_UNLOCK.length : stageNo;
   S.pool = opts.sandbox ? SHAPE_UNLOCK.slice() : (st.shapes || SHAPE_UNLOCK.slice()).slice();
+  /* §7.2·§7.3: 이 판의 예고 배율(모드 × 연패 보정)과 판 시작 도움. */
+  S.mode = curMode().id;
+  S.streak = opts.sandbox ? 0 : streakOf(stageNo);
+  S.teleMul = curMode().tele;
+  S.help = [];
+  if (!opts.sandbox && S.mode !== 'gosu' && S.streak >= 2) {
+    S.charge = Math.min(CFG.cleaveCharge || 100, CFG.help2Charge || 30);
+    S.help.push('판 시작 참 +' + Math.round(S.charge));
+  }
+  if (!opts.sandbox && S.mode !== 'gosu' && S.streak >= 3) {
+    S.teleMul *= CFG.help3Tele || 1.1;
+    S.help.push('예고 +10%');
+  }
+  if (!opts.sandbox && S.mode !== 'gosu' && S.streak >= (CFG.helpOfferAt || 4)) S.help.push('수련 모드 권유');
+  if (S.help.length) telemetry.event('stage_help', { stage: stageNo, streak: S.streak, help: S.help.slice() });
+  /* §8.2 새 무늬: 이 장에서 처음 보는 무늬라면 첫 혼령에 0.8초 유도 획. */
+  if (!opts.sandbox) {
+    const ns = S.pool[S.pool.length - 1];
+    if (ns && !seen('shape:' + ns)) {
+      markSeen('shape:' + ns);
+      S.newShape = { shape: ns, guide: 0, need: 1, t0: S.elapsed };
+    }
+  }
   /* §13 데이터: 판 시작(장·모드·판 번호). 기기 안에만 쌓인다. */
-  telemetry.event('stage_start', { stage: opts.sandbox ? 0 : stageNo, mode: 'jeongseok', run: opts.sandbox ? 0 : (save.runs || 0) + 1, sandbox: !!opts.sandbox });
+  telemetry.event('stage_start', { stage: opts.sandbox ? 0 : stageNo, mode: S.mode, run: opts.sandbox ? 0 : (save.runs || 0) + 1, sandbox: !!opts.sandbox, streak: S.streak, help: S.help.slice() });
   if (!opts.sandbox) {
     /* 스테이지의 새 획을 먼저 연습할 시간을 준다(첫 10초는 잔몹 상한 2). */
     S.practiceShape = S.pool[S.pool.length - 1];
     S.practiceT = CFG.practiceSec;
     S.practiceSpawns = CFG.practiceSpawns;
-    save.runs = (save.runs || 0) + 1;
+    if (!opts.replay) save.runs = (save.runs || 0) + 1;
     persist();
   }
   const appEl = $('app');
@@ -881,11 +1293,22 @@ function startRun(opts) {
   }
   triggerSightWave();
   hideGuide();
+  const btnSkip = $('btnSkip');
+  if (btnSkip) btnSkip.hidden = true;
+  /* §8.1: 1장 첫 진입(또는 타이틀 "수련" 다시 보기)에만 3단 몸통 튜토리얼. */
+  const wantTut = !opts.sandbox && (opts.replay || (stageNo === 1 && !save.tutorialDone));
+  if (wantTut) startTutorial(!!opts.replay);
+  if (three) { three.camera.position.set(CFG.camOff.x, CFG.camOff.y, CFG.camOff.z); }
   if (!opts.sandbox) {
-    /* 첫 진입 안내: 이 판에서 무엇을 그려야 하는지 한 줄. 조작을 막지 않는다. */
-    const sh = S.practiceShape || (S.pool && S.pool[0]) || 'hline';
-    const hint = SHAPE_HINT[sh] || '혼령의 종 모양을 따라 그어 보세요';
-    showGuide('<b>' + (SHAPE_MARK[sh] || '') + '</b> ' + hint + ' — 그으면 일섬', stageNo === 1 ? 7 : 5);
+    if (wantTut) {
+      /* 튜토리얼은 화면당 6자 이내 문구만 — 설명창 없이 몸으로 익힌다. */
+      showGuide('그어 보세요', 6);
+    } else {
+      /* 첫 진입 안내: 이 판에서 무엇을 그려야 하는지 한 줄. 조작을 막지 않는다. */
+      const sh = S.practiceShape || (S.pool && S.pool[0]) || 'hline';
+      const hint = SHAPE_HINT[sh] || '혼령의 종 모양을 따라 그어 보세요';
+      showGuide('<b>' + (SHAPE_MARK[sh] || '') + '</b> ' + hint + ' — 그으면 일섬', stageNo === 1 ? 7 : 5);
+    }
   }
   if (!raf) loop(now());
 }
@@ -1385,6 +1808,12 @@ function spawnSpirit(opts) {
   placeSpirit(e);
   S.spirits.push(e);
   if (S.practiceSpawns > 0 && S.practiceShape && e.shape === S.practiceShape) S.practiceSpawns--;
+  /* §8.2 새 무늬를 처음 보는 장: 그 무늬 첫 혼령 위에 0.8초 유도 획. */
+  if (S.newShape && S.newShape.need > 0 && e.shape === S.newShape.shape) {
+    S.newShape.need--;
+    S.newShape.guide = CFG.firstShapeGuide || 0.8;
+    telemetry.event('first_moment', { kind: 'shape', shape: e.shape, stage: S.stageNo });
+  }
   setSpiritAlpha(e);
   if (e.target) ringSpiritBell(e);
   return e;
@@ -1414,6 +1843,12 @@ function spawnBoss(opts) {
     S.totemSeen = true;
     if (!save.totemTip) { save.totemTip = true; persist(); }
     showGuide('기물 <b>△ ◡ @</b> — 그 무늬를 그리면 그 기물로 일섬합니다', 6.5);
+  }
+  /* §8.2 기물 무늬(△ ◡ @)를 처음 보는 순간: 보스 등장 직후 3초 기물 연습(0.4배) + 가장 가까운 기물 유도 획. */
+  if (!opts.sandbox && markSeen('totem')) {
+    S.totemGuide = CFG.totemPractice || 3;
+    addSlow(0.4, CFG.totemPractice || 3);
+    telemetry.event('first_moment', { kind: 'totem', stage: S.stageNo });
   }
   assignSpiritTargets();
   return e;
@@ -1785,8 +2220,10 @@ function refreshTitleHelp() {
     const stars = (save.stars || {})[st.id] || 0;
     note.innerHTML = '제' + actOf(st.id) + '막 ' + ACT_NAMES[actOf(st.id)] + ' · ' + st.tag + ' · 목표 ' + st.time + '초 · 별 '
       + '★'.repeat(stars) + '☆'.repeat(Math.max(0, 3 - stars))
-      + (save.bestScore ? ' · 최고 ' + save.bestScore : '');
+      + (save.bestScore ? ' · 최고 ' + save.bestScore : '')
+      + ' · ' + curMode().name;
   }
+  renderModes();
   renderStageSelect(sel);
   return { run: sel, stage: st, pool: pool, html: el ? el.innerHTML : '' };
 }
@@ -1841,7 +2278,7 @@ function renderStageSelect(sel) {
 /* 스테이지 인트로 카드 → 잠시 뒤 자동 출전(버튼·화면 탭으로 바로 시작) */
 let pendingStage = null;
 function fillStageIntro(st) {
-  $('stageKicker').textContent = '제 ' + st.id + ' 장';
+  $('stageKicker').textContent = '제 ' + st.id + ' 장 · ' + curMode().name;
   $('stageName').textContent = st.name;
   $('stageSub').textContent = st.sub;
   $('stageGoal').textContent = st.goal;
@@ -1862,7 +2299,7 @@ function beginStage(n) {
   const ps = pendingStage = { no: st.id, until: now() + (qa.noDelay ? 0 : 2600), at: now(), ready: false };
   /* 소개 카드가 떠 있는 동안 무대를 짓고 셰이더를 데운다 — 카드가 걷힌 뒤 멈추지 않게. */
   if (three && (!three.map || three.map.stageId !== st.id || three.map.id !== st.map)) { applyStageAtmo(st); switchMap(st.map, st.id); }
-  Promise.resolve(three && three._mapP).then(warmShaders).then(function () { ps.ready = true; }, function () { ps.ready = true; });
+  Promise.resolve(three && three._mapP).then(function () { return qa.skipWarm ? null : warmShaders(); }).then(function () { ps.ready = true; }, function () { ps.ready = true; });
   return st.id;
 }
 function goStageNow(force) {
@@ -2555,6 +2992,24 @@ function drawOverlays(ctx, r, hs) {
     ctx.restore();
   }
   inkFx.draw(ctx, projectXZ, S.hero, r, frameDt);
+  /* §8.1·§8.2: 유도 획·참(O) 안내·기물 연습·첫 칼 튕김 화살표·제자리 탭 링 */
+  drawTutorial(ctx, r, hs);
+  /* §11 색약: 붉은 장판은 색 대신 '바깥으로 뻗은 막대'로도 읽힌다. */
+  if (a11yCb() && S.hazards && S.hazards.length) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,150,70,0.85)'; ctx.lineWidth = 2.5;
+    S.hazards.forEach(function (h) {
+      if (h.done) return;
+      const c = projectXZ(h.x, h.z, 0.05), rx = h.r * worldPerCss(), ry = rx * 0.55;
+      for (let i = 0; i < 8; i++) {
+        const a = i / 8 * Math.PI * 2 + (t || 0) * 0.4;
+        const x1 = c.x + Math.cos(a) * rx * 0.55, y1 = c.y + Math.sin(a) * ry * 0.55;
+        const x2 = c.x + Math.cos(a) * rx, y2 = c.y + Math.sin(a) * ry;
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      }
+    });
+    ctx.restore();
+  }
 }
 function drawHeroElement(ctx, t) {
   const el = curElem();
@@ -2942,6 +3397,8 @@ function landingShock(at) {
 /* 제자리 탭 → 칼집 패링: 반경 2.4m 넉백·경직·0.5 피해. 성공 시 parry 사운드 + 히트스톱. */
 function doParry(rec) {
   if (!S || !S.playing || S.paused) return rec || null;
+  /* §8.1 튜토리얼 3단계: 제자리 탭을 해 냈다(피해 없이 넉백만). */
+  if (S.tutorial && S.tutorial.on && S.tutorial.tapSpawned) S.tutorial.tapDone = true;
   const r = rec || { type: 'tap', targets: [], hits: [] };
   r.type = 'tap';
   r.targets = r.targets || [];
@@ -3403,6 +3860,12 @@ function cutSpirit(s) {
         if (audio && audio.whiff) audio.whiff(true);
         addHitstop(CFG.hitstopBounce || 0.03);
         addCharge(2);
+        /* §8.2 처음 튕기는 순간: 빈틈 고리를 가리키는 화살표를 한 번 띄운다. */
+        if (S && markSeen('bounce')) {
+          S.bounceArrow = 3.0;
+          toast('지금은 튕깁니다 — 발밑 둘레의 빈틈 고리가 다 차면 베세요');
+          telemetry.event('first_moment', { kind: 'bounce', stage: S.stageNo });
+        }
         return;
       }
       s.walkCutAt = S.elapsed || 0;
@@ -3537,7 +4000,8 @@ function dropType() {
   return 'bell';
 }
 function grantKill(mul) {
-  const c = Math.round(CFG.coinPerKill * (mul || 1) * coinMult());
+  /* v0.30 §7.2: 엽전에도 모드 배율(수련 ×0.7 · 고수 ×1.4). */
+  const c = Math.round(CFG.coinPerKill * (mul || 1) * coinMult() * modeCoin());
   save.coins += c; persist();
 }
 /* Screen point (inside #app) of a HUD element, for pickups flying to it. */
@@ -3896,7 +4360,7 @@ function stepBoss(z, dt) {
     return false;
   }
   if (z.state === 'telegraph') {
-    if (z.stateT > teleT) {
+    if (z.stateT > teleT * (z.teleMul || 1)) {
       z.state = 'charge'; z.stateT = 0;
       const dx = (z.aim ? z.aim.x : S.hero.x) - z.x, dz = (z.aim ? z.aim.z : S.hero.z) - z.z;
       const L = Math.hypot(dx, dz) || 1;
@@ -3915,7 +4379,7 @@ function stepBoss(z, dt) {
     /* 패턴 보스: 돌진을 일섬으로 스치듯 피하면 간발 — 기세가 꺾인다. */
     if (pats && S.dash && !z.dodged && dist(z, S.hero) < z.r + (bossPat().dodgeR || 1.4)) { z.dodged = true; bossJustDodge(z); }
     if ((S.iframe || 0) <= 0 && !S.dash && dist(z, S.hero) < z.r + 0.7) {
-      S.hp -= CFG.bossDmg || 2;
+      S.hp -= modeDmg(CFG.bossDmg || 2);
       S.iframe = CFG.iframeMs / 1000;
       S.hurtFlash = CFG.hurtVignette || 0.3;
       const d = dist(z, S.hero) || 1;
@@ -4007,7 +4471,8 @@ function stepEnemySpecial(z, dt, d, frozen, zsp) {
 function heroHurt(n, why) {
   if (!S || !S.playing) return;
   if ((S.iframe || 0) > 0 || S.dash) return;
-  S.hp -= n;
+  /* v0.30 §7.2: 모드별 받는 피해(수련 ×0.5 최소 1 · 고수 ×1.5). */
+  S.hp -= modeDmg(n);
   if (S.hp <= 0) S.deathWhy = why || '귀물에게 닿았습니다.';
   S.iframe = CFG.iframeMs / 1000;
   S.hurtFlash = CFG.hurtVignette || 0.3;
@@ -4158,7 +4623,35 @@ function bossHazards(z) {
    장마다 STAGES[n].boss.patterns 목록을 차례로 돈다(배워서 읽을 수 있게 고정 순서).
    예고 색이 대응을 알린다: 붉은 = 일섬 회피, 금 = 탭 패링, 비취 = 무늬 그리기. 수치는 CFG.bossPat. */
 const CUE_RGB = { red: '200,40,30', gold: '232,192,74', jade: '46,230,166' };
+/* v0.30 §11 색약 팔레트: 붉은→주황, 비취→청록. 모양 아이콘과 함께 쓴다. */
+const CUE_RGB_CB = { red: '255,140,50', gold: '242,206,96', jade: '70,214,236' };
 const CUE_LABEL = { red: '피하라', gold: '받아쳐라', jade: '그려라' };
+const PAT_CUE = { charge: 'red', slam: 'red', volley: 'red', kiai: 'gold', chant: 'jade', clones: 'jade', veil: 'jade', shrink: 'gold' };
+function cueRgb(c) { return (a11yCb() ? CUE_RGB_CB : CUE_RGB)[c] || CUE_RGB.red; }
+/** §11 대응 아이콘: 피하라 = 바깥 화살표, 받아쳐라 = 칼집, 그려라 = 붓. 색만으로 구분하지 않게. */
+function drawCueIcon(ctx, c, x, y, k, rgb, scale) {
+  const s = (scale || 1) * 10;
+  const a = clamp((k == null ? 1 : k) + 0.3, 0, 1);
+  ctx.save();
+  ctx.strokeStyle = 'rgba(' + rgb + ',' + (0.95 * a).toFixed(3) + ')';
+  ctx.fillStyle = ctx.strokeStyle;
+  ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (c === 'red') {
+    [-1, 1].forEach(function (d) {
+      ctx.beginPath(); ctx.moveTo(x - d * s * 0.15, y); ctx.lineTo(x + d * s * 0.45, y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x + d * s * 0.45, y); ctx.lineTo(x + d * s * 0.12, y - s * 0.32);
+      ctx.moveTo(x + d * s * 0.45, y); ctx.lineTo(x + d * s * 0.12, y + s * 0.32); ctx.stroke();
+    });
+  } else if (c === 'gold') {
+    ctx.beginPath(); ctx.rect(x - s * 0.8, y - s * 0.34, s * 1.05, s * 0.68); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + s * 0.25, y - s * 0.22); ctx.lineTo(x + s * 0.25, y + s * 0.22); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + s * 0.25, y); ctx.lineTo(x + s * 0.85, y); ctx.stroke();
+  } else {
+    ctx.beginPath(); ctx.moveTo(x - s * 0.45, y + s * 0.6); ctx.lineTo(x + s * 0.5, y - s * 0.45); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x - s * 0.45, y + s * 0.6); ctx.lineTo(x - s * 0.85, y + s * 0.82); ctx.lineTo(x - s * 0.62, y + s * 0.28); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
 function bossPat() { return CFG.bossPat || {}; }
 /** Spirits on the clones and on the boss among them stay bound for the whole pattern, wherever the hero dashes. */
 function cloneHeld(s) { const t = s && s.target; return !!(t && (t.isClone || t.isTotem || (t.isBoss && t.state === 'clones'))); }
@@ -4347,21 +4840,32 @@ function startBossPattern(z, id) {
   z.pat = id; z.stateT = 0;
   z.firstWalk = false;
   z.reflectUsed = false;
-  telemetry.event('boss_pattern', { p: id, stage: S && S.stageNo, start: true });
+  /* v0.30 §8.2: 이 패턴을 처음 보는 순간이면 예고 ×1.6 + 0.5배 느린 화면 0.6초 + 대응 아이콘. */
+  const first = markSeen('pat:' + id);
+  z.teleBoost = first ? (CFG.firstPatTele || 1.6) : 1;
+  z.teleMul = teleMul() * z.teleBoost;
+  if (first && S) {
+    addSlow(CFG.firstPatSlow || 0.5, CFG.firstPatSlowDur || 0.6);
+    S.firstPatIcon = { id: id, c: PAT_CUE[id] || 'red', t: 1.6 };
+    telemetry.event('first_moment', { kind: 'pattern', id: id, stage: S.stageNo });
+  }
+  telemetry.event('boss_pattern', { p: id, stage: S && S.stageNo, start: true, first: first });
   const P = bossPat();
   if (id === 'kiai') {
-    z.state = 'kiai'; z.kiai = { lock: false, open: false, t: P.kiai.t };
+    z.state = 'kiai'; z.kiai = { lock: false, open: false, t: P.kiai.t * (z.teleMul || 1) };
     bossCue(z, 'gold', id);
     if (audio && audio.charge) audio.charge(z.kiai.t);
-  } else if (id === 'slam') startSlam(z, P.slam.tele);
+  } else if (id === 'slam') startSlam(z, P.slam.tele * (z.teleMul || 1));
   else if (id === 'clones') startClones(z);
   else if (id === 'veil') startVeil(z);
   else if (id === 'volley') {
     z.state = 'volleyTele';
     z.aimA = Math.atan2(S.hero.z - z.z, S.hero.x - z.x);
+    z.volleyTele = P.volley.tele * (z.teleMul || 1);
     bossCue(z, 'red', id);
   } else if (id === 'chant') {
     z.state = 'chant'; z.chant = { seq: pickSeq(P.chant.n), i: 0 };
+    z.chantT = P.chant.t * (z.teleMul || 1);
     bossCue(z, 'jade', id);
   } else if (id === 'shrink') {
     startShrink(z);
@@ -4371,6 +4875,7 @@ function startBossPattern(z, id) {
 function startCharge(z) {
   z.state = 'telegraph'; z.stateT = 0; z.pat = 'charge';
   z.reflectUsed = false;
+  z.teleMul = teleMul() * (z.teleBoost || 1);
   z.aim = { x: S.hero.x, z: S.hero.z };
   z.dodged = false;
   bossHazards(z);
@@ -4457,7 +4962,7 @@ function stepBossPat(z, dt) {
     return true;
   }
   if (st === 'volleyTele') {
-    if (z.stateT > P.volley.tele) {
+    if (z.stateT > (z.volleyTele || P.volley.tele)) {
       const Vo = P.volley, gold = {};
       while (Object.keys(gold).length < Math.min(Vo.gold, Vo.n)) gold[Math.floor(Math.random() * Vo.n)] = true;
       for (let i = 0; i < Vo.n; i++) {
@@ -4470,7 +4975,7 @@ function stepBossPat(z, dt) {
     return true;
   }
   if (st === 'chant') {
-    if (z.stateT > P.chant.t) {
+    if (z.stateT > (z.chantT || P.chant.t)) {
       inkFx.ring(arenaR(), FX_COLORS.jade, 0.7);
       /* §3.4 대응 2개: 무늬 3개 중 2개 이상을 끊었으면 피해 1. */
       const broken = z.chant ? z.chant.i : 0;
@@ -4512,6 +5017,8 @@ function heroHurtForce(n, why, opts) {
     dmg = CFG.firstForcedDmg || 1;
     showJudge('처음은 가볍게');
   }
+  /* v0.30 §7.2 모드 배율. */
+  dmg = modeDmg(dmg);
   S.hp -= dmg;
   if (S.hp <= 0) S.deathWhy = why;
   S.iframe = CFG.iframeMs / 1000;
@@ -4861,7 +5368,7 @@ function drawBossPat(ctx, r, hs) {
   ctx.save();
   /* 예고 색 고리와 대응 문구 */
   if (z.cue && z.cue.t < 1.4 && onScr && !z.hidden) {
-    const k = 1 - z.cue.t / 1.4, rgb = CUE_RGB[z.cue.c];
+    const k = 1 - z.cue.t / 1.4, rgb = cueRgb(z.cue.c);
     ctx.strokeStyle = 'rgba(' + rgb + ',' + (0.9 * k).toFixed(3) + ')';
     ctx.lineWidth = 4;
     ctx.beginPath(); ctx.ellipse(bp.x, bp.y, 2.2 * wpc * (1.2 - 0.2 * k), 1.2 * wpc * (1.2 - 0.2 * k), 0, 0, Math.PI * 2); ctx.stroke();
@@ -4871,6 +5378,24 @@ function drawBossPat(ctx, r, hs) {
     ctx.strokeText(CUE_LABEL[z.cue.c], bp.x, ty);
     ctx.fillStyle = 'rgba(' + rgb + ',' + k.toFixed(3) + ')';
     ctx.fillText(CUE_LABEL[z.cue.c], bp.x, ty);
+    /* §11 색약: 색 뿐으로 구분하지 않게 모양 아이콘을 같이 보여 준다. */
+    if (a11yCb()) drawCueIcon(ctx, z.cue.c, bp.x - 46, ty, k, rgb);
+  }
+  /* §8.2 보스 패턴을 처음 보는 순간: 대응 아이콘을 1.6초 크게 띄운다. */
+  if (S.firstPatIcon) {
+    S.firstPatIcon.t -= frameDt;
+    const F = S.firstPatIcon;
+    if (F.t <= 0) S.firstPatIcon = null;
+    else {
+      const k = clamp(F.t / 1.6, 0, 1), rgb = cueRgb(F.c);
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, k * 2);
+      drawCueIcon(ctx, F.c, r.width * 0.5 - 30, 116, 1, rgb, 1.7);
+      ctx.font = '700 17px serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(' + rgb + ',0.95)';
+      ctx.fillText(CUE_LABEL[F.c] + ' — 처음 보는 패턴', r.width * 0.5 - 2, 116);
+      ctx.restore();
+    }
   }
   /* 기세: 보스 발밑 금빛 마름모(남은 칸) */
   if (onScr) {
@@ -4928,7 +5453,7 @@ function drawBossPat(ctx, r, hs) {
   }
   /* 탄막 부채 예고선 */
   if (z.state === 'volleyTele' && onScr) {
-    const Vo = P.volley, f = clamp(z.stateT / Vo.tele, 0, 1);
+    const Vo = P.volley, f = clamp(z.stateT / (z.volleyTele || Vo.tele), 0, 1);
     ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(200,40,30,' + (0.25 + 0.5 * f).toFixed(3) + ')';
     for (let i = 0; i < Vo.n; i++) {
       const a = z.aimA + (Vo.n > 1 ? (i / (Vo.n - 1) - 0.5) : 0) * Vo.spread * 2;
@@ -4944,7 +5469,7 @@ function drawBossPat(ctx, r, hs) {
     ctx.beginPath(); ctx.arc(hs.x, hs.y, rr * (0.92 + 0.12 * (1 - k)), a - 0.3, a + 0.3); ctx.stroke();
   }
   /* 영창·봉인: 화면 위쪽에 그릴 무늬와 남은 시간 */
-  const want = z.state === 'chant' && z.chant ? { seq: z.chant.seq, i: z.chant.i, T: P.chant.t, title: '영창을 끊어라' }
+  const want = z.state === 'chant' && z.chant ? { seq: z.chant.seq, i: z.chant.i, T: (z.chantT || P.chant.t), title: '영창을 끊어라' }
     : z.state === 'seal' ? { seq: ['square'], i: 0, T: P.seal.t, title: '봉인하라' } : null;
   if (want) {
     const n = want.seq.length, gap = 54, x0 = r.width * 0.5 - (n - 1) * gap / 2, y = 150;
@@ -4992,26 +5517,30 @@ function maybeEnd() {
   if (S.hp <= 0) { endRun(false, '좀비에게 닿았습니다.'); return; }
   if (S.boss && !S.boss.alive) endRun(true, '귀물을 베었습니다.');
 }
-/* 별점: 클리어 1 + 체력 50% 이상 1 + 스테이지 목표 콤보 1 */
+/* 별점: 클리어 1 + 체력 50% 이상 1 + 스테이지 목표 콤보 1. 수련 모드는 2개까지(§7.2). */
 function starsFor(win) {
   if (!S || !win) return 0;
   const st = S.stage || {};
   let n = 1;
   if (S.hp / Math.max(1, maxHp()) >= 0.5) n++;
   if ((S.comboMax || 0) >= (st.starCombo || 10)) n++;
-  return n;
+  return Math.min(starCap(), n);
 }
 function endRun(win, msg) {
   if (!S || S.won || S.lost) return;
   S.won = win; S.lost = !win; S.playing = false; S.paused = 'result'; S.dash = null;
   hideGuide();
+  const sk = $('btnSkip');
+  if (sk) sk.hidden = true;
+  S.tutorial = null; S.tutSlow = 1;
   closeArena();
   const st = S.stage || stageOf(1);
   const stars = starsFor(win);
   const coinsGain = Math.max(0, save.coins - (S.coin0 || 0));
   const score = (S.kills || 0) * 10 + (S.comboMax || 0) * 5 + stars * 100 + (win ? 150 : 0);
   S.stars = stars; S.coinGain = coinsGain; S.score = score;
-  if (win) {
+  /* 타이틀 "수련" 다시 보기는 점수·별에 반영하지 않는다. */
+  if (win && !S.noScore) {
     save.stars = save.stars || {};
     save.stars[st.id] = Math.max(save.stars[st.id] || 0, stars);
     const next = Math.min(STAGES.length, (S.stageNo || st.id) + 1);
@@ -5023,25 +5552,33 @@ function endRun(win, msg) {
     }
     renderStageSelect(st.id);
   }
-  save.bestScore = Math.max(save.bestScore || 0, score);
+  if (!S.noScore) save.bestScore = Math.max(save.bestScore || 0, score);
+  /* v0.30 §7.3: 같은 장 연승/연패. 이기면 0으로 돌아간다. */
+  const streakBefore = S.streak || 0;
+  S.streakAfter = S.noScore ? streakBefore : bumpStreak(st.id, !!win);
   persist();
   /* §13 데이터: 판 결과·사망 원인·fps. 상용 튜닝(클리어율·시간 예산·공정성)의 바탕이다. */
   const fprep = fpsReport();
+  const timeUp = !win && (S.timeLeft || 0) <= 0;
   telemetry.event('stage_end', {
     stage: S.stageNo || st.id, win: !!win, time: +(S.elapsed || 0).toFixed(1),
     hp: Math.max(0, S.hp), hpMax: maxHp(), stars: stars, kills: S.kills || 0,
-    comboMax: S.comboMax || 0, level: S.level || 1, bossState: S.boss ? S.boss.state : null
+    comboMax: S.comboMax || 0, level: S.level || 1, bossState: S.boss ? S.boss.state : null,
+    mode: S.mode || save.mode, timeUp: timeUp,
+    bossFight: (S.bossSeenAt && S.boss) ? +((S.elapsed || 0) - S.bossSeenAt).toFixed(1) : 0,
+    timeLeft: +(S.timeLeft || 0).toFixed(1), streak: streakBefore, help: (S.help || []).slice()
   });
   if (!win) telemetry.event('death', { cause: S.deathWhy || msg, hp: Math.max(0, S.hp), bossState: S.boss ? S.boss.state : null, t: +(S.elapsed || 0).toFixed(1) });
   telemetry.event('fps', { stage: S.stageNo || st.id, avg: +fprep.avg.toFixed(1), low: +fprep.min.toFixed(1), q: (three && three.bloom) ? three.bloom.quality : null });
   telemetry.save();
   if (audio) audio.stopBgm();
   const nextSt = STAGES[(S.stageNo || st.id)];
-  $('resultKicker').textContent = S.stageNo ? (S.stageNo + '장 · ' + st.name) : '연습';
+  $('resultKicker').textContent = S.stageNo ? (S.stageNo + '장 · ' + st.name + ' · ' + curMode().name) : '연습';
   $('resultTitle').textContent = win ? '베었다' : '쓰러졌다';
+  S.goldStar = !!(win && curMode().gold);
   $('resultStars').innerHTML = [0, 1, 2].map(function (i) {
-    return '<i class="' + (i < stars ? 'on' : '') + '">★</i>';
-  }).join('');
+    return '<i class="' + (i < stars ? 'on' : '') + (i < stars && S.goldStar ? ' gold' : '') + '">★</i>';
+  }).join('') + (S.goldStar ? '<em class="gold-star">금별</em>' : '');
   $('resultBody').textContent = win ? (msg || '') : (msg || '') + ' 다시 한 번.';
   const hpPct = Math.round((S.hp / Math.max(1, maxHp())) * 100);
   $('resultStats').innerHTML = [
@@ -5054,15 +5591,34 @@ function endRun(win, msg) {
     return '<li><span>' + r[0] + '</span><b>' + r[1] + '</b></li>';
   }).join('');
   let note = '';
-  if (win && stars < 3) {
+  if (win && stars < 3 && stars < starCap()) {
     const lack = [];
     if (S.hp / Math.max(1, maxHp()) < 0.5) lack.push('체력 50% 이상');
     if ((S.comboMax || 0) < (st.starCombo || 10)) lack.push('콤보 ' + (st.starCombo || 10));
     note = '★ 더 받으려면: ' + lack.join(' · ');
+  } else if (win && starCap() < 3) {
+    note = '수련 모드는 별 2개까지입니다 — 정석에서 세 번째 별을 노리세요.';
+  } else if (!win && timeUp) {
+    note = '시간이 모자랐습니다 — 보스의 빈틈에 집중하거나 모드를 바꿔 보세요.';
   } else if (!win) {
     note = '보스의 도형 순서를 끝까지 베면 클리어입니다.';
   }
   $('resultNext').textContent = note;
+  /* §7.3 투명성: 이번 판에 어떤 도움이 들어갔는지 결과 화면에 작게 남긴다. */
+  const helpEl = $('resultHelp');
+  if (helpEl) {
+    const hs = (S.help && S.help.length) ? S.help.slice() : [];
+    helpEl.textContent = hs.length ? ('도움이 적용됐다 — ' + hs.join(' · ')) : '';
+    helpEl.hidden = !hs.length;
+  }
+  /* §7.2 수련 권유(3연패 이상, 정석 모드): 강요하지 않고 한 번만 권한다. */
+  const offerKey = st.id + ':' + (S.streakAfter || 0);
+  const offerBox = $('btnTrainOffer');
+  if (offerBox) {
+    const offer = !win && (S.streakAfter || 0) >= 3 && curMode().id === 'jeongseok' && save.trainOffered !== offerKey;
+    offerBox.hidden = !offer;
+    if (offer) offerBox.textContent = '수련 모드로 한 판';
+  }
   if (win && nextSt) {
     $('btnResultGo').textContent = '다음 장 — ' + nextSt.name;
     S.nextStage = nextSt.id;
@@ -5138,7 +5694,11 @@ function step(dt) {
     if (S.bellT <= 0) endBell();
   }
   if (!S.sandbox && !S.bossSpawned && S.elapsed >= ((S.stage && S.stage.bossAt) || CFG.bossAt)) {
-    spawnBoss({ r: CFG.bossSpawnR, nShapes: (S.stage && S.stage.bossShapes) || CFG.bossShapes });
+    /* §7.2: 보스 무늬 수에 모드 보정(수련 −2 · 고수 +2). 최소 2개. */
+    const nShapes = Math.max(2, (((S.stage && S.stage.bossShapes) || CFG.bossShapes) + (S.bossShapeAdj || 0)));
+    S.bossSeenAt = S.elapsed;
+    telemetry.event('boss_seen', { stage: S.stageNo, mode: S.mode, at: +(S.elapsed || 0).toFixed(1), left: +(S.timeLeft || 0).toFixed(1), shapes: nShapes });
+    spawnBoss({ r: CFG.bossSpawnR, nShapes: nShapes });
     toast('부적을 단 귀물이 다가옵니다 — 결계가 내려앉습니다');
   }
   const bossAlive = !!(S.boss && S.boss.alive);
@@ -5216,7 +5776,7 @@ function step(dt) {
     }
   }
   tickStatuses(dt);
-  const zsp = CFG.zombieSpeed * wave * (S.elapsed < 20 ? 0.65 : 1);
+  const zsp = CFG.zombieSpeed * wave * (S.elapsed < 20 ? 0.65 : 1) * modeSpd();
   S.zombies.forEach(function (z) {
     if (!z.alive) return;
     if (z.isClone || z.isPillar || z.isTotem) {
@@ -5251,7 +5811,7 @@ function step(dt) {
     if (d < z.r + 0.55 && !(z.isBoss && (z.hidden || z.state === 'seal' || z.state === 'sealing' || z.state === 'groggy'))) {
       /* 빙결·경직된 귀물은 몸이 굳은 사이 닿아도 해치지 못한다(얼음·충격이 실제로 방어가 된다). */
       if ((S.iframe || 0) <= 0 && !S.dash && !frozen) {
-        S.hp -= z.isBoss ? (CFG.bossDmg || 2) : ((CFG.zombieTypes[z.type] || {}).dmg || CFG.dmg);
+        S.hp -= modeDmg(z.isBoss ? (CFG.bossDmg || 2) : ((CFG.zombieTypes[z.type] || {}).dmg || CFG.dmg));
         if (S.hp <= 0) S.deathWhy = z.isBoss ? 'boss-contact' : ('zombie:' + z.type);
         S.iframe = CFG.iframeMs / 1000;
         S.hitstop = Math.max(S.hitstop || 0, CFG.hitHitstop || 0.08);
@@ -5377,7 +5937,8 @@ function updateCam(dt) {
   }
   if (S.shake > 0) {
     S.shake -= dt;
-    const a = S.shake * 0.55;
+    /* §11 흔들림을 줄이는 설정: 진동 폭 ×0.3(멀미 방지). */
+    const a = S.shake * 0.55 * (a11yShake() ? 0.3 : 1);
     sx += (Math.random() - 0.5) * a; sy = (Math.random() - 0.5) * a; sz += (Math.random() - 0.5) * a;
   }
   three.camera.position.set(S.focus.x + CFG.camOff.x + sx, CFG.camOff.y + sy, S.focus.z + CFG.camOff.z + sz);
@@ -5624,6 +6185,8 @@ function finishStroke(pts, opts) {
   const dash = beginDash(rec.type, { dir: dir, quality: (rec.q != null ? rec.q : rec.bestScore) });
   rec.targets = dash && dash.targets;
   rec.dash = dash;
+  /* §8.1 튜토리얼 첫 성공: 0.05초 히트스톱 + 칼소리 + "일섬!" */
+  if (dash && S.tutorial) tutorialFirstSuccess();
   return rec;
 }
 /* §4.2: 빈틈이 0.5초 안에 열리는 순간에 그은 획은 선입력으로 잡아 둔다 — 튕기고 다시 긋는 일을 줄인다. */
@@ -5986,6 +6549,15 @@ function loop(ts) {
     if (S.slowT < 0) S.slowT = 0;
     else scale *= CFG.slowScale;
   }
+  /* v0.30: 튜토리얼 느린 화면·첫 등장 느린 화면. 흔들림을 줄인 설정이면 0.6배까지만.
+     prefers-reduced-motion이면 느린 화면 없이 안내 문구만(v0.24 6장). */
+  if (S && S.playing && !S.paused) stepTutorial(raw);
+  if (S) {
+    const floor = a11yShake() ? 0.6 : 0.05;
+    const noSlow = reducedMotion();
+    if (!noSlow && S.slowMulT > 0 && S.slowMul < 1) scale *= Math.max(floor, S.slowMul);
+    if (!noSlow && S.tutSlow && S.tutSlow < 1) scale *= Math.max(floor, S.tutSlow);
+  }
   const dt = raw * scale;
   lastTs = ts;
   if (real > 0 && real < 1) {
@@ -6175,6 +6747,38 @@ function bindUi() {
   document.querySelectorAll('[data-buy]').forEach(function (b) {
     b.addEventListener('click', function () { buy(b.getAttribute('data-buy')); });
   });
+  /* v0.30 §7.2 모드 선택 · §8.1 수련 다시 보기 · §11 접근성 · 튜토리얼 건너뛰기 */
+  if ($('btnTrain')) $('btnTrain').addEventListener('click', function () {
+    if (audio && audio.bell) audio.bell(0, 'hline');
+    startRun({ stage: 1, replay: true });
+  });
+  if ($('btnA11y')) $('btnA11y').addEventListener('click', function () {
+    const r = $('titleA11y');
+    if (r) r.hidden = !r.hidden;
+  });
+  [['btnCb', 'colorblind'], ['btnCb1', 'colorblind'], ['btnShake', 'shake'], ['btnShake1', 'shake']].forEach(function (p) {
+    const b = $(p[0]);
+    if (!b) return;
+    b.addEventListener('click', function (e) {
+      e.stopPropagation();
+      const key = p[1];
+      const next = !(key === 'colorblind' ? a11yCb() : a11yShake());
+      setA11y(key, next);
+      toast(key === 'colorblind' ? (next ? '색약 팔레트를 켰습니다 — 예고마다 모양 아이콘이 붙습니다' : '색약 팔레트를 껐습니다')
+        : (next ? '화면 흔들림을 줄입니다' : '화면 흔들림을 되돌렸습니다'));
+    });
+  });
+  if ($('btnSkip')) $('btnSkip').addEventListener('click', function (e) {
+    e.stopPropagation();
+    endTutorial('skip');
+    toast('안내를 건너뜁니다');
+  });
+  if ($('btnTrainOffer')) $('btnTrainOffer').addEventListener('click', function () {
+    if (S) save.trainOffered = (S.stage ? S.stage.id : 1) + ':' + (S.streakAfter || 0);
+    persist();
+    setMode('train');
+    startRun({ stage: (S && S.stageNo) || 1 });
+  });
 }
 
 function fpsReport() {
@@ -6204,6 +6808,8 @@ async function boot() {
   onResize();
   renderHud();
   refreshTitleHelp();
+  renderModes();
+  syncA11yUi();
   const idled = checkIdle();
   if (!idled) showOv('ov-title');
   /* An unclaimed idle reward keeps the old lastSeen, so a refresh does not lose it. */
@@ -6224,8 +6830,11 @@ const GPv2 = {
     save.coins = 0; save.atkLv = 0; save.hpLv = 0; save.coinLv = 0;
     save.lastSeen = Date.now(); save.runs = 0;
     save.stage = 1; save.stars = {}; save.bestScore = 0;
+    /* v0.30: 난이도·첫 경험 기록·연패도 초기화(새 세이브 검증용). */
+    save.mode = 'jeongseok'; save.tutorialDone = 0; save.moments = {};
+    save.streak = null; save.trainOffered = null;
     try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
-    persist(); renderHud(); refreshTitleHelp();
+    persist(); renderHud(); refreshTitleHelp(); syncA11yUi();
   },
   setQa: function (o) { Object.keys(o || {}).forEach(function (k) { qa[k] = o[k]; }); if (audio) audio.setQuiet(qa.mute, qa.noDelay); },
   /* QA 훅: 예열 상태·소요 시간 */
@@ -6481,6 +7090,7 @@ const GPv2 = {
     n = n || 1; dt = dt || 1 / 60;
     for (var i = 0; i < n; i++) {
       S.hitstop = 0;
+      if (S.tutorial) tickTutorial();
       if (S.playing && !S.paused) step(dt);
       stepDash(dt);
     }
@@ -6615,6 +7225,90 @@ const GPv2 = {
   stages: function () { return STAGES.map(function (st) { return { id: st.id, act: st.act, name: st.name, map: st.map, time: st.time, bossShapes: st.bossShapes, shapes: (st.shapes || []).slice(), spiritCap: st.spiritCap, hazard: (st.boss && st.boss.hazard) || 0 }; }); },
   beginStage: beginStage,
   goStageNow: goStageNow,
+  /* v0.30 QA 훅: 난이도·동적 보정·첫 경험·접근성·보스 시간 예산 */
+  modeInfo: function () {
+    return {
+      saveMode: save.mode, runMode: S ? S.mode : null, gosu: gosuUnlocked(), note: MODE_NOTE[save.mode],
+      modes: MODE_ORDER.map(function (id) { return { id: id, name: MODES[id].name, tele: MODES[id].tele, dmg: MODES[id].dmg, spd: MODES[id].spd, bossShapes: MODES[id].bossShapes, starCap: MODES[id].starCap, coin: MODES[id].coin, locked: id === 'gosu' && !gosuUnlocked() }; }),
+      html: $('titleModes') ? $('titleModes').innerHTML : '',
+      noteShown: $('titleModeNote') ? $('titleModeNote').textContent : ''
+    };
+  },
+  setMode: function (id) { return setMode(id); },
+  a11yInfo: function () { return { colorblind: a11yCb(), shake: a11yShake(), save: Object.assign({}, save.a11y), cbLabel: $('btnCb') ? $('btnCb').textContent : null, shakeLabel: $('btnShake') ? $('btnShake').textContent : null }; },
+  setA11y: function (k, v) { return setA11y(k, v); },
+  tutorialInfo: function () {
+    const T = S && S.tutorial;
+    return {
+      on: !!(T && T.on), t: T ? +T.t.toFixed(2) : 0, first: !!(T && T.first), tapSpawned: !!(T && T.tapSpawned), tapDone: !!(T && T.tapDone),
+      slow: S ? +(S.tutSlow || 1).toFixed(2) : 1, done: !!save.tutorialDone,
+      skipHidden: $('btnSkip') ? !!$('btnSkip').hidden : null, guide: ($('guide') && $('guide').classList.contains('show')) ? $('guide').textContent : ''
+    };
+  },
+  skipTutorial: function () { return endTutorial('skip'); },
+  advanceTutorial: function (sec) {
+    if (S && S.tutorial) { S.tutorial.t += sec; tickTutorial(); }
+    return S && S.tutorial ? +S.tutorial.t.toFixed(2) : null;
+  },
+  endRunProbe: function (win, msg) { if (!S) return null; endRun(!!win, msg || (win ? '귀물을 베었습니다.' : '귀물에게 닿았습니다.')); return this.resultUi(); },
+  moments: function () { return Object.assign({}, save.moments || {}); },
+  resetMoments: function () { save.moments = {}; save.tutorialDone = 0; persist(); return save.moments; },
+  momentState: function () {
+    return {
+      newShape: S && S.newShape ? { shape: S.newShape.shape, guide: +(S.newShape.guide || 0).toFixed(2), need: S.newShape.need } : null,
+      chargeGuide: S ? +(S.chargeGuide || 0).toFixed(2) : 0, totemGuide: S ? +(S.totemGuide || 0).toFixed(2) : 0,
+      bounceArrow: S ? +(S.bounceArrow || 0).toFixed(2) : 0, slowMul: S ? +(S.slowMul || 1).toFixed(2) : 1, slowMulT: S ? +(S.slowMulT || 0).toFixed(2) : 0,
+      firstPatIcon: (S && S.firstPatIcon) ? S.firstPatIcon.id : null, bossTeleMul: (S && S.boss) ? +(S.boss.teleMul || 1).toFixed(2) : null
+    };
+  },
+  streak: function () { return { save: save.streak ? Object.assign({}, save.streak) : null, run: S ? S.streak : 0, help: S ? (S.help || []).slice() : [], after: S ? S.streakAfter : null }; },
+  setStreak: function (stageNo, n) { save.streak = n ? { stage: stageNo | 0, n: n | 0 } : null; persist(); return save.streak; },
+  teleInfo: function () { return { run: S ? +((S.teleMul || 1)).toFixed(2) : 1, mode: curMode().tele, boss: (S && S.boss) ? +(S.boss.teleMul || 1).toFixed(2) : null }; },
+  economy: function () {
+    return { mode: curMode().id, coinMul: modeCoin(), coinMult: coinMult(), kill: Math.round(CFG.coinPerKill * modeCoin() * coinMult()),
+      spd: modeSpd(), spdApplied: CFG.zombieSpeed * modeSpd(), dmgMul: curMode().dmg, dmg2: modeDmg(2), starCap: starCap(), bossShapes: curMode().bossShapes };
+  },
+  budget: function (n, mode) { return bossBudget(n, mode); },
+  budgetTable: function () { return budgetTable(); },
+  bossAt: function () { return { bossAt: (S && S.stage) ? S.stage.bossAt : null, seenAt: S ? +(S.bossSeenAt || 0).toFixed(1) : null, elapsed: S ? +(S.elapsed || 0).toFixed(1) : null, left: S ? +(S.timeLeft || 0).toFixed(1) : null }; },
+  /* 실측: 걷기·경직·패턴별 지속 시간을 실제 상태기계로(렌더 없이) 잰다. */
+  cycleProbe: function (dt) {
+    if (!S || !S.boss || !S.boss.alive) return null;
+    const b = S.boss, d = dt || (1 / 30);
+    const keep = { hp: S.hp, noMove: qa.noMove, nf: qa.noFirstMoments, tm: b.teleMul, tb: b.teleBoost };
+    S.hp = 9999; qa.noMove = true; qa.noFirstMoments = true;
+    const tick = function (n) { let i = 0; while (i++ < n) { S.hitstop = 0; S.iframe = 9; if (!S.playing) break; if (!S.paused) step(d); } };
+    const out = { walk: 0, stun: 0, patterns: {}, seqN: (b.seq || []).length };
+    b.state = 'walk'; b.stateT = 0; b.firstWalk = false; b.stun = 0;
+    let g = 0, wt = S.elapsed;
+    while (g++ < 400 && b.state === 'walk' && S.playing) tick(1);
+    out.walk = +(S.elapsed - wt).toFixed(2);
+    b.state = 'stun'; b.stateT = 0; b.stunT = 0;
+    g = 0;
+    const stT = S.elapsed;
+    while (g++ < 200 && b.state === 'stun' && S.playing) tick(1);
+    out.stun = +(S.elapsed - stT).toFixed(2);
+    const list = bossPatList(b) || [];
+    list.forEach(function (id) {
+      if (!S.playing || !b.alive) { out.patterns[id] = null; return; }
+      b.state = 'walk'; b.stateT = 999; b.stun = 0; b.teleBoost = 1; b.teleMul = teleMul();
+      startBossPattern(b, id);
+      const st0 = b.state, t0 = S.elapsed;
+      let k = 0;
+      while (k++ < 900 && b.state === st0 && S.playing) tick(1);
+      out.patterns[id] = (b.state === st0) ? -1 : +(S.elapsed - t0).toFixed(2);
+    });
+    S.hp = keep.hp; qa.noMove = keep.noMove; qa.noFirstMoments = keep.nf;
+    b.teleMul = keep.tm; b.teleBoost = keep.tb;
+    return out;
+  },
+  resultUi: function () {
+    const g = $('resultHelp'), o = $('btnTrainOffer'), s = $('resultStars'), k = $('resultKicker');
+    return { kicker: k ? k.textContent : '', help: g ? g.textContent : '', helpHidden: g ? !!g.hidden : null,
+      offerHidden: o ? !!o.hidden : null, offerText: o ? o.textContent : '', stars: s ? s.innerHTML : '', gold: !!(S && S.goldStar) };
+  },
+  startReplay: function () { startRun({ stage: 1, replay: true }); return true; },
+  skipBtnVisible: function () { const b = $('btnSkip'); return b ? !b.hidden : null; },
   selectStage: function (n) { titleSel = clamp(n | 0, 1, STAGES.length); refreshTitleHelp(); previewStageWorld(titleSel); return titleSel; },
   stageSelectHtml: function () { return $('titleStages') ? $('titleStages').innerHTML : ''; },
   resultInfo: function () {
