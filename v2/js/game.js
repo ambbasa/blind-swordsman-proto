@@ -1816,6 +1816,8 @@ function startRun(opts) {
   hideOvs();
   closeQuickCards();
   clearEntities();
+  /* 판 모드는 타이틀에서 고른 save.mode를 따른다(이전 판의 S.mode에 묶이지 않게). */
+  const runMode = modeOf(save.mode || 'jeongseok').id;
   /* 소개 카드를 거치지 않고 바로 시작하는 경로(QA·다시 버튼)도 예열은 반드시 거친다.
      다만 QA에서 소프트웨어 GL이라 셰이더 컴파일이 분 단위가 되는 환경이면 qa.skipWarm으로 빠진다. */
   if (!qa.skipWarm && !shadersWarmed()) warmShaders();
@@ -1852,7 +1854,7 @@ function startRun(opts) {
     /* v0.29: 기물 역류·빈틈 선입력·공정성·연출 */
     reflects: [], gapBuf: null, firstForcedHit: false, goldEdge: 0,
     /* v0.30: 난이도·동적 보정·첫 경험 */
-    mode: curMode().id, bossShapeAdj: curMode().bossShapes, teleMul: 1, streak: 0, help: [],
+    mode: runMode, bossShapeAdj: modeOf(runMode).bossShapes, teleMul: 1, streak: 0, help: [],
     tutorial: null, tutSlow: 1, newShape: null, chargeGuide: 0, totemGuide: 0, bounceArrow: 0,
     slowMul: 1, slowMulT: 0, noScore: !!opts.replay, goldStar: false, bossSeenAt: 0,
     /* v0.31: 판 안 재미 — 콤보 단계·파훼·멈추지 않는 선택·새 카드·자동 피해 비중 */
@@ -1870,9 +1872,9 @@ function startRun(opts) {
   initGoal(st, opts);
   if (opts.challenge) initChallenge(opts.challenge, stageNo);
   /* §7.2·§7.3: 이 판의 예고 배율(모드 × 연패 보정)과 판 시작 도움. */
-  S.mode = curMode().id;
+  S.mode = runMode;
   S.streak = opts.sandbox ? 0 : streakOf(stageNo);
-  S.teleMul = curMode().tele;
+  S.teleMul = modeOf(runMode).tele;
   S.help = [];
   if (!opts.sandbox && S.mode !== 'gosu' && S.streak >= 2) {
     S.charge = Math.min(CFG.cleaveCharge || 100, CFG.help2Charge || 30);
