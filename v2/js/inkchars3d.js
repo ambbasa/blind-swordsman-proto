@@ -70,7 +70,7 @@ export function buildFigure(name, opt) {
   const rig = {
     name: name, fig: M, t: (opt.t0 != null ? opt.t0 : (name.length * 1.7 + 0.4)), phase: Math.random() * 6.28,
     speed: 0, lean: 0, face: opt.face || 1, px: 0, pz: 0, first: true,
-    sashA: 0, sashV: 0, recoil: 0, recoilV: 0, arm: 0, armV: 0, k: k,
+    sashA: 0, sashV: 0, recoil: 0, recoilV: 0, arm: 0, k: k,
     parts: {}, order: opt.order != null ? opt.order : (name === 'hero' ? 8 : 2), base: opt.order != null ? opt.order : (name === 'hero' ? 8 : 2)
   };
   const ORDER = { legs: -0.04, body: 0, head: 0.03 };

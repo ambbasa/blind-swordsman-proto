@@ -680,7 +680,7 @@ export async function buildArt(THREE) {
       g.userData.bellLocal = { x: 0, y: H * 0.76 };
       if (g.userData.rig && g.userData.rig.aura) {
         g.userData.rim = g.userData.rig.aura;
-        g.userData.rimHex = 0xF2E2C0; g.userData.rimOp = 0.5;
+        g.userData.rimHex = 0xF2E2C0; g.userData.rimOp = 0.62;
       }
       return g;
     }
