@@ -5,8 +5,12 @@ import { buildStage3D } from './inkprops3d.js';
 import { drawInkBossSheet } from './inkboss.js';
 import { drawHeroSheets, drawZombieSheets, drawZombieVariantSheets, drawSpiritSheet } from './inkchars.js';
 import { drawRattle, drawItem, drawSeal, drawUpgrade } from './inkicons.js';
+import { buildFigure, tickFigure, kick as rigKick, setOpacity as rigOpacity, setTint as rigTint,
+  setAuraColor as rigAuraColor, setOrder as rigOrder, setCamera as rigSetCamera, ready as rigReady } from './inkchars3d.js';
 
 const BASE = '../assets/v2/';
+let QA_NORIG = false;
+try { QA_NORIG = new URLSearchParams(location.search).has('norig'); } catch (e) {}
 const ITEM_KEY = {
   ice: 'elem-ice', fire: 'elem-fire', poison: 'elem-poison', bell: 'one-bell',
   'elem-ice': 'elem-ice', 'elem-fire': 'elem-fire', 'elem-poison': 'elem-poison', 'one-bell': 'one-bell',
@@ -629,8 +633,63 @@ export async function buildArt(THREE) {
       applyUV(t, sheet, st0.frame, st0.dir);
     }
   }
+  /* v0.38: 파츠 관절 리그(비단 병풍 디오라마 PNG). 텍스처가 아직/영영 없으면 null → 아래 코드 드로잉으로 폴백. */
+  function makeRigChar(kind, shape, opt) {
+    if (QA_NORIG) return null;
+    if (!rigReady()) return null;
+    if (kind === 'hero' || kind === 'afterimage') {
+      const after = kind === 'afterimage';
+      const g = buildFigure('hero', {
+        order: after ? 3 : 8, tools: after ? [] : ['sash', 'arm'],
+        add: after, opacity: after ? 0.34 : 1, aura: !after, auraColor: 0xE7D7B2, auraOpacity: 0.18
+      });
+      if (!g) return null;
+      if (!after) { addShadow(g, 1.45); g.userData.noFlip = true; }
+      return g;
+    }
+    if (kind === 'zombie') {
+      /* 돌덩이 귀신은 바위 괴물이라 손그림 시트를 유지하고, 원혼 무사·장정만 리그로 올린다. */
+      if (shape === 'stone') return null;
+      const heavy = shape === 'brute';
+      const figName = heavy ? 'heavy' : 'minion';
+      /* 기존 시트와 같은 키(원혼 2.4m · 장정 3.0m) — 판정 반경·심안 링과 비율이 맞아 있다. */
+      const g = buildFigure(figName, { order: 2, scale: 1, auraColor: 0x54e0ba, auraOpacity: 0.5 });
+      if (!g) return null;
+      addShadow(g, heavy ? 1.7 : 1.35);
+      addTelegraph(g, g.userData.worldH);
+      /* 테두리(아우라)를 그대로 rim 슬롯에 물린다 — 정예 금테·변주 색 구분·예고 붉은 테가 그대로 동작. */
+      if (g.userData.rig && g.userData.rig.aura) {
+        g.userData.rim = g.userData.rig.aura;
+        g.userData.rimHex = 0x4fd6b0; g.userData.rimOp = 0.5;
+      }
+      if (shape === 'elite' && g.userData.rim) {
+        g.userData.rim.material.color.setHex(0xE8C04A);
+        g.userData.rim.material.opacity = 0.62;
+        g.userData.rimHex = 0xE8C04A; g.userData.rimOp = 0.62;
+      }
+      return g;
+    }
+    if (kind === 'boss') {
+      const H = bossH * 1.5 * (opt.bossScale || 1);
+      const g = buildFigure('boss', {
+        order: 2, scale: H / 6.2, bossVar: opt.bossVar, auraColor: 0xf0552e, auraOpacity: 0.62
+      });
+      if (!g) return null;
+      g.userData.noFlip = true;
+      g.userData.isBoss = true;
+      g.userData.bellLocal = { x: 0, y: H * 0.76 };
+      if (g.userData.rig && g.userData.rig.aura) {
+        g.userData.rim = g.userData.rig.aura;
+        g.userData.rimHex = 0xF2E2C0; g.userData.rimOp = 0.5;
+      }
+      return g;
+    }
+    return null;
+  }
   function makeChar(kind, shape, opt) {
     opt = opt || {};
+    const rigged = makeRigChar(kind, shape, opt);
+    if (rigged) return rigged;
     const group = new THREE.Group();
     const itemK = ITEM_KEY[kind];
     if (kind === 'hero' || kind === 'afterimage') {
@@ -747,8 +806,9 @@ export async function buildArt(THREE) {
     const pack = group.userData.animPack;
     const mapped = { ice: 'frozen', fire: 'burning', poison: 'poisoned' }[elem];
     const spr = group.userData.sprite;
-    if (!spr || !spr.material || !spr.material.color) return;
     const c = (elem && !(pack && pack.actions && pack.actions[mapped]) && STATUS_TINT[elem]) || [1, 1, 1];
+    if (group.userData.rig) { rigTint(group, c[0], c[1], c[2]); return; }
+    if (!spr || !spr.material || !spr.material.color) return;
     spr.material.color.setRGB(c[0], c[1], c[2]);
   }
 
@@ -760,6 +820,7 @@ export async function buildArt(THREE) {
 
   function tickChar(group, kind, state, dt, vx, vz) {
     if (!group) return;
+    if (group.userData && group.userData.rig && tickFigure(group, kind, state, dt, vx, vz)) return;
     const spr = group.userData && group.userData.sprite;
     const pack = group.userData && group.userData.animPack;
     let useState = state;
@@ -866,6 +927,29 @@ export async function buildArt(THREE) {
     transitions: (atlas.tiles && atlas.tiles.transitions) || null,
     night: hexColor(pal.night || pal.ground, 0x1e1c1a),
     makeChar: makeChar, tickChar: tickChar, buildStage3D: buildStage3D,
+    /* v0.38 파츠 리그 훅: 카메라·피격 반동·틴트·투명도·그리기 순서 */
+    setCamera: function (cam) { rigSetCamera(cam); },
+    kickChar: function (group, k) { rigKick(group, k); },
+    tintChar: function (group, r, g, b) {
+      if (!group || !group.userData) return;
+      if (group.userData.rig) { rigTint(group, r, g, b); return; }
+      const spr = group.userData.sprite;
+      if (spr && spr.material && spr.material.color) spr.material.color.setRGB(r, g, b);
+    },
+    setCharOpacity: function (group, o) {
+      if (!group || !group.userData) return;
+      if (group.userData.rig) { rigOpacity(group, o); return; }
+      const spr = group.userData.sprite;
+      if (spr && spr.material) spr.material.opacity = o;
+    },
+    setCharOrder: function (group, base) {
+      if (!group || !group.userData) return;
+      if (group.userData.rig) { rigOrder(group, base); return; }
+      const spr = group.userData.sprite;
+      if (spr) spr.renderOrder = base;
+    },
+    setAuraColor: function (group, hex, op) { rigAuraColor(group, hex, op); },
+    rigInfo: function () { return { ready: rigReady() }; },
     /* QA: 지금까지 먹획을 구운 혼령 기호 목록(예열 검증용) */
     spiritInkShapes: function () { return Object.keys(spiritInkCache); },
     sealUrl: sealUrl, upIconUrl: upIconUrl, itemIconUrl: itemIconUrl, setSpiritShape: setSpiritShape, setStatus: setStatus, setAura: setAura, setTelegraph: setTelegraph,

@@ -1,4 +1,7 @@
 /* 심안(SIMAN) v2 — 2.5D quarter-view, Three.js, camera-follow dashes.
+   v0.38: 주인공·원혼·보스 캐릭터 파츠 리그 — images CLI 로 구운 비단 디오라마 파츠(몸통·머리·다리·띠·칼팔)를
+          관절별 빌보드 메시로 세우고 dt 기반 사인·스프링으로 60fps 연속 변형(걷기 바운스·앞기울기·띠 펄럭임·피격 반동).
+          실루엣 테 발광(한지빛 주인공·청옥빛 원혼·진홍 보스) · 좌우 반전을 메시 음수 스케일로 정정 · 타이틀 프리로드
    v0.37: 비단 병풍 디오라마 — images CLI 로 그린 수묵화 PNG 소품(기와집·소나무·대나무·석등·바위)과
           사각 돌판 바닥(노멀·러프니스 포함)·원경 접이식 산수 병풍 띠(1 드로우콜, 영웅 추적) ·
           타이틀에서 디오라마 에셋 비동기 프리로드(출전 멈춤 없음) · 호박빛 0xffb45c 등불 풀
@@ -27,6 +30,7 @@ import { createCinematicPass } from './inkcinematic.js';
 import { createSlashArc } from './inkslash3d.js';
 import { StageAtmosphere } from './inkatmos.js';
 import { paperPropCanvas } from './inkpaper.js';
+import { preloadChars } from './inkcharart.js';
 import { preloadDiorama, dioramaInfo } from './inkdiorama.js';
 import { createChunkWorld, buildChunkData, chunkOf, prebakeGroundStage } from './inkchunks.js';
 import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariants } from './prewarm.js';
@@ -39,7 +43,7 @@ import {
 import { InkLightPool, createWorldInkUniforms, attachGroundInkShader } from './inklights.js';
 import { initOverlayShell } from './ui/overlayShell.js';
 const inkFx = new InkFx();
-const telemetry = createTelemetry({ version: '0.37' });
+const telemetry = createTelemetry({ version: '0.38' });
 let frameDt = 1 / 60;
 
 const G = window.GPGestures;
@@ -1532,6 +1536,15 @@ function addEntityVisual(kind, shape, opt) {
   const group = art.makeChar(kind, shape, opt);
   three.scene.add(group);
   return group;
+}
+/* 잔상(파츠 리그)은 매 대시마다 새로 만들어진다 — 지오메트리·재질만 놓아 준다(공유 텍스처는 그대로). */
+function disposeCharGeom(g) {
+  try {
+    g.traverse(function (o) {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material && o.material.dispose) o.material.dispose();
+    });
+  } catch (e) {}
 }
 function placeGroup(g, x, z, bob) {
   if (!g) return;   /* 그림 없는 판정용 개체(QA·임시 기물) — 위치를 옮길 몸이 없다 */
@@ -5022,6 +5035,7 @@ function hurtZombie(z, amount, why, rec) {
     if (three && three.ink) { three.ink.hit(z.x, z.z, d.x, d.z); fxinkStat.hits++; }
     /* Stagger: a white flash and a short shove along the cut; the boss and status ticks do not shove. */
     z.flinchT = CFG.flinchDur || 0.14;
+    if (z.obj && art.kickChar) art.kickChar(z.obj, 1);
     if (!z.isBoss && (why === 'slash' || why === 'cleave' || why === 'combo-burst')) {
       const L = Math.hypot(d.x, d.z) || 1, k = (CFG.hitKnockZ || 0.35) * (z.type === 'stone' ? (CFG.stoneKnockMul || 0.35) : 1);
       z.x += d.x / L * k; z.z += d.z / L * k;
@@ -5224,8 +5238,10 @@ function afterimages(from, to) {
     const g = art.makeChar('afterimage');
     if (g.userData.sprite) {
       const mat = g.userData.sprite.material;
-      mat.opacity = 0.28 - i * 0.05;
-      if (mat.blending != null) mat.blending = THREE.NormalBlending;
+      const op = 0.28 - i * 0.05;
+      if (g.userData.rig) art.setCharOpacity(g, op);
+      else mat.opacity = op;
+      if (mat.blending != null && !g.userData.rig) mat.blending = THREE.NormalBlending;
     }
     g.position.set(from.x + (to.x - from.x) * u, 0, from.z + (to.z - from.z) * u);
     three.scene.add(g);
@@ -6251,6 +6267,7 @@ function heroHurt(n, why) {
   S.iframe = CFG.iframeMs / 1000;
   S.hurtFlash = CFG.hurtVignette || 0.3;
   S.hitstop = Math.max(S.hitstop || 0, CFG.hitHitstop || 0.08);
+  if (three && three.heroSpr && art.kickChar) art.kickChar(three.heroSpr, 1);
   const app = $('app');
   if (app) app.classList.add('hurt');
   if (audio && audio.drum) audio.drum();
@@ -7092,6 +7109,7 @@ function heroHurtForce(n, why, opts) {
   S.iframe = CFG.iframeMs / 1000;
   S.hurtFlash = CFG.hurtVignette || 0.3;
   S.shake = Math.max(S.shake || 0, 0.8);
+  if (three && three.heroSpr && art.kickChar) art.kickChar(three.heroSpr, 1);
   const app = $('app');
   if (app) app.classList.add('hurt');
   if (audio) audio.explode();
@@ -8018,7 +8036,8 @@ function step(dt) {
     /* Hit flash over the status tint (tintZombie resets the colour next frame). */
     if (z.flinchT > 0 && z.obj && z.obj.userData && z.obj.userData.sprite) {
       const fk = 1 + 1.6 * (z.flinchT / (CFG.flinchDur || 0.14));
-      z.obj.userData.sprite.material.color.setRGB(fk, fk, fk * 0.95);
+      if (z.obj.userData.rig) art.tintChar(z.obj, fk, fk, fk * 0.95);
+      else z.obj.userData.sprite.material.color.setRGB(fk, fk, fk * 0.95);
     }
     if (art.setTelegraph && !z.isBoss) art.setTelegraph(z.obj, !frozen && (d < (CFG.telegraphRange || 3.2) || z.windT > 0 || z.dashPhase > 0));
     if (d < z.r + 0.55 && !(z.isBoss && (z.hidden || z.state === 'seal' || z.state === 'sealing' || z.state === 'groggy'))) {
@@ -9341,7 +9360,7 @@ function loop(ts) {
       const f = fx[i];
       f.life -= raw;
       fadeFx(f.mesh, Math.max(0, f.life / f.max * 0.85));
-      if (f.life <= 0) { three.scene.remove(f.mesh); continue; }
+      if (f.life <= 0) { if (f.mesh && f.mesh.userData && f.mesh.userData.rig) disposeCharGeom(f.mesh); three.scene.remove(f.mesh); continue; }
       fx[fxN++] = f;
     }
     fx.length = fxN;
@@ -9355,8 +9374,8 @@ function loop(ts) {
       if (spr) {
         spr.visible = true;
         if (spr.material) spr.material.opacity = 1;
-        spr.renderOrder = 8;
-        if (spr.material) spr.material.depthTest = false;
+        if (three.heroSpr.userData.rig) art.setCharOrder(three.heroSpr, 8);
+        else { spr.renderOrder = 8; if (spr.material) spr.material.depthTest = false; }
       }
       three.heroSpr.visible = true;
     }
@@ -9535,11 +9554,20 @@ function fpsReport() {
 async function boot() {
   /* v0.37: 디오라마 PNG 는 모듈 로드와 동시에 받기 시작한다(타이틀 유휴 프리로드). 여기서 한 번 더 보장. */
   try { preloadDiorama(); } catch (e) {}
+  /* v0.38: 캐릭터 파츠(주인공·원혼·보스)도 타이틀에서 미리 받아 둔다 — 출전 순간 업로드 멈춤 없음.
+     네트워크가 느리면 2.5초만 기다리고 진행한다(그 판은 기존 코드 드로잉으로 폴백). */
+  try {
+    await Promise.race([
+      preloadChars().catch(function () { return null; }),
+      new Promise(function (res) { setTimeout(res, 2500); })
+    ]);
+  } catch (e) {}
   loadSave();
   qa.mute = !!save.muted;
   await probeAssets();
   art = await buildArt(THREE);
   three = await makeWorld();
+  try { art.setCamera(three.camera); } catch (e) {}
   setupChunkWorld((three.map && three.map.stageId) || 1, (three.map && three.map.id) || 'map1');
   applyFxinkAtmo((three.map && three.map.id) || 'map1');
   applyStageAtmo(stageOf(titleSel || save.stage || 1));
@@ -10356,8 +10384,7 @@ const GPv2 = {
     const hs = (S && S.hero) ? heroScreen() : { x: w * 0.5, y: h * 0.5 };
     return { cx: hs.x, cy: hs.y, r: Math.min(w, h) * (0.18 + 0.7 * (1 - (wave == null ? ((S && S.sightWave) || 0) : wave))), w: w, h: h, wave: wave == null ? ((S && S.sightWave) || 0) : wave };
   },
-  heroVisible: function () {
-    const g = three && three.heroSpr;
+  heroVisible: function () {    const g = three && three.heroSpr;
     const spr = g && g.userData && g.userData.sprite;
     return {
       group: !!(g && g.visible !== false),
@@ -10366,6 +10393,61 @@ const GPv2 = {
       action: g && g.userData && g.userData.action,
       hasMap: !!(spr && spr.material && spr.material.map)
     };
+  },
+  /* v0.38 QA: 캐릭터 파츠 리그 상태 — 파츠 수·포즈·좌우 반전·빌보드 여부 */
+  /* QA: 리그가 매 프레임(dt)로 얼마나 촘촘히 움직이는지 — 60스텝을 강제로 돌려 각도를 돌려준다. */
+  rigTrace: function (n, dt, state) {
+    const g = three && three.heroSpr;
+    const r = g && g.userData && g.userData.rig;
+    if (!r) return null;
+    const out = [];
+    const px = g.position.x;
+    const N = n || 60, D = dt || (1 / 60), st = state || 'idle';
+    for (let i = 0; i < N; i++) {
+      g.position.x = px + i * 0.02;           /* 1.2 m/s 로 걷는 것과 같은 이동 */
+      art.tickChar(g, 'hero', st, D, 1, 0);
+      out.push({ a: +(r.dbg ? r.dbg.ang : 0).toFixed(4), y: +(r.dbg ? r.dbg.bob : 0).toFixed(4),
+        ph: +r.phase.toFixed(3), sp: +r.speed.toFixed(2), face: r.face,
+        arm: +r.arm.toFixed(3), armVis: !!(r.armMesh && r.armMesh.visible),
+        sash: +r.sashA.toFixed(3),
+        head: +(r.parts.head ? (r.dbg && r.dbg.headAng != null ? r.dbg.headAng : 0) : 0).toFixed(4) });
+    }
+    g.position.x = px;
+    art.tickChar(g, 'hero', 'idle', 1 / 60, 1, 0);
+    return out;
+  },
+  /* QA: 원혼 45마리 분량 tickChar 비용(ms) — 리그 자체의 CPU 비용 측정 */
+  rigBench: function (n) {
+    const t0 = performance.now();
+    const list = (S && S.zombies ? S.zombies : []).filter(function (z) { return z.obj && z.obj.userData && z.obj.userData.rig; });
+    if (!list.length) return null;
+    const N = n || 30;
+    for (let k = 0; k < N; k++) {
+      for (let i = 0; i < list.length; i++) art.tickChar(list[i].obj, 'zombie', 'walk', 1 / 60, 1, 0);
+    }
+    const ms = performance.now() - t0;
+    return { chars: list.length, ticks: N, ms: +ms.toFixed(2), perCharFrame: +(ms / N / list.length).toFixed(4),
+      sceneSprites: (function () { let a = 0, b = 0; three.scene.traverse(function (o) { if (o.isSprite) a++; else if (o.isMesh) b++; }); return { sprites: a, meshes: b }; })() };
+  },
+  rigInfo: function () {
+    const out = { ready: !!(art && art.rigInfo && art.rigInfo().ready), hero: null, enemies: 0, rigEnemies: 0, parts: 0, sample: null };
+    function brief(g) {
+      if (!g || !g.userData || !g.userData.rig) return null;
+      const r = g.userData.rig;
+      return { name: r.name, parts: Object.keys(r.parts), face: r.face, lean: +r.lean.toFixed(3),
+        bob: +g.children[0].position.y.toFixed(3), speed: +r.speed.toFixed(2), arm: +r.arm.toFixed(2),
+        scaleX: +g.scale.x.toFixed(2), visible: g.visible };
+    }
+    out.hero = brief(three && three.heroSpr);
+    if (S && S.zombies) {
+      S.zombies.forEach(function (z) {
+        if (!z.obj || !z.obj.userData) return;
+        out.enemies++;
+        if (z.obj.userData.rig) { out.rigEnemies++; out.parts += Object.keys(z.obj.userData.rig.parts).length; if (!out.sample) out.sample = brief(z.obj); }
+      });
+    }
+    if (S && S.boss && S.boss.obj) out.boss = brief(S.boss.obj);
+    return out;
   },
   inkBlank: function () {
     const c = $('ink');
