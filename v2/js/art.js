@@ -5,6 +5,7 @@ import { buildStage3D } from './inkprops3d.js';
 import { drawInkBossSheet } from './inkboss.js';
 import { drawHeroSheets, drawZombieSheets, drawZombieVariantSheets, drawSpiritSheet } from './inkchars.js';
 import { drawRattle, drawItem, drawSeal, drawUpgrade } from './inkicons.js';
+import { loadPixelPack } from './pixellook.js';
 
 const BASE = '../assets/v2/';
 const ITEM_KEY = {
@@ -48,6 +49,8 @@ function hexColor(s, fb) {
 
 export async function buildArt(THREE) {
   const atlas = await loadAtlas();
+  /* 픽셀 룩: ink-studio 로 구운 시트. 없거나 ?look=ink 면 null — 코드로 그린 수묵 시트를 그대로 쓴다. */
+  const pixelPack = await loadPixelPack(BASE);
   const pal = atlas.palette || {};
   const cache = new Map();
   const sharedUrls = [];
@@ -514,7 +517,15 @@ export async function buildArt(THREE) {
   let inkCharPack = null;
   function inkChars() {
     if (inkCharPack) return inkCharPack;
-    function bake(r) {
+    function bake(r, pixelKey) {
+      /* 구운 픽셀 시트가 같은 규격(셀·프레임 수)이면 그 텍스처로 바꿔 끼운다. */
+      const px = pixelPack && pixelKey && pixelPack[pixelKey];
+      if (px && px.frames === r.sheet.count && px.cell === r.sheet.frame[0]) {
+        r.sheet.tex = px.tex;
+        r.sheet.anchor = px.anchor.slice();
+        r.sheet.pixel = true;
+        return r.sheet;
+      }
       const t = new THREE.CanvasTexture(r.canvas);
       t.colorSpace = THREE.SRGBColorSpace;
       r.sheet.tex = t;
@@ -522,11 +533,11 @@ export async function buildArt(THREE) {
     }
     const h = drawHeroSheets(), z = drawZombieSheets(), v = drawZombieVariantSheets();
     inkCharPack = {
-      hero: { actions: { idle: bake(h.idle), dash: bake(h.dash) }, afterimage: bake(h.afterimage) },
+      hero: { actions: { idle: bake(h.idle, 'hero-idle'), dash: bake(h.dash, 'hero-dash') }, afterimage: bake(h.afterimage, 'hero-after') },
       zombie: { actions: { walk: bake(z.walk), frozen: bake(z.frozen), burning: bake(z.burning), poisoned: bake(z.poisoned) } },
       brute: { actions: { walk: bake(v.brute) } },
       stone: { actions: { walk: bake(v.stone) } },
-      spirit: bake(drawSpiritSheet())
+      spirit: bake(drawSpiritSheet(), 'spirit-idle')
     };
     return inkCharPack;
   }

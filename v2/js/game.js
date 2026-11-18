@@ -19,6 +19,7 @@ import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.
 import { drawSonarRing2D } from '../../assets/v2/fx-ink/code/sonarRing.js';
 import { createInkWashPass } from './inkwash.js';
 import { createCinematicPass } from './inkcinematic.js';
+import { PIXEL_LOOK, createPixelLookPass } from './pixellook.js';
 import { createSlashArc } from './inkslash3d.js';
 import { StageAtmosphere } from './inkatmos.js';
 import { createChunkWorld, buildChunkData, chunkOf, prebakeGroundStage } from './inkchunks.js';
@@ -1457,8 +1458,14 @@ async function makeWorld() {
     /* post() 는 build() 때마다 다시 불리므로(품질 변경) 패스도 매번 새로 만든다 — dispose 된 패스를 재사용하지 않게. */
     world.bloom = setupBloom(renderer, scene, camera, {
       quality: fxQ,
-      depth: true,
+      depth: !PIXEL_LOOK,
       post: function () {
+        /* 픽셀 룩(기본): 수묵 패스 대신 아트 픽셀 격자 + 팔레트 양자화. ?look=ink 면 기존 수묵 룩. */
+        if (PIXEL_LOOK) {
+          const px = createPixelLookPass();
+          px.setPixelRatio(renderer.getPixelRatio());
+          return [createCinematicPass(), px];
+        }
         const wash = createInkWashPass();
         wash.enableDepth(camera.near, camera.far);
         return [wash, createCinematicPass()];
