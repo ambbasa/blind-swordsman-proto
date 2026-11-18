@@ -8472,7 +8472,7 @@ function initChallenge(id, stageNo) {
   S.challengeT = 0;
   if (id === 'endless') {
     S.timeLeft = 99999;
-    S.endlessKills = 0; S.endlessBossN = 0; S.endlessNextBoss = 150;
+    S.endlessKills = 0; S.endlessBossN = 0; S.endlessNextBoss = 180;
   } else if (id === 'bossrush') {
     S.timeLeft = 99999;
     S.bossIdx = 0; S.rushNext = 0.8;
@@ -8521,12 +8521,12 @@ function challengeProgress() {
       persist();
       closeArena(true);
       S.boss = null; S.bossSpawned = false;
-      S.endlessNextBoss = (S.elapsed || 0) + 90;
+      S.endlessNextBoss = (S.elapsed || 0) + 180;
       gainXp(60);
-      toast('귀물을 베었다 — 90초 뒤 다음 귀물');
+      toast('귀물을 베었다 — 3분 뒤 다음 귀물');
       return;
     }
-    if (!b && !S.bossSpawned && (S.elapsed || 0) >= (S.endlessNextBoss || 150)) {
+    if (!b && !S.bossSpawned && (S.elapsed || 0) >= (S.endlessNextBoss || 180)) {
       endlessBoss();
     }
   }
