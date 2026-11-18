@@ -1,4 +1,12 @@
 /* 심안(SIMAN) v2 — 2.5D quarter-view, Three.js, camera-follow dashes.
+   v0.39 (Papertrails 통합 개편 1~3단계):
+     · 1단계 톤 기준선 — js/palette.js 단일 팔레트 토큰(먹·한지·비취·진홍·금·옥) + CSS 변수 주입 + 역톤매핑,
+       style.css/ux-upgrade.css 의 이중 정의·사문화 토큰 정리,
+       js/audiobus.js 공용 오디오 버스(보이스 슬롯·토큰버킷·밀도 덕킹·방 초기반사·소프트니 리미터).
+     · 2단계 안개 통합 — js/cardstock.js 월드 거리 fade-to-dark 로 지면·소품·기물·병풍·캐릭터를 한 규칙으로,
+       2D #sightFog 캔버스와 punchSpiritLights 은퇴(혼령은 안개 면제), 후처리(inkwash)에 마지막 한 겹.
+     · 3단계 재질 통합 — 랩 라이팅·얇은 종이 역광·시트별 톤을 모든 소품·빌보드에,
+       그림자 프러스텀을 카메라 가시 바닥에 매 프레임 피팅 + 텍셀 스냅 + PCF 페넘브라(2048/1024).
    v0.38: 주인공·원혼·보스 캐릭터 파츠 리그 — images CLI 로 구운 비단 디오라마 파츠(몸통·머리·다리·띠·칼팔)를
           관절별 빌보드 메시로 세우고 dt 기반 사인·스프링으로 60fps 연속 변형(걷기 바운스·앞기울기·띠 펄럭임·피격 반동).
           실루엣 테 발광(한지빛 주인공·청옥빛 원혼·진홍 보스) · 좌우 반전을 메시 음수 스케일로 정정 · 타이틀 프리로드
@@ -42,8 +50,12 @@ import {
 } from './meta.js';
 import { InkLightPool, createWorldInkUniforms, attachGroundInkShader } from './inklights.js';
 import { initOverlayShell } from './ui/overlayShell.js';
+import { installCssVars, color as palColor, hex as palHex } from './palette.js';
+import { WF, paint as paintCard, updateFade as updateWorldFade, stats as cardStats } from './cardstock.js';
+/* v0.39 1단계: 팔레트 토큰을 CSS 변수로 내린다(빌드 없이 단일 소스). */
+installCssVars();
 const inkFx = new InkFx();
-const telemetry = createTelemetry({ version: '0.38' });
+const telemetry = createTelemetry({ version: '0.39' });
 let frameDt = 1 / 60;
 
 const G = window.GPGestures;
@@ -1352,6 +1364,8 @@ function switchMap(id, stageNo) {
     return art.applyMap(three.scene, want, three.map, { stage: st }).then(function (m) {
       three.map = m;
       three.torches = [];
+      /* v0.39: 장이 바뀌면 새 팔레트·새 종이 소품이 온다 — 같은 종이/안개 규칙으로 다시 칠한다. */
+      try { if (m && m.group) paintCard(m.group, 'prop'); } catch (e) {}
       if (three.atmo) { try { three.atmo.dispose(); } catch (e) {} }
       try { three.atmo = new StageAtmosphere(three.scene, st); } catch (e) { three.atmo = null; }
       const _t1 = performance.now();
@@ -1388,6 +1402,13 @@ function setupChunkWorld(stageId, mapId) {
         }
       });
     }
+    /* v0.39: 청크 소품도 같은 종이·안개 규칙. 배치 메시는 update() 때 생기므로,
+       재질 목록을 직접 칠한다(메시가 생겨도 이미 패치된 재질을 공유한다). */
+    try {
+      const mats = three.chunks && three.chunks.materials;
+      if (mats) mats.forEach(function (m) { paintCard(m, 'prop'); });
+      paintCard(three.chunks.group, 'prop');
+    } catch (e) {}
     const _t0 = performance.now();
     three.chunks.update(0, 0, (S && S.hero) ? S.hero.x : 0, (S && S.hero) ? S.hero.z : 0);
     perfMark('chunkWorld.build', performance.now() - _t0, { stage: stageId || 1 });
@@ -1412,7 +1433,9 @@ async function makeWorld() {
   renderer.setPixelRatio(dprCap);
   renderer.setSize(view.clientWidth, view.clientHeight);
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  /* v0.39 3단계: PCF(반경 사용) 경로 — 그림자 프러스텀을 카메라 가시 바닥에 맞추면서
+     texel 이 작아졌으므로, 반경을 키워 부드러운 페넘브라를 얻는다(stock 청크 그대로 = 버전 안전). */
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.NoToneMapping;
   /* 셰이더마다 오류 로그를 동기로 읽으면 컴파일이 끝날 때까지 프레임이 멈춘다 — ?debug 때만 검사. */
@@ -1429,25 +1452,27 @@ async function makeWorld() {
   camera.position.set(CFG.camOff.x, CFG.camOff.y, CFG.camOff.z);
   camera.lookAt(0, CFG.camLookY, 0);
 
-  const amb = new THREE.AmbientLight(0x3a3834, 1.0);
+  const amb = new THREE.AmbientLight(palColor('rigAmbient'), 1.0);
   scene.add(amb);
-  const hemi = new THREE.HemisphereLight(0x6a6860, 0x1a1612, 1.0);
+  const hemi = new THREE.HemisphereLight(palColor('rigHemiSky'), palColor('rigHemiGround'), 1.0);
   scene.add(hemi);
   /* v0.36 컨셉 아트 톤: 달빛을 낮추고 중앙 등불을 키워, 가장자리는 먹빛으로 스며들고 가운데만 호박빛으로 맺힌다. */
-  const moon = new THREE.DirectionalLight(0xc8c0b0, 1.25);
+  const moon = new THREE.DirectionalLight(palColor('rigMoonlight'), 1.25);
   moon.position.set(-18, 28, 10);
   moon.castShadow = true;
-  moon.shadow.mapSize.set(1024, 1024);
+  moon.shadow.mapSize.set(fxQ === 'high' ? 2048 : 1024, fxQ === 'high' ? 2048 : 1024);
+  /* 프러스텀은 fitShadowFrustum() 이 매 프레임 카메라가 보는 바닥에 맞춘다(초기값만 넉넉히). */
   moon.shadow.camera.left = -30; moon.shadow.camera.right = 30;
   moon.shadow.camera.top = 30; moon.shadow.camera.bottom = -30;
   moon.shadow.camera.near = 1; moon.shadow.camera.far = 90;
   moon.shadow.bias = -0.0011;
   moon.shadow.normalBias = 0.045;
+  moon.shadow.radius = 2.4;
   moon.target.position.set(0, 0, 0);
   scene.add(moon);
   scene.add(moon.target);
   /* 그림자 진 곳을 죽이지 않는 반대편 달빛(그림자 없음) — 먹 그림자가 검은 구멍이 되지 않게. */
-  const fill = new THREE.DirectionalLight(0x93a0b8, 0.6);
+  const fill = new THREE.DirectionalLight(palColor('rigFill'), 0.6);
   fill.position.set(14, 12, -16);
   scene.add(fill);
 
@@ -1458,6 +1483,9 @@ async function makeWorld() {
   scene.add(sky);
 
   const map = await art.applyMap(scene, 'map1', null, { stage: 1 });
+  /* v0.39: 무대 소품·원경 병풍·하늘을 같은 종이/안개 규칙으로 칠한다. */
+  try { if (map && map.group) paintCard(map.group, 'prop'); } catch (e) {}
+  try { if (sky && sky.material) { sky.material.userData.cardProfile = 'backdrop'; paintCard(sky.material, 'backdrop'); } } catch (e) {}
   const world = {
     renderer: renderer, scene: scene, camera: camera, map: map, torches: [], fx: [], slashes: [],
     view: view, fxForced: fxQForced, amb: amb, hemi: hemi, moon: moon, fill: fill, sky: sky, baseClear: clear,
@@ -1479,6 +1507,11 @@ async function makeWorld() {
       }
     });
   } catch (e) { world.bloom = null; }
+  /* v0.39 2단계: 후처리에도 같은 월드 안개 목표를 넘긴다 — 재질이 놓친 픽셀(하늘·구멍)을 한 겹 더 잠근다. */
+  try {
+    const wash = world.bloom && world.bloom.post && world.bloom.post[0];
+    if (wash && wash.setFadeSource) wash.setFadeSource(camera, WF_POST);
+  } catch (e) {}
   try {
     world.ink = new InkParticles(scene, { base: FXINK_BASE, quality: fxQ === 'high' ? 'high' : 'low' });
     /* 바닥 먹 데칼은 밝아진 2.5D 바닥에서 검은 사각형으로 읽혀 끈다. 튐·터짐은 유지. */
@@ -1496,6 +1529,90 @@ async function makeWorld() {
   return world;
 }
 
+/* 후처리 fade 소스: cardstock 의 공유 uniform 을 그대로 읽고, 화면 좌표만 여기서 더한다. */
+const WF_POST = { uWfHero: WF.uWfHero, uWfRange: WF.uWfRange, uWfAmt: WF.uWfAmt, uWfColor: WF.uWfColor, uWfDirK: WF.uWfDirK, heroScreen: new THREE.Vector2(0.5, 0.5), post: 0.40 };
+/* 품질 변경으로 포스트 체인이 다시 만들어져도 안개 소스를 다시 묶는다(새 패스는 소스가 없다). */
+function wireFadeSource() {
+  try {
+    const w = three;
+    const wash = w && w.bloom && w.bloom.post && w.bloom.post[0];
+    if (wash && wash.setFadeSource && w.camera) wash.setFadeSource(w.camera, WF_POST);
+  } catch (e) {}
+}
+/* QA/튜닝 스위치 — 0 이면 각 층의 안개를 끈다(전후 비교 스크린샷용). */
+let qaFadeMat = 1, qaFadePostK = 1, qaFadeColor = false;
+
+/* ---------- v0.39 3단계: 그림자 프러스텀 피팅 ----------
+   60m 고정 ortho(1024)는 화면에 보이는 10~15m 바닥에 비해 해상도를 4배 이상 낭비했다.
+   매 프레임 카메라가 보는 바닥 영역을 재어 반음(0.5m) 단위로 맞추고, 그림자 텍셀에 스냅한다
+   (스냅하지 않으면 카메라가 움직일 때 그림자 가장자리가 흐물흐물 떨린다). */
+const _shadowDir = new THREE.Vector3(-18, 28, 10).normalize();
+const _shadowC = new THREE.Vector3();
+const _shadowR = new THREE.Vector3();
+const _shadowU = new THREE.Vector3();
+const _shadowTmp = new THREE.Vector3();
+const _shadowFwd = new THREE.Vector3();
+const _shadowUp = new THREE.Vector3();
+const _shadowEye = new THREE.Vector3();
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+let _shadowExtent = -1;
+function fitShadowFrustum() {
+  const w = three;
+  if (!w || !w.moon || !w.camera) return;
+  const moon = w.moon, cam = w.camera;
+  if (!moon.castShadow) return;
+  const MS = moon.shadow, c = MS.camera;
+  cam.updateMatrixWorld();
+  const e = cam.matrixWorld.elements;
+  _shadowR.set(e[0], 0, e[2]);
+  _shadowFwd.set(-e[8], -e[9], -e[10]);
+  _shadowUp.set(e[4], 0, e[6]);
+  if (_shadowR.lengthSq() < 1e-8) _shadowR.set(1, 0, 0);
+  _shadowR.normalize();
+  const sinPitch = Math.min(1, Math.max(0.2, -_shadowFwd.y));
+  _shadowEye.setFromMatrixPosition(cam.matrixWorld);
+  let dist = 18;
+  if (_shadowFwd.y < -0.05) {
+    const t = Math.min(200, _shadowEye.y / -_shadowFwd.y);
+    _shadowC.copy(_shadowEye).addScaledVector(_shadowFwd, t);
+    dist = t;
+  } else {
+    _shadowC.copy(_shadowEye);
+    dist = _shadowEye.distanceTo(_shadowC);
+  }
+  _shadowC.y = 0;
+  /* 영웅 쪽으로 조금 당겨, 화면 아래(플레이어) 그림자가 더 선명하게 들어오게. */
+  if (S && S.hero) {
+    _shadowC.x += (S.hero.x - _shadowC.x) * 0.35;
+    _shadowC.z += (S.hero.z - _shadowC.z) * 0.35;
+  }
+  const fovTan = Math.tan(THREE.MathUtils.degToRad(cam.fov) * 0.5);
+  const halfW = dist * fovTan * (cam.aspect || 1);
+  const halfD = (dist * fovTan) / sinPitch;
+  let want = Math.max(halfW, halfD) * 1.12 + 1.5;
+  want = Math.min(26, Math.max(6, Math.ceil(want * 2) / 2));
+  const size = MS.mapSize.x || 1024;
+  if (want !== _shadowExtent) {
+    _shadowExtent = want;
+    c.left = -want; c.right = want; c.top = want; c.bottom = -want;
+    c.near = 1; c.far = 90;
+    c.updateProjectionMatrix();
+    /* penumbra: 프러스텀 반경에 반비례하는 월드 크기를 텍셀 단위로 환산한다. */
+    moon.shadow.radius = Math.max(1.4, Math.min(3.4, 2.4 * (30 / want)));
+  }
+  /* 텍셀 스냅 */
+  const texel = (2 * _shadowExtent) / size;
+  _shadowR.crossVectors(WORLD_UP, _shadowDir).normalize();
+  _shadowU.crossVectors(_shadowDir, _shadowR).normalize();
+  const a = Math.round(_shadowC.dot(_shadowR) / texel) * texel;
+  const b = Math.round(_shadowC.dot(_shadowU) / texel) * texel;
+  _shadowTmp.set(0, 0, 0).addScaledVector(_shadowR, a).addScaledVector(_shadowU, b).addScaledVector(_shadowDir, _shadowC.dot(_shadowDir));
+  moon.target.position.copy(_shadowTmp);
+  moon.position.copy(_shadowTmp).addScaledVector(_shadowDir, 35);
+  moon.target.updateMatrixWorld();
+  moon.updateMatrixWorld();
+}
+
 /* One quality ladder for the whole look. Going down: shadows off, bloom low, then resolution in steps.
    Going up again when the frame rate has recovered, so a hitch early in a run does not leave the
    screen soft for the rest of it. A level that drops again within 10 s of being restored is locked. */
@@ -1504,10 +1621,25 @@ function applyQuality(level) {
   const w = three; if (!w) return;
   const shadows = level < 1;
   if (w.moon && w.moon.castShadow !== shadows) w.moon.castShadow = shadows;
+  /* v0.39 3단계: 그림자 맵 해상도도 레더에 연결한다. 프러스텀이 카메라 가시 바닥에 맞춰지므로
+     1024 로도 충분히 선명하다 — 한 단계 내려가면 바로 1024 로 떨어뜨린다.
+     (맵 크기를 바꿀 때는 기존 맵을 버려야 three 가 다시 굽는다.) */
+  if (w.moon) {
+    const want = level < 1 && fxQ === 'high' ? 2048 : 1024;
+    const ms = w.moon.shadow.mapSize;
+    if (ms.x !== want) {
+      ms.set(want, want);
+      if (w.moon.shadow.map) { w.moon.shadow.map.dispose(); w.moon.shadow.map = null; }
+      _shadowExtent = -1;
+    }
+  }
+  /* 가장 낮은 두 단계에서는 후처리 안개 한 겸을 생략한다(재질 안개가 그대로 남아 룩은 유지된다). */
+  qaFadePostK = level >= 3 ? 0 : 1;
   const bq = level < 2 ? fxQualityFromUrl() : 'low';
   if (w.bloom && w.bloom.quality !== bq && bq !== 'off') {
     w.bloom.setQuality(bq);
     if (w.ink) w.ink.setQuality(bq === 'high' ? 'high' : 'low');
+    wireFadeSource();
   }
   const dprSteps = [w.dprCap, w.dprCap, w.dprCap, Math.max(1, w.dprCap - 0.5), Math.max(1, w.dprCap - 1)];
   const d = Math.round(dprSteps[Math.min(level, QL_LEVELS - 1)] * 10) / 10;
@@ -1535,6 +1667,9 @@ function stepQuality(real) {
 function addEntityVisual(kind, shape, opt) {
   const group = art.makeChar(kind, shape, opt);
   three.scene.add(group);
+  /* v0.39: 캐릭터 파츠는 그림(그림자 재질)이므로 안개를 면제하고 종이 결만 얇게 입힌다.
+     혼령·보스는 조준 표적이라 더더욱 어둠에 잠기면 안 된다. */
+  try { if (group) paintCard(group, kind === 'spirit' ? 'spirit' : kind === 'item' ? 'item' : 'figure'); } catch (e) {}
   return group;
 }
 /* 잔상(파츠 리그)은 매 대시마다 새로 만들어진다 — 지오메트리·재질만 놓아 준다(공유 텍스처는 그대로). */
@@ -3502,9 +3637,12 @@ function spiritOrbScreen(s) {
   const rt = projectXZ((s && s.x) || 0, (s && s.z) || 0, yc - rw);
   return { x: c.x, y: c.y, r: Math.max(5, Math.max(Math.abs(c.y - up.y), Math.abs(rt.y - c.y))), x0: offx };
 }
-/* 드로잉 프리뷰: 인식 중인 기호의 잉크 색 */
-const INK_OF = { hline: '#5BE8C4', vline: '#E8654A', vee: '#B48CE8', bolt: '#E8C04A', circle: '#E8C04A', tap: '#F2EAD6', tri: '#C9A6FF', arc: '#C9A6FF', spiral: '#C9A6FF' };
-function inkColorFor(type) { return INK_OF[type] || '#6B6B6B'; }
+/* 드로잉 프리뷰: 인식 중인 기호의 잉크 색 — v0.39 팔레트 토큰에서만 꺼낸다(2D 캔버스는 hex 문자열). */
+const INK_OF = {
+  hline: palHex('jade'), vline: palHex('rust'), vee: palHex('violet'), bolt: palHex('goldHot'), circle: palHex('goldHot'),
+  tap: palHex('paper'), tri: palHex('violetPale'), arc: palHex('violetPale'), spiral: palHex('violetPale')
+};
+function inkColorFor(type) { return INK_OF[type] || palHex('jadeInk'); }
 function updateMarks() {
   const c = $('marks');
   if (!c) return;
@@ -5220,7 +5358,7 @@ function makeSlash(from, to) {
     three.slashes.push(arc);
   } catch (e) {}
   if (three.ink) three.ink.slash(from, to);
-  if (three.lights) three.lights.burst((from.x + to.x) * 0.5, 1.2, (from.z + to.z) * 0.5, { color: 0x5eead4, intensity: 4.5, duration: 0.28 });
+  if (three.lights) three.lights.burst((from.x + to.x) * 0.5, 1.2, (from.z + to.z) * 0.5, { color: palColor('jade'), intensity: 4.5, duration: 0.28 });
   fxinkStat.slashes++;
   if (elemNow === 'fire' && art.trailTex) {
     const tgeo = new THREE.PlaneGeometry(pathR() * 2.2, len);
@@ -9092,15 +9230,6 @@ function applyFxinkAtmo(mapId) {
   root.dataset.q = q;
 }
 
-function sizeOverlayCanvas(c, host, dpr, css) {
-  if (!c) return null;
-  if (c.width !== Math.floor(css.width * dpr) || c.height !== Math.floor(css.height * dpr)) {
-    c.width = Math.max(1, Math.floor(css.width * dpr));
-    c.height = Math.max(1, Math.floor(css.height * dpr));
-    c.style.width = css.width + 'px'; c.style.height = css.height + 'px';
-  }
-  return c;
-}
 function punchAtmoRing(cx, cy, ringR, wave) {
   const root = $('fxinkAtmo');
   if (!root) return;
@@ -9122,121 +9251,50 @@ function fogRgb() {
   const a = (S && S.stage && S.stage.atmo) || {};
   return a.fogCol || CFG.fogColor || [7, 6, 8];
 }
-function drawRingFog(fog, w, h) {
-  const pts = ringScreenPts();
-  if (!pts || !pts.length) return;
-  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
-  pts.forEach(function (p) { if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x; if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y; });
-  const ex = (x0 + x1) / 2, ey = (y0 + y1) / 2, rx = Math.max(10, (x1 - x0) / 2), ry = Math.max(10, (y1 - y0) / 2);
-  const t = (S && S.elapsed) || 0;
-  const pulse = (S && S.fogPulse) || 0;
-  /* 스테이지 색의 먹안개. 심안 가장자리에서 짙고, 화면 먼 곳은 조금 옅어
-     무대의 실루엣(대나무·성문·등불)이 안개 너머로 어렴풋이 읽힌다. */
-  const fc = fogRgb();
-  const hh = S && S.hero ? heroScreen() : { x: w * 0.5, y: h * 0.5 };
-  const rad = Math.max(w, h);
-  const grd = fog.createRadialGradient(hh.x, hh.y, rad * 0.16, hh.x, hh.y, rad * 0.92);
-  grd.addColorStop(0, 'rgba(' + fc.join(',') + ',' + Math.min(0.96, CFG.fogAlpha + 0.04) + ')');
-  grd.addColorStop(0.55, 'rgba(' + fc.join(',') + ',' + CFG.fogAlpha + ')');
-  grd.addColorStop(1, 'rgba(' + fc.join(',') + ',' + Math.max(0.56, CFG.fogAlpha - 0.22) + ')');
-  fog.fillStyle = grd;
-  fog.fillRect(0, 0, w, h);
-  /* Carve the clear ellipse with a soft rim. */
-  fog.save();
-  fog.globalCompositeOperation = 'destination-out';
-  fog.translate(ex, ey); fog.scale(rx, ry);
-  const g = fog.createRadialGradient(0, 0, 0, 0, 0, CFG.fogOuter);
-  g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(CFG.fogInner / CFG.fogOuter * (1 - 0.07 * pulse), 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
-  fog.fillStyle = g;
-  fog.beginPath(); fog.arc(0, 0, CFG.fogOuter, 0, Math.PI * 2); fog.fill();
-  fog.restore();
-  /* v0.37 디오라마 배경: 화면 맨 위는 안개를 조금 덜어 원경 비단 병풍과 무대 실루엣이 읽히게 한다.
-     (전투 시인성은 심안 궤도 안쪽이 담당하고, 여기는 20m 밖 배경만 해당한다.) */
-  fog.save();
-  fog.globalCompositeOperation = 'destination-out';
-  const topFade = fog.createLinearGradient(0, 0, 0, h * 0.34);
-  topFade.addColorStop(0, 'rgba(0,0,0,0.52)');
-  topFade.addColorStop(0.62, 'rgba(0,0,0,0.26)');
-  topFade.addColorStop(1, 'rgba(0,0,0,0)');
-  fog.fillStyle = topFade;
-  fog.fillRect(0, 0, w, h * 0.34);
-  fog.restore();
-  /* Drifting mist along the rim: long thin banks stretched along the edge, pale and dark, slowly sliding. */
-  const n = CFG.fogWisps;
-  const paleImg = glowSprite('wisp-pale', [[0, 'rgba(160,162,158,1)'], [1, 'rgba(160,162,158,0)']], 64);
-  const fogCol = fc.join(',');
-  const fogImg = glowSprite('wisp-fog-' + fogCol, [[0, 'rgba(' + fogCol + ',1)'], [1, 'rgba(' + fogCol + ',0)']], 64);
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * Math.PI * 2 + t * 0.035 * (i % 2 ? 1 : -1) + Math.sin(i * 7.3) * 0.25;
-    const rr = 1.04 + 0.08 * Math.sin(t * 0.4 + i * 1.7);
-    const px = ex + Math.cos(a) * rx * rr, py = ey + Math.sin(a) * ry * rr;
-    const len = rx * (0.32 + 0.12 * Math.sin(t * 0.5 + i * 2.3)), thick = len * 0.28;
-    const pale = i % 3 !== 0;
-    const al = pale ? CFG.fogWispAlpha * (0.6 + 0.4 * Math.sin(t * 0.7 + i)) : 0.3;
-    if (!(al > 0.001) || !(len > 0.5)) continue;
-    fog.save();
-    fog.translate(px, py);
-    fog.rotate(Math.atan2(Math.cos(a) * ry, -Math.sin(a) * rx));
-    fog.globalAlpha = al;
-    fog.drawImage(pale ? paleImg : fogImg, -len, -thick, len * 2, thick * 2);
-    fog.restore();
-  }
-  /* Mist banks are painted after the clear ellipse, so the spirit windows go on top of them too. */
-  punchSpiritLights(fog, w, h);
-}
-/* 혼령 창의 반지름(px): 구슬 지름과 몸 높이에서 뽑아, 혼령 몸+기호가 통째로 들어가는 크기. */
-function spiritLightR(m) {
-  const orbR = (m && m.orbR) || 9;
-  const bodyPx = (m && m.bodyPx) || 36;
-  let r = Math.max(CFG.spiritLightPx || 26, orbR * (CFG.spiritLightOrb || 2.4), bodyPx * (CFG.spiritLightBody || 0.72));
-  if (m && m.boss) r *= CFG.spiritLightBoss || 1.45;
-  return Math.min(CFG.spiritLightMax || 120, r);
-}
-/* 살아 있는 혼령 자리의 먹안개를 지워, 어두운 영역이 혼령을 삼키지 않게 한다.
-   혼령은 주인공이 기호를 읽어야 하는 표적이므로, 안개 밖으로 나가도 그 몸과 기호는 보여야 한다. */
-function punchSpiritLights(fog, w, h) {
-  const marks = (lastMarkMetrics && lastMarkMetrics.marks) || [];
-  if (!marks.length) return;
-  const clear = CFG.spiritLightClear != null ? CFG.spiritLightClear : 0.84;
-  const hole = glowSprite('fog-hole', [[0, 'rgba(0,0,0,1)'], [0.58, 'rgba(0,0,0,0.9)'], [1, 'rgba(0,0,0,0)']], 64);
-  fog.save();
-  fog.globalCompositeOperation = 'destination-out';
-  for (let i = 0; i < marks.length; i++) {
-    const m = marks[i];
-    if (!m || m.onScreen === false) continue;
-    if (!(m.x > -60 && m.x < w + 60 && m.y > -60 && m.y < h + 60)) continue;
-    /* 구슬 중심은 머리 위라, 창은 몸 쪽으로 조금 내려 잡아 어깨·머리까지 밝힌다. */
-    const R = spiritLightR(m);
-    drawGlow(fog, hole, m.x, m.y + ((m.bodyPx || 36) * 0.18), R, R, clear);
-  }
-  fog.restore();
-}
-function drawSightFog() {
-  const c = $('sightFog');
-  const host = $('app') || c;
-  if (!c || !host) return;
-  const box = viewBox();
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  sizeOverlayCanvas(c, host, dpr, box);
-  const w = box.width, h = box.height;
-  const fog = c.getContext('2d');
-  fog.setTransform(1, 0, 0, 1, 0, 0);
-  fog.clearRect(0, 0, c.width, c.height);
-  const playing = !!(S && S.playing);
-  const wave = (S && S.sightWave) || 0;
-  if (!playing) { punchAtmoRing(0, 0, 0, 0); return; }
-  const cx = (S.hero ? heroScreen() : { x: w * 0.5 }).x, cy = (S.hero ? heroScreen() : { y: h * 0.5 }).y;
-  fog.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const hs = S.hero ? heroScreen() : { x: w * 0.5, y: h * 0.5 };
-  /* --hero-x/y 는 CSS 레이어가 읽는다. 같은 값이면 다시 쓰지 않는다(스타일 재계산 방지). */
+/* ---- v0.39 2단계: 2D #sightFog 캔버스 은퇴 ----
+   안개는 이제 재질(cardstock.js)과 후처리(inkwash.js)의 월드 거리 fade-to-dark 가 맡는다.
+   이 함수는 2D 캔버스가 하던 나머지 세 가지 일만 남긴다:
+     (a) CSS 레이어(#mindWave 등)가 읽는 영웅 화면 좌표 --hero-x/--hero-y
+     (b) 심안 파동 순간 대기 레이어에 뚫리는 구멍(punchAtmoRing)
+     (c) 착지 소나의 3D 지면 uniform (예전 그대로)
+   혼령 창(punchSpiritLights)은 필요 없어졌다 — 혼령은 안개 면제 프로필이라 어둠에 잠기지 않는다. */
+function syncHeroCss(hs) {
+  const host = $('app');
+  if (!host || !hs) return;
   const hxs = hs.x.toFixed(1) + 'px', hys = hs.y.toFixed(1) + 'px';
   if (hxs !== _heroCssX) { host.style.setProperty('--hero-x', hxs); _heroCssX = hxs; }
   if (hys !== _heroCssY) { host.style.setProperty('--hero-y', hys); _heroCssY = hys; }
-  drawRingFog(fog, w, h);
+}
+/* 매 프레임: 영웅·심안 링 반경·파동·스테이지 안개색 → 공유 안개 uniform 과 후처리용 화면 좌표. */
+function syncWorldFade() {
+  const hero = S && S.hero;
+  if (!hero) return;
+  const R = ringR();
+  /* 카메라가 바라보는 바닥 방향(화면 위 = 멀어지는 방향)을 안개 타원의 축으로 넘긴다. */
+  let fx = 0, fz = -1;
+  const cam = three && three.camera;
+  if (cam) {
+    const e = cam.matrixWorld.elements;
+    fx = -e[8]; fz = -e[10];
+    if (Math.hypot(fx, fz) < 1e-4) { fx = 0; fz = -1; }
+  }
+  updateWorldFade(hero, R, (S && S.fogPulse) || 0, 12.5, qaFadeColor ? '#00ff00' : fogRgb(), qaFadeMat > 0, fx, fz);
+  WF_POST.post = 0.40 * qaFadePostK;
+  const hs = heroScreen();
+  WF_POST.heroScreen.set(hs.x, hs.y);
+  return hs;
+}
+function drawSightFog() {
+  const hs = (S && S.hero) ? syncWorldFade() : null;
+  if (!hs) { punchAtmoRing(0, 0, 0, 0); return; }
+  syncHeroCss(hs);
+  if (!(S && S.playing)) { punchAtmoRing(0, 0, 0, 0); return; }
+  const box = viewBox();
+  const wave = (S && S.sightWave) || 0;
   /* 4차: 심안 파동은 안개 구멍을 열기만 하고, 궤도 안의 두 번째 동심원 획은 그리지 않음. */
-  if (wave > 0.04 && S.hero) {
-    const holePx = Math.min(w, h) * (0.12 + 0.28 * wave);
-    punchAtmoRing(cx, cy, holePx, wave);
+  if (wave > 0.04) {
+    const holePx = Math.min(box.width, box.height) * (0.12 + 0.28 * wave);
+    punchAtmoRing(hs.x, hs.y, holePx, wave);
   } else {
     punchAtmoRing(0, 0, 0, 0);
   }
@@ -9400,6 +9458,8 @@ function loop(ts) {
     if (three.ink && three.ink.update) three.ink.update(dt);
     if (three.lights) three.lights.update(dt);
     if (three.inkUniforms && S && S.hero) three.inkUniforms.uHeroPos.value.set(S.hero.x, 0, S.hero.z);
+    /* v0.39: 그림자 프러스텀을 그 프레임의 카메라 가시 바닥에 맞춘다(텍셀 스냅 포함). */
+    fitShadowFrustum();
     if (three.bloom && three.bloom.render) three.bloom.render(dt);
     else three.renderer.render(three.scene, three.camera);
     updateMarks();
@@ -10319,6 +10379,13 @@ const GPv2 = {
   },
   pickSpirits: function (shape, n, from, dir) { return pickSpirits(shape, n, from, dir); },
   audioInfo: function () { return audio ? audio.info() : null; },
+  /* v0.39 QA: 같은 순간에 소리 N개를 몰아쳐 보이스 상한·레이트리밋·덕킹을 확인한다. */
+  audioHammer: function (n) {
+    if (!audio) return null;
+    const k = Math.max(1, Math.min(200, n || 40));
+    for (let i = 0; i < k; i++) { audio.slash(0.5); audio.hit(i % 3 === 0); }
+    return audio.info().bus;
+  },
   paperPreview: function (k) { try { return paperPropCanvas(k, 31).toDataURL('image/png'); } catch (e) { return null; } },
   diorama: function () {
     const info = dioramaInfo();
@@ -10327,6 +10394,70 @@ const GPv2 = {
     return info;
   },
   triggerSightWave: triggerSightWave,
+  /* v0.39 QA: 장면 경계·카메라·영웅 좌표(보스 결계처럼 무대가 바뀌는 순간의 진단). */
+  sceneInfo: function () {
+    if (!three || !three.scene) return null;
+    const b = new THREE.Box3().setFromObject(three.scene);
+    return {
+      min: [b.min.x, b.min.y, b.min.z].map(function (v) { return +v.toFixed(2); }),
+      max: [b.max.x, b.max.y, b.max.z].map(function (v) { return +v.toFixed(2); }),
+      cam: three.camera.position.toArray().map(function (v) { return +v.toFixed(2); }),
+      fov: three.camera.fov,
+      hero: S && S.hero ? [+S.hero.x.toFixed(2), +S.hero.z.toFixed(2)] : null,
+      heroObj: three.heroSpr ? three.heroSpr.position.toArray().map(function (v) { return +v.toFixed(2); }) : null,
+      groupPos: three.chunks && three.chunks.group ? three.chunks.group.position.toArray().map(function (v) { return +v.toFixed(2); }) : null,
+      boss: (function () {
+        const b = S && S.boss && S.boss.obj;
+        if (!b) return null;
+        const v = new THREE.Vector3();
+        b.getWorldPosition(v);
+        return { local: b.position.toArray().map(function (q) { return +q.toFixed(2); }), world: v.toArray().map(function (q) { return +q.toFixed(2); }) };
+      })(),
+      fade: { hero: WF.uWfHero.value.toArray(), range: WF.uWfRange.value.toArray() }
+    };
+  },
+  /* v0.39 QA: 장면 안에서 아직 카드스탁 패치를 안 받은 재질을 찾는다(안개 구멍·톤 이질감 진단). */
+  cardAudit: function () {
+    const out = { total: 0, patched: 0, skip: {}, list: [] };
+    if (!three || !three.scene) return out;
+    three.scene.traverse(function (o) {
+      const m = o.material;
+      if (!m) return;
+      const arr = Array.isArray(m) ? m : [m];
+      arr.forEach(function (mat) {
+        if (!mat) return;
+        out.total++;
+        if (mat.userData && mat.userData.cardKind) { out.patched++; return; }
+        const k = (mat.type || '?') + (mat.isShaderMaterial ? ':shader' : '');
+        out.skip[k] = (out.skip[k] || 0) + 1;
+        if (out.list.length < 24) out.list.push({ type: mat.type, col: mat.color ? '#' + mat.color.getHexString() : '', map: !!mat.map, inst: !!o.isInstancedMesh, visible: o.visible });
+      });
+    });
+    return out;
+  },
+  /* v0.39 QA: 층별 안개 끄기(0=끔, 1=켬). 반환값은 현재 안개 상태와 카드스탁 통계. */
+  fadeDebug: function (o) {
+    if (o) {
+      if (o.mat != null) qaFadeMat = o.mat ? 1 : 0;
+      if (o.post != null) qaFadePostK = o.post;
+      if (o.amt != null) WF.uWfAmt.value.x = o.amt;
+      if (o.far != null) WF.uWfAmt.value.y = o.far;
+      if (o.green != null) qaFadeColor = !!o.green;
+      if (o.dbg != null) WF.uWfDbg.value = o.dbg ? 1 : 0;
+    }
+    return {
+      mat: qaFadeMat, post: qaFadePostK, postAmt: WF_POST.post,
+      range: WF.uWfRange.value.toArray(), amt: WF.uWfAmt.value.toArray(),
+      color: [WF.uWfColor.value.r, WF.uWfColor.value.g, WF.uWfColor.value.b],
+      cards: cardStats(), postPass: !!(three && three.bloom && three.bloom.post && three.bloom.post[0] && three.bloom.post[0].setFadeSource),
+      postU: (function () {
+        const p = three && three.bloom && three.bloom.post && three.bloom.post[0];
+        if (!p || !p.uniforms) return null;
+        const u = p.uniforms;
+        return { uWfPost: u.uWfPost && u.uWfPost.value, hasDepth: u.uHasDepth && u.uHasDepth.value, heroScreen: u.uHeroScreen && u.uHeroScreen.value.toArray(), amt: u.uWfAmt && u.uWfAmt.value.toArray(), range: u.uWfRange && u.uWfRange.value.toArray() };
+      })()
+    };
+  },
   drawSightFog: drawSightFog,
 
   fxInfo: function () {
@@ -10335,8 +10466,9 @@ const GPv2 = {
     const atmo = $('fxinkAtmo');
     const slash = three && three.slashes && three.slashes[0];
     const marks = $('marks');
-    const fog = $('sightFog');
     return {
+      /* v0.39: 2D 안개 캔버스는 없다. 대신 월드 안개 uniform 을 그대로 내보낸다. */
+      fog: { canvas: false, range: WF.uWfRange.value.toArray(), amt: WF.uWfAmt.value.toArray(), hero: WF.uWfHero.value.toArray(), cards: cardStats() },
       bloom: three && three.bloom && three.bloom.quality,
       hasBloom: !!(three && three.bloom),
       hasInk: !!(three && three.ink),
@@ -10348,7 +10480,6 @@ const GPv2 = {
       atmoMap: atmo && atmo.dataset && atmo.dataset.map,
       atmoZ: atmo ? +getComputedStyle(atmo).zIndex : 0,
       marksZ: marks ? +getComputedStyle(marks).zIndex : 0,
-      fogZ: fog ? +getComputedStyle(fog).zIndex : 0,
       rimHero: idle && (idle.file1x || idle.file),
       rimZombie: zWalk && (zWalk.file1x || zWalk.file),
       torch: art && art.torchGlowUrl && art.torchGlowUrl(),
@@ -10363,6 +10494,7 @@ const GPv2 = {
     fxQ = q;
     three.bloom.setQuality(q);
     if (three.ink) three.ink.setQuality(q === 'high' ? 'high' : 'low');
+    wireFadeSource();
     applyFxinkAtmo(S && S.mapId);
     return three.bloom.quality;
   },

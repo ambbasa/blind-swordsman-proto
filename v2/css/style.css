@@ -22,9 +22,9 @@ html, body, #app, canvas { touch-action: none; }
 #ink { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; }
 #hud {
   position: absolute; left: 0; right: 0; top: 0; z-index: 8; pointer-events: none;
-  padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 8px;
-  background: linear-gradient(to bottom, rgba(8,8,12,.72), rgba(8,8,12,0));
-  text-shadow: 0 1px 2px #000;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 26px;
+  background: linear-gradient(to bottom, rgba(5,4,4,.88) 0%, rgba(5,4,4,.55) 55%, rgba(5,4,4,0) 100%);
+  text-shadow: none;
 }
 .hud-row { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; min-height: 22px; }
 #timer, #dashLabel, #coinLabel, #lvlLabel, #stageLabel { white-space: nowrap; }
@@ -48,12 +48,6 @@ html, body, #app, canvas { touch-action: none; }
   overflow: auto; overscroll-behavior: none;
 }
 .ov.show { display: flex; }
-.card {
-  width: min(340px, 100%); max-height: 100%;
-  background: #1a1614; border: 1px solid #c9a24a; border-radius: 8px;
-  padding: 16px 14px 14px; box-sizing: border-box;
-  box-shadow: 0 12px 40px #000a; text-align: center; overflow: auto; color: #efe6d0;
-}
 .title-card h1 { margin: 4px 0 6px; font-size: 24px; letter-spacing: .08em; }
 .title-card .tagline { margin: 0 0 6px; font-size: 12px; letter-spacing: .18em; opacity: .8; }
 .title-card .sub { margin: 0 0 10px; font-size: 13px; opacity: .85; }
@@ -135,15 +129,6 @@ h2 { margin: 0 0 8px; font-size: 20px; }
   overflow: hidden;
 }
 .hanji-chip img { width: 36px; height: 36px; display: block; }
-.card {
-  background-color: #EDE3CF;
-  background-image: url(../../assets/v2/bg/hanji-paper.png);
-  background-size: cover;
-  color: #0E0C0A;
-}
-.card h1, .card h2, .card p, .card .sub, .shop-coins { color: #0E0C0A; }
-.card .ad-note { color: #3A3632; }
-
 #beatPulse {
   position: absolute; inset: 0; pointer-events: none; z-index: 3;
   box-shadow: inset 0 0 0 0 rgba(237, 227, 207, 0);
@@ -182,8 +167,8 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 #comboLabel { min-width: 4.5em; }
 #comboLabel.hot { color: #8B1A1A; }
 
-#sightFog { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; }
 /* #sonarRing 2D 캔버스는 제거됨: 소나 파동은 3D 지면 셰이더(inklights.js) 한 겹만 쓴다. */
+/* #sightFog 캔버스도 제거됨(v0.39 2단계): 시야 안개는 재질·후처리의 월드 거리 fade-to-dark 가 맡는다. */
 #mindWave {
   position: absolute; inset: 0; pointer-events: none; z-index: 3;
   background: radial-gradient(circle at var(--hero-x, 50%) var(--hero-y, 50%), rgba(237,227,207,0.0) 0%, rgba(237,227,207,0.0) 40%, transparent 70%);
@@ -216,16 +201,22 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 @font-face { font-family: "InkBrush"; src: url(../fonts/NanumBrushScript.woff2) format("woff2"); font-display: swap; }
 @font-face { font-family: "InkSerif"; src: url(../fonts/GowunBatang-Bold.woff2) format("woff2"); font-weight: 700; font-display: swap; }
 :root {
-  --ink: #0b0a09; --ink-2: #1a1714; --paper: #efe4cc; --paper-dim: #b9ad95;
-  --vermilion: #c8281e; --vermilion-hot: #ff4a36; --gold: #d9b45a; --jade: #2ee6a6;
+  /* v0.39 단일 팔레트: 값의 출본은 js/palette.js 의 PALETTE. 여기 값은 JS 가 늦게 뜨는 동안의 정적 기본값이다.
+     이전 코드가 쓰던 --ink/--paper/--gold/--jade/--siman-* 는 모두 토큰을 가리키는 별칭으로만 남는다. */
+  --sm-ink: #0b0a09; --sm-ink-2: #1a1714; --sm-ink-deep: #05040a; --sm-ink-wash: #2a231c;
+  --sm-paper: #efe4cc; --sm-paper-dim: #b9ad95; --sm-hanji: #ede3cf; --sm-cut-edge: #fbf6ea;
+  --sm-jade: #5be8c4; --sm-jade-ink: #2ee6a6; --sm-jade-pale: #8ff0dd;
+  --sm-vermilion: #c8281e; --sm-vermilion-hot: #ff4a36; --sm-rust: #c45a2a;
+  --sm-gold: #d9b45a; --sm-gold-hot: #e8c04a;
+  --sm-violet: #b48ce8; --sm-violet-pale: #c9a6ff;
+  --sm-mist: #b9c4cc; --sm-amber: #ffb45c; --sm-ember: #ff8a3a;
+  --ink: var(--sm-ink); --ink-2: var(--sm-ink-2); --paper: var(--sm-paper); --paper-dim: var(--sm-paper-dim);
+  --vermilion: var(--sm-vermilion); --vermilion-hot: var(--sm-vermilion-hot); --gold: var(--sm-gold); --jade: var(--sm-jade);
+  --siman-ink: var(--sm-ink); --siman-paper: var(--sm-paper); --siman-jade: var(--sm-jade);
+  --siman-gold: var(--sm-gold); --siman-crimson: var(--sm-vermilion); --siman-radius: 10px;
 }
 body { font-family: "InkSerif", "Apple SD Gothic Neo", "Noto Sans KR", serif; }
 
-#hud {
-  padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 26px;
-  background: linear-gradient(to bottom, rgba(5,4,4,.88) 0%, rgba(5,4,4,.55) 55%, rgba(5,4,4,0) 100%);
-  text-shadow: none;
-}
 #hud .hud-row span, #hud #lvlLabel {
   background: none; border-radius: 0; padding: 0;
   color: var(--paper); font-family: "InkSerif", serif; font-weight: 700; font-size: 13px; letter-spacing: .04em;
@@ -291,6 +282,7 @@ body { font-family: "InkSerif", "Apple SD Gothic Neo", "Noto Sans KR", serif; }
 .ov { background: radial-gradient(ellipse at 50% 45%, rgba(6,5,5,.55), rgba(3,2,2,.88)); }
 .card {
   position: relative; width: min(330px, 100%);
+  max-height: 100%; box-sizing: border-box; text-align: center; overflow: auto;
   background-color: var(--ink-2);
   background-image: radial-gradient(ellipse at 50% 0%, rgba(239,228,204,.07), transparent 60%), url(../../assets/v2/bg/hanji-ink.png);
   background-size: auto, cover;

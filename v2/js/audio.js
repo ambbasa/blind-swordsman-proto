@@ -1,9 +1,13 @@
 /* Original Web Audio synthesis for 심안 v2.
- * No third-party samples. See docs/SOUND.md. */
+ * No third-party samples. See docs/SOUND.md.
+ * v0.39: 소리가 나가는 길을 공용 오디오 버스(audiobus.js)로 옮겼다 — 보이스 슬롯·토큰버킷·
+ *        밀도 덕킹·방 초기반사·소프트니 리미터. 합성 자체(방울·베기·타격·대금)는 그대로다. */
+import { createAudioBus } from './audiobus.js';
 export function createAudio() {
-  let ctx = null, master = null, bgmGain = null, sfxGain = null;
+  let ctx = null, master = null, bgmGain = null, sfxGain = null, bus = null;
   let bgmOn = false, timer = 0, nextBeat = 0, beatI = 0, melodyI = 0;
   let muted = true, quiet = true;
+  let busInfo = null;
 
   const PENTA = [262, 294, 330, 392, 440, 523, 587, 659]; /* C D E G A, daegeum-ish range later shifted */
   /* Shaman's rattle (무당방울): a few shakes, each a cluster of tiny brass bells clinking a few ms apart.
@@ -12,23 +16,30 @@ export function createAudio() {
     ratios: [1, 2.42, 3.93], gains: [1, 0.45, 0.2], decay: [0.22, 0.12, 0.07], peak: 0.06, pitchSpread: 0.35,
     clink: 0.035, reverbSec: 1.4, reverbMix: 0.28 };
   const BELL_PITCH = { hline: 2600, vline: 2950, vee: 3350, bolt: 3800 };
-  let reverb = null;
 
   function ac() {
     if (ctx) return ctx;
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return null;
     ctx = new AC();
-    master = ctx.createGain();
-    master.gain.value = 0.7;
-    master.connect(ctx.destination);
+    /* 버스가 마스터·리미터·방을 모두 들고 있다. master 는 버스의 마스터 게인 별칭. */
+    bus = createAudioBus(ctx, { maxVoices: 8, rate: 30, burst: 9, duck: 0.42, room: 0.6, wet: 0.22 });
+    busInfo = bus;
+    master = bus.master;
+    master.gain.value = muted ? 0 : 0.7;
     sfxGain = ctx.createGain();
     sfxGain.gain.value = 0.9;
-    sfxGain.connect(master);
+    sfxGain.connect(bus.input);
     bgmGain = ctx.createGain();
     bgmGain.gain.value = 0.22;
-    bgmGain.connect(master);
+    bgmGain.connect(bus.input);
     return ctx;
+  }
+
+  /* 한 소리 = 보이스 슬롯 하나. 상한·레이트리밋·밀도 덕킹을 모두 여기서 통과한다. */
+  function voice(level, dur) {
+    if (!bus) return sfxGain;
+    return bus.voice(level == null ? 0.8 : level, ctx.currentTime, dur || 0.25);
   }
 
   function resume() {
@@ -40,7 +51,7 @@ export function createAudio() {
   function setQuiet(mute, noDelay) {
     muted = !!mute;
     quiet = !!mute || !!noDelay;
-    if (master) master.gain.value = muted ? 0 : 0.7;
+    if (bus) bus.setMuted(muted, 0.7); else if (master) master.gain.value = muted ? 0 : 0.7;
     if (quiet && bgmOn) stopBgm();
   }
 
@@ -87,39 +98,21 @@ export function createAudio() {
 
   let lastPans = [];
 
-  /* Synthetic room: decaying stereo noise impulse, softened. */
-  function bellReverb(c) {
-    if (reverb) return reverb;
-    const n = Math.floor(c.sampleRate * BELL.reverbSec);
-    const ir = c.createBuffer(2, n, c.sampleRate);
-    for (let ch = 0; ch < 2; ch++) {
-      const d = ir.getChannelData(ch);
-      let lp = 0;
-      for (let i = 0; i < n; i++) { lp += ((Math.random() * 2 - 1) - lp) * 0.25; d[i] = lp * Math.pow(1 - i / n, 3); }
-    }
-    const conv = c.createConvolver();
-    conv.buffer = ir;
-    const wet = c.createGain();
-    wet.gain.value = BELL.reverbMix;
-    conv.connect(wet); wet.connect(sfxGain);
-    reverb = conv;
-    return reverb;
-  }
-
   function bell(pan, shape, vol) {
     if (quiet) return;
     const c = resume(); if (!c) return;
     const t0 = c.currentTime + 0.005;
     const f0 = BELL_PITCH[shape] || 3000;
+    const V = voice(0.85, BELL.reverbSec * 0.5); if (!V) return;
     const out = c.createGain();
     /* §9.4 묵은 방울: 방울 소리를 50% 크게(vol) */
     out.gain.value = vol == null ? 1 : Math.max(0, Math.min(2.5, vol));
     if (c.createStereoPanner) {
       const panN = c.createStereoPanner();
       panN.pan.setValueAtTime(pan == null ? 0 : Math.max(-1, Math.min(1, pan)), t0);
-      out.connect(panN); panN.connect(sfxGain); panN.connect(bellReverb(c));
+      out.connect(panN); panN.connect(V);
     } else {
-      out.connect(sfxGain); out.connect(bellReverb(c));
+      out.connect(V);
     }
     BELL.shakes.forEach(function (st, si) {
       const sg = BELL.shakeGain[si];
@@ -152,13 +145,14 @@ export function createAudio() {
     const c = resume(); if (!c) return;
     const t0 = c.currentTime + 0.003;
     const f0 = BELL_PITCH[shape] || 3000;
+    const V = voice(0.7, 0.2); if (!V) return;
     const out = c.createGain();
     out.gain.value = 0.8;
     if (c.createStereoPanner) {
       const p = c.createStereoPanner();
       p.pan.setValueAtTime(pan == null ? 0 : Math.max(-1, Math.min(1, pan)), t0);
-      out.connect(p); p.connect(sfxGain);
-    } else out.connect(sfxGain);
+      out.connect(p); p.connect(V);
+    } else out.connect(V);
     for (let b = 0; b < 4; b++) {
       const tb = t0 + Math.random() * 0.03;
       const f = f0 * (1 + (Math.random() - 0.5) * BELL.pitchSpread);
@@ -177,31 +171,20 @@ export function createAudio() {
     noise(t0, 0.02, 'bandpass', 6000, 2.4, BELL.clink * 0.6, out);
   }
 
-  /* 한 순간에 겹치는 소리 수 상한(v0.29 §3.1: 동시 재생 6).
-     한 획에 다섯을 베어도 소리가 찢어지지 않게, 0.25초 안의 소리 수를 세어 넘치면 새 소리를 뺀다. */
-  let voicePans = [];
-  function voiceOk() {
-    const t = (ctx ? ctx.currentTime : 0);
-    voicePans = voicePans.filter(function (q) { return t - q < 0.25; });
-    if (voicePans.length >= 6) return false;
-    voicePans.push(t);
-    return true;
-  }
-
   /* 패링 실패: 허공을 가른 짧은 바람 소리. high=true면 칼이 튕긴 쇳소리(더 높고 짧게). */
   function whiff(high) {
     if (quiet) return;
     const c = resume(); if (!c) return;
-    if (!voiceOk()) return;
     const t0 = c.currentTime;
+    const V = voice(high ? 0.6 : 0.7, 0.12); if (!V) return;
     if (high) {
-      noise(t0, 0.05, 'highpass', 2600, 1.1, 0.13);
-      tone(t0, 1180, 0.05, 0.045, 'triangle', sfxGain, 760);
-      tone(t0, 2360, 0.03, 0.03, 'sine', sfxGain, 1900);
+      noise(t0, 0.05, 'highpass', 2600, 1.1, 0.13, V);
+      tone(t0, 1180, 0.05, 0.045, 'triangle', V, 760);
+      tone(t0, 2360, 0.03, 0.03, 'sine', V, 1900);
       return;
     }
-    noise(t0, 0.09, 'highpass', 900, 0.7, 0.16);
-    tone(t0, 620, 0.08, 0.05, 'sine', sfxGain, 300);
+    noise(t0, 0.09, 'highpass', 900, 0.7, 0.16, V);
+    tone(t0, 620, 0.08, 0.05, 'sine', V, 300);
   }
 
   /* 자석 수집: 개수만큼 올라가는 청동 음계('딩딩딩'). */
@@ -211,34 +194,35 @@ export function createAudio() {
     const t0 = c.currentTime;
     const cnt = Math.max(1, Math.min(8, n || 1));
     const scale = [784, 880, 988, 1175, 1319, 1568, 1760, 1976];
+    const V = voice(0.55, cnt * 0.055 + 0.14); if (!V) return;
     for (let i = 0; i < cnt; i++) {
       const tb = t0 + i * 0.055;
       const f = scale[i % scale.length];
-      tone(tb, f, 0.12, 0.07, 'sine', sfxGain);
-      tone(tb, f * 2.01, 0.08, 0.03, 'sine', sfxGain);
+      tone(tb, f, 0.12, 0.07, 'sine', V);
+      tone(tb, f * 2.01, 0.08, 0.03, 'sine', V);
     }
   }
 
   function drum() {
     if (quiet) return;
     const c = resume(); if (!c) return;
-    if (!voiceOk()) return;
     const t0 = c.currentTime;
-    tone(t0, 72, 0.22, 0.38, 'sine', sfxGain, 36);
-    noise(t0, 0.1, 'lowpass', 420, 0.7, 0.22);
+    const V = voice(0.9, 0.3); if (!V) return;
+    tone(t0, 72, 0.22, 0.38, 'sine', V, 36);
+    noise(t0, 0.1, 'lowpass', 420, 0.7, 0.22, V);
   }
 
   /* 칼날 층: 획이 길수록 음이 조금 높아진다(0~2도). 짧은 획은 낮고 둔탁하게. */
   function slash(lenRatio) {
     if (quiet) return;
     const c = resume(); if (!c) return;
-    if (!voiceOk()) return;
     const t0 = c.currentTime;
+    const V = voice(1.0, 0.14); if (!V) return;
     const k = Math.pow(2, (lenRatio == null ? 1 : clamp01(lenRatio) * 2) / 12);
     /* 샤악 — airy blade */
-    noise(t0, 0.11, 'highpass', 1800 * k, 0.8, 0.28);
-    noise(t0, 0.08, 'bandpass', 4200 * k, 2.4, 0.16);
-    tone(t0, 1400 * k, 0.09, 0.07, 'triangle', sfxGain, 420 * k);
+    noise(t0, 0.11, 'highpass', 1800 * k, 0.8, 0.28, V);
+    noise(t0, 0.08, 'bandpass', 4200 * k, 2.4, 0.16, V);
+    tone(t0, 1400 * k, 0.09, 0.07, 'triangle', V, 420 * k);
   }
   function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
 
@@ -246,14 +230,14 @@ export function createAudio() {
   function hit(perfect) {
     if (quiet) return;
     const c = resume(); if (!c) return;
-    if (!voiceOk()) return;
     const t0 = c.currentTime;
-    tone(t0, 90, 0.16, 0.32, 'sine', sfxGain, 45);
-    tone(t0, 180, 0.1, 0.12, 'triangle', sfxGain, 80);
-    noise(t0, 0.09, 'lowpass', 900, 0.6, 0.2);
+    const V = voice(1.0, 0.2); if (!V) return;
+    tone(t0, 90, 0.16, 0.32, 'sine', V, 45);
+    tone(t0, 180, 0.1, 0.12, 'triangle', V, 80);
+    noise(t0, 0.09, 'lowpass', 900, 0.6, 0.2, V);
     if (perfect) {
-      tone(t0, 1560, 0.08, 0.06, 'sine', sfxGain, 1180);
-      noise(t0, 0.05, 'bandpass', 3200, 2, 0.07);
+      tone(t0, 1560, 0.08, 0.06, 'sine', V, 1180);
+      noise(t0, 0.05, 'bandpass', 3200, 2, 0.07, V);
     }
   }
 
@@ -261,18 +245,20 @@ export function createAudio() {
     if (quiet) return;
     const c = resume(); if (!c) return;
     const t0 = c.currentTime;
-    tone(t0, 70, 0.32, 0.38, 'sine', sfxGain, 32);
-    tone(t0, 140, 0.22, 0.16, 'square', sfxGain, 50);
-    noise(t0, 0.28, 'lowpass', 700, 0.5, 0.28);
-    noise(t0 + 0.02, 0.18, 'bandpass', 1400, 1.2, 0.12);
+    const V = voice(1.0, 0.36); if (!V) return;
+    tone(t0, 70, 0.32, 0.38, 'sine', V, 32);
+    tone(t0, 140, 0.22, 0.16, 'square', V, 50);
+    noise(t0, 0.28, 'lowpass', 700, 0.5, 0.28, V);
+    noise(t0 + 0.02, 0.18, 'bandpass', 1400, 1.2, 0.12, V);
   }
 
   function parry() {
     if (quiet) return;
     const c = resume(); if (!c) return;
     const t0 = c.currentTime;
-    tone(t0, 720, 0.12, 0.16, 'triangle', sfxGain, 240);
-    noise(t0, 0.06, 'highpass', 2500, 1, 0.18);
+    const V = voice(0.95, 0.16); if (!V) return;
+    tone(t0, 720, 0.12, 0.16, 'triangle', V, 240);
+    noise(t0, 0.06, 'highpass', 2500, 1, 0.18, V);
     bell();
   }
 
@@ -281,16 +267,18 @@ export function createAudio() {
     if (quiet) return;
     const c = resume(); if (!c) return;
     const t0 = c.currentTime;
-    tone(t0, 196, 1.3, 0.24, 'sine', sfxGain, 186);
-    tone(t0, 398, 0.9, 0.08, 'triangle', sfxGain, 390);
-    noise(t0, 0.05, 'bandpass', 900, 1.5, 0.12);
+    const V = voice(0.95, 1.4); if (!V) return;
+    tone(t0, 196, 1.3, 0.24, 'sine', V, 186);
+    tone(t0, 398, 0.9, 0.08, 'triangle', V, 390);
+    noise(t0, 0.05, 'bandpass', 900, 1.5, 0.12, V);
   }
   function charge(dur) {
     if (quiet) return;
     const c = resume(); if (!c) return;
     const t0 = c.currentTime;
-    tone(t0, 90, dur, 0.1, 'sawtooth', sfxGain, 360);
-    tone(t0, 180, dur, 0.05, 'sine', sfxGain, 720);
+    const V = voice(0.7, dur); if (!V) return;
+    tone(t0, 90, dur, 0.1, 'sawtooth', V, 360);
+    tone(t0, 180, dur, 0.05, 'sine', V, 720);
   }
 
   function buk(t0, heavy) {
@@ -396,6 +384,7 @@ export function createAudio() {
     stopBgm: stopBgm,
     tick: tick,
     info: function () {
+      const b = busInfo ? busInfo.snapshot() : null;
       return {
         synth: true,
         bpm: 100,
@@ -403,6 +392,7 @@ export function createAudio() {
         muted: muted,
         bgmOn: bgmOn,
         source: 'original-webaudio',
+        bus: b,
         lastPans: lastPans.slice()
       };
     }

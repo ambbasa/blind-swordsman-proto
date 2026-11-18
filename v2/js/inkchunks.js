@@ -842,6 +842,8 @@ export function createChunkWorld(opts) {
       emissiveMap: lit ? tex : null,
       emissiveIntensity: lit ? 0.42 : 1.0
     });
+    /* v0.39: 종이 컷아웃 소품은 cardstock 'paper' 프로필(역광 투과·시트 톤이 가장 강한 층)을 쓴다. */
+    paperMats[k[0]].userData.cardProfile = 'paper';
   });
 
   /* 바닥: 24m 판 하나를 청크마다 깔고, 텍스처 반복을 맞춰 이웃 청크와 무늬가 이어진다.
@@ -886,6 +888,7 @@ export function createChunkWorld(opts) {
     color: groundBase.clone(), roughness: 0.92, metalness: 0.0
   });
   groundMat.userData.inkGround = true; /* game.js 가 지면 소나 셰이더(inklights.js)를 붙이는 표식 */
+  groundMat.userData.cardProfile = 'ground'; /* v0.39: 월드 안개를 가장 짙게 받는 층 */
   const groundGeo = new THREE.PlaneGeometry(CHUNK, CHUNK, 1, 1);
   groundGeo.rotateX(-Math.PI / 2);
   const grounds = [];
@@ -1042,6 +1045,8 @@ export function createChunkWorld(opts) {
     mapId: mapId,
     jars: [],
     center: center,
+    /* v0.39: 청크 배치는 update() 때 지연 생성되므로, 재질 목록을 내보내 game.js 가 한 번에 칠하게 한다. */
+    materials: null,
     stats: { chunks: 0, props: 0, jars: 0, batches: 0, cached: 0, rebuilds: 0 }
   };
 
@@ -1295,6 +1300,15 @@ export function createChunkWorld(opts) {
   world.jarsNear = function (x, z, r) {
     return world.jars.filter(function (j) { return j.alive && Math.hypot(j.x - x, j.z - z) <= (r || 3); });
   };
+
+  /* v0.39: 배치가 쓰는 모든 재질(청크가 나중에 메시를 만들므로 재질은 지금 존재한다). */
+  world.materials = (function () {
+    const list = [];
+    Object.keys(M).forEach(function (k) { if (M[k] && M[k].isMaterial) list.push(M[k]); });
+    Object.keys(paperMats).forEach(function (k) { if (paperMats[k]) list.push(paperMats[k]); });
+    [groundMat, stainMat, jarMat, sealMat].forEach(function (m) { if (m) list.push(m); });
+    return list;
+  })();
 
   world.breakJar = function (j) {
     if (!j || !j.alive) return false;

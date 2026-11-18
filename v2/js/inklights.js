@@ -1,5 +1,9 @@
-/* v2/js/inklights.js — Three.js r170 동적 점광원 풀 & 3D 지면 소나·시야안개 셰이더 모듈. */
+/* v2/js/inklights.js — Three.js r170 동적 점광원 풀 & 3D 지면 소나 셰이더 모듈.
+   v0.39: 지면 전용 시야안개(uSightFog) 블록은 은퇴했다 — 같은 계산을 cardstock.js 의
+   월드 공통 재질 패치가 지면·소품·캐릭터까지 한 규칙으로 나눠 맡는다(이중 안개 방지).
+   여기에는 소나 링 하나만 남는다. */
 import * as THREE from 'three';
+import { color as palColor } from './palette.js';
 
 /** Pool of short-lived point lights for slash/impact flashes.
  *  Lights stay `visible` for their whole life and are "off" at intensity 0: three.js bakes the number of
@@ -19,11 +23,13 @@ export class InkLightPool {
   }
 
   /** Flashes one light at (x, y, z); steals the slot closest to expiring when all are busy. */
-  burst(x, y, z, { color = 0x5eead4, intensity = 4.5, duration = 0.28, distance = 14 } = {}) {
+  burst(x, y, z, { color = 0, intensity = 4.5, duration = 0.28, distance = 14 } = {}) {
     if (!this.pool.length) return;
     let slot = this.pool.find((s) => s.life <= 0);
     if (!slot) slot = this.pool.reduce((a, b) => (a.life < b.life ? a : b));
-    slot.light.color.setHex(color);
+    if (color && color.isColor) slot.light.color.copy(color);
+    else if (color) slot.light.color.setHex(color);
+    else slot.light.color.copy(palColor('jade'));
     slot.light.distance = distance;
     slot.light.position.set(x, y, z);
     slot.light.intensity = intensity;
@@ -56,26 +62,19 @@ export class InkLightPool {
   }
 }
 
-/** Shared uniforms for attachGroundInkShader. All lengths are world units (metres).
- *  uSightFog darkens the GROUND by distance from the hero and by height, so hills and far paving sink while
- *  tall props and enemies keep their silhouette — depth instead of a flat 2D cover. The 2D sight fog
- *  (drawSightFog) still owns the sight-ring boundary, the mist and the spirit windows; the two are tuned
- *  together (3D = terrain depth, 2D = sight edge), not stacked at full strength. */
+/** Shared uniforms for attachGroundInkShader. All lengths are world units (metres). */
 export function createWorldInkUniforms() {
   return {
     uHeroPos: { value: new THREE.Vector3(0, 0, 0) },
-    uSightFog: { value: 0.42 },
-    uSightRadius: { value: 12.5 },
-    uFogHeight: { value: 3.2 },
     uSonarOrigin: { value: new THREE.Vector3(0, 0, 0) },
     uSonarRadius: { value: 0.0 },
     uSonarWidth: { value: 0.4 },
     uSonarAlpha: { value: 0.0 },
-    uSonarColor: { value: new THREE.Color(0x5eead4) }
+    uSonarColor: { value: palColor('jade').clone() }
   };
 }
 
-/** Injects the ground-projected sonar ring (and optional 3D sight fog) into a lit material.
+/** Injects the ground-projected sonar ring into a lit material.
  *  Meant for ground materials only (userData.inkGround); idempotent per material. */
 export function attachGroundInkShader(material, uniforms) {
   if (!material || material.userData._inkShaderAttached) return;
@@ -99,22 +98,12 @@ export function attachGroundInkShader(material, uniforms) {
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
         varying vec3 vInkWorldPos;
-        uniform vec3 uHeroPos;
-        uniform float uSightFog;
-        uniform float uSightRadius;
-        uniform float uFogHeight;
         uniform vec3 uSonarOrigin;
         uniform float uSonarRadius;
         uniform float uSonarWidth;
         uniform float uSonarAlpha;
         uniform vec3 uSonarColor;`)
       .replace('#include <dithering_fragment>', `
-        if (uSightFog > 0.001) {
-          float dHero = length(vInkWorldPos.xz - uHeroPos.xz);
-          float sightMask = smoothstep(uSightRadius * 0.72, uSightRadius * 1.25, dHero);
-          float heightFade = 1.0 - smoothstep(0.0, uFogHeight, max(0.0, vInkWorldPos.y));
-          gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.015, 0.014, 0.016), uSightFog * sightMask * (0.45 + 0.45 * heightFade));
-        }
         if (uSonarAlpha > 0.001) {
           float dSonar = abs(length(vInkWorldPos.xz - uSonarOrigin.xz) - uSonarRadius);
           float ring = 1.0 - smoothstep(0.0, uSonarWidth, dSonar);

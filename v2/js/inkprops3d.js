@@ -632,6 +632,8 @@ export function buildStage3D(THREE_IGNORED, opts) {
       map: gmap, normalMap: gnorm, roughnessMap: grough, normalScale: new THREE.Vector2(0.3, 0.3),
       color: 0x6e6e6e, roughness: 1.0, metalness: 0.0
     });
+    groundMat.userData.inkGround = true;
+    groundMat.userData.cardProfile = 'ground';
     const groundGeo = new THREE.PlaneGeometry(120, 120, 48, 48);
     const gp = groundGeo.getAttribute('position');
     for (let i = 0; i < gp.count; i++) {
@@ -647,10 +649,9 @@ export function buildStage3D(THREE_IGNORED, opts) {
     T.groundMat = groundMat;
 
     /* 대형 먹 번짐 베일 */
-    const veil = new THREE.Mesh(
-      new THREE.PlaneGeometry(72, 72, 1, 1),
-      new THREE.MeshBasicMaterial({ map: inkVeilTexture(), transparent: true, opacity: 0.95, depthWrite: false, color: 0xffffff, fog: true })
-    );
+    const veilMat = new THREE.MeshBasicMaterial({ map: inkVeilTexture(), transparent: true, opacity: 0.95, depthWrite: false, color: 0xffffff, fog: true });
+    veilMat.userData.cardProfile = 'backdrop'; /* v0.39: 이중으로 잠그지 않도록 가장 얇은 안개 */
+    const veil = new THREE.Mesh(new THREE.PlaneGeometry(72, 72, 1, 1), veilMat);
     veil.rotation.x = -Math.PI / 2;
     veil.position.y = 0.012;
     veil.renderOrder = 1;
@@ -658,10 +659,9 @@ export function buildStage3D(THREE_IGNORED, opts) {
   }
 
   /* 원경 파노라마 */
-  const pano = new THREE.Mesh(
-    new THREE.CylinderGeometry(44, 44, 30, 72, 1, true),
-    new THREE.MeshBasicMaterial({ map: panoramaTexture(stageId), side: THREE.BackSide, fog: true, depthWrite: false, color: 0xffffff })
-  );
+  const panoMat = new THREE.MeshBasicMaterial({ map: panoramaTexture(stageId), side: THREE.BackSide, fog: true, depthWrite: false, color: 0xffffff });
+  panoMat.userData.cardProfile = 'backdrop';
+  const pano = new THREE.Mesh(new THREE.CylinderGeometry(44, 44, 30, 72, 1, true), panoMat);
   const panoHome = 11.5;
   pano.position.y = panoHome;
   pano.renderOrder = -2;

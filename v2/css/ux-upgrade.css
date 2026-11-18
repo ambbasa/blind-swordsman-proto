@@ -1,12 +1,6 @@
-/* v2/css/ux-upgrade.css — UX 일관성 및 디자인 토큰 보강 레이어 */
-:root {
-  --siman-ink: #0b0b0d;
-  --siman-paper: #e8e0cf;
-  --siman-jade: #5eead4;
-  --siman-gold: #eab308;
-  --siman-crimson: #ef4444;
-  --siman-radius: 10px;
-}
+/* v2/css/ux-upgrade.css — UX 일관성 레이어.
+   v0.39: 디자인 토큰(:root --siman-*)은 js/palette.js 의 단일 팔레트로 옮겼다(style.css 의 --sm-*).
+   여기에는 규칙만 남긴다 — 토큰을 다시 정의하지 않는다(이중 정의 금지). */
 
 body.drawing-active #hud,
 body.drawing-active #btnSkip,
@@ -19,7 +13,7 @@ body.drawing-active #quickCards {
 .ov .card {
   max-height: min(88dvh, 680px);
   overflow-y: auto;
-  border-radius: var(--siman-radius);
+  border-radius: var(--siman-radius, 10px);
   scrollbar-width: thin;
 }
 

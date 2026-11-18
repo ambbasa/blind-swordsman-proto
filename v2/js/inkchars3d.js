@@ -41,6 +41,9 @@ function planeMesh(part, tex, opt) {
   const m = new THREE.Mesh(geo, mat);
   m.frustumCulled = false;
   m.userData.part = part;
+  /* v0.39: 카드스탁 종이 그라데이션이 이 파츠의 높이·피벗을 알게 한다(림 어둑 + 위쪽 역광). */
+  mat.userData.cardUpK = 1 / Math.max(0.05, h);
+  mat.userData.cardUpC = part.c ? part.c[1] : 0.5;
   if (opt.color) mat.color.setHex(opt.color);
   return m;
 }
