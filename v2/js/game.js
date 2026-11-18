@@ -29,6 +29,9 @@ import {
   SAVE_VERSION, SWORDS, RELICS, SKINS, BRUSHES, MON_CODE, CODEX_GROUPS, EVO_SLOTS, PAT_SLOTS,
   newSaveMeta, swordFx, swordOf, equippedRelics, relicOn, relicSlots, skinOf, brushOf, codexCounts, codexBonus, isBasePat
 } from './meta.js';
+import { InkLightPool, createWorldInkUniforms, attachGroundInkShader } from './inklights.js';
+import { createEventBus } from './core/events.js';
+import { initOverlayShell } from './ui/overlayShell.js';
 const inkFx = new InkFx();
 const telemetry = createTelemetry({ version: '0.35' });
 let frameDt = 1 / 60;
@@ -1441,11 +1444,15 @@ async function makeWorld() {
     dprCap: dprCap, dprNow: dprCap, atmo: new StageAtmosphere(scene, 1)
   };
   try {
-    world.bloom = setupBloom(renderer, scene, camera, {
+    const washPass = createInkWashPass();
+     world.bloom = setupBloom(renderer, scene, camera, {
       quality: fxQ,
-      post: function () { return [createInkWashPass(), createCinematicPass()]; }
+      post: function () { return [washPass, createCinematicPass()]; }
     });
-  } catch (e) { world.bloom = null; }
+    if (world.bloom && world.bloom.depthTexture && washPass.setDepthTexture) {
+       washPass.setDepthTexture(world.bloom.depthTexture, camera.near, camera.far);
+    }
+    } catch (e) { world.bloom = null; }
   try {
     world.ink = new InkParticles(scene, { base: FXINK_BASE, quality: fxQ === 'high' ? 'high' : 'low' });
     /* 바닥 먹 데칼은 밝아진 2.5D 바닥에서 검은 사각형으로 읽혀 끈다. 튐·터짐은 유지. */
@@ -1459,7 +1466,16 @@ async function makeWorld() {
     }, false);
   } catch (e) {}
   world.ql = { level: 0, lowT: 0, highT: 0, cool: 0, lockAt: 99, lastUp: -99, t: 0 };
-  return world;
+  world.lights = new InkLightPool(scene, { maxLights: 6, distance: 14 });
+  world.inkUniforms = createWorldInkUniforms();
+  world.bus = createEventBus();
+  initOverlayShell();
+  scene.traverse(function (obj) {
+    if (obj.isMesh && obj.material && obj.material.isMeshStandardMaterial) {
+       attachGroundInkShader(obj.material, world.inkUniforms);
+    }
+     });
+   return world;
 }
 
 /* One quality ladder for the whole look. Going down: shadows off, bloom low, then resolution in steps.
@@ -5175,7 +5191,8 @@ function makeSlash(from, to) {
     three.slashes.push(arc);
   } catch (e) {}
   if (three.ink) three.ink.slash(from, to);
-  fxinkStat.slashes++;
+  if (three.lights) three.lights.burst((from.x + to.x) * 0.5, 1.2, (from.z + to.z) * 0.5, { color: 0x5eead4, intensity: 4.5, duration: 0.28 });
+   fxinkStat.slashes++;
   if (elemNow === 'fire' && art.trailTex) {
     const tgeo = new THREE.PlaneGeometry(pathR() * 2.2, len);
     const trail = new THREE.Mesh(tgeo, trailMaterial());
@@ -9174,7 +9191,14 @@ function drawSightFog() {
       r: lr, cx: lp.x, cy: lp.y,
       coreAlpha: 0.8, coreWidth: 2.4, haloAlpha: 0.35, haloWidth: 6, glowAlpha: 0.12, innerAlpha: 0
     });
-  }
+    if (three && three.inkUniforms) {
+      three.inkUniforms.uSonarOrigin.value.set(S.landRipple.x, 0, S.landRipple.z);
+       three.inkUniforms.uSonarRadius.value = lr;
+       three.inkUniforms.uSonarAlpha.value = Math.max(0, 1 - lt);
+    }
+  }   else {
+       if (three && three.inkUniforms) three.inkUniforms.uSonarAlpha.value = 0;
+    }
 }
 function loop(ts) {
   raf = requestAnimationFrame(loop);
@@ -9315,7 +9339,9 @@ function loop(ts) {
       sl.length = w;
     }
     if (three.ink && three.ink.update) three.ink.update(dt);
-    if (three.bloom && three.bloom.render) three.bloom.render(dt);
+    if (three.lights) three.lights.update(dt);
+    if (three.inkUniforms && S && S.hero) three.inkUniforms.uHeroPos.value.set(S.hero.x, 0, S.hero.z);
+     if (three.bloom && three.bloom.render) three.bloom.render(dt);
     else three.renderer.render(three.scene, three.camera);
     updateMarks();
     drawSightFog();
