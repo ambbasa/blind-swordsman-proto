@@ -30,7 +30,7 @@ export function setupBloom(renderer, scene, camera, { quality = 'high', override
     dispose();
     if (!P && !post) return;
     const pr = renderer.getPixelRatio();
-    rt = new THREE.WebGLRenderTarget(Math.max(1, size.x * pr), Math.max(1, size.y * pr), { type: THREE.HalfFloatType, samples: P ? P.samples : 0 });
+    rt = new THREE.WebGLRenderTarget(Math.max(1, size.x * pr), Math.max(1, size.y * pr), { type: THREE.HalfFloatType, samples: P ? P.samples : 0 , depthTexture: new THREE.DepthTexture(Math.max(1, size.x * pr), Math.max(1, size.y * pr))});
     composer = new EffectComposer(renderer, rt);
     composer.addPass(new RenderPass(scene, camera));
     if (P) {
@@ -48,7 +48,7 @@ export function setupBloom(renderer, scene, camera, { quality = 'high', override
   return {
     get quality() { return q; }, get composer() { return composer; }, get bloomPass() { return bloom; },
     render(dt) { extra.forEach((p) => p.tick && p.tick(dt)); if (composer) composer.render(dt); else renderer.render(scene, camera); },
-    get post() { return extra; },
+    get post() { return extra; }, get depthTexture() { return rt ? rt.depthTexture : null; },
     setSize(w, h) { size.set(w, h); if (composer) composer.setSize(w, h); },
     /* Quality change without rebuilding the chain: a rebuild would create new pass materials and
        therefore relink ~10 shader programs on the very frame the frame rate was already bad.
