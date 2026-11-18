@@ -2,6 +2,7 @@
    스테이지마다 장터/성문/대나무 골/붉은 달의 실루엣과 조명이 다르다.
    반복 소품은 InstancedMesh 로 묶어 드로우콜을 줄인다. */
 import * as THREE from 'three';
+import { color as palColor } from './palette.js';
 import {
   groundSet, bambooSet, leafTexture, woodSet, plainSet, glowTexture, shadowTexture,
   panoramaTexture, inkVeilTexture, mulberry
@@ -276,7 +277,7 @@ function buildMarket(R, T, P, opts) {
     beams.push({ x: p.x, y: h + 0.95, z: p.z, sx: rw * 1.02, sy: 0.2, sz: 0.22, ry: ry });
     ao.push({ x: p.x, z: p.z, size: w * 1.1 });
     if (!burnt) {
-      lights.push({ x: p.x, y: 1.7, z: p.z, color: 0xff8a3a, intensity: 3.2, dist: 11 });
+      lights.push({ x: p.x, y: 1.7, z: p.z, color: palColor('ember'), intensity: 3.2, dist: 11 });
       pools.push({ x: p.x, z: p.z, size: 5.2, color: new THREE.Color(0.9, 0.42, 0.16) });
     }
   }
@@ -295,7 +296,7 @@ function buildMarket(R, T, P, opts) {
       lanternSpots.push({ x: x + Math.cos(a + Math.PI / 2) * 0.55, z: z + Math.sin(a + Math.PI / 2) * 0.55, y: 2.3 });
       ao.push({ x: x, z: z, size: 1.5 });
       pools.push({ x: x, z: z, size: 3.2, color: new THREE.Color(1.0, 0.5, 0.2) });
-      if (lights.length < 6) lights.push({ x: x, y: 2.2, z: z, color: 0xffa14a, intensity: 3.2, dist: 8 });
+      if (lights.length < 6) lights.push({ x: x, y: 2.2, z: z, color: palColor('amber'), intensity: 3.2, dist: 8 });
     } else if (pick === 1) {
       crates.push({ x: x, y: 0.26, z: z, sx: 0.55, sy: 0.5, sz: 0.45, ry: rnd() * TAU });
       crates.push({ x: x + 0.4, y: 0.2, z: z + 0.3, sx: 0.4, sy: 0.38, sz: 0.36, ry: rnd() * TAU });
@@ -317,7 +318,7 @@ function buildMarket(R, T, P, opts) {
     }
     box.push({ x: p.x, y: 0.16, z: p.z, sx: 0.9, sy: 0.16, sz: 0.22, ry: rnd() * 3, rx: 0.12 });
     box.push({ x: p.x, y: 0.2, z: p.z, sx: 0.9, sy: 0.16, sz: 0.22, ry: rnd() * 3 + 1, rx: -0.1 });
-    lights.push({ x: p.x, y: 0.9, z: p.z, color: 0xff7a2a, intensity: 4.4, dist: 9 });
+    lights.push({ x: p.x, y: 0.9, z: p.z, color: palColor('ember'), intensity: 4.4, dist: 9 });
     pools.push({ x: p.x, z: p.z, size: 4.4, color: new THREE.Color(1.0, 0.45, 0.14) });
     ao.push({ x: p.x, z: p.z, size: 2.4 });
     (T.firePits = T.firePits || []).push({ x: p.x, y: 0.5, z: p.z });
@@ -329,7 +330,7 @@ function buildMarket(R, T, P, opts) {
     (T.lanterns = T.lanterns || []).push({ x: p.x, z: p.z, ry: rnd() * TAU });
     ao.push({ x: p.x, z: p.z, size: 1.5 });
     pools.push({ x: p.x, z: p.z, size: 3.4, color: new THREE.Color(1.0, 0.6, 0.26) });
-    if (i < 2) lights.push({ x: p.x, y: 1.55, z: p.z, color: 0xffb15a, intensity: 2.6, dist: 8 });
+    if (i < 2) lights.push({ x: p.x, y: 1.55, z: p.z, color: palColor('amber'), intensity: 2.6, dist: 8 });
   }
 
   /* 심안 안쪽에 놓이는 작은 살림: 궤짝·항아리·자갈 (플레이를 막지 않는 크기) */
@@ -485,7 +486,7 @@ function buildGateWorld(R, T, P) {
     }
     (T.braziers = T.braziers || []).push({ x: p.x, y: 1.0, z: p.z });
     pools.push({ x: p.x, z: p.z, size: 4.2, color: new THREE.Color(0.55, 0.7, 1.0) });
-    lights.push({ x: p.x, y: 1.2, z: p.z, color: 0x76a6ff, intensity: 3.0, dist: 9 });
+    lights.push({ x: p.x, y: 1.2, z: p.z, color: palColor('moteCold'), intensity: 3.0, dist: 9 });
     ao.push({ x: p.x, z: p.z, size: 1.6 });
   }
   for (let i = 0; i < 26; i++) {
@@ -598,7 +599,7 @@ function buildBamboo(R, T, P) {
   for (let i = 0; i < 3; i++) {
     const p = ringPoint(rnd, 6, 15, 5);
     pools.push({ x: p.x, z: p.z, size: 3.0, color: new THREE.Color(0.35, 0.9, 0.5) });
-    if (i < 2) lights.push({ x: p.x, y: 1.4, z: p.z, color: 0x5adca0, intensity: 1.8, dist: 7 });
+    if (i < 2) lights.push({ x: p.x, y: 1.4, z: p.z, color: palColor('jade'), intensity: 1.8, dist: 7 });
   }
   return { culms: culms, leaves: leaves, rocks: rocks, rubble: rubble, poles: poles, cloth: cloth, planks: planks, pools: pools, ao: ao, lights: lights };
 }
