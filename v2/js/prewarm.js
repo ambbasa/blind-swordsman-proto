@@ -28,20 +28,25 @@ function forEachMaterial(obj, fn) {
   });
 }
 
-function uploadTextures(renderer, mats, extra) {
-  if (!renderer.initTexture) return 0;
-  let n = 0;
+function collectTextures(mats, extra) {
   const seen = new Set();
-  const up = function (t) {
+  const list = [];
+  const add = function (t) {
     if (!t || !t.isTexture || seen.has(t)) return;
-    seen.add(t);
-    try { renderer.initTexture(t); n++; } catch (e) {}
+    seen.add(t); list.push(t);
   };
   mats.forEach(function (mat) {
     if (!mat) return;
-    TEX_SLOTS.forEach(function (k) { if (mat[k]) up(mat[k]); });
+    TEX_SLOTS.forEach(function (k) { if (mat[k]) add(mat[k]); });
   });
-  (extra || []).forEach(up);
+  (extra || []).forEach(add);
+  return list;
+}
+
+function uploadTextures(renderer, mats, extra) {
+  if (!renderer.initTexture) return 0;
+  let n = 0;
+  collectTextures(mats, extra).forEach(function (t) { try { renderer.initTexture(t); n++; } catch (e) {} });
   return n;
 }
 
@@ -78,17 +83,29 @@ export function warmScene(opts) {
       forEachMaterial(group, function (m) { mats.push(m); KEEP.push(m); });
       /* 무대(장면)가 이미 쓰는 재질의 텍스처도 함께 올린다(맵 교체 직후 첫 프레임 끊김 방지). */
       try { forEachMaterial(scene, function (m) { mats.push(m); }); } catch (e) {}
-      const nt = uploadTextures(renderer, mats, opts.textures || []);
-      scene.remove(group);
-      rig = group;              // 재질 dispose 금지 = 프로그램 유지
-      warmed = true;
-      state.phase = 'done';
-      state.textures = nt;
-      state.ms = Math.round(((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0));
-      state.programs = renderer.info && renderer.info.programs ? renderer.info.programs.length : 0;
-      const out = info();
-      if (opts.onDone) opts.onDone(out);
-      resolve(out);
+      /* 텍스처 업로드도 프레임당 몇 장씩 나눈다 — 한 프레임에 수십 장을 올리면 그 프레임만 길게 멈춘다. */
+      const list = collectTextures(mats, opts.textures || []);
+      const perFrame = opts.texPerFrame || 3;
+      let ti = 0;
+      const done = function () {
+        scene.remove(group);
+        rig = group;              // 재질 dispose 금지 = 프로그램 유지
+        warmed = true;
+        state.phase = 'done';
+        state.ms = Math.round(((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0));
+        state.programs = renderer.info && renderer.info.programs ? renderer.info.programs.length : 0;
+        const out = info();
+        if (opts.onDone) opts.onDone(out);
+        resolve(out);
+      };
+      if (!renderer.initTexture || !list.length) { state.textures = 0; done(); return; }
+      const stepTex = function () {
+        const n = Math.min(list.length, ti + perFrame);
+        for (; ti < n; ti++) { try { renderer.initTexture(list[ti]); state.textures++; } catch (e) {} }
+        if (ti < list.length) { nextFrame(stepTex); return; }
+        done();
+      };
+      stepTex();
     };
     const step = function () {
       const t = (typeof performance !== 'undefined' ? performance.now() : Date.now());

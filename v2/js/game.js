@@ -1,4 +1,6 @@
 /* 심안(SIMAN) v2 — 2.5D quarter-view, Three.js, camera-follow dashes.
+   v0.35: 12장 '나락' 지형 규칙(검은 구덩이·0.5m/초 끌림) 제거 · 출전 직후 멈춤 제거 —
+          셰이더/텍스처 예열을 타이틀 여유 프레임으로(10ms 예산) · 바닥 판석 512→256(계산 1/4) · 같은 자리 판 재시작 때 청크 재구축 생략
    v0.31: 판 안 재미 — 강적 깨는 법(장정 갑옷·돌 금·정예 봉인 순서) · 콤보 개편(반감 유지·단계 보상) ·
           정확한 패링(닿기 0.2초 탭) · 카드 개편(멈추지 않는 선택·체감 성장·새 카드 6종·두 원소 칸·진화 5종) · 경험치 곡선
    v0.30: 난이도 모드(수련·정석·고수) · 동적 보정 · 첫 10초 몸통 튜토리얼 · '처음 보는 순간' 규칙 ·
@@ -19,7 +21,7 @@ import { createInkWashPass } from './inkwash.js';
 import { createCinematicPass } from './inkcinematic.js';
 import { createSlashArc } from './inkslash3d.js';
 import { StageAtmosphere } from './inkatmos.js';
-import { createChunkWorld, buildChunkData, chunkOf } from './inkchunks.js';
+import { createChunkWorld, buildChunkData, chunkOf, prebakeGroundStage } from './inkchunks.js';
 import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariants } from './prewarm.js';
 import { InkFx, FX_COLORS } from './inkfx.js';
 import { createTelemetry } from './telemetry.js';
@@ -28,12 +30,21 @@ import {
   newSaveMeta, swordFx, swordOf, equippedRelics, relicOn, relicSlots, skinOf, brushOf, codexCounts, codexBonus, isBasePat
 } from './meta.js';
 const inkFx = new InkFx();
-const telemetry = createTelemetry({ version: '0.34' });
+const telemetry = createTelemetry({ version: '0.35' });
 let frameDt = 1 / 60;
 
 const G = window.GPGestures;
 const SAVE_KEY = 'gesture-proto.v2';
 const FXINK_BASE = '../assets/v2/fx-ink/';
+/* v0.35 QA: 시작 경로 계측 — 타이틀 예열·소개 카드 준비·판 시작·청크 재구축에 걸린 시간(ms).
+   출전 직후 멈춤을 "느낌"이 아니라 숫자로 재기 위한 기록이다(최근 40개만 남는다). */
+const PERF_LOG = [];
+function perfMark(name, ms, extra) {
+  try {
+    PERF_LOG.push(Object.assign({ name: name, ms: Math.round(ms), at: Math.round(performance.now()) }, extra || {}));
+    if (PERF_LOG.length > 40) PERF_LOG.shift();
+  } catch (e) {}
+}
 function fxQualityFromUrl() {
   try {
     const q = new URLSearchParams(location.search).get('fx');
@@ -513,7 +524,8 @@ const STAGES = [
     tip: '마지막 귀물은 장판을 다섯 겹으로 깝니다 — 붉은 예고선을 보고 일섬으로 빠져나가세요.',
     time: 250, eliteAt: 125, bossAt: 182, bossShapes: 11,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 4,
-    terrain: { kind: 'pit', name: '나락 가장자리', line: '나락 가장자리에서는 0.5m/초 끌려갑니다 — 중앙을 지키세요' },
+    /* 12장 지형 규칙 없음 — 검은 나락 구덩이(끌림)는 2026-11-18 창현님 요청으로 제거. */
+    terrain: { kind: 'none', name: '없음', line: '지형 규칙 없음 — 마지막 획에 집중하는 심연' },
     opening: { n: 14, ring: [0.48, 1.0], brute: 4 },
     mix: [[0, { imp: 0.4, brute: 0.26, charger: 0.34 }], [14, { imp: 0.28, brute: 0.26, charger: 0.24, bomber: 0.22 }], [38, { imp: 0.2, brute: 0.24, charger: 0.22, bomber: 0.2, thrower: 0.14 }]],
     waves: [
@@ -553,8 +565,7 @@ const TERRAIN_CFG = {
   bell: { reveal: 2.0, cd: 6 },
   blood: { regen: 0.9, offT: 8 },
   water: { lenMul: 0.7, slow: 0.7 },
-  wall: { every: 30, tele: 1.2, r: 2.0, n: 3 },
-  pit: { drag: 0.5, edge: 1.2 }
+  wall: { every: 30, tele: 1.2, r: 2.0, n: 3 }
 };
 function tHash(a, b, c) {
   let h = Math.imul(a | 0, 374761393) ^ Math.imul(b | 0, 668265263) ^ Math.imul(c | 0, 2246822519);
@@ -562,7 +573,7 @@ function tHash(a, b, c) {
   h ^= h >>> 16;
   return (h >>> 0) / 4294967296;
 }
-/* 세포 격자 하나에 놓이는 둥근 지형 조각(잔해·대숲·혈석·나락) */
+/* 세포 격자 하나에 놓이는 둥근 지형 조각(잔해·대숲·종·혈석) */
 function tPatchAt(x, z, cell, seed, chance, minR, maxR, pad) {
   const cx0 = Math.floor(x / cell), cz0 = Math.floor(z / cell);
   const P = pad || 0;
@@ -644,14 +655,6 @@ function zoneAt(x, z, st) {
     return { kind: 'blood', x: p.x, z: p.z, r: p.r, key: p.key };
   }
   if (T.kind === 'water') { const p = tWaterAt(x, z); return p ? Object.assign({ kind: 'water' }, p) : null; }
-  if (T.kind === 'pit') {
-    const p = tPatchAt(x, z, 7.5, 127, 0.42, 1.4, 2.4, TERRAIN_CFG.pit.edge);
-    if (!p) return null;
-    const d = Math.hypot(x - p.x, z - p.z);
-    if (d <= p.r) return { kind: 'pit', x: p.x, z: p.z, r: p.r, key: p.key, inside: true };
-    if (d <= p.r + TERRAIN_CFG.pit.edge) return { kind: 'pit', x: p.x, z: p.z, r: p.r, key: p.key, edge: true };
-    return null;
-  }
   return null;
 }
 function tSegZone(from, to, st) {
@@ -667,7 +670,7 @@ function terrainInit() {
   S.terrain = {
     kind: (S.stage && S.stage.terrain && S.stage.terrain.kind) || 'none', name: (S.stage && S.stage.terrain && S.stage.terrain.name) || '',
     counts: {}, stumbleT: 0, rootT: 0, ringMul: 1, moon: false, moonT: 0,
-    revealT: 0, bells: {}, stones: {}, wallT: 0, volleyOn: false, volleyHp: 0, dragT: 0, pitN: 0
+    revealT: 0, bells: {}, stones: {}, wallT: 0, volleyOn: false, volleyHp: 0
   };
   telemetry.event('stage_terrain', { stage: S.stageNo || 0, rule: S.terrain.kind });
 }
@@ -948,18 +951,6 @@ function onTick(dt) {
       if (S.hp >= T.volleyHp) { const n = tcount('wall'); tFire('wall', { dodge: true, n: n }); showJudge('화살비를 피했다'); }
     }
   }
-  if (T.kind === 'pit') {
-    const p = zoneAt(S.hero.x, S.hero.z);
-    if (p && p.edge) {
-      const d = Math.hypot(S.hero.x - p.x, S.hero.z - p.z) || 1;
-      const k = C.pit.drag * dt;
-      S.hero.x -= (S.hero.x - p.x) / d * k;
-      S.hero.z -= (S.hero.z - p.z) / d * k;
-      if (three && three.heroSpr) placeGroup(three.heroSpr, S.hero.x, S.hero.z);
-      T.dragT += dt;
-      if (T.dragT >= 0.5) { T.dragT = 0; const n = tcount('pit'); tFire('pit', { pull: +(C.pit.drag * 0.5).toFixed(2), n: n }); }
-    } else T.dragT = 0;
-  }
   /* 지형이 바뀌는 장의 숫자도 남긴다(텔레메트리 요약용). */
   if (T.kind !== 'fog' && T.kind !== 'none' && !T.firedOnce) { T.firedOnce = true; }
 }
@@ -1053,6 +1044,8 @@ const save = { coins: 0, atkLv: 0, hpLv: 0, coinLv: 0, lastSeen: Date.now(), run
 /* v0.33 메타 기본값(무구·유물·외형·붓 자국·도감·수련장·기록) — save.version 3 */
 Object.assign(save, newSaveMeta());
 const qa = { timeScale: 1, noDelay: false, sandbox: false, noMove: false };
+/* ?nowarm=1: 타이틀 예열을 건너뛴다(약한 기기·QA용 탈출구). */
+try { if (new URLSearchParams(location.search).get('nowarm') === '1') qa.skipWarm = true; } catch (e) {}
 let S = null, art = null, three = null, raf = 0, lastTs = 0, toastT = 0;
 const audio = createAudio();
 let idlePending = 0;
@@ -1341,14 +1334,18 @@ function switchMap(id, stageNo) {
   const want = (id && art.atlas && art.atlas.maps && art.atlas.maps[id]) ? id : 'map1';
   const st = stageNo || (S && S.stageNo) || (save.stage || 1);
   const run = function () {
+    const _t0 = performance.now();
     return art.applyMap(three.scene, want, three.map, { stage: st }).then(function (m) {
       three.map = m;
       three.torches = [];
       if (three.atmo) { try { three.atmo.dispose(); } catch (e) {} }
       try { three.atmo = new StageAtmosphere(three.scene, st); } catch (e) { three.atmo = null; }
+      const _t1 = performance.now();
       setupChunkWorld(st, m.id);
+      perfMark('switchMap.chunks', performance.now() - _t1, { stage: st, map: m.id });
       if (S) { S.mapId = m.id; S.mapStage = st; }
       applyFxinkAtmo(m.id);
+      perfMark('switchMap', performance.now() - _t0, { stage: st, map: m.id });
       return { id: m.id, name: m.name, key: m.key, stageId: st };
     });
   };
@@ -1369,7 +1366,9 @@ function setupChunkWorld(stageId, mapId) {
   try {
     three.chunks = createChunkWorld({ stageId: stageId || 1, mapId: mapId || 'map1' });
     three.scene.add(three.chunks.group);
+    const _t0 = performance.now();
     three.chunks.update(0, 0, (S && S.hero) ? S.hero.x : 0, (S && S.hero) ? S.hero.z : 0);
+    perfMark('chunkWorld.build', performance.now() - _t0, { stage: stageId || 1 });
   } catch (e) {
     three.chunks = null;
     if (window.console && console.warn) console.warn('[심안] 청크 월드 생성 실패', e);
@@ -1809,6 +1808,7 @@ function setMode(id) {
 
 /* ---------- game state ---------- */
 function startRun(opts) {
+  const _tRun = performance.now();
   opts = opts || {};
   /* QA sandbox도 장을 지정할 수 있다(v0.32 지형·보스 검증). 지정이 없으면 1장. */
   const stageNo = clamp((opts.stage != null ? opts.stage : (opts.sandbox ? 1 : (save.stage || 1))) | 0, 1, STAGES.length);
@@ -1926,7 +1926,7 @@ function startRun(opts) {
   applyCameraLens();
   applyRingBoost();
   closeArena(true);
-  if (three && three.chunks) three.chunks.reset(0, 0);
+  if (three && three.chunks) { const _tc = performance.now(); three.chunks.reset(0, 0); perfMark('chunksReset', performance.now() - _tc, { stage: stageNo }); }
   renderHud();
   lastTs = 0;
   if (audio) { audio.setQuiet(qa.mute, qa.noDelay); audio.startBgm(); }
@@ -1954,6 +1954,7 @@ function startRun(opts) {
     }
   }
   if (!raf) loop(now());
+  perfMark('startRun', performance.now() - _tRun, { stage: stageNo });
 }
 
 function clearEntities() {
@@ -2668,12 +2669,15 @@ function prewarmRecipes() {
   return R;
 }
 let _warmP = null;
-function warmShaders() {
+/* budget: 프레임당 예열 예산(ms). 타이틀 유휴 예열은 8~12ms로 작게 잡아 화면이 끊기지 않게 한다. */
+function warmShaders(budget) {
   if (!three || !three.renderer) return Promise.resolve();
   if (_warmP) return _warmP;
+  const _tw = performance.now();
   _warmP = warmScene({
     THREE: THREE, renderer: three.renderer, scene: three.scene, camera: three.camera,
     recipes: prewarmRecipes(),
+    budgetMs: budget || 24, texPerFrame: 3,
     textures: [art.trailTex, art.torchGlow, art.glowTex, art.shadowTex,
       art.images && art.images.inkStroke, art.images && art.images.inkLit, art.images && art.images.inkDab]
   }).then(function (r) {
@@ -2685,9 +2689,48 @@ function warmShaders() {
       if (a.group.parent !== three.scene) three.scene.add(a.group);
     } catch (e) {}
     if (window.console && console.info) console.info('[심안] 셰이더 예열 ' + r.ms + 'ms · 레시피 ' + r.recipes + ' · 텍스처 ' + r.textures + ' · 프로그램 ' + r.programs);
+    perfMark('warm', performance.now() - _tw, { budget: budget || 24, recipes: r.recipes, textures: r.textures, programs: r.programs });
     return r;
   }, function () { return null; });
   return _warmP;
+}
+/* ---------- v0.35 타이틀 유휴 예열 ----------
+   증상: 타이틀에서 '출전'을 누르면 게임이 시작되기까지 길게 멈춘다.
+   원인: 셰이더·텍스처 예열(warmShaders)과 바닥 판석 베이킹·청크 월드 구축이
+         모두 그 순간에 몰렸기 때문이다. 소개 카드가 떠 있는 2.6초 동안 하려던 일을
+         타이틀이 떠 있는 여유 프레임으로 앞당긴다(프레임당 예산 10ms).
+     1) warmShaders: 셰이더 링크·텍스처 업로드를 작은 예산으로 분산
+     2) 바닥 판석: 선택한 막의 4장을 한 프레임에 하나씩 미리 굽는다
+     3) 선택한 장의 무대·청크 월드는 previewStageWorld/switchMap이 이미 맡는다 */
+let _titleWarm = false;
+function titlePrewarm() {
+  if (_titleWarm || qa.skipWarm) return _titleWarm;
+  _titleWarm = true;
+  const nextFrame = function (fn) {
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(function () { fn(); });
+    else setTimeout(fn, 16);
+  };
+  const startWarm = function () {
+    if (!three || !three.renderer || !art) return;
+    try { warmShaders(10); } catch (e) {}
+  };
+  const startGround = function () {
+    if (!three || S) return;
+    const sel = clamp(titleSel || save.stage || 1, 1, STAGES.length);
+    const act = actOf(sel);
+    const ids = STAGES.filter(function (s) { return actOf(s.id) === act; }).map(function (s) { return s.id; });
+    ids.sort(function (a, b) { return (a === sel ? -1 : 0) - (b === sel ? -1 : 0); });
+    const queue = ids.slice();
+    const step = function () {
+      if (!queue.length || S) return;         /* 판이 시작되면 손을 뗀다 */
+      try { prebakeGroundStage(queue.shift()); } catch (e) {}
+      nextFrame(step);
+    };
+    nextFrame(step);
+  };
+  /* 첫 화면(타이틀)이 한 번 그려진 뒤에 시작한다. */
+  nextFrame(function () { nextFrame(function () { startWarm(); startGround(); }); });
+  return _titleWarm;
 }
 function closeArena(instant) {
   if (three && three.arena) {
@@ -2975,6 +3018,7 @@ function fillStageIntro(st) {
   if (b) b.textContent = '일섬';
 }
 function beginStage(n) {
+  const _t0 = performance.now();
   const st = stageOf(n);
   titleSel = st.id;
   fillStageIntro(st);
@@ -2984,6 +3028,7 @@ function beginStage(n) {
   /* 소개 카드가 떠 있는 동안 무대를 짓고 셰이더를 데운다 — 카드가 걷힌 뒤 멈추지 않게. */
   if (three && (!three.map || three.map.stageId !== st.id || three.map.id !== st.map)) { applyStageAtmo(st); switchMap(st.map, st.id); }
   Promise.resolve(three && three._mapP).then(function () { return qa.skipWarm ? null : warmShaders(); }).then(function () { ps.ready = true; }, function () { ps.ready = true; });
+  perfMark('beginStage', performance.now() - _t0, { stage: st.id });
   return st.id;
 }
 function goStageNow(force) {
@@ -3848,11 +3893,6 @@ function drawTerrain(ctx, r, hs, t) {
         if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
       });
       ctx.strokeStyle = side[1]; ctx.lineWidth = 1.6; ctx.setLineDash([7, 7]); ctx.stroke(); ctx.setLineDash([]);
-    });
-  } else if (T.kind === 'pit') {
-    tPatchesNear(hx, hz, R, 7.5, 127, 0.42, 1.4, 2.4).slice(0, 5).forEach(function (p) {
-      ell(p.x, p.z, p.r, 'rgba(120,60,200,0.42)', 'rgba(6,4,10,0.72)', 1.6, [4, 5]);
-      ell(p.x, p.z, p.r + C.pit.edge, 'rgba(120,60,200,0.22)', null, 1.1, [2, 8]);
     });
   } else if (T.kind === 'moon') {
     if (T.moon) {
@@ -9442,6 +9482,8 @@ async function boot() {
   if (!idled) showOv('ov-title');
   /* An unclaimed idle reward keeps the old lastSeen, so a refresh does not lose it. */
   persist(!idled);
+  /* v0.35: 출전을 누른 뒤가 아니라 타이틀 여유 프레임에 미리 데운다(셰이더·텍스처·바닥 판석). */
+  try { titlePrewarm(); } catch (e) {}
   if (!raf) loop(now());
   window.GPv2.ready = true;
   window.GPv2.assetsUsed = art.used;
@@ -9465,8 +9507,10 @@ const GPv2 = {
     persist(); renderHud(); refreshTitleHelp(); syncA11yUi();
   },
   setQa: function (o) { Object.keys(o || {}).forEach(function (k) { qa[k] = o[k]; }); if (audio) audio.setQuiet(qa.mute, qa.noDelay); },
-  /* QA 훅: 예열 상태·소요 시간 */
+  /* QA 훅: 시작 경로 계측(타이틀 예열·소개 카드 준비·판 시작·청크 재구축에 걸린 ms) */
   warmNow: function () { return warmShaders(); },
+  perfLog: function () { return PERF_LOG.slice(); },
+  perfClear: function () { PERF_LOG.length = 0; return true; },
   warmInfo: function () { return warmInfo(); },
   /* QA: 지금까지 먹획을 구운 혼령 기호 */
   bakedShapes: function () { return art.spiritInkShapes ? art.spiritInkShapes() : null; },
@@ -9779,8 +9823,8 @@ const GPv2 = {
   terrainProbe: function (x, z, stageNo) {
     const st = stageNo != null ? stageOf(stageNo) : (S && S.stage) || stageOf(1);
     const out = [];
-    const kinds = ['rubble', 'bamboo', 'bell', 'blood', 'pit'];
-    const cell = { rubble: [5.0, 11, 0.42, 0.9, 1.9], bamboo: [6.5, 37, 0.55, 2.0, 3.4], bell: [10.0, 83, 0.4, 0.5, 0.5], blood: [8.0, 97, 0.55, 2.4, 3.2], pit: [7.5, 127, 0.42, 1.4, 2.4] };
+    const kinds = ['rubble', 'bamboo', 'bell', 'blood'];
+    const cell = { rubble: [5.0, 11, 0.42, 0.9, 1.9], bamboo: [6.5, 37, 0.55, 2.0, 3.4], bell: [10.0, 83, 0.4, 0.5, 0.5], blood: [8.0, 97, 0.55, 2.4, 3.2] };
     tPatchesNear(x, z, 12, 7.0, 71, 1, 0, 0);
     kinds.forEach(function (k) {
       const c = cell[k];
@@ -9799,7 +9843,7 @@ const GPv2 = {
         const a = i / 24 * Math.PI * 2;
         const x = S.hero.x + Math.cos(a) * r, z = S.hero.z + Math.sin(a) * r;
         const zz = zoneAt(x, z);
-        const hit = zz && (zz.kind === want) && (want !== 'pit' || zz.edge);
+        const hit = zz && (zz.kind === want);
         if (hit) {
           S.hero.x = x; S.hero.z = z; S.cam.x = x; S.cam.z = z;
           if (three && three.heroSpr) placeGroup(three.heroSpr, x, z);

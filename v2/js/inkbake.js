@@ -80,11 +80,15 @@ function toTex(c, { srgb = false, repeat = 1, aniso = 4 } = {}) {
 }
 
 const GROUND_CACHE = new Map();
-/** 바닥 한 벌: map / normalMap / roughnessMap (CanvasTexture, RepeatWrapping). */
+/** 바닥 한 벌: map / normalMap / roughnessMap (CanvasTexture, RepeatWrapping).
+ *  2026-11-18: 512→256. 판석 베이킹은 픽셀당 보로노이+fbm을 네 번(알베도·러프·높이·노멀) 도는
+ *  CPU 작업이라 512²(26만 픽셀)이 장을 바꿀 때 한 프레임을 크게 멈췄다. 256²면 계산량이 1/4이고,
+ *  바닥은 반복 12번으로 깔려 화면에서 해상도 차이가 거의 보이지 않는다. */
+const GROUND_W = 256;
 export function groundSet(style) {
   const key = JSON.stringify(style);
   if (GROUND_CACHE.has(key)) return GROUND_CACHE.get(key);
-  const W = 512;
+  const W = GROUND_W;
   const seed = style.seed || 11;
   const stoneC = style.stone || [0.34, 0.31, 0.27];
   const dirtC = style.dirt || [0.16, 0.14, 0.12];
@@ -115,7 +119,7 @@ export function groundSet(style) {
         const dd = Math.hypot(x - px, y - py);
         if (dd < d1) { d2 = d1; d1 = dd; ci = k; } else if (dd < d2) d2 = dd;
       }
-      const edge = smooth(2, 16, d2 - d1);              /* 판석 내부 1, 이음매 0 */
+      const edge = smooth(1, 8, d2 - d1);               /* 판석 내부 1, 이음매 0 (256²에 맞춘 픽셀 반경) */
       const grain = pfbm(u, v, 8, 4, seed + 3);
       const wetM = smooth(0.55, 0.74, pfbm(u, v, 3, 4, seed + 29)) * wet;
       const mossM = moss * smooth(0.6, 0.82, pfbm(u, v, 5, 3, seed + 41)) * (1 - edge * 0.7);
@@ -137,7 +141,7 @@ export function groundSet(style) {
       ad[i4 + 1] = Math.max(0, Math.min(255, Math.round(g * 255)));
       ad[i4 + 2] = Math.max(0, Math.min(255, Math.round(b * 255)));
       ad[i4 + 3] = 255;
-      const h = edge * (0.55 + 0.45 * smooth(0, 26, d2 - d1)) + grain * 0.16 - wetM * 0.24;
+      const h = edge * (0.55 + 0.45 * smooth(0, 13, d2 - d1)) + grain * 0.16 - wetM * 0.24;
       hgt[y * W + x] = h;
       const rough = mix(0.95, 0.66, edge) * (1 - wetM * 0.82) + 0.03;
       const rr = Math.round(Math.max(0.06, Math.min(0.98, rough)) * 255);
@@ -146,7 +150,8 @@ export function groundSet(style) {
   }
   ctxOf(alb).putImageData(na, 0, 0);
   rg.putImageData(ri, 0, 0);
-  const normal = normalFromHeight(hgt, W, 2.3);
+  /* 노멀 강도는 픽셀 간격에 반비례한다 — 256²에서는 512²의 절반으로 준다. */
+  const normal = normalFromHeight(hgt, W, 1.15);
   const out = {
     map: toTex(alb, { srgb: true, aniso: 8 }),
     normalMap: toTex(normal, { aniso: 4 }),

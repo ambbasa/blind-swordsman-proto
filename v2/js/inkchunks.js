@@ -35,6 +35,12 @@ const GROUND_STYLE = {
 export function chunkOf(v) { return Math.floor(v / CHUNK); }
 export function chunkKey(cx, cz) { return cx + ':' + cz; }
 
+/* 타이틀 유휴 예열: 한 장의 바닥 판석을 미리 굽는다(groundSet은 캐시된다). */
+export function prebakeGroundStage(stageId) {
+  groundSet(GROUND_STYLE[stageId] || GROUND_STYLE[1]);
+  return stageId;
+}
+
 /* 좌표를 섞어 32bit 시드로: 같은 자리·같은 장은 언제나 같은 무대. */
 export function seedOf(cx, cz, stageId) {
   let h = Math.imul(cx | 0, 374761393) ^ Math.imul(cz | 0, 668265263) ^ Math.imul(stageId | 0, 2246822519);
@@ -1064,8 +1070,29 @@ export function createChunkWorld(opts) {
     rimLight.position.set((hx || 0) + 3.4, 5.6, (hz || 0) - 3.2);
   };
 
+  /* 같은 자리에서 판을 다시 시작할 때: 청크 9개를 통째로 다시 짓지 않고 부순 항아리만 되살린다.
+     (startRun마다 reset이 청크 9개 재구축을 한 프레임에 돌려 출전 직후가 멈추던 원인) */
+  function resetJarsOnly() {
+    world.jars.forEach(function (j) { j.alive = true; j.broken = false; });
+    if (!jarMesh || !world.jars.length || !jarSealMesh) return;
+    jarMesh.visible = true; jarSealMesh.visible = true;
+    world.jars.forEach(function (j, i) {
+      dummy.position.set(j.x, 0, j.z);
+      dummy.rotation.set(0, j.ry, 0);
+      dummy.scale.set(1, 1, 1);
+      dummy.updateMatrix(); jarMesh.setMatrixAt(i, dummy.matrix);
+      dummy.position.set(j.x + Math.sin(j.ry) * 0.3, 0.44, j.z + Math.cos(j.ry) * 0.3);
+      dummy.rotation.set(-0.18, j.ry, 0.1);
+      dummy.updateMatrix(); jarSealMesh.setMatrixAt(i, dummy.matrix);
+      j.slot = i;
+    });
+    jarMesh.instanceMatrix.needsUpdate = true; jarSealMesh.instanceMatrix.needsUpdate = true;
+  }
+
   world.reset = function (hx, hz) {
     Object.keys(brokenKeys).forEach(function (k) { delete brokenKeys[k]; });
+    const cx = chunkOf(hx || 0), cz = chunkOf(hz || 0);
+    if (built && center.cx === cx && center.cz === cz) { resetJarsOnly(); return; }
     built = false;
     center.cx = null; center.cz = null;
     world.update(0, 0, hx || 0, hz || 0);
