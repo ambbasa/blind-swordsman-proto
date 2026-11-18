@@ -1,0 +1,45 @@
+/* v2/css/ux-upgrade.css — UX 일관성 및 디자인 토큰 보강 레이어 */
+:root {
+  --siman-ink: #0b0b0d;
+  --siman-paper: #e8e0cf;
+  --siman-jade: #5eead4;
+  --siman-gold: #eab308;
+  --siman-crimson: #ef4444;
+  --siman-radius: 10px;
+}
+
+body.drawing-active #hud,
+body.drawing-active #btnSkip,
+body.drawing-active #quickCards {
+  pointer-events: none !important;
+  transition: opacity 0.12s ease;
+  opacity: 0.72;
+}
+
+.ov .card {
+  max-height: min(88dvh, 680px);
+  overflow-y: auto;
+  border-radius: var(--siman-radius);
+  scrollbar-width: thin;
+}
+
+.ov .card h2 {
+  margin-top: 0;
+  letter-spacing: 0.04em;
+}
+
+#trainCanvas {
+  width: 100%;
+  max-width: 360px;
+  height: auto;
+  aspect-ratio: 320 / 230;
+  display: block;
+  margin: 10px auto;
+  touch-action: none;
+}
+
+#hud #hpWrap,
+#hud #comboLabel,
+#hud #dashLabel {
+  font-weight: 700;
+}
