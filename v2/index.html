@@ -51,6 +51,11 @@
     <div id="guide" hidden></div>
     <button type="button" id="btnSkip" class="skip-chip" hidden>건너뛰기</button>
     <div id="toast" hidden></div>
+    <!-- v0.31 §5.2 멈추지 않는 레벨업: 화면 아래 22% 카드 3장 -->
+    <div id="quickCards" class="quick-wrap" hidden>
+      <div id="quickList" class="quick-list" role="group" aria-label="강화 선택"></div>
+      <p id="quickNote" class="quick-note"></p>
+    </div>
 
     <div id="ov-title" class="ov show">
       <div class="card title-card">
@@ -73,6 +78,7 @@
         <div class="a11y-row" id="titleA11y" hidden>
           <button type="button" id="btnCb1" class="btn small">색약 팔레트: 끔</button>
           <button type="button" id="btnShake1" class="btn small">화면 흔들림: 켬</button>
+          <button type="button" id="btnLvMode1" class="btn small">레벨업: 멈추지 않음</button>
         </div>
       </div>
     </div>
@@ -133,6 +139,9 @@
           <button type="button" id="btnCb" class="btn small">색약 팔레트: 끔</button>
           <button type="button" id="btnShake" class="btn small">화면 흔들림: 켬</button>
         </div>
+        <div class="a11y-row">
+          <button type="button" id="btnLvMode" class="btn small">레벨업: 멈추지 않음</button>
+        </div>
         <div class="rec-row">
           <button type="button" id="btnRec" class="btn small">기록 보내기: 끔</button>
           <button type="button" id="btnRecOut" class="btn small">기록 내보내기</button>
@@ -145,6 +154,7 @@
       <div class="card">
         <h2>레벨 업</h2>
         <p>강화 하나를 고르세요</p>
+        <p id="evoHint" class="evo-hint" hidden></p>
         <div id="levelChoices" class="choices"></div>
       </div>
     </div>

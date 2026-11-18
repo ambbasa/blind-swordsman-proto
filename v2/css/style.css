@@ -592,3 +592,36 @@ body { font-family: "InkSerif", "Apple SD Gothic Neo", "Noto Sans KR", serif; }
 .gold-star { font-style: normal; margin-left: 8px; font: 700 11px/1 "InkSerif", serif; color: #ffd766; letter-spacing: .1em; vertical-align: middle; }
 #btnTrainOffer { box-shadow: inset 0 0 0 1px var(--gold); color: var(--gold); }
 #btnTrainOffer[hidden] { display: none; }
+
+/* ===== v0.31 §5.2 멈추지 않는 레벨업: 화면 아래 22% 카드 3장 ===== */
+.quick-wrap {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 22%; z-index: 9;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  padding: 0 8px calc(8px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box; pointer-events: none;
+  background: linear-gradient(to top, rgba(8,7,9,.72), rgba(8,7,9,0));
+}
+.quick-wrap[hidden] { display: none; }
+.quick-list { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; pointer-events: auto; }
+.btn.quick-card {
+  margin: 0; width: 100%; min-height: 0; padding: 7px 6px; text-align: left;
+  background: rgba(26,22,20,.9); border-radius: 8px; border: 1px solid rgba(217,180,90,.42);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.4);
+}
+.btn.quick-card strong { display: block; font: 400 14px/1.15 "InkBrush", serif; color: var(--gold); letter-spacing: .02em; }
+.btn.quick-card .qc-lv { display: inline-block; margin-top: 3px; padding: 0 5px; border-radius: 2px; font: 700 9.5px/1.5 "InkSerif", serif; background: var(--gold); color: #0b0a09; }
+.btn.quick-card.new .qc-lv { background: rgba(200,40,30,.9); color: #fff2e8; }
+.btn.quick-card .qc-evo { display: block; margin-top: 2px; font: 700 9px/1.2 "InkSerif", serif; color: #ffd766; }
+.btn.quick-card.evo { border-color: #ffd766; box-shadow: inset 0 0 0 1px rgba(255,215,102,.25), 0 0 10px rgba(255,215,102,.18); }
+.btn.quick-card:active { background: rgba(200,40,30,.28); }
+.quick-note { margin: 4px 0 0; text-align: center; font: 700 10px/1.2 "InkSerif", serif; color: var(--paper-dim); opacity: .8; }
+/* 레벨업 창 위쪽 진화 진행 · 카드의 진화 재료 표시 */
+.evo-hint { margin: 0 0 8px; font: 700 10.5px/1.35 "InkSerif", serif; color: #ffd766; opacity: .9; }
+.evo-hint[hidden] { display: none; }
+.choices .btn.up-card.evo-mat { box-shadow: inset 3px 0 0 #ffd766, inset 0 0 0 1px rgba(255,215,102,.4); }
+.choices .btn.up-card .up-evo { display: block; margin-top: 3px; font: 700 10px/1.25 "InkSerif", serif; color: #ffd766; }
+/* 콤보 단계 보상 표시 */
+#hud #comboLabel.tier {
+  color: #0b0a09; background: var(--gold); border-color: #ffd766;
+  transform: rotate(-3deg) scale(1.06); box-shadow: 0 0 14px rgba(255,215,102,.65);
+}

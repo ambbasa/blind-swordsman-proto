@@ -237,6 +237,65 @@ export function drawUpgrade(id) {
       const a = -0.5 + i * 0.5;
       stroke(ctx, [[x + 6 + Math.cos(a) * 34, y + Math.sin(a) * 34], [x + 6 + Math.cos(a) * 46, y + Math.sin(a) * 46]], 2, 'rgba(255,230,180,0.85)');
     }
+  } else if (id === 'ward') {
+    /* 회전 호신부: 궤도 위의 부적 두 장 */
+    const orb = [];
+    for (let i = 0; i <= 40; i++) { const a = (i / 40) * Math.PI * 2; orb.push([x + Math.cos(a) * 30, y + Math.sin(a) * 30]); }
+    stroke(ctx, orb, 2.5, 'rgba(255,220,130,0.45)');
+    [[0.5, 30], [3.7, 30]].forEach(function (p) {
+      const px = x + Math.cos(p[0]) * p[1], py = y + Math.sin(p[0]) * p[1];
+      ctx.save(); ctx.translate(px, py); ctx.rotate(p[0] + 0.5);
+      ctx.fillStyle = GOLD + '0.95)'; ctx.fillRect(-5, -9, 10, 18);
+      ctx.strokeStyle = 'rgba(20,16,12,0.8)'; ctx.lineWidth = 1.6; ctx.strokeRect(-5, -9, 10, 18);
+      ctx.restore();
+    });
+    ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fillStyle = PAPER + '0.9)'; ctx.fill();
+  } else if (id === 'bolt') {
+    /* 벼락부적: 지그재그 번개 + 예고 원 */
+    const ring = [];
+    for (let i = 0; i <= 36; i++) { const a = (i / 36) * Math.PI * 2; ring.push([x + Math.cos(a) * 32, y + Math.sin(a) * 32]); }
+    stroke(ctx, ring, 2, 'rgba(255,214,110,0.35)');
+    stroke(ctx, [[x - 8, y - 30], [x + 8, y - 8], [x - 6, y - 2], [x + 10, y + 12], [x - 4, y + 14], [x - 2, y + 30]], 6, GOLD + '0.98)');
+    stroke(ctx, [[x - 8, y - 30], [x + 8, y - 8], [x - 6, y - 2], [x + 10, y + 12], [x - 4, y + 14], [x - 2, y + 30]], 2, 'rgba(255,250,220,0.9)');
+  } else if (id === 'echo') {
+    /* 메아리 칼: 같은 경로를 한 번 더 지나는 잔영 */
+    stroke(ctx, [[x - 32, y + 22], [x + 18, y - 26]], 7, 'rgba(190,232,255,0.95)');
+    stroke(ctx, [[x - 20, y + 30], [x + 30, y - 18]], 4, 'rgba(120,200,220,0.5)');
+    for (let i = 0; i < 3; i++) {
+      const u = i / 3;
+      ctx.beginPath();
+      ctx.arc(x - 6 + u * 26, y + 4 - u * 20, 3 + i, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(190,232,255,' + (0.5 - i * 0.12).toFixed(2) + ')'; ctx.fill();
+    }
+  } else if (id === 'reson') {
+    /* 방울 공명: 방울과 퍼지는 물결 */
+    stroke(ctx, [[x, y - 32], [x, y - 22]], 4, 'rgba(150,120,80,0.95)');
+    const bg = ctx.createRadialGradient(x - 4, y - 4, 1, x, y, 16);
+    bg.addColorStop(0, 'rgba(255,240,190,1)'); bg.addColorStop(0.65, GOLD + '1)'); bg.addColorStop(1, 'rgba(110,80,30,1)');
+    ctx.beginPath(); ctx.moveTo(x - 12, y + 14); ctx.quadraticCurveTo(x - 12, y - 14, x, y - 16);
+    ctx.quadraticCurveTo(x + 12, y - 14, x + 12, y + 14); ctx.closePath(); ctx.fillStyle = bg; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x - 16, y + 16); ctx.lineTo(x + 16, y + 16); ctx.strokeStyle = 'rgba(40,28,10,0.85)'; ctx.lineWidth = 3; ctx.stroke();
+    [[24, 0.6], [32, 0.35], [40, 0.2]].forEach(function (p) {
+      const arc = [];
+      for (let i = 0; i <= 16; i++) { const a = -0.6 + (i / 16) * 1.2; arc.push([x + Math.cos(a) * p[0], y + 30 + Math.sin(a) * p[0]]); }
+      stroke(ctx, arc, 2, 'rgba(255,220,130,' + p[1] + ')');
+    });
+  } else if (id === 'counter') {
+    /* 칼집 반격: 칼집에서 되돌아 나가는 일섬 */
+    stroke(ctx, [[x - 26, y - 30], [x - 26, y + 22]], 9, 'rgba(60,50,44,1)');
+    stroke(ctx, [[x - 26, y - 30], [x - 26, y + 22]], 3.5, 'rgba(150,120,80,0.9)');
+    stroke(ctx, [[x - 20, y + 12], [x + 30, y - 24]], 5, 'rgba(255,214,120,0.95)');
+    for (let i = 0; i < 3; i++) {
+      const a = -0.6 + i * 0.5;
+      stroke(ctx, [[x + 4 + Math.cos(a) * 16, y + Math.sin(a) * 16], [x + 4 + Math.cos(a) * 30, y + Math.sin(a) * 30]], 2, 'rgba(255,235,190,0.8)');
+    }
+  } else if (id === 'inkstep') {
+    /* 먹 발자국: 발자국과 먹 웅덩이 */
+    ctx.beginPath(); ctx.ellipse(x, y + 18, 30, 12, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(10,9,12,0.9)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(150,140,126,0.6)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(x - 8, y - 6, 6, 10, -0.2, 0, Math.PI * 2); ctx.fillStyle = PAPER + '0.5)'; ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x + 10, y - 14, 5.5, 9, -0.1, 0, Math.PI * 2); ctx.fillStyle = PAPER + '0.36)'; ctx.fill();
   }
   return c;
 }

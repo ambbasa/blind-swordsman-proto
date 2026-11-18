@@ -1,4 +1,6 @@
 /* 심안(SIMAN) v2 — 2.5D quarter-view, Three.js, camera-follow dashes.
+   v0.31: 판 안 재미 — 강적 깨는 법(장정 갑옷·돌 금·정예 봉인 순서) · 콤보 개편(반감 유지·단계 보상) ·
+          정확한 패링(닿기 0.2초 탭) · 카드 개편(멈추지 않는 선택·체감 성장·새 카드 6종·두 원소 칸·진화 5종) · 경험치 곡선
    v0.30: 난이도 모드(수련·정석·고수) · 동적 보정 · 첫 10초 몸통 튜토리얼 · '처음 보는 순간' 규칙 ·
           색약 팔레트와 화면 흔들림 끄기 · 보스전 시간 예산 실측·조정(§4.3)
    v0.28: 혼령의 창 — 먹안개가 혼령을 삼키지 않게, 링 경계·그 너머·짙은 안개에서도 혼령 몸과 기호가 그대로 읽힌다
@@ -22,7 +24,7 @@ import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariant
 import { InkFx, FX_COLORS } from './inkfx.js';
 import { createTelemetry } from './telemetry.js';
 const inkFx = new InkFx();
-const telemetry = createTelemetry({ version: '0.30' });
+const telemetry = createTelemetry({ version: '0.31' });
 let frameDt = 1 / 60;
 
 const G = window.GPGestures;
@@ -81,7 +83,8 @@ const CFG = {
   hazardR: 2.5, hazardDmg: 1, hazardDelay: 1.05, hazardLife: 2.6,
   zombieMix: [[0, { imp: 1 }], [25, { imp: 0.75, brute: 0.25 }], [45, { imp: 0.55, brute: 0.3, stone: 0.15 }]],
   hpGrowth: 0.18,
-  comboMulStep: 0.05, comboMulCap: 20, pierceFalloff: 0.85,
+  /* v0.31 §3.3 콤보: 1+0.04c(15 상한 → ×1.5). 끊기면 0이 아니라 절반, 연속 두 번 끊기면 0. */
+  comboMulStep: 0.04, comboMulCap: 15, comboMulMax: 1.5, pierceFalloff: 0.85,
   spreadR: 1.5, iceSlowDur: 2, iceSlowMul: 0.5, poisonCloudR: 2, poisonCloudDur: 3,
   dashCount: 1, spawnZombieMs: 900,
   spawnZombieMax: 20,
@@ -185,7 +188,27 @@ const CFG = {
   /* v0.30 §7.3 동적 보정: 같은 장 연패 시 조용히 돕는다(고수 모드 제외). */
   help2Charge: 30, help3Tele: 1.1, helpOfferAt: 4,
   /* v0.30 §4.3 보스전 시간 예산: 목표 여유 비율 1.4~1.8, 수용 기준 '시간 초과 패배 10% 이하'. */
-  budget: { walk: 2.6, stun: 1.2, seal: 2, K: 2, slackMin: 1.4, slackMax: 1.8, overMax: 0.10 }
+  budget: { walk: 2.6, stun: 1.2, seal: 2, K: 2, slackMin: 1.4, slackMax: 1.8, overMax: 0.10 },
+  /* v0.31 §3.2 강적 깨는 법: 장정=갑옷 1겹 · 돌덩이=금 2단계 · 정예=봉인 순서 3개. */
+  bruteArmor: 1, armorDmg: 0.5, breakRimT: 0.3, crackStages: 2, crackSameMul: 0.5,
+  eliteSeqLen: 3, eliteSeqCharge: 20,
+  /* v0.31 §3.3 콤보 단계 보상: 10 참+10 · 15 다음 일섬 폭 ×1.5 · 20 혼백+3·엽전+5 · 30부터 10마다 참+10. */
+  comboTiers: { 10: { charge: 10 }, 15: { wide: 1.5 }, 20: { xp: 3, coin: 5 }, 30: { charge: 10 } },
+  /* v0.31 §3.5 정확한 패링: 공격이 닿기 0.2초 안의 탭 = 피해 2배·참 +10·0.2초 느린 화면. */
+  preciseWin: 0.2, preciseDmgMul: 2, preciseCharge: 10, preciseSlow: 0.2, preciseStun: 0.6,
+  /* v0.31 §5.2 멈추지 않는 선택: 0.3배 1.5초 + 아래 카드 3장, 4초 안에 고르면 자동 추천. */
+  quick: { slow: 0.3, slowDur: 1.5, pickSec: 4.0, zone: 0.22 },
+  /* v0.31 §5.3 새 카드 */
+  ward: { n: 2, r: 2.2, dmg: 0.8, period: 0.35, r2: 2.6, n3: 4, spin: 2.1, manryunR: 1.2, manryunSlow: 0.3 },
+  boltCard: { every: 4.5, r: 2.2, dmg: 2.2, tele: 0.6, range: 6, lvStep: 0.4, lvMax: 5, freeze: 1.5 },
+  echoCard: { delay: 0.5, mul: [0.4, 0.55, 0.7] },
+  resonCard: { dmg: [0.5, 0.8, 1.1] },
+  inkStep: { dur: 2, slow: [0.3, 0.4, 0.5], r: 1.7 },
+  /* 자동 피해(호신부·벼락부적)는 총 피해의 25%를 넘지 않는다 — 제스처 정체성 유지(§17-4). */
+  /* v0.31 §5.5 판 안 경험치: 곡선(7+4n+0.6n²)이 정해졌으니, 목표 레벨(1장 4~5·12장 8~9)에 맞게
+     한 마리의 경험치 양을 맞춘다. v0.23 이후 연쇄·참·자동으로 처치 밀도가 2~3배가 되어 0.3으로 낮춤. */
+  xpScale: 0.2,
+  autoCap: 0.25
 };
 /* v0.30 §7.2 난이도 모드: 예고 ×, 받는 피해 ×(최소 1), 원귀 속도 ×, 보스 무늬 ±, 별 상한, 엽전 ×.
    고수는 12장을 클리어해야 열린다(§17 추천안: 수련 모드 별 상한 2개 유지). */
@@ -214,17 +237,38 @@ function modeCoin() { return curMode().coin; }
 function starCap() { return curMode().starCap; }
 
 const RUN_UPGRADES = [
-  { id: 'dmg', name: '돌진 데미지', desc: '일섬이 더 큰 상처를 남깁니다.', maxLv: 99 },
+  /* §5.1: 체감식 성장 — 1레벨 +1, 그 뒤 +0.8·+0.6·+0.5, 이후 +0.4. 최대 8레벨. */
+  { id: 'dmg', name: '돌진 데미지', desc: '일섬이 더 큰 상처를 남깁니다.', maxLv: 8, steps: [1, 0.8, 0.6, 0.5, 0.4, 0.4, 0.4, 0.4] },
   { id: 'width', name: '경로 폭', desc: '베기 선이 넓어져 더 많은 것을 스칩니다.', maxLv: 6 },
   { id: 'dash', name: '일섬 횟수', desc: '같은 모양 혼령 방향으로 한 번 더 돌진합니다.', maxLv: 4 },
   { id: 'ring', name: '심안 반경', desc: '심안(먹안개)이 넓어집니다. Lv3이 최대입니다.', maxLv: 3 },
   { id: 'charge', name: '참(斬) 게이지', desc: '참 게이지가 더 빨리 차오릅니다.', maxLv: 5 },
-  { id: 'heal', name: '체력 회복', desc: '체력 +5, 이번 판 최대 체력 +2.', maxLv: 99 },
+  { id: 'heal', name: '체력 회복', desc: '체력 +5, 이번 판 최대 체력 +2(최대 체력은 3번까지).', maxLv: 99 },
   { id: 'perfect', name: '정확한 획', desc: '획을 깔끔하게 그릴수록(인식 정확도 기준 이상) 일섬이 더 깊이 듭니다.', maxLv: 3 },
   { id: 'parry', name: '칼집 각성', desc: '칼집 패링이 충격파를 내고 참 게이지를 채웁니다.', maxLv: 3 },
   { id: 'ice', name: '얼음 각인', desc: '얼음 일섬 — 빙결과 파열이 강해집니다.', maxLv: 3 },
   { id: 'fire', name: '화염 각인', desc: '화염 일섬 — 연소가 길고 아프게 붙습니다.', maxLv: 3 },
-  { id: 'poison', name: '독 각인', desc: '독 일섬 — 중첩 상한과 독구름이 커집니다.', maxLv: 3 }
+  { id: 'poison', name: '독 각인', desc: '독 일섬 — 중첩 상한과 독구름이 커집니다.', maxLv: 3 },
+  /* v0.31 §5.3 새 카드 6장: 자동(호신부·벼락부적)·일섬(메아리)·혼령(공명)·패링(반격)·착지(먹 발자국) */
+  { id: 'ward', name: '회전 호신부', desc: '부적 2개가 몸 둘레를 돕니다. 접촉 0.8 피해.', maxLv: 3, auto: true },
+  { id: 'bolt', name: '진노의 벼락부적', desc: '4.5초마다 무리 한가운데에 낙니다. 예고 0.6초.', maxLv: 5, auto: true },
+  { id: 'echo', name: '메아리 칼', desc: '일섬 0.5초 뒤 같은 경로에 잔영이 한 번 더 지나갑니다.', maxLv: 3 },
+  { id: 'reson', name: '방울 공명', desc: '혼령이 붙는 순간 그 원귀에게 피해를 줍니다.', maxLv: 3 },
+  { id: 'counter', name: '칼집 반격', desc: '정확한 패링 성공 시 가장 가까운 혼령으로 자동 일섬.', maxLv: 2 },
+  { id: 'inkstep', name: '먹 발자국', desc: '착지 자리에 먹 웅덩이 2초. 지나는 적이 느려집니다.', maxLv: 3 }
+];
+/* v0.31 §5.4 진화 레시피: 재료 카드에 금빛 모서리와 짝 이름을 적고, 레벨업 창에 진행을 보여 준다. */
+const EVO_RECIPES = [
+  { key: 'frostNova', name: '빙결 참격(절대영도)', a: ['ice'], b: 'width', bLv: 2 },
+  { key: 'fireTrail', name: '업화 연쇄', a: ['fire'], b: 'dash', bLv: 2 },
+  { key: 'poisonSpread', name: '만독 쇄도', a: ['poison'], b: 'charge', bLv: 2 },
+  { key: 'iceCleave', name: '빙참(氷斬)', a: ['ice'], b: 'charge', bLv: 2 },
+  { key: 'myriadBell', name: '만종(萬鐘)', a: [], b: 'dash', bLv: 2, bell: true },
+  { key: 'manryun', name: '만륜(萬輪)', a: ['ward'], aLv: 3, b: 'ring', bLv: 3 },
+  { key: 'noebing', name: '뇌빙(雷氷)', a: ['bolt'], aLv: 3, b: 'ice', bLv: 1 },
+  { key: 'cheonjong', name: '천종(千鐘)', a: ['reson'], aLv: 3, b: 'dash', bLv: 2 },
+  { key: 'gwigeom', name: '귀검(歸劍)', a: ['counter'], aLv: 2, b: 'parry', bLv: 2 },
+  { key: 'steam', name: '증기 폭발', a: ['ice'], aLv: 1, b: 'fire', bLv: 1 }
 ];
 
 /* ---------- 스테이지 ----------
@@ -517,7 +561,9 @@ function now() { return performance.now(); }
 
 const save = { coins: 0, atkLv: 0, hpLv: 0, coinLv: 0, lastSeen: Date.now(), runs: 0, stage: 1, stars: {}, bestScore: 0, totemTip: false, muted: false,
   /* v0.30: 난이도 모드 · 첫 경험 기록(저장 단위) · 접근성 · 같은 장 연패 · 수련 권유 기록 */
-  mode: 'jeongseok', tutorialDone: 0, moments: {}, a11y: { colorblind: 0, shake: 0 }, streak: null, trainOffered: null };
+  mode: 'jeongseok', tutorialDone: 0, moments: {}, a11y: { colorblind: 0, shake: 0 }, streak: null, trainOffered: null,
+  /* v0.31: 레벨업 방식(quick = 멈추지 않는 선택, pause = 멈추고 고르기) */
+  levelMode: 'quick' };
 const qa = { timeScale: 1, noDelay: false, sandbox: false, noMove: false };
 let S = null, art = null, three = null, raf = 0, lastTs = 0, toastT = 0;
 const audio = createAudio();
@@ -533,11 +579,17 @@ function coinMult() { return 1 + save.coinLv * CFG.coinStep + (S && S.runCoin ||
 /* Dash damage = (base + upgrades) x combo x meta attack. */
 function dashDmg() {
   const base = (S && S.dashDmg) || CFG.dashDmg;
-  const combo = 1 + (CFG.comboMulStep || 0) * Math.min(CFG.comboMulCap || 20, (S && S.combo) || 0);
-  return base * combo * (1 + atkBonus());
+  return base * comboMul() * (1 + atkBonus());
+}
+/* §3.3: 1 + 0.04c, 15에서 상한 ×1.5. */
+function comboMul() {
+  const c = (S && S.combo) || 0;
+  return Math.min(CFG.comboMulMax || 1.5, 1 + (CFG.comboMulStep || 0.04) * Math.min(CFG.comboMulCap || 15, c));
 }
 function pathR() {
   let r = (S && S.pathR) || CFG.pathRadius;
+  /* §3.3 15콤보 보상: 다음 일섬 한 번만 경로 폭 +50%. */
+  if (S && S.pathWideN > 0) r *= (CFG.comboTiers[15] || {}).wide || 1.5;
   return r;
 }
 
@@ -547,7 +599,7 @@ function loadSave() {
     if (!raw) return;
     const o = JSON.parse(raw);
     ['coins', 'atkLv', 'hpLv', 'coinLv', 'lastSeen', 'runs', 'stage', 'stars', 'bestScore', 'totemTip', 'muted',
-      'mode', 'tutorialDone', 'moments', 'a11y', 'streak', 'trainOffered'].forEach(function (k) {
+      'mode', 'tutorialDone', 'moments', 'a11y', 'streak', 'trainOffered', 'levelMode'].forEach(function (k) {
       if (o[k] != null) save[k] = o[k];
     });
     if (!save.stars || typeof save.stars !== 'object') save.stars = {};
@@ -556,6 +608,7 @@ function loadSave() {
     save.a11y.colorblind = save.a11y.colorblind ? 1 : 0;
     save.a11y.shake = save.a11y.shake ? 1 : 0;
     if (!MODES[save.mode]) save.mode = 'jeongseok';
+    if (save.levelMode !== 'pause' && save.levelMode !== 'quick') save.levelMode = 'quick';
     if (save.mode === 'gosu' && !gosuUnlocked()) save.mode = 'jeongseok';
     save.tutorialDone = save.tutorialDone ? 1 : 0;
     save.stage = clamp(save.stage | 0 || 1, 1, STAGES.length);
@@ -607,7 +660,11 @@ function fillHp() {
   const more = $('hpMore');
   if (more) more.textContent = n > show ? '+' + (n - show) : '';
 }
-function xpNeed(lv) { return CFG.xpBase + (lv - 1) * CFG.xpStep; }
+/* v0.31 §5.5 판 안 경험치 곡선: 7 + 4(lv-1) + 0.6(lv-1)^2 — 첫 3레벨은 빠르고 8레벨 이후는 느리다. */
+function xpNeed(lv) {
+  const n = Math.max(1, lv | 0) - 1;
+  return Math.round(7 + 4 * n + 0.6 * n * n);
+}
 function renderHud() {
   if (!S) {
     $('timer').textContent = '—';
@@ -658,6 +715,7 @@ function setMuted(m) {
 function pauseRun() {
   if (!S || !S.playing || S.paused) return false;
   S.paused = 'manual';
+  if (S.quick) { const q = recommendedPick(); if (q) pickQuick(q, true); else closeQuickCards(); }
   hideGuide();
   showOv('ov-pause');
   if (audio) audio.stopBgm();
@@ -674,6 +732,7 @@ function resumeRun() {
 function quitRun() {
   const had = !!S;
   if (S) { S.playing = false; S.paused = null; S.dash = null; S.dashQueue = []; }
+  closeQuickCards();
   const sk = $('btnSkip');
   if (sk) sk.hidden = true;
   hideGuide();
@@ -919,6 +978,18 @@ function syncA11yUi() {
   [['btnShake', '화면 흔들림'], ['btnShake1', '화면 흔들림']].forEach(function (p) {
     const b = $(p[0]); if (b) { b.textContent = p[1] + ': ' + (sh ? '줄임' : '켬'); b.classList.toggle('on', sh); }
   });
+  /* v0.31 §5.2 레벨업 방식: 멈추지 않는 선택(기본) / 멈추고 고르기 */
+  const pz = save.levelMode === 'pause';
+  ['btnLvMode', 'btnLvMode1'].forEach(function (id) {
+    const b = $(id);
+    if (b) { b.textContent = '레벨업: ' + (pz ? '멈추고 고르기' : '멈추지 않음'); b.classList.toggle('on', pz); }
+  });
+}
+function setLevelMode(mode) {
+  save.levelMode = mode === 'pause' ? 'pause' : 'quick';
+  persist();
+  syncA11yUi();
+  return save.levelMode;
 }
 /* §8.2 저장 단위 기록: 한 번 본 순간은 다시 늦추지 않는다(무늬·패턴·기물·칼 튕김·참). */
 function seen(k) { return !!(save.moments && save.moments[k]); }
@@ -1191,6 +1262,7 @@ function startRun(opts) {
   const stageNo = opts.sandbox ? 1 : clamp((opts.stage != null ? opts.stage : (save.stage || 1)) | 0, 1, STAGES.length);
   const st = stageOf(stageNo);
   hideOvs();
+  closeQuickCards();
   clearEntities();
   /* 소개 카드를 거치지 않고 바로 시작하는 경로(QA·다시 버튼)도 예열은 반드시 거친다.
      다만 QA에서 소프트웨어 GL이라 셰이더 컴파일이 분 단위가 되는 환경이면 qa.skipWarm으로 빠진다. */
@@ -1230,7 +1302,13 @@ function startRun(opts) {
     /* v0.30: 난이도·동적 보정·첫 경험 */
     mode: curMode().id, bossShapeAdj: curMode().bossShapes, teleMul: 1, streak: 0, help: [],
     tutorial: null, tutSlow: 1, newShape: null, chargeGuide: 0, totemGuide: 0, bounceArrow: 0,
-    slowMul: 1, slowMulT: 0, noScore: !!opts.replay, goldStar: false, bossSeenAt: 0
+    slowMul: 1, slowMulT: 0, noScore: !!opts.replay, goldStar: false, bossSeenAt: 0,
+    /* v0.31: 판 안 재미 — 콤보 단계·파훼·멈추지 않는 선택·새 카드·자동 피해 비중 */
+    pathWideN: 0, comboBreakN: 0, comboTierN: 0, comboFlash: 0, comboDrop: null,
+    boltT: 0, bolts: [], echoes: [], inkSteps: [], wardSpin: 0, wardTick: 0,
+    floorDash: 0, healMaxN: 0, forcePauseLv: false, quick: null,
+    autoDmg: 0, manualDmg: 0, stopT: 0, levelUps: 0,
+    elemOrder: [], elemSlots: [], elemSlotN: 1, elemIdx: 0
   };
   S.runNo = opts.sandbox ? SHAPE_UNLOCK.length : stageNo;
   S.pool = opts.sandbox ? SHAPE_UNLOCK.slice() : (st.shapes || SHAPE_UNLOCK.slice()).slice();
@@ -1824,6 +1902,8 @@ function spawnSpirit(opts) {
 }
 function spawnBoss(opts) {
   opts = opts || {};
+  /* §5.2 보스전은 멈추는 창을 쓴다 — 열려 있던 빠른 카드는 추천으로 닫는다. */
+  if (S && S.quick) { const q = recommendedPick(); if (q) pickQuick(q, true); else closeQuickCards(); }
   const ring = CFG.zombieRing || [10, 14];
   const p = opts.x != null ? { x: opts.x, z: opts.z } : ringPos(opts.r || 16);
   const seq = opts.seq || pickSeq(opts.nShapes || CFG.bossShapes);
@@ -2075,6 +2155,10 @@ function spawnZombie(opts) {
   };
   e.obj = addEntityVisual('zombie', type);
   placeGroup(e.obj, e.x, e.z);
+  /* v0.31 §3.2 강적 깨는 법: 장정=갑옷 1겹 · 돌덩이=금 2단계 · 정예=봉인 순서 3개. */
+  if (type === 'brute') { e.armor = CFG.bruteArmor || 1; e.armored = true; e.shapeOv = null; }
+  else if (type === 'stone') { e.cracks = 0; e.hasCracks = true; e.lastShape = null; }
+  else if (type === 'elite') { e.eliteSeq = true; e.seq = pickSeq(CFG.eliteSeqLen || 3); e.seqI = 0; }
   /* v0.23 변주 원귀: 테두리 빛으로 종류를 구분한다(돌진=청, 투척=보라, 자폭=주황). */
   if (def.tint && e.obj && e.obj.userData && e.obj.userData.rim && e.obj.userData.rim.material && e.obj.userData.rim.material.color) {
     e.obj.userData.rim.material.color.setHex(def.tint);
@@ -2509,8 +2593,14 @@ function spiritShape(s) {
   if (s.kind === 'spirit' && s.target && s.target.isTotem) return s.target.shape;
   if (S && S.bellT > 0 && S.bellShape) return S.bellShape;
   if (s.kind === 'spirit' && s.target && s.target.isClone && S && S.boss && S.boss.alive) return S.boss.seq[S.boss.seqI] || s.shape;
+  /* v0.31 §3.2 강적 깨는 법: 갑이 깨지거나 돌에 금이 가면 혼령 무늬가 판 중에 바뀐다. */
+  if (s.kind === 'spirit' && s.target && s.target.alive && s.target.shapeOv) return s.target.shapeOv;
   if (s.kind === 'spirit' && s.target && s.target.isBoss && s.target.alive && s.target.state === 'seal') return 'square';
   if (s.kind === 'spirit' && s.target && s.target.isBoss && s.target.alive && s.target.seq) {
+    return s.target.seq[s.target.seqI] || s.shape;
+  }
+  /* 정예 봉인 순서: 지금 차례의 무늬만 혼령에 뜬다. */
+  if (s.kind === 'spirit' && s.target && s.target.alive && s.target.seq && s.target.seqI != null) {
     return s.target.seq[s.target.seqI] || s.shape;
   }
   return s.isBoss ? s.seq[s.seqI] : s.shape;
@@ -2558,7 +2648,23 @@ function elemNameOf(el) { return el === 'ice' ? '얼음' : el === 'fire' ? '화�
 function curElem() {
   if (!S) return null;
   if (S.tempElem && S.tempElem.t > 0) return S.tempElem.el;
+  /* §5.4 두 번째 원소 칸: 일섬마다 두 원소가 번갈아 실린다. */
+  const sl = S.elemSlots || [];
+  if (sl.length >= 2) return sl[(S.elemIdx || 0) % 2];
   return S.dashElem;
+}
+/** §5.4 원소 칸: 각인 하나가 Lv2가 되면 두 번째 칸이 열린다. */
+function refreshElemSlots() {
+  if (!S) return [];
+  S.elemOrder = S.elemOrder || [];
+  ['ice', 'fire', 'poison'].forEach(function (el) {
+    if (elemLv(el) > 0 && S.elemOrder.indexOf(el) < 0) S.elemOrder.push(el);
+  });
+  const maxLv = Math.max(elemLv('ice'), elemLv('fire'), elemLv('poison'));
+  S.elemSlotN = maxLv >= 2 ? 2 : 1;
+  S.elemSlots = S.elemOrder.slice(0, S.elemSlotN);
+  if (S.elemSlots.length) S.dashElem = S.elemSlots[0];
+  return S.elemSlots;
 }
 function elemIceDur() { return (CFG.iceDur || 2.5) + (CFG.iceDurStep || 0.5) * Math.max(0, elemLv('ice') - 1); }
 function elemShatterDmg() { return (CFG.shatterDmg || 4) + (CFG.shatterStep || 1) * Math.max(0, elemLv('ice') - 1); }
@@ -2983,6 +3089,8 @@ function drawOverlays(ctx, r, hs) {
   drawHeroElement(ctx, t);
   /* 9) 체력이 깎인 원귀의 체력 막대 (심안 안이거나 혼령이 붙은 적만) */
   drawEnemyBars(ctx);
+  /* v0.31: 파훼 표시·정예 봉인 순서·호신부·벼락 예고·먹 발자국 */
+  drawV31(ctx, r, hs, t);
   /* 7) 칼집 패링 섬광 */
   if (S.parryFlash > 0) {
     const k = clamp(S.parryFlash / 0.12, 0, 1);
@@ -3014,6 +3122,115 @@ function drawOverlays(ctx, r, hs) {
     });
     ctx.restore();
   }
+}
+function drawV31(ctx, r, hs, t) {
+  if (!S) return;
+  const wpp = worldPerCss();
+  S.zombies.forEach(function (z) {
+    if (!z.alive || z.isBoss) return;
+    const zh = (z.obj && z.obj.userData && z.obj.userData.worldH) || 2.4;
+    const p = projectXZ(z.x, z.z, zh * 0.9);
+    if (dist(z, S.hero) > ringR() * 1.35) return;
+    /* 갑옷을 두른 장정 */
+    if (z.armored && (z.armor || 0) > 0) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(186,196,206,0.55)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(p.x, p.y + 8, Math.max(11, (z.r || 0.7) * wpp * 1.15), Math.PI * 1.08, Math.PI * 1.92); ctx.stroke();
+      ctx.restore();
+    }
+    /* 바뀐 순간 금빛 테두리(0.3초) */
+    if (z.rimFlash > 0) {
+      const k = clamp(z.rimFlash / (CFG.breakRimT || 0.3), 0, 1);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,214,110,' + (0.85 * k).toFixed(3) + ')';
+      ctx.lineWidth = 2 + 2 * k;
+      ctx.beginPath(); ctx.arc(p.x, p.y + 8, Math.max(14, (z.r || 0.6) * wpp * 1.4 + 6 * k), 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+    /* 돌덩이 금 */
+    if (z.hasCracks && z.cracks > 0) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(214,204,182,0.8)'; ctx.lineWidth = 1.5;
+      for (let i = 0; i < z.cracks; i++) {
+        const a = -0.7 + i * 1.6;
+        ctx.beginPath();
+        ctx.moveTo(p.x + Math.cos(a) * 5, p.y + 8);
+        ctx.lineTo(p.x + Math.cos(a) * 15, p.y + 20);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    /* 정예: 머리 위 봉인 순서 3개 — 지금 차례만 밝다 */
+    if (z.eliteSeq && z.seq && z.seq.length) {
+      const n = z.seq.length, gap = 23, w = n * gap;
+      ctx.save();
+      for (let i = 0; i < n; i++) {
+        const cx = p.x - w / 2 + gap * (i + 0.5), cy = p.y - 26;
+        const done = i < z.seqI, cur = i === z.seqI;
+        ctx.beginPath(); ctx.arc(cx, cy, 9, 0, Math.PI * 2);
+        ctx.fillStyle = done ? 'rgba(255,214,110,0.18)' : 'rgba(8,7,9,0.74)';
+        ctx.fill();
+        ctx.strokeStyle = done ? 'rgba(255,214,110,0.5)' : (cur ? 'rgba(255,214,110,0.95)' : 'rgba(240,232,210,0.26)');
+        ctx.lineWidth = cur ? 2.2 : 1.2;
+        ctx.stroke();
+        ctx.fillStyle = done ? 'rgba(255,214,110,0.5)' : (cur ? 'rgba(255,244,214,1)' : 'rgba(240,232,210,0.4)');
+        ctx.font = '700 12px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(SHAPE_MARK[z.seq[i]] || '?', cx, cy + 1);
+        if (i < n - 1) {
+          ctx.strokeStyle = 'rgba(240,232,210,0.22)'; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(cx + 11, cy); ctx.lineTo(cx + gap - 11, cy); ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+  });
+  /* 회전 호신부: 궤도와 부적 */
+  const w = wardInfo();
+  if (w) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,214,110,0.12)'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i <= 40; i++) {
+      const a = i / 40 * Math.PI * 2;
+      const p = projectXZ(S.hero.x + Math.cos(a) * w.r, S.hero.z + Math.sin(a) * w.r, 0.05);
+      if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+    for (let i = 0; i < w.n; i++) {
+      const a = (S.wardSpin || 0) + i * Math.PI * 2 / w.n;
+      const p = projectXZ(S.hero.x + Math.cos(a) * w.r, S.hero.z + Math.sin(a) * w.r, 0.6);
+      ctx.save();
+      ctx.beginPath(); ctx.arc(p.x, p.y, 5.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,214,110,0.9)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(255,244,214,0.6)'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.restore();
+    }
+  }
+  /* 벼락부적 예고 원 */
+  (S.bolts || []).forEach(function (b) {
+    if (b.done) return;
+    const c = projectXZ(b.x, b.z, 0.05);
+    const rx = b.r * wpp, ry = rx * 0.58;
+    const u = clamp(b.t / Math.max(0.01, b.delay), 0, 1);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,214,110,' + (0.30 + 0.55 * u).toFixed(3) + ')';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(c.x, c.y, Math.max(8, rx * (0.55 + 0.45 * u)), Math.max(5, ry * (0.55 + 0.45 * u)), 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+  });
+  /* 먹 발자국 웅덩이 */
+  (S.inkSteps || []).forEach(function (p) {
+    const c = projectXZ(p.x, p.z, 0.03);
+    const k = clamp(p.t / (CFG.inkStep.dur || 2), 0, 1);
+    const rx = Math.max(8, p.r * wpp);
+    ctx.save();
+    ctx.globalAlpha = 0.55 * k;
+    ctx.fillStyle = 'rgba(10,9,12,0.92)';
+    ctx.beginPath(); ctx.ellipse(c.x, c.y, rx, rx * 0.55, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(130,120,108,0.5)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.restore();
+  });
 }
 function drawHeroElement(ctx, t) {
   const el = curElem();
@@ -3121,7 +3338,14 @@ function showJudge(text) {
 let _audio = null;
 /* A spirit announces itself with one bell from its side of the screen; the pitch tells the shape. */
 function ringSpiritBell(sp) {
-  if (!audio || !sp) return;
+  if (!sp) return;
+  /* v0.31 §5.3 방울 공명: 혼령이 붙는 순간 그 원귀에게 피해(보스제외). */
+  const rs = upLv('reson');
+  if (rs && sp.target && sp.target.alive && !sp.target.isBoss && !sp.target.isTotem && !sp.target.isClone && !sp.target.isPillar) {
+    const d = (CFG.resonCard.dmg || [0.5, 0.8, 1.1])[Math.min(2, rs - 1)];
+    hurtZombie(sp.target, d, 'reson', S && S.lastDash);
+  }
+  if (!audio) return;
   audio.setQuiet(qa.mute, qa.noDelay);
   const w = viewBox().width;
   const scr = screenOf(sp);
@@ -3169,18 +3393,64 @@ function triggerComboBurst(n) {
     }
   }
 }
-/* Combo: a dash that cuts something within comboTimeout of the last one adds 1; a dash that cuts nothing resets it. */
+/* Combo: a dash that cuts something within comboTimeout of the last one adds 1.
+   v0.31 §3.3: 빗나간 일섬은 콤보를 0이 아니라 절반으로 내린다(연속 두 번 빗나가면 0).
+   단계 보상: 10 참+10 · 15 다음 일섬 폭 ×1.5 · 20 혼백+3·엽전+5 · 30부터 10마다 참+10. */
+const COMBO_CUT_WHY = { slash: 1, break: 1, crack: 1, 'crack-same': 1, 'seal-break': 1, echo: 1, counter: 1, reson: 1 };
+function cutRec(rec) {
+  if (!rec) return false;
+  if (rec.bossCut) return true;
+  return (rec.hits || []).some(function (h) { return COMBO_CUT_WHY[h.why]; });
+}
+function dropCombo(n) {
+  if (!S) return;
+  S.comboDrop = n || 'half';
+  S.comboFlash = 0.5;
+  if ($('comboLabel')) $('comboLabel').classList.remove('tier');
+}
+function comboBreak() {
+  if (!S) return;
+  const c = S.combo || 0;
+  if (!c) return;
+  S.comboBreakN = (S.comboBreakN || 0) + 1;
+  S.combo = S.comboBreakN >= 2 ? 0 : Math.floor(c / 2);
+  S.comboIdle = 0;
+  dropCombo(S.comboBreakN >= 2 ? 'zero' : 'half');
+  if (S.comboBreakN >= 2) S.comboBreakN = 0;
+}
+function comboReward(n) {
+  if (!S) return null;
+  const T = CFG.comboTiers || {};
+  const tier = T[n] || (n > 30 && (n - 30) % 10 === 0 ? T[30] : null);
+  if (!tier) return null;
+  const bits = [];
+  if (tier.charge) { addCharge(tier.charge); bits.push('참 +' + tier.charge); }
+  if (tier.wide) { S.pathWideN = 1; bits.push('다음 일섬 폭 ×' + tier.wide); }
+  if (tier.xp) { gainXp(tier.xp); bits.push('혼백 +' + tier.xp); }
+  if (tier.coin) { save.coins += tier.coin; persist(); bits.push('엽전 +' + tier.coin); }
+  S.comboTierN = (S.comboTierN || 0) + 1;
+  if ($('comboLabel')) $('comboLabel').classList.add('tier');
+  S.comboFlash = 0.6;
+  S.goldEdge = Math.max(S.goldEdge || 0, 0.2);
+  if (audio) { if (audio.bell) audio.bell(0, 'bolt'); if (audio.parry) audio.parry(); }
+  inkFx.ring(3.2, FX_COLORS.gold, 0.5);
+  showJudge(n + '콤보 · ' + bits.join(' · '));
+  telemetry.event('combo_tier', { n: n, stage: S.stageNo, reward: bits.slice() });
+  return bits;
+}
 function scoreDash(rec) {
   if (!S || !rec || rec.scored) return;
   rec.scored = true;
   if (!rec.targets || !rec.targets.length) return;
   /* A boss cut counts too, or the combo would sit at 0 for the whole boss fight. */
-  const cut = rec.bossCut || (rec.hits || []).some(function (h) { return h.why === 'slash'; });
-  if (!cut) { S.combo = 0; return; }
+  const cut = cutRec(rec);
+  if (!cut) { comboBreak(); return; }
   S.combo = (S.combo || 0) + 1;
   S.comboIdle = 0;
+  S.comboBreakN = 0;
   if (S.combo > (S.comboMax || 0)) S.comboMax = S.combo;
   if ((CFG.comboBurstAt || [4, 8, 12]).indexOf(S.combo) >= 0) triggerComboBurst(S.combo);
+  comboReward(S.combo);
 }
 
 function triggerSightWave() {
@@ -3295,6 +3565,8 @@ function beginDash(shape, opts) {
   const targets = pickSpirits(shape, n, S.hero, dir, null);
   if (!targets.length) { toast('화면에 그 모양이 없어요'); return { type: shape, targets: [], hits: [], items: [] }; }
   S.dashQuality = (opts.quality != null) ? opts.quality : 0;
+  /* §5.4 두 원소 교대: 일섬마다 실리는 원소를 바꾼다. */
+  if ((S.elemSlots || []).length >= 2) S.elemIdx = ((S.elemIdx || 0) + 1) % 2;
   const rec = { type: shape, targets: targets.map(function (t) { return t.id; }), hits: [], items: [], t0: now(), segs: [], elem: curElem(), cinematic: false, quality: S.dashQuality };
   S.dashSeq = (S.dashSeq || 0) + 1;
   S.lastDash = rec;
@@ -3332,6 +3604,10 @@ function resolveDash(d) {
   d.judged = true;
   const hitTo = d.raw || d.to;
   applyPath(d.from, hitTo, S.lastDash, null);
+  /* §5.3 메아리 칼: 이 일섬의 경로를 0.5초 뒤 한 번 더 지나간다. */
+  queueEcho(S.lastDash);
+  /* §3.3 15콤보 폭 보상은 한 번만 — 이 일섬이 그 혜택을 썼다. */
+  if (S.pathWideN > 0) S.pathWideN = Math.max(0, S.pathWideN - 1);
   const boss = S && S.boss;
   /* Only a dash aimed at the boss (its spirit, so its current shape) advances the order; grazing it on the way to another spirit does not. */
   const aimed = d.target && (d.target === boss || d.target.target === boss);
@@ -3356,7 +3632,10 @@ function landDash(d) {
     t: 0, dur: CFG.landBounceT || 0.16
   };
   S.landRipple = { x: d.to.x, z: d.to.z, t: 1, dur: CFG.landRippleDur || 0.45 };
+  S.sightWave = 1;
   triggerSightWave();
+  /* §5.3 먹 발자국: 착지 자리에 먹 웅덩이 */
+  dropInkStep(d.to);
   if (three && three.ink && three.ink.hit) {
     three.ink.hit(d.to.x, d.to.z, ux, uz);
     fxinkStat.hits++;
@@ -3399,6 +3678,110 @@ function landingShock(at) {
   if (S.lastDash) S.lastDash.shock = { x: at.x, z: at.z, r: R, push: push };
 }
 /* 제자리 탭 → 칼집 패링: 반경 2.4m 넉백·경직·0.5 피해. 성공 시 parry 사운드 + 히트스톱. */
+/* v0.31 §3.5: 지금 닿기 직전(W초 안)인 공격을 찾는다 — 돌진·투척 부적·자폭 점화·보스 돌진. */
+function preciseTarget() {
+  if (!S || !S.hero) return null;
+  const W = CFG.preciseWin || 0.2;
+  const hx = S.hero.x, hz = S.hero.z;
+  let best = null, bestT = W + 1e-6;
+  (S.zombies || []).forEach(function (z) {
+    if (!z.alive || z.isBoss) return;
+    const kd = CFG.zombieTypes[z.type] || {};
+    if ((z.dashPhase || 0) > 0 && kd.dashSpeed) {
+      const d = Math.max(0, Math.hypot(hx - z.x, hz - z.z) - (z.r || 0.5) - 0.55);
+      const t = d / kd.dashSpeed;
+      if (t <= W && t < bestT) { best = { kind: 'charger', z: z, t: t }; bestT = t; }
+    }
+    if (z.type === 'bomber' && (z.fuse || 0) > 0 && z.fuse <= W) {
+      const d = Math.hypot(hx - z.x, hz - z.z);
+      if (d <= (kd.blastR || 2.7) + 1.1 && z.fuse < bestT) { best = { kind: 'bomber', z: z, t: z.fuse }; bestT = z.fuse; }
+    }
+  });
+  (S.shots || []).forEach(function (sh) {
+    if (sh.reflect) return;
+    const sp = Math.hypot(sh.vx || 0, sh.vz || 0) || 1;
+    const d = Math.max(0, Math.hypot(hx - sh.x, hz - sh.z) - (CFG.shotR || 0.42) - 0.55);
+    const t = d / sp;
+    if (t <= W && t < bestT) { best = { kind: 'shot', sh: sh, t: t }; bestT = t; }
+  });
+  const b = S.boss;
+  if (b && b.alive && b.state === 'charge' && !b.hidden) {
+    const sp = bossTiming().chargeSp || 20;
+    const d = Math.max(0, Math.hypot(hx - b.x, hz - b.z) - (b.r || 1.1) - 0.7);
+    const t = d / sp;
+    if (t <= W && t < bestT) { best = { kind: 'boss', z: b, t: t }; bestT = t; }
+  }
+  return best;
+}
+function preciseParry(prec, rec) {
+  if (!S || !prec) return rec;
+  const awaken = upLv('parry');
+  const mul = CFG.preciseDmgMul || 2;
+  const dmg = ((CFG.parryDmg || 0.5) + (CFG.parryAwakenDmg || 0.4) * awaken) * mul;
+  S.parryCd = CFG.parryCd || 0.45;
+  S.iframe = Math.max(S.iframe || 0, 0.45);
+  S.parryFlash = 0.25;
+  S.parryHits = [];
+  S.shake = Math.max(S.shake || 0, 0.5);
+  S.goldEdge = Math.max(S.goldEdge || 0, 0.2);
+  addHitstop(0.08);
+  addSlow(CFG.preciseSlow || 0.2, 0.35);
+  addCharge(CFG.preciseCharge || 10);
+  if (rec) rec.parry = { precise: prec.kind, t: +(prec.t || 0).toFixed(3), dmg: dmg };
+  telemetry.event('parry', { target: prec.kind, errMs: Math.round((prec.t || 0) * 1000), result: 'precise' });
+  if (audio && audio.parry) audio.parry();
+  inkFx.ring(3.4, FX_COLORS.gold, 0.5);
+  if (prec.kind === 'charger' && prec.z && prec.z.alive) {
+    const z = prec.z;
+    z.dashPhase = 0; z.windT = 0; z.dashCd = (CFG.zombieTypes.charger || {}).dashCd || 3.4;
+    z.stun = Math.max(z.stun || 0, CFG.preciseStun || 0.6);
+    const d = dist(z, S.hero) || 1;
+    z.x += (z.x - S.hero.x) / d * 1.6; z.z += (z.z - S.hero.z) / d * 1.6;
+    if (z.obj) placeGroup(z.obj, z.x, z.z);
+    hurtZombie(z, dmg, 'parry', rec);
+    if (rec && rec.hits) rec.hits.push({ id: z.id, dmg: dmg, hp: z.hp, why: 'parry' });
+  } else if (prec.kind === 'shot' && prec.sh) {
+    const sh = prec.sh;
+    sh.reflect = true; sh.t = 0;
+    if (!sh.gold) {
+      const src = (S.zombies || []).filter(function (z) { return z.alive && z.type === 'thrower'; })
+        .sort(function (a, b) { return Math.hypot(sh.x - a.x, sh.z - a.z) - Math.hypot(sh.x - b.x, sh.z - b.z); })[0];
+      if (src) { sh.backTo = src; sh.vx = 0; sh.vz = 0; } else { sh.reflect = false; }
+    }
+    if (sh.mesh && sh.gold) sh.mesh.material = goldShotMaterial();
+    inkFx.burst(sh.x, sh.z, FX_COLORS.gold, { r1: 30, n: 6, dur: 0.35 });
+  } else if (prec.kind === 'bomber' && prec.z && prec.z.alive) {
+    const z = prec.z;
+    z.fuse = 0;
+    z.stun = Math.max(z.stun || 0, CFG.preciseStun || 0.6);
+    hurtZombie(z, dmg, 'parry', rec);
+  } else if (prec.kind === 'boss' && prec.z && prec.z.alive) {
+    const b = prec.z;
+    b.state = 'stun'; b.stateT = 0;
+    b.pat = b.pat || null;
+    bossPoise(b, 1);
+  }
+  /* §5.3 칼집 반격: 정확한 패링 성공 시 가장 가까운 혼령으로 자동 일섬 1회. */
+  if (upLv('counter') > 0) sheathCounter();
+  /* §5.4 귀검(歸劍): 정확한 패링이 보스에게도 1칸 절단. */
+  if (S.evo && S.evo.gwigeom && prec.kind === 'boss' && S.boss && S.boss.alive) cutBoss(S.boss);
+  showJudge('챙—!');
+  triggerSightWave();
+  return rec;
+}
+/* 칼집 반격: 가장 가까운 혼령의 무늬로 그 혼령을 바로 벤다. */
+function sheathCounter() {
+  if (!S || S.dash || (S.dashQueue && S.dashQueue.length)) return null;
+  const ms = livingMarks().filter(function (s) { return s.target && s.target.alive; });
+  if (!ms.length) return null;
+  ms.sort(function (a, b) { return dist(a.target, S.hero) - dist(b.target, S.hero); });
+  const s = ms[0];
+  const shape = spiritShape(s);
+  if (!shape) return null;
+  S.comboGrace = Math.max(S.comboGrace || 0, 0.1);
+  showJudge('반격!');
+  return beginDash(shape, { dir: null });
+}
 function doParry(rec) {
   if (!S || !S.playing || S.paused) return rec || null;
   /* §8.1 튜토리얼 3단계: 제자리 탭을 해 냈다(피해 없이 넉백만). */
@@ -3411,6 +3794,9 @@ function doParry(rec) {
   const kt = kiaiTap();
   if (kt) { r.parry = kt; return r; }
   if ((S.parryCd || 0) > 0) { r.parry = { hits: 0, cooling: true }; return r; }
+  /* v0.31 §3.5 정확한 패링: 적의 공격이 닿기 0.2초 안의 탭 — 피해 2배·참 +10·0.2초 느린 화면. */
+  const prec = preciseTarget();
+  if (prec) { preciseParry(prec, r); return r; }
   /* v0.23 칼집 각성: 패링이 충격파(반경·피해)와 참 게이지로 자란다. */
   const awaken = upLv('parry');
   const R = (CFG.parryR || 2.4) + (CFG.parryAwakenR || 0.45) * awaken;
@@ -3615,12 +4001,112 @@ function inkDir(rec, z) {
   if (S && S.hero && z) return { x: z.x - S.hero.x, z: z.z - S.hero.z };
   return { x: 1, z: 0 };
 }
+/* ---------- v0.31 §3.2 강적 깨는 법 ----------
+   체력으로 버티는 대신 '어떻게 베는지'를 묻는다. 바꾸는 무늬는 장의 무늬 풀 안에서 고른다. */
+function otherShape(cur) {
+  const src = (S && S.pool && S.pool.length) ? S.pool : SHAPE_UNLOCK;
+  const pool = src.filter(function (k) { return k !== cur; });
+  if (!pool.length) return cur;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+function refreshEnemyShape(z) {
+  if (!S) return;
+  (S.spirits || []).forEach(function (s) {
+    if (s.target === z && s.obj && art && art.setSpiritShape) art.setSpiritShape(s.obj, spiritShape(s));
+  });
+}
+/* 다른 무늬로 바뀔 때 0.3초 금빛 테두리 — 바뀌었다는 사실을 놓치지 않게. */
+function setEnemyShape(z, shape, label) {
+  if (!z || !shape) return;
+  z.shapeOv = shape;
+  z.rimFlash = CFG.breakRimT || 0.3;
+  refreshEnemyShape(z);
+  if (label) showJudge(label);
+  if (audio && audio.bell) audio.bell(0, shape);
+  telemetry.event('break', { kind: z.type, stage: S && S.stageNo, to: shape });
+}
+/** 그은 획에만 적용되는 파훼 규칙. null이면 평소 피해. */
+function breakHit(z, rec, amount) {
+  if (!z || z.isBoss || !S) return null;
+  const shape = rec && rec.type;
+  if (!shape) return null;
+  /* 장정: 첫 일섬은 갑옷만 깨고(피해 0.5) 혼령 무늬가 다른 무늬로 바뀐다. 바뀐 무늬로 베면 즉사. */
+  if (z.type === 'brute' && z.armored) {
+    if ((z.armor || 0) > 0) {
+      z.armor = 0;
+      setEnemyShape(z, otherShape(shape), '갑옷 파훼!');
+      S.shake = Math.max(S.shake || 0, 0.3);
+      if (audio && audio.explode) audio.explode();
+      return { dmg: CFG.armorDmg || 0.5, why: 'break' };
+    }
+    if (z.shapeOv && shape === z.shapeOv) {
+      showJudge('갑옷 틈 — 즉사!');
+      S.goldEdge = Math.max(S.goldEdge || 0, 0.2);
+      return { dmg: 9999, why: 'break' };
+    }
+    return null;
+  }
+  /* 돌덩이: 서로 다른 무늬 2번이면 갈라진다. 같은 무늬를 반복하면 피해 ×0.5. */
+  if (z.type === 'stone' && z.hasCracks) {
+    if (z.lastShape && shape === z.lastShape) return { dmg: amount * (CFG.crackSameMul || 0.5), why: 'crack-same' };
+    z.lastShape = shape;
+    z.cracks = (z.cracks || 0) + 1;
+    if (z.cracks >= (CFG.crackStages || 2)) {
+      showJudge('돌이 갈라졌다!');
+      if (art && art.playFx && three) { const fx = art.playFx(three.scene, 'ink-splat', z.x, z.z, 2.4); if (fx) three.fx.push(fx); }
+      S.shake = Math.max(S.shake || 0, 0.35);
+      telemetry.event('break', { kind: 'stone', stage: S.stageNo, cracks: z.cracks });
+      return { dmg: 9999, why: 'crack' };
+    }
+    setEnemyShape(z, otherShape(shape), '금이 갔다 · ' + (CFG.crackStages || 2) + '단계 중 ' + z.cracks);
+    return null;
+  }
+  /* 정예: 머리 위 무늬 3개를 순서대로. 순서를 틀리면 일반 피해만. */
+  if (z.eliteSeq && z.seq && z.seq.length) {
+    if (shape !== z.seq[z.seqI]) return null;
+    z.seqI += 1;
+    if (z.seqI >= z.seq.length) {
+      showJudge('봉인 순서 완성!');
+      addCharge(CFG.eliteSeqCharge || 20);
+      S.goldEdge = Math.max(S.goldEdge || 0, 0.2);
+      if (audio && audio.bell) audio.bell(0, 'bolt');
+      telemetry.event('break', { kind: 'elite', stage: S.stageNo, result: 'sealed' });
+      return { dmg: 9999, why: 'seal-break' };
+    }
+    z.rimFlash = CFG.breakRimT || 0.3;
+    refreshEnemyShape(z);
+    if (audio && audio.bell) audio.bell(0, shape);
+    showJudge('봉인 ' + z.seqI + '/' + z.seq.length);
+    return null;
+  }
+  return null;
+}
+/* v0.31 §5.3: 자동 피해(호신부·벼락부적)는 총 피해의 25%를 넘지 않는다. */
+function autoAllowed(d) {
+  if (!S || !d) return false;
+  const a = (S.autoDmg || 0) + d, m = S.manualDmg || 0;
+  const cap = CFG.autoCap || 0.25;
+  return a <= cap * (a + m) + 1e-6;
+}
+function autoShare() {
+  const a = (S && S.autoDmg) || 0, m = (S && S.manualDmg) || 0;
+  return (a + m) > 0 ? +(a / (a + m)).toFixed(3) : 0;
+}
 function hurtZombie(z, amount, why, rec) {
   if (!z || !z.alive) return;
   if (z.isClone) { popClone(z, false); return; }
   if (z.isPillar) { breakPillar(z); return; }
   if (z.isTotem) { breakTotem(z); return; }
+  /* §3.2: 그은 획에만 파훼 규칙을 건다(참·콤보 폭발·상태이상은 평소대로). */
+  if (why === 'slash' || why === 'echo' || why === 'counter') {
+    const rule = breakHit(z, rec, amount);
+    if (rule) { amount = rule.dmg; why = rule.why; }
+  }
   z.hp -= amount;
+  if (S) {
+    if (why === 'ward' || why === 'bolt') S.autoDmg = (S.autoDmg || 0) + amount;
+    else S.manualDmg = (S.manualDmg || 0) + amount;
+  }
   if (rec) rec.hits.push({ id: z.id, dmg: amount, hp: z.hp, why: why });
   tintZombie(z);
   /* §3.1: 일반 명중에도 짧은 히트스톱. 한 획에 여러 마리를 베어도 1번, 0.06초를 넘기지 않는다. */
@@ -3690,6 +4176,15 @@ function shatterZombie(z, rec) {
   }
   S.shake = Math.max(S.shake || 0, 0.15);
   hurtZombie(z, elemShatterDmg(), 'shatter', rec);
+  /* v0.31 §5.4 증기 폭발: 얼음+화염 두 칸 — 깨짐이 반경 2m로 퍼진다. */
+  if (S.evo && S.evo.steam) {
+    S.zombies.forEach(function (o) {
+      if (o === z || !o.alive || o.isBoss || o.isClone || o.isPillar || o.isTotem) return;
+      if (dist(o, z) > 2 + (o.r || 0.5)) return;
+      hurtZombie(o, 2, 'steam', rec);
+    });
+    if (art && art.playFx && three) { const fx = art.playFx(three.scene, 'ink-splat', z.x, z.z, 2.2); if (fx) three.fx.push(fx); }
+  }
 }
 function explodeZombie(z, rec) {
   const stacks = z.poison || 0;
@@ -3747,8 +4242,9 @@ function tickStatuses(dt) {
   }
   S.zombies.forEach(function (z) {
     if (!z.alive) return;
-    if (z.slowT > 0) { z.slowT -= dt; if (z.slowT < 0) z.slowT = 0; }
+    if (z.slowT > 0) { z.slowT -= dt; if (z.slowT < 0) z.slowT = 0; if (z.slowT <= 0) z.inkSlow = 0; }
     if (z.stun > 0) { z.stun -= dt; if (z.stun < 0) z.stun = 0; }
+    if (z.rimFlash > 0) z.rimFlash = Math.max(0, z.rimFlash - dt);
     if (z.frozen > 0) {
       z.frozen -= dt;
       if (z.frozen <= 0) {
@@ -3966,7 +4462,7 @@ function killZombie(z, rec) {
   const kd = CFG.zombieTypes[z.type] || CFG.zombieTypes.imp;
   /* The boss pays its own coin value; its xp does not matter, the run ends on its death. */
   grantKill(z.isBoss ? (CFG.bossCoin || 20) : kd.coin);
-  gainXp(CFG.xpPerKill * kd.xp);
+  gainXp(CFG.xpPerKill * kd.xp * (CFG.xpScale || 1));
   /* 혼백구 100% + 20% 추가 드롭, 정예는 부적 상자 */
   spawnItem({ type: 'xp', x: z.x, z: z.z });
   if (Math.random() < 0.2) spawnItem({ type: dropType(), x: z.x + (Math.random() - 0.5) * 0.7, z: z.z + (Math.random() - 0.5) * 0.7 });
@@ -4037,17 +4533,25 @@ function collectItem(it, rec) {
   S.items = S.items.filter(function (x) { return x.alive; });
   if (rec) rec.items.push({ id: it.id, type: it.kind });
   if (it.kind === 'dashplus') {
-    S.dashCount++;
-    if (S.dash && rec && rec.type) {
-      const skip = (S.dashQueue || []).concat(S.dash.target ? [S.dash.target] : []);
-      const more = pickSpirits(rec.type, 1, { x: S.dash.to.x, z: S.dash.to.z }, S.lastStrokeDir, skip);
-      if (more[0]) {
-        S.dashQueue.push(more[0]);
-        if (rec.targets.indexOf(more[0].id) < 0) rec.targets.push(more[0].id);
+    /* §5.1 바닥 일섬 +1은 한 판 3번까지, 그 뒤에는 엽전 +10으로 바뀐다. */
+    if ((S.floorDash || 0) >= 3) {
+      save.coins += 10; persist();
+      showJudge('일섬 상한 · 엽전 +10');
+    } else {
+      S.floorDash = (S.floorDash || 0) + 1;
+      S.dashCount++;
+      if (S.dash && rec && rec.type) {
+        const skip = (S.dashQueue || []).concat(S.dash.target ? [S.dash.target] : []);
+        const more = pickSpirits(rec.type, 1, { x: S.dash.to.x, z: S.dash.to.z }, S.lastStrokeDir, skip);
+        if (more[0]) {
+          S.dashQueue.push(more[0]);
+          if (rec.targets.indexOf(more[0].id) < 0) rec.targets.push(more[0].id);
+        }
       }
     }
   } else if (it.kind === 'charm') {
-    /* 부적 상자(잭팟): 강화 3연속 */
+    /* 부적 상자(잭팟): 강화 3연속 — §5.2 부적 상자는 지금처럼 멈추는 창을 쓴다. */
+    S.forcePauseLv = true;
     S._pendingLv = (S._pendingLv || 0) + 2;
     S.slowT = Math.max(S.slowT || 0, 0.35);
     if (audio) {
@@ -4073,7 +4577,7 @@ function collectItem(it, rec) {
     firecrackerBurst();
   } else if (it.kind === 'coin') {
     save.coins += Math.round(5 * coinMult()); persist();
-  } else if (it.kind === 'xp') gainXp(1);
+  } else if (it.kind === 'xp') gainXp((CFG.xpPerKill || 1) * (CFG.xpScale || 1));
   else if (it.kind === 'ice' || it.kind === 'fire' || it.kind === 'poison') {
     /* v0.23: 바닥 원소 부적은 12초 임시 부여 — 레벨업으로 키운 원소 각인을 덮어쓰지 않는다. */
     S.tempElem = { el: it.kind, t: CFG.tempElemDur || 12 };
@@ -4110,15 +4614,24 @@ function checkEvolutions(ctx) {
     if (audio) audio.bell(0, 'bolt');
   }
   /* 1) 빙결 참격(절대영도): 일섬·얼음 + 경로 폭 Lv2↑ → 착지점 광역 동결·분쇄 */
-  if (el === 'ice' && upLv('width') >= 2) born('frostNova', '빙결 참격(절대영도)');
+  const hasIce = el === 'ice' || elemLv('ice') > 0;
+  const hasFire = el === 'fire' || elemLv('fire') > 0;
+  const hasPoison = el === 'poison' || elemLv('poison') > 0;
+  if (hasIce && upLv('width') >= 2) born('frostNova', '빙결 참격(절대영도)');
   /* 2) 업화 연쇄: 일섬·화염 + 일섬 횟수 Lv2↑ → 돌진마다 화염 폭발 장판 */
-  if (el === 'fire' && upLv('dash') >= 2) born('fireTrail', '업화 연쇄');
+  if (hasFire && upLv('dash') >= 2) born('fireTrail', '업화 연쇄');
   /* 3) 만독 쇄도: 일섬·독 + 참(斬) 게이지 Lv2↑ → 독폭발 연쇄 + 참 게이지 충전 */
-  if (el === 'poison' && upLv('charge') >= 2) born('poisonSpread', '만독 쇄도');
+  if (hasPoison && upLv('charge') >= 2) born('poisonSpread', '만독 쇄도');
   /* 4) 빙참: 일섬·얼음 + 참 게이지 Lv2↑ — 모든 진화가 "각인 + 짝 카드 Lv2" 규칙을 따른다. */
-  if (el === 'ice' && upLv('charge') >= 2) born('iceCleave', '빙참(氷斬)');
+  if (hasIce && upLv('charge') >= 2) born('iceCleave', '빙참(氷斬)');
   /* 5) 만종: 한 가지 종 + 일섬 횟수 카드 Lv2↑ (바닥의 일섬 +1은 세지 않는다) */
   if ((S.bellT > 0 || ctx.bell) && upLv('dash') >= 2) born('myriadBell', '만종(萬鐘)');
+  /* v0.31 §5.4 새 진화 5종 */
+  if (upLv('ward') >= 3 && (S.ringLv || 0) >= 3) born('manryun', '만륜(萬輪)');
+  if (upLv('bolt') >= 3 && hasIce) born('noebing', '뇌빙(雷氷)');
+  if (upLv('reson') >= 3 && upLv('dash') >= 2) born('cheonjong', '천종(千鐘)');
+  if (upLv('counter') >= 2 && upLv('parry') >= 2) born('gwigeom', '귀검(歸劍)');
+  if (elemLv('ice') >= 1 && elemLv('fire') >= 1) born('steam', '증기 폭발');
 }
 /* 빙결 참격: 착지점이 얼어붙고 부서지는 얼음 파편이 퍼진다. */
 function frostLanding(at) {
@@ -4192,12 +4705,153 @@ function frostNovaAt(z, rec) {
     }
   });
 }
+/* ---------- v0.31 §5.3 새 카드 ----------
+   회전 호신부·진노의 벼락부적은 자동 피해 — 총 피해의 25%(autoCap)를 넘으면 대미지를 받지 않는다.
+   메아리 칼·방울 공명·칼집 반격·먹 발자국은 획과 판단에 딸린 효과라 수동 피해로 센다. */
+function wardInfo() {
+  const lv = upLv('ward');
+  if (!lv) return null;
+  const W = CFG.ward || {};
+  return {
+    lv: lv,
+    n: lv >= 3 ? (W.n3 || 4) : (W.n || 2),
+    r: (lv >= 2 ? (W.r2 || 2.6) : (W.r || 2.2)) + ((S.evo && S.evo.manryun) ? (W.manryunR || 1.2) : 0),
+    dmg: W.dmg || 0.8, period: W.period || 0.35
+  };
+}
+function stepWard(dt) {
+  const w = wardInfo();
+  if (!w) return;
+  S.wardSpin = (S.wardSpin || 0) + dt * (CFG.ward.spin || 2.1);
+  S.wardTick = (S.wardTick || 0) + dt;
+  if (S.wardTick < w.period) return;
+  S.wardTick -= w.period;
+  for (let i = 0; i < w.n; i++) {
+    const a = S.wardSpin + i * Math.PI * 2 / w.n;
+    const p = { x: S.hero.x + Math.cos(a) * w.r, z: S.hero.z + Math.sin(a) * w.r };
+    S.zombies.forEach(function (z) {
+      if (!z.alive || z.isBoss || z.isClone || z.isPillar || z.isTotem) return;
+      if (dist(z, p) > 0.62 + (z.r || 0.5)) return;
+      if (!autoAllowed(w.dmg)) return;
+      hurtZombie(z, w.dmg, 'ward', S.lastDash);
+      if (z.alive && S.evo && S.evo.manryun) { z.slowT = Math.max(z.slowT || 0, CFG.ward.manryunSlow || 0.3); tintZombie(z); }
+    });
+  }
+}
+function boltPeriod() {
+  const B = CFG.boltCard || {};
+  return Math.max(2.5, (B.every || 4.5) - (B.lvStep || 0.4) * Math.max(0, upLv('bolt') - 1));
+}
+/* 가장 밀집한 지점: 6m 안 원귀 중 2.4m 안에 가장 많이 모인 자리. */
+function densestPoint(range) {
+  let best = null, bestN = -1;
+  (S.zombies || []).forEach(function (z) {
+    if (!z.alive || z.isBoss || z.isClone || z.isPillar || z.isTotem) return;
+    if (dist(z, S.hero) > range) return;
+    let n = 0;
+    S.zombies.forEach(function (o) { if (o.alive && !o.isBoss && !o.isClone && !o.isPillar && !o.isTotem && dist(o, z) <= 2.4) n++; });
+    if (n > bestN) { bestN = n; best = { x: z.x, z: z.z }; }
+  });
+  return best;
+}
+function stepBolt(dt) {
+  const lv = upLv('bolt');
+  if (!lv) return;
+  S.boltT = (S.boltT || 0) + dt;
+  if (S.boltT < boltPeriod()) return;
+  S.boltT = 0;
+  const at = densestPoint(CFG.boltCard.range || 6);
+  if (!at) return;
+  S.bolts = S.bolts || [];
+  S.bolts.push({ x: at.x, z: at.z, t: 0, delay: CFG.boltCard.tele || 0.6, r: CFG.boltCard.r || 2.2, done: false });
+  if (audio && audio.bell) audio.bell(0, 'bolt');
+  telemetry.event('auto_skill', { kind: 'bolt', lv: lv, stage: S.stageNo });
+}
+function stepBolts(dt) {
+  if (!S.bolts || !S.bolts.length) return;
+  S.bolts.forEach(function (b) {
+    b.t += dt;
+    if (b.done || b.t < b.delay) return;
+    b.done = true;
+    if (art && art.playFx && three) { const fx = art.playFx(three.scene, 'ink-splat', b.x, b.z, b.r); if (fx) three.fx.push(fx); }
+    S.shake = Math.max(S.shake || 0, 0.3);
+    const dmg = CFG.boltCard.dmg || 2.2;
+    S.zombies.slice().forEach(function (z) {
+      if (!z.alive || z.isBoss || z.isClone || z.isPillar || z.isTotem) return;
+      if (dist(z, b) > b.r + z.r) return;
+      if (!autoAllowed(dmg)) return;
+      hurtZombie(z, dmg, 'bolt', S.lastDash);
+      S.boltHits = (S.boltHits || 0) + 1;
+      if (z.alive && S.evo && S.evo.noebing) { z.frozen = Math.max(z.frozen || 0, CFG.boltCard.freeze || 1.5); tintZombie(z); }
+    });
+  });
+  S.bolts = S.bolts.filter(function (b) { return !(b.done && b.t > b.delay + 0.45); });
+}
+/* 메아리 칼: 일섬 0.5초 뒤 같은 경로에 잔영이 지나간다(피해 40/55/70%). */
+function queueEcho(rec) {
+  const lv = upLv('echo');
+  if (!lv || !rec || !rec.segs || !rec.segs.length) return null;
+  const seg = rec.segs[rec.segs.length - 1];
+  if (!seg || !seg.from || !seg.to) return null;
+  S.echoes = S.echoes || [];
+  const e = { from: { x: seg.from.x, z: seg.from.z }, to: { x: seg.to.x, z: seg.to.z }, t: CFG.echoCard.delay || 0.5, mul: (CFG.echoCard.mul || [0.4, 0.55, 0.7])[Math.min(2, lv - 1)] };
+  S.echoes.push(e);
+  return e;
+}
+function stepEchoes(dt) {
+  if (!S.echoes || !S.echoes.length) return;
+  const out = [];
+  S.echoes.forEach(function (e) {
+    e.t -= dt;
+    if (e.t > 0) { out.push(e); return; }
+    if (Math.hypot(e.to.x - S.hero.x, e.to.z - S.hero.z) > ringR() * 2.4) return;
+    const r = pathR(), dmg = dashDmg() * e.mul;
+    S.zombies.slice().forEach(function (z) {
+      if (!z.alive || z.isBoss || z.isClone || z.isPillar || z.isTotem) return;
+      if (segDist(z.x, z.z, e.from.x, e.from.z, e.to.x, e.to.z) > r + z.r) return;
+      hurtZombie(z, dmg, 'echo', S.lastDash);
+    });
+    inkFx.burst(e.to.x, e.to.z, FX_COLORS.jade, { r1: 26, n: 4, dur: 0.3 });
+    if (S.lastDash && S.lastDash.segs) S.lastDash.echo = e.mul;
+  });
+  S.echoes = out;
+}
+/* 먹 발자국: 착지 자리에 2초 웅덩이 — 지나는 적이 느려진다. */
+function dropInkStep(at) {
+  const lv = upLv('inkstep');
+  if (!lv || !at || !S) return null;
+  S.inkSteps = S.inkSteps || [];
+  S.inkSteps.push({ x: at.x, z: at.z, t: CFG.inkStep.dur || 2, r: CFG.inkStep.r || 1.7, slow: (CFG.inkStep.slow || [0.3, 0.4, 0.5])[Math.min(2, lv - 1)] });
+  if (S.inkSteps.length > 14) S.inkSteps.shift();
+  return S.inkSteps[S.inkSteps.length - 1];
+}
+function stepInkSteps(dt) {
+  if (!S.inkSteps || !S.inkSteps.length) return;
+  S.inkSteps.forEach(function (p) {
+    p.t -= dt;
+    if (p.t <= 0) return;
+    S.zombies.forEach(function (z) {
+      if (!z.alive || z.isBoss || z.isClone || z.isPillar || z.isTotem) return;
+      if (dist(z, p) > p.r + z.r) return;
+      z.slowT = Math.max(z.slowT || 0, 0.22);
+      z.inkSlow = p.slow;
+    });
+  });
+  S.inkSteps = S.inkSteps.filter(function (p) { return p.t > 0; });
+}
+/** 원귀가 사라지거나 상태가 끝나면 먹 발자국 감속도 함께 끝난다. */
+function slowMulOf(z) {
+  if (!z || !(z.slowT > 0)) return 1;
+  if (z.inkSlow) return 1 - z.inkSlow;
+  return CFG.iceSlowMul || 0.5;
+}
 function gainXp(n) {
   S.xp += n;
   while (S.xp >= xpNeed(S.level)) {
     S.xp -= xpNeed(S.level);
     S.level++;
-    S.spiritCap = Math.min(CFG.spiritMax || 5, (S.spiritCap || CFG.spiritCapStart || 3) + 1);
+    /* §5.1 혼령 상한은 2레벨마다 +1 — 장마다 시작값 차이를 오래 남긴다. */
+    if (S.level % 2 === 0) S.spiritCap = Math.min(CFG.spiritMax || 5, (S.spiritCap || CFG.spiritCapStart || 3) + 1);
     openLevelUp();
   }
 }
@@ -4220,11 +4874,23 @@ function upDesc(u) {
     + '% 이상이면 ×' + fmt1((CFG.perfectDmgMul || 1.5) + (CFG.perfectStep || 0.15) * (next - 1));
   if (u.id === 'parry') return '패링 반경 ' + fmt1((CFG.parryR || 2.4) + (CFG.parryAwakenR || 0.45) * next) + 'm · 충격파 '
     + fmt1((CFG.parryDmg || 0.5) + (CFG.parryAwakenDmg || 0.4) * next) + ' · 참 +' + Math.round((CFG.parryAwakenCharge || 14) * next);
-  if (u.id === 'dmg') return '일섬 피해 ' + fmt1(S.dashDmg) + ' → ' + fmt1(S.dashDmg + 1);
+  if (u.id === 'dmg') { const st = (u.steps || [1])[Math.min((u.steps || [1]).length - 1, upLv('dmg'))]; return '일섬 피해 ' + fmt1(S.dashDmg) + ' → ' + fmt1(S.dashDmg + st); }
   if (u.id === 'width') return '경로 폭 ' + fmt1(S.pathR) + ' → ' + fmt1(S.pathR + 0.55) + 'm';
   if (u.id === 'dash') return '연쇄 ' + S.dashCount + ' → ' + (S.dashCount + 1) + '회';
   if (u.id === 'charge') return '게이지 획득 +' + Math.round(25 * next) + '%';
-  if (u.id === 'heal') return '체력 +5 · 최대 체력 +2';
+  if (u.id === 'heal') return (S.healMaxN || 0) < 3 ? '체력 +5 · 최대 체력 +2 (' + (S.healMaxN || 0) + '/3)' : '체력 +5 (최대 체력은 3번까지)';
+  if (u.id === 'ward') {
+    const lv = Math.min(3, upLv('ward') + 1);
+    return '부적 ' + (lv >= 3 ? (CFG.ward.n3 || 4) : (CFG.ward.n || 2)) + '개 · 반경 ' + fmt1(lv >= 2 ? (CFG.ward.r2 || 2.6) : (CFG.ward.r || 2.2)) + 'm · 접촉 ' + fmt1(CFG.ward.dmg || 0.8);
+  }
+  if (u.id === 'bolt') {
+    const lv = Math.min(CFG.boltCard.lvMax || 5, upLv('bolt') + 1);
+    return '주기 ' + fmt1(Math.max(2.5, (CFG.boltCard.every || 4.5) - (CFG.boltCard.lvStep || 0.4) * (lv - 1))) + '초 · 피해 ' + fmt1(CFG.boltCard.dmg || 2.2);
+  }
+  if (u.id === 'echo') { const m = (CFG.echoCard.mul || [0.4, 0.55, 0.7])[Math.min(2, upLv('echo'))]; return '잔영 피해 ' + Math.round(m * 100) + '%'; }
+  if (u.id === 'reson') { const d = (CFG.resonCard.dmg || [0.5, 0.8, 1.1])[Math.min(2, upLv('reson'))]; return '방울 피해 ' + fmt1(d); }
+  if (u.id === 'counter') return '정확한 패링 → 자동 일섬 1회';
+  if (u.id === 'inkstep') { const sl = (CFG.inkStep.slow || [0.3, 0.4, 0.5])[Math.min(2, upLv('inkstep'))]; return '먹 웅덩이 · 감속 ' + Math.round(sl * 100) + '% · 2초'; }
   return u.desc;
 }
 function upCardLevelText(u) {
@@ -4232,34 +4898,163 @@ function upCardLevelText(u) {
   if (!lv) return 'NEW';
   return 'Lv' + lv + ' → Lv' + Math.min(u.maxLv || 99, lv + 1);
 }
-function openLevelUp() {
-  /* 참(斬) 연출 중에는 카드를 잠시 미룬다 — 필살의 손맛을 가리지 않도록. */
-  if (S && S.cleaveFx > 0.05) { S._cleaveLv = (S._cleaveLv || 0) + 1; return; }
-  if (S.paused === 'levelup') { S._pendingLv = (S._pendingLv || 0) + 1; return; }
-  S.paused = 'levelup';
-  S.upLv = S.upLv || {};
-  /* 상한에 닿은 카드는 풀에서 뺀다(심안 반경 Lv3 등) — 빈 카드가 섞이지 않는다. */
+/* ---------- v0.31 §5.2 멈추지 않는 선택 ----------
+   레벨업이 판을 멈추지 않는다. 0.3배 1.5초 + 화면 아래 카드 3장, 4초 안에 탭하면 고르고 아니면 추천이 자동 선택된다.
+   보스전과 부적 상자(3연속)는 지금처럼 멈추는 창을 쓴다. 설정에서 '멈추고 고르기'로 되돌릴 수 있다. */
+function quickLevelOn() {
+  if (!S || save.levelMode === 'pause') return false;
+  if (S.forcePauseLv) return false;
+  if (S.boss && S.boss.alive) return false;
+  return true;
+}
+function rollPicks(n) {
   const pool = RUN_UPGRADES.filter(function (u) { return (S.upLv[u.id] || 0) < (u.maxLv || 99); }), picks = [];
-  for (let i = 0; i < 3 && pool.length; i++) {
+  for (let i = 0; i < (n || 3) && pool.length; i++) {
     const k = Math.floor(Math.random() * pool.length);
     picks.push(pool.splice(k, 1)[0]);
   }
-  S.levelPicks = picks;
-  const boxEl = $('levelChoices'); boxEl.innerHTML = '';
-  picks.forEach(function (u) {
+  return picks;
+}
+/* 진화 레시피의 재료 목록 — 각인은 elemLv, 카드는 upLv로 센다. */
+function evoParts(r) {
+  const parts = [];
+  (r.a || []).forEach(function (k) { parts.push({ k: k, lv: r.aLv || 1 }); });
+  if (r.b) parts.push({ k: r.b, lv: r.bLv || 1 });
+  return parts;
+}
+function isElemKey(k) { return k === 'ice' || k === 'fire' || k === 'poison'; }
+function partLv(k) { return isElemKey(k) ? elemLv(k) : upLv(k); }
+function cardNameOf(k) {
+  const u = RUN_UPGRADES.filter(function (x) { return x.id === k; })[0];
+  if (u) return u.name;
+  return isElemKey(k) ? elemNameOf(k) + ' 각인' : k;
+}
+function evoBorn(r) { return !!(S && S.evo && S.evo[r.key]); }
+/** 이 카드를 집으면 짝이 다 갖춰진 진화의 재료가 되는가 → 진화 이름 목록. */
+function evoMatInfo(id) {
+  if (!S) return [];
+  return EVO_RECIPES.filter(function (r) {
+    if (evoBorn(r)) return false;
+    const parts = evoParts(r);
+    const mine = parts.filter(function (p) { return p.k === id; })[0];
+    if (!mine || partLv(id) >= mine.lv) return false;
+    return parts.every(function (p) { return p.k === id || partLv(p.k) >= p.lv; });
+  }).map(function (r) { return r.name; });
+}
+function evoHints() {
+  if (!S) return [];
+  return EVO_RECIPES.filter(function (r) {
+    if (evoBorn(r)) return false;
+    return evoParts(r).some(function (p) { return partLv(p.k) > 0; });
+  }).map(function (r) {
+    const parts = evoParts(r);
+    return {
+      key: r.key, name: r.name, done: parts.every(function (p) { return partLv(p.k) >= p.lv; }),
+      text: r.name + ': ' + parts.map(function (p) {
+        return cardNameOf(p.k) + (partLv(p.k) >= p.lv ? ' ✓' : ' Lv' + partLv(p.k) + '/' + p.lv);
+      }).join(' · ')
+    };
+  });
+}
+function renderEvoHint() {
+  const el = $('evoHint');
+  if (!el) return null;
+  const hs = evoHints();
+  if (!hs.length) { el.hidden = true; el.textContent = ''; return null; }
+  hs.sort(function (a, b) { return (b.done ? 1 : 0) - (a.done ? 1 : 0); });
+  el.hidden = false;
+  el.textContent = '진화까지 — ' + hs.slice(0, 2).map(function (h) { return h.text; }).join(' / ');
+  return el.textContent;
+}
+/** 4초가 지나면 고르는 카드: 진화 재료 → 빌드에 없는 카드 → 무작위. */
+function recommendedPick() {
+  if (!S) return null;
+  const picks = (S.levelPicks || []).slice();
+  if (!picks.length) return null;
+  const mat = picks.filter(function (u) { return evoMatInfo(u.id).length; });
+  if (mat.length) return mat[0].id;
+  const fresh = picks.filter(function (u) { return !upLv(u.id); });
+  if (fresh.length) return fresh[0].id;
+  return picks[Math.floor(Math.random() * picks.length)].id;
+}
+function openQuickCards() {
+  if (!S) return false;
+  const wrap = $('quickCards'), list = $('quickList');
+  if (!wrap || !list) return false;
+  S.levelPicks = rollPicks(3);
+  S.quick = { t0: now(), dur: Math.round((CFG.quick.pickSec || 4) * 1000) };
+  addSlow(CFG.quick.slow || 0.3, CFG.quick.slowDur || 1.5);
+  list.innerHTML = '';
+  S.levelPicks.forEach(function (u) {
     const b = document.createElement('button');
-    b.type = 'button'; b.className = 'btn up-card'; b.dataset.up = u.id;
+    b.type = 'button';
+    b.className = 'btn quick-card' + (evoMatInfo(u.id).length ? ' evo' : '') + (upLv(u.id) ? '' : ' new');
+    b.dataset.up = u.id;
+    b.innerHTML = '<strong>' + u.name + '</strong><span class="qc-lv">' + upCardLevelText(u) + '</span>'
+      + (evoMatInfo(u.id).length ? '<span class="qc-evo">진화 재료</span>' : '');
+    b.addEventListener('click', function (e) { e.stopPropagation(); pickQuick(u.id); });
+    list.appendChild(b);
+  });
+  const note = $('quickNote');
+  if (note) note.textContent = '카드를 누르면 고릅니다 · ' + Math.round(S.quick.dur / 1000) + '초 뒤 추천 선택';
+  wrap.hidden = false;
+  renderEvoHint();
+  telemetry.event('levelup_quick', { level: S.level, picks: S.levelPicks.map(function (u) { return u.id; }) });
+  return true;
+}
+function closeQuickCards() {
+  const wrap = $('quickCards');
+  if (wrap) wrap.hidden = true;
+  if (S) S.quick = null;
+}
+function tickQuick() {
+  if (!S || !S.quick) return;
+  if (now() - S.quick.t0 < S.quick.dur) return;
+  const id = recommendedPick();
+  if (id) pickQuick(id, true);
+  else closeQuickCards();
+}
+function pickQuick(id, auto) {
+  if (!S || !S.quick) return false;
+  closeQuickCards();
+  applyUpgrade(id, !!auto);
+  if (S && S._pendingLv > 0) { S._pendingLv--; openLevelUp(); }
+  return true;
+}
+function openLevelUp() {
+  /* 참(斬) 연출 중에는 카드를 잠시 미룬다 — 필살의 손맛을 가리지 않도록. */
+  if (S && S.cleaveFx > 0.05) { S._cleaveLv = (S._cleaveLv || 0) + 1; return; }
+  if (!S) return;
+  S.upLv = S.upLv || {};
+  S.levelUps = (S.levelUps || 0) + 1;
+  if (quickLevelOn()) {
+    if (S.quick) { S._pendingLv = (S._pendingLv || 0) + 1; return; }
+    if (openQuickCards()) return;
+  }
+  if (S.paused === 'levelup') { S._pendingLv = (S._pendingLv || 0) + 1; return; }
+  S.paused = 'levelup';
+  S.levelPicks = rollPicks(3);
+  const boxEl = $('levelChoices'); boxEl.innerHTML = '';
+  S.levelPicks.forEach(function (u) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'btn up-card' + (evoMatInfo(u.id).length ? ' evo-mat' : '');
+    b.dataset.up = u.id;
     const icon = (art && art.upIconUrl) ? art.upIconUrl(u.id) : '';
+    const mat = evoMatInfo(u.id);
     b.innerHTML = '<img class="up-icon" src="' + icon + '" alt="" width="34" height="34">'
       + '<span class="up-text"><strong>' + u.name + '</strong>'
       + '<span class="up-lv' + (upLv(u.id) ? '' : ' new') + '">' + upCardLevelText(u) + '</span>'
-      + '<span class="up-desc">' + upDesc(u) + '</span></span>';
+      + '<span class="up-desc">' + upDesc(u) + '</span>'
+      + (mat.length ? '<span class="up-evo">진화 재료 — ' + mat.join(' · ') + '</span>' : '') + '</span>';
     b.addEventListener('click', function () { pickUpgrade(u.id); });
     boxEl.appendChild(b);
   });
+  renderEvoHint();
   showOv('ov-level');
+  telemetry.event('levelup_pause', { level: S.level, picks: S.levelPicks.map(function (u) { return u.id; }) });
 }
-const UPGRADE_FX = { dmg: 'vermilion', width: 'jade', dash: 'jade', ring: 'paper', charge: 'gold', heal: 'vermilion', perfect: 'gold', parry: 'paper', ice: 'ice', fire: 'fire', poison: 'poison', bell: 'gold' };
+const UPGRADE_FX = { dmg: 'vermilion', width: 'jade', dash: 'jade', ring: 'paper', charge: 'gold', heal: 'vermilion', perfect: 'gold', parry: 'paper', ice: 'ice', fire: 'fire', poison: 'poison', bell: 'gold', ward: 'gold', bolt: 'gold', echo: 'jade', reson: 'paper', counter: 'gold', inkstep: 'paper' };
 /* The chosen upgrade stamps over the hero, and the ones that change space show the change. */
 function upgradeFx(id) {
   const def = RUN_UPGRADES.filter(function (u) { return u.id === id; })[0];
@@ -4276,26 +5071,45 @@ function upgradeFx(id) {
 }
 function pickUpgrade(id) {
   if (!S || S.paused !== 'levelup') return false;
+  hideOvs(); S.paused = null;
+  applyUpgrade(id, false);
+  if (S._pendingLv) { S._pendingLv--; openLevelUp(); }
+  else S.forcePauseLv = false;
+  return true;
+}
+/* 카드 하나를 실제로 적용한다 — 멈추는 창과 멈추지 않는 선택이 같은 길을 쓴다. */
+function applyUpgrade(id, auto) {
+  if (!S) return false;
   S.upLv = S.upLv || {};
   const def = RUN_UPGRADES.filter(function (u) { return u.id === id; })[0];
-  if (def && (S.upLv[id] || 0) >= (def.maxLv || 99)) return false;
+  if (!def || (S.upLv[id] || 0) >= (def.maxLv || 99)) return false;
   S.upLv[id] = (S.upLv[id] || 0) + 1;
   /* §13 데이터: 제시 3장·고른 카드·레벨 — 카드 선택률(밸런스)을 나중에 잴 수 있게. */
   telemetry.event('card_pick', {
-    offered: (S.levelPicks || []).map(function (u) { return u.id; }), picked: id, lv: S.upLv[id]
+    offered: (S.levelPicks || []).map(function (u) { return u.id; }), picked: id, lv: S.upLv[id], auto: !!auto
   });
-  if (id === 'dmg') S.dashDmg += 1;
+  if (id === 'dmg') {
+    /* §5.1 체감식: +1, +0.8, +0.6, +0.5, 이후 +0.4 */
+    const steps = def.steps || [1];
+    S.dashDmg = Math.round((S.dashDmg + steps[Math.min(steps.length - 1, S.upLv[id] - 1)]) * 100) / 100;
+  }
   else if (id === 'width') S.pathR += 0.55;
   else if (id === 'dash') S.dashCount += 1;
   else if (id === 'ring') { S.ringLv = Math.min(CFG.ringLvMax || 3, (S.ringLv || 0) + 1); applyRingBoost(); }
-  else if (id === 'heal') { S.runHp += 2; S.hp = Math.min(maxHp(), S.hp + 5); }
+  else if (id === 'heal') {
+    /* §5.1 최대 체력 +2는 3번까지, 그 뒤는 회복만 */
+    if ((S.healMaxN || 0) < 3) { S.runHp += 2; S.healMaxN = (S.healMaxN || 0) + 1; }
+    S.hp = Math.min(maxHp(), S.hp + 5);
+  }
   else if (id === 'wealth') S.runCoin += 0.25;
   else if (id === 'ice' || id === 'fire' || id === 'poison') {
     /* v0.23 원소 각인: 처음 고르면 원소 장착, 다시 고르면 Lv2·Lv3으로 수치가 실제로 오른다. */
     S.elemLv = S.elemLv || {};
     S.elemLv[id] = Math.min(CFG.elemLvMax || 3, (S.elemLv[id] || 0) + 1);
     setDashElem(id);
-    toast(elemNameOf(id) + ' 각인 Lv' + S.elemLv[id]);
+    /* §5.4 두 번째 원소 칸: 한 각인이 Lv2가 되면 열리고, 일섬마다 두 원소가 번갈아 실린다. */
+    refreshElemSlots();
+    toast(elemNameOf(id) + ' 각인 Lv' + S.elemLv[id] + ((S.elemSlots || []).length >= 2 ? ' — 두 원소 교대' : ''));
   }
   else if (id === 'perfect') { toast('정확한 획 Lv' + S.upLv.perfect); }
   else if (id === 'parry') { toast('칼집 각성 Lv' + S.upLv.parry); }
@@ -4305,10 +5119,15 @@ function pickUpgrade(id) {
   }
   else if (id === 'magnet') S.magnetR = Math.min(CFG.magnetMax || 3.8, (S.magnetR || CFG.magnetR || 2.2) + (CFG.magnetStep || 0.6));
   else if (id === 'charge') S.chargeLv = (S.chargeLv || 0) + 1;
+  else if (id === 'ward') { S.wardSpin = S.wardSpin || 0; showJudge('회전 호신부 Lv' + S.upLv.ward); }
+  else if (id === 'bolt') { S.boltT = 0; showJudge('벼락부적 Lv' + S.upLv.bolt); }
+  else if (id === 'echo') { toast('메아리 칼 Lv' + S.upLv.echo); }
+  else if (id === 'reson') { toast('방울 공명 Lv' + S.upLv.reson); }
+  else if (id === 'counter') { toast('칼집 반격 Lv' + S.upLv.counter); }
+  else if (id === 'inkstep') { toast('먹 발자국 Lv' + S.upLv.inkstep); }
   upgradeFx(id);
-  hideOvs(); S.paused = null; renderHud();
+  renderHud();
   checkEvolutions();
-  if (S._pendingLv) { S._pendingLv--; openLevelUp(); }
   return true;
 }
 
@@ -4424,7 +5243,7 @@ function stepEnemySpecial(z, dt, d, frozen, zsp) {
   const kd = CFG.zombieTypes[z.type];
   if (!kd) return false;
   /* Same walking rule as the basic kinds: tempo, early slow-down, ice slow, and a stop while flinching. */
-  const sp = z.flinchT > 0 ? 0 : zsp * kd.speed * (z.slowT > 0 ? (CFG.iceSlowMul || 0.5) : 1);
+  const sp = z.flinchT > 0 ? 0 : zsp * kd.speed * slowMulOf(z);
   const ux = (S.hero.x - z.x) / (d || 1), uz = (S.hero.z - z.z) / (d || 1);
   if (kd.dashSpeed) {
     z.dashCd = (z.dashCd || 0) - dt;
@@ -5209,6 +6028,22 @@ function reflectGoldShots(R) {
 }
 /** Moves a reflected gold charm home to the boss; true while it flies. */
 function stepReflectedShot(sh, dt) {
+  /* v0.31 §3.5: 일반 투척 부적을 되받으면 던진 원귀에게 돌아가 꿰뚫는다. */
+  const bt = sh.backTo;
+  if (bt) {
+    if (!bt.alive) return false;
+    const dx = bt.x - sh.x, dz = bt.z - sh.z, L = Math.hypot(dx, dz) || 1;
+    const sp = (CFG.shotSpeed || 7.2) * 2.0;
+    sh.x += dx / L * sp * dt; sh.z += dz / L * sp * dt;
+    if (sh.mesh) sh.mesh.position.set(sh.x, 0.75, sh.z);
+    if (L < (bt.r || 0.55) + 0.45) {
+      showJudge('되받아침!');
+      addCharge(CFG.preciseCharge || 10);
+      hurtZombie(bt, 9999, 'counter-kill', S.lastDash);
+      return false;
+    }
+    return sh.t < 3;
+  }
   const b = S.boss;
   if (!b || !b.alive) return false;
   const dx = b.x - sh.x, dz = b.z - sh.z, L = Math.hypot(dx, dz) || 1;
@@ -5533,6 +6368,7 @@ function starsFor(win) {
 function endRun(win, msg) {
   if (!S || S.won || S.lost) return;
   S.won = win; S.lost = !win; S.playing = false; S.paused = 'result'; S.dash = null;
+  closeQuickCards();
   hideGuide();
   const sk = $('btnSkip');
   if (sk) sk.hidden = true;
@@ -5686,8 +6522,12 @@ function step(dt) {
     /* 선입력으로 이어진 연쇄는 판정을 조금 더 봐준다. */
     if (!(S.comboGrace > 0)) {
       S.comboIdle = (S.comboIdle || 0) + dt;
-      if (S.comboIdle > (CFG.comboTimeout || 2.8)) S.combo = 0;
+      if (S.comboIdle > (CFG.comboTimeout || 2.8)) { comboBreak(); S.comboIdle = 0; }
     }
+  }
+  if (S.comboFlash > 0) {
+    S.comboFlash = Math.max(0, S.comboFlash - dt);
+    if (S.comboFlash <= 0 && $('comboLabel')) $('comboLabel').classList.remove('tier');
   }
   if (S.tempElem && S.tempElem.t > 0) {
     S.tempElem.t -= dt;
@@ -5741,7 +6581,9 @@ function step(dt) {
   } else {
     stepSpirits(dt);
   }
-  if (qa.autoStroke) {
+  /* v0.31 QA: autoEvery(초)를 주면 자동 플레이가 그 간격으로만 획을 낸다 — 사람의 손 속도 대역. */
+  const autoGo = qa.autoStroke && (!qa.autoEvery || S.elapsed >= (S._autoNext || 0));
+  if (autoGo) {
     let guard = 0;
     const burst = (qa.timeScale && qa.timeScale > 4) ? 32 : 1;
     while (guard < burst && S.playing && !S.paused) {
@@ -5776,6 +6618,7 @@ function step(dt) {
       }
       if (!sh) break;
       beginDash(sh);
+      if (qa.autoEvery) S._autoNext = S.elapsed + qa.autoEvery;
       if (!S.dash && !(S.dashQueue && S.dashQueue.length)) break;
     }
   }
@@ -5795,7 +6638,7 @@ function step(dt) {
     if (!qa.noMove && !frozen && !bossHandled && !(z.flinchT > 0 && !z.isBoss)) {
       const kd = CFG.zombieTypes[z.type] || CFG.zombieTypes.imp;
       /* The boss speeds up the farther it is outside the ring, so a dashing hero cannot outrun it. */
-      const sp = z.isBoss ? (CFG.bossSpeed || 1) * (1 + (CFG.bossCatchUp || 0) * Math.max(0, d - ringR())) : zsp * kd.speed * (z.slowT > 0 ? (CFG.iceSlowMul || 0.5) : 1);
+      const sp = z.isBoss ? (CFG.bossSpeed || 1) * (1 + (CFG.bossCatchUp || 0) * Math.max(0, d - ringR())) : zsp * kd.speed * slowMulOf(z);
       z.x += (S.hero.x - z.x) / d * sp * dt;
       z.z += (S.hero.z - z.z) / d * sp * dt;
     }
@@ -5843,6 +6686,13 @@ function step(dt) {
   stepShrink(dt);
   stepReflects(dt);
   stepGapBuffer();
+  /* v0.31 §5.3 새 카드: 자동 스킬·메아리·먹 발자국 */
+  stepWard(dt);
+  stepBolt(dt);
+  stepBolts(dt);
+  stepEchoes(dt);
+  stepInkSteps(dt);
+  if (S.quick) tickQuick();
   if (S.goldEdge > 0) S.goldEdge = Math.max(0, S.goldEdge - dt);
   if (S.sealFx > 0) S.sealFx = Math.max(0, S.sealFx - dt);
   clampHeroToArena();
@@ -6037,6 +6887,11 @@ function localPts(e) {
 function onDown(e) {
   if (pointers.down) return;
   if (e.target.closest && e.target.closest('.ov.show, .btn, #hudBtns button')) return;
+  /* §5.2 멈추지 않는 선택: 화면 아래 22%의 탭은 카드 고르기 — 패링과 겹치지 않게 비워 둔다. */
+  if (S && S.quick) {
+    const p = localPts(e);
+    if (p.y >= viewBox().height * (1 - (CFG.quick.zone || 0.22))) return;
+  }
   pointers.down = true; pointers.id = e.pointerId; pointers.pts = [localPts(e)];
   try { $('app').setPointerCapture(e.pointerId); } catch (err) {}
   paintInk(pointers.pts, 1);
@@ -6591,6 +7446,16 @@ function loop(ts) {
     if (b) pickUpgrade(b.getAttribute('data-up'));
     else if (S.levelPicks && S.levelPicks[0]) pickUpgrade(S.levelPicks[0].id);
   }
+  /* §5.2 QA·빠른 진행: 멈추지 않는 카드는 화면을 막지 않으므로 바로 추천으로 넘긴다. */
+  if (S && S.quick) {
+    const auto = qa.autoPick === true || (qa.autoPick !== false && (qa.autoStroke || (qa.noDelay && qa.timeScale > 1)));
+    if (auto || now() - S.quick.t0 >= S.quick.dur) {
+      const id = recommendedPick();
+      if (id) pickQuick(id, auto); else closeQuickCards();
+    }
+  }
+  /* §5.2 수용 기준 측정: 멈춰 있는 시간의 합(레벨업 정지). */
+  if (S && S.playing && S.paused) S.stopT = (S.stopT || 0) + real;
   if (S && S.hitstop > 0) {
     S.hitstop -= raw;
     if (S.hitstop < 0) S.hitstop = 0;
@@ -6776,6 +7641,17 @@ function bindUi() {
     e.stopPropagation();
     endTutorial('skip');
     toast('안내를 건너뜁니다');
+  });
+  /* §5.2 레벨업 방식 토글 */
+  ['btnLvMode', 'btnLvMode1'].forEach(function (id) {
+    const b = $(id);
+    if (!b) return;
+    b.addEventListener('click', function (e) {
+      e.stopPropagation();
+      const next = save.levelMode === 'pause' ? 'quick' : 'pause';
+      setLevelMode(next);
+      toast(next === 'pause' ? '레벨업마다 멈추고 고릅니다' : '레벨업이 판을 멈추지 않습니다 — 4초 뒤 추천 자동 선택');
+    });
   });
   if ($('btnTrainOffer')) $('btnTrainOffer').addEventListener('click', function () {
     if (S) save.trainOffered = (S.stage ? S.stage.id : 1) + ':' + (S.streakAfter || 0);
@@ -7470,6 +8346,129 @@ const GPv2 = {
   showTitle: function () { if (audio) audio.stopBgm(); showOv('ov-title'); },
   openShop: function () { refreshShop(); showOv('ov-shop'); },
   markMetrics: function () { updateMarks(); return lastMarkMetrics; },
+  /* v0.31 QA 훅: 강적 파훼·콤보·정확한 패링·카드·경험치·자동 피해 비중 */
+  v31: function () {
+    return S ? {
+      combo: S.combo || 0, comboMul: +comboMul().toFixed(3), comboMax: S.comboMax || 0,
+      comboBreakN: S.comboBreakN || 0, pathWideN: S.pathWideN || 0, comboTierN: S.comboTierN || 0, comboFlash: +(S.comboFlash || 0).toFixed(2),
+      level: S.level, xp: S.xp, xpNeed: xpNeed(S.level), spiritCap: S.spiritCap, levelUps: S.levelUps || 0,
+      stopT: +(S.stopT || 0).toFixed(2), levelMode: save.levelMode, quickZone: CFG.quick.zone,
+      quick: S.quick ? { age: Math.round(now() - S.quick.t0), dur: S.quick.dur, picks: (S.levelPicks || []).map(function (u) { return u.id; }) } : null,
+      autoDmg: +(S.autoDmg || 0).toFixed(2), manualDmg: +(S.manualDmg || 0).toFixed(2), autoShare: autoShare(), autoCap: CFG.autoCap,
+      ward: wardInfo(), boltT: +(S.boltT || 0).toFixed(2), boltPeriod: upLv('bolt') ? +boltPeriod().toFixed(2) : null,
+      bolts: (S.bolts || []).length, boltHits: (S.boltHits || 0), echoes: (S.echoes || []).length,
+      echoMul: upLv('echo') ? (CFG.echoCard.mul || [])[Math.min(2, upLv('echo') - 1)] : null,
+      inkSteps: (S.inkSteps || []).length, reson: upLv('reson'), counter: upLv('counter'),
+      elemSlots: (S.elemSlots || []).slice(), elemSlotN: S.elemSlotN || 1, curElem: curElem(), elemLv: Object.assign({}, S.elemLv || {}),
+      evoHints: evoHints(), levelCards: (S.levelPicks || []).map(function (u) { return { id: u.id, mat: evoMatInfo(u.id) }; }),
+      dmg: +dashDmg().toFixed(3), dmgBase: S.dashDmg, healMaxN: S.healMaxN || 0, runHp: S.runHp || 0, floorDash: S.floorDash || 0
+    } : null;
+  },
+  breaks: function () {
+    return (S ? S.zombies : []).filter(function (z) { return z.alive; }).map(function (z) {
+      return { id: z.id, type: z.type, hp: +z.hp.toFixed(2), armor: z.armor || 0, shapeOv: z.shapeOv || null,
+        cracks: z.cracks || 0, lastShape: z.lastShape || null, seq: z.seq || null,
+        seqI: (z.seqI == null ? null : z.seqI), elite: !!z.elite };
+    });
+  },
+  setCombo: function (n) { if (S) { S.combo = n | 0; S.comboIdle = 0; S.comboBreakN = 0; renderHud(); } return S && S.combo; },
+  comboTierProbe: function (n) { return comboReward(n | 0); },
+  comboBreakProbe: function () { comboBreak(); return S ? { combo: S.combo || 0, n: S.comboBreakN || 0 } : null; },
+  tapProbe: function () { const p = preciseTarget(); return p ? { kind: p.kind, t: +(p.t || 0).toFixed(3), id: p.z ? p.z.id : null } : null; },
+  parryNow: function () { return doParry({ type: 'tap', targets: [], hits: [] }); },
+  quickPick: function (id) { return id ? pickQuick(id, false) : pickQuick(recommendedPick(), true); },
+  quickRecommended: function () { const id = recommendedPick(); return { id: id, ok: id ? pickQuick(id, true) : false }; },
+  quickDom: function () { const w = $('quickCards'); return { hidden: w ? !!w.hidden : null, html: $('quickList') ? $('quickList').innerHTML : '', note: $('quickNote') ? $('quickNote').textContent : '' }; },
+  levelUpInfo: function () {
+    const e = $('evoHint');
+    return { paused: S ? S.paused : null, evo: e && !e.hidden ? e.textContent : '',
+      cards: ((S && S.levelPicks) || []).map(function (u) { return { id: u.id, name: u.name, level: upCardLevelText(u), desc: upDesc(u), mat: evoMatInfo(u.id) }; }) };
+  },
+  setLevelMode: setLevelMode,
+  xpTable: function (n) { const out = []; for (let i = 1; i <= (n || 12); i++) out.push({ lv: i, need: xpNeed(i) }); return out; },
+  gainLevel: function (n) { for (let i = 0; i < (n || 1); i++) gainXp(xpNeed(S.level) - S.xp); return S && S.level; },
+  spawnBreak: function (type, x, z, hp) { return spawnZombie({ type: type, x: x == null ? S.hero.x + 3 : x, z: z == null ? S.hero.z : z, hp: hp }); },
+  /* 그은 획 하나를 직접 적용한다 — 파훼 규칙을 결정적으로 잴 때 쓴다(입력 경로는 같다). */
+  zInfo: function (id) {
+    const z = (S.zombies || []).filter(function (o) { return o.id === id; })[0];
+    if (!z) return null;
+    return { id: z.id, type: z.type, hp: +z.hp.toFixed(2), alive: !!z.alive, armor: z.armor || 0, shapeOv: z.shapeOv || null,
+      cracks: z.cracks || 0, lastShape: z.lastShape || null, seq: z.seq || null, seqI: (z.seqI == null ? null : z.seqI), elite: !!z.elite };
+  },
+  cutRaw: function (id, shape, dmg) {
+    if (!S) return null;
+    const z = S.zombies.filter(function (o) { return o.alive && o.id === id; })[0];
+    if (!z) return null;
+    const before = this.zInfo(id);
+    hurtZombie(z, dmg == null ? 2.5 : dmg, 'slash', { type: shape, targets: [id], hits: [], segs: [] });
+    const after = this.zInfo(id);
+    return { before: before, after: after, alive: z.alive, hp: +z.hp.toFixed(2) };
+  },
+  cut: function (id, shape, dmg) {
+    if (!S) return null;
+    const z = S.zombies.filter(function (o) { return o.alive && o.id === id; })[0];
+    if (!z) return null;
+    const rec = { type: shape, targets: [id], hits: [], segs: [] };
+    hurtZombie(z, dmg == null ? dashDmg() : dmg, 'slash', rec);
+    scoreDash(rec);
+    return { hp: +z.hp.toFixed(2), alive: z.alive, hits: rec.hits, z: this.zInfo(id) };
+  },
+  clearLevels: function () {
+    closeQuickCards(); hideOvs();
+    if (S) { if (S.paused === 'levelup') S.paused = null; S._pendingLv = 0; S._cleaveLv = 0; S.forcePauseLv = false; }
+    return true;
+  },
+  setDashDmg: function (v) { if (S) S.dashDmg = +v; return S && S.dashDmg; },
+  resetDmgMeter: function () { if (S) { S.autoDmg = 0; S.manualDmg = 0; } return true; },
+  applyMany: function (list) { (list || []).forEach(function (id) { applyUpgrade(id, true); }); return this.v31(); },
+  spawnItemKind: function (kind, x, z) { return spawnItem({ type: kind, x: x == null ? S.hero.x : x, z: z == null ? S.hero.z : z }); },
+  collectKind: function (kind) {
+    if (!S) return null;
+    const it = spawnItem({ type: kind, x: S.hero.x, z: S.hero.z });
+    collectItem(it, { type: 'hline', targets: [], hits: [], items: [] });
+    return { dashCount: S.dashCount, floorDash: S.floorDash || 0, coins: save.coins };
+  },
+  wardKillProbe: function (n, r, hp) {
+    const out = [];
+    const R = r == null ? 2.2 : r;
+    for (let i = 0; i < (n || 4); i++) {
+      const a = i / (n || 4) * Math.PI * 2;
+      out.push(spawnZombie({ type: 'imp', x: S.hero.x + Math.cos(a) * R, z: S.hero.z + Math.sin(a) * R, hp: hp || 30 }).id);
+    }
+    return out;
+  },
+  spiritShapes: function () { return livingMarks().map(function (s) { return { id: s.id, shape: spiritShape(s), target: s.target ? s.target.id : null }; }); },
+  clearZombies: function () {
+    (S.zombies || []).forEach(function (z) { z.alive = false; if (z.obj && three) three.scene.remove(z.obj); });
+    S.zombies = []; S.bolts = []; S.shots.forEach(function (sh) { if (sh.mesh) three.scene.remove(sh.mesh); }); S.shots = [];
+    assignSpiritTargets();
+    return this.breaks();
+  },
+  mark: function () { assignSpiritTargets(); return this.spiritShapes(); },
+  setSpiritCap: function (n) { if (S) S.spiritCap = n | 0; assignSpiritTargets(); return S ? S.spiritCap : 0; },
+  spawnShotAt: function (x, z) {
+    const sh = spawnShot({ x: x == null ? S.hero.x + 4 : x, z: z == null ? S.hero.z : z });
+    return sh ? { x: sh.x, z: sh.z } : null;
+  },
+  bossNow: function (nShapes) { if (!S) return null; const b = spawnBoss({ nShapes: nShapes || 3 }); return b ? b.id : null; },
+  levelProbe: function (xp) { gainXp(xp); return this.v31(); },
+  /* 렌더 없이 시뮬레이션만 돌려 판 전체의 성장을 잰다(소프트웨어 GL에서 12장 프레임이 너무 느릴 때). */
+  simRun: function (sec, dt, auto) {
+    if (!S) return null;
+    const d = dt || (1 / 30);
+    const n = Math.round((sec || 60) / d);
+    const e0 = S.elapsed, k0 = S.kills || 0, l0 = S.level;
+    const prevAuto = qa.autoStroke;
+    if (auto !== false) qa.autoStroke = true;
+    for (let i = 0; i < n && S && S.playing; i++) {
+      if (S.paused && S.paused !== 'manual') { if (S.paused === 'levelup') { const b = (S.levelPicks || [])[0]; if (b) pickUpgrade(b.id); } }
+      step(d);
+      if (S && S.quick) { const id = recommendedPick(); if (id) pickQuick(id, true); }
+      if (!S || !S.playing) break;
+    }
+    qa.autoStroke = prevAuto;
+    return { elapsed: +(S.elapsed - e0).toFixed(1), level: S.level, levelFrom: l0, kills: (S.kills || 0) - k0, xpNeed: xpNeed(S.level), won: !!S.won, lost: !!S.lost };
+  },
   snapshot: function () {
     return {
       hero: S && { x: S.hero.x, z: S.hero.z },
