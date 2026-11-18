@@ -38,6 +38,12 @@ export function setupBloom(renderer, scene, camera, { quality = 'high', override
       depthTexture: depth ? new THREE.DepthTexture(rw, rh) : null
     });
     composer = new EffectComposer(renderer, rt);
+    if (depth) {
+      /* r170: RenderTarget.clone() 의 depthTexture.clone() 은 같은 Source 를 공유해 rt1·rt2 가 한 GPU 깊이 텍스처를 쓴다.
+         그러면 어느 쪽 깊이를 샘플링해도 쓰는 버퍼에 붙어 있어 feedback loop 가 난다 — rt2 에 독립된 깊이 텍스처를 준다. */
+      if (composer.renderTarget2.depthTexture) composer.renderTarget2.depthTexture.dispose();
+      composer.renderTarget2.depthTexture = new THREE.DepthTexture(rw, rh);
+    }
     composer.addPass(new RenderPass(scene, camera));
     if (P) {
       bloom = new UnrealBloomPass(new THREE.Vector2(size.x * P.res * 2, size.y * P.res * 2), P.strength, P.radius, P.threshold);
