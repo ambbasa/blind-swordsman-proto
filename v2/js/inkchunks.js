@@ -10,11 +10,33 @@ import {
 } from './inkbake.js';
 import { makeMaterials, instanced, rockGeo, crossQuads, glowBatch, aoBatch, mergeGeo } from './inkprops3d.js';
 import { paperPropCanvas } from './inkpaper.js';
+import { texOf, aspectOf } from './inkdiorama.js';
 
 export const CHUNK = 24;
 export const WINDOW_R = 1; /* 3×3 */
+/* v0.37: 카메라 방위는 고정 45°(쿼터뷰) — 큰 소품(집·소나무·석등·바위)은 교차 평면 대신
+   카메라를 바라보는 한 장으로 세운다. 교차시키면 집이 두 채 겹친 X자로 보였다. */
+const CAM_RY = Math.PI * 0.25;
+function faceRy(rnd, spread) {
+  const r = (typeof rnd === 'function' ? rnd() : 0.5) - 0.5;
+  return CAM_RY + r * (spread == null ? 0.26 : spread);
+}
+/* 장별 바닥 텍스처(복제본) 캐시 — 장을 오갈 때 같은 512 판을 다시 GPU에 올리지 않는다. */
+const FLOOR_CACHE = new Map();
 const TAU = Math.PI * 2;
 const HALF = CHUNK / 2;
+
+/* v0.37 QA 조정 노브: URL 로 바닥 밝기·병풍 반경/높이를 바로 바꿔 가며 스크린샷을 비교한다.
+   (?floorMul=0.45&screenR=22&screenH=7) 값이 없으면 아래 기본값. */
+function qnum(k, d) {
+  try {
+    const v = parseFloat(new URLSearchParams(location.search).get(k));
+    return isFinite(v) && v > 0 ? v : d;
+  } catch (e) { return d; }
+}
+const FLOOR_MUL = qnum('floorMul', 1);
+const SCREEN_R = qnum('screenR', 21);
+const SCREEN_H = qnum('screenH', 11);
 
 const GROUND_STYLE = {
   1: { stone: [0.195, 0.205, 0.21], dirt: [0.095, 0.095, 0.10], moss: 0.22, wet: 0.7, seed: 11 },
@@ -109,7 +131,7 @@ function stoneLantern(B, x, z, rnd) {
   /* v0.36 한지 팝업북: 돌을 쌓은 대신 오린 등불 한 장(호박빛 창을 품었다). */
   push(B, 'rock', x, 0.1, z, 0.9, 0.2, 0.9, rnd() * TAU);
   const h = 2.35;
-  push(B, 'pLantern', x, h * 0.5, z, h * 0.5, h, h * 0.5, rnd() * TAU);
+  push(B, 'pLantern', x, h * 0.5, z, h * 0.5, h, h * 0.5, faceRy(rnd));
   push(B, 'glow', x, 0.03, z, 4.2, 1, 4.2);
   push(B, 'ao', x, 0, z, 1.6, 1, 1.6);
 }
@@ -189,7 +211,7 @@ function wallRun(B, x, z, len, ry, rnd) {
   /* 긴 담은 민가(기와집) 한 채로 세운다 — 박스 벽보다 팝업북 실루엣이 멀리서도 읽힌다. */
   if (len >= 4.6) {
     const h = 4.4 + rnd() * 1.0;
-    push(B, 'pHouse', x, h * 0.5, z, h, h, h, ry);
+    push(B, 'pHouse', x, h * 0.5, z, h, h, h, faceRy(rnd, 0.2));
     push(B, 'ao', x, 0, z, Math.max(3, len), 1, 2.4);
     if (rnd() < 0.6) push(B, 'glow', x + Math.cos(ry) * 1.2, 0.03, z + Math.sin(ry) * 1.2, 3.2, 1, 3.2);
     return;
@@ -250,8 +272,14 @@ function stonePagoda(B, x, z, rnd, tiers) {
 function snowPine(B, x, z, rnd) {
   /* v0.36 한지 팝업북: 층층 쌓던 상자·잎 대신 오린 소나무 한 장. */
   const h = 4.2 + rnd() * 2.8;
-  push(B, 'pPine', x, h * 0.5, z, h, h, h, rnd() * TAU);
+  push(B, 'pPine', x, h * 0.5, z, h, h, h, faceRy(rnd, 0.4));
   push(B, 'ao', x, 0, z, 2.2, 1, 2.0);
+}
+/* v0.37 비단 병풍 디오라마: 소나무 한 그루(카메라를 바라보는 한 장) — 장터·대숲·성문의 원경을 받친다. */
+function pineTree(B, x, z, rnd) {
+  const h = 4.4 + rnd() * 2.6;
+  push(B, 'pPine', x, h * 0.5, z, h, h, h, faceRy(rnd, 0.3));
+  push(B, 'ao', x, 0, z, 2.6, 1, 2.4);
 }
 /* 산문: 두 기둥과 긴 들보, 문 앞 등불 */
 function stoneGate(B, x, z, ry, rnd) {
@@ -339,7 +367,7 @@ export function buildChunkData(cx, cz, stageId) {
       if (p) {
         const ry = rnd() * TAU, w = 4.4 + rnd() * 2.4, d = 3.6 + rnd() * 1.4, h = 4.2 + rnd() * 0.9;
         /* v0.36 팝업복: 박스 벽 + 지붕 두 장 대신 오린 기와집 한 장. */
-        push(B, 'pHouse', W(p.x), h * 0.5, Z(p.z), h, h, h, ry + Math.PI);
+        push(B, 'pHouse', W(p.x), h * 0.5, Z(p.z), h, h, h, faceRy(rnd, 0.2));
         push(B, 'ao', W(p.x), 0, Z(p.z), w * 1.2, 1, d * 1.15);
         push(B, 'glow', W(p.x) + Math.sin(ry) * 0.9, 0.03, Z(p.z) + Math.cos(ry) * 0.9, 4.2, 1, 4.2);
         if (rnd() < 0.6) push(B, 'paper', W(p.x) + Math.cos(ry) * 1.6, 1.9, Z(p.z) - Math.sin(ry) * 1.6, 0.42, 0.54, 0.42);
@@ -373,6 +401,13 @@ export function buildChunkData(cx, cz, stageId) {
     if (rnd() < 0.55) {
       const p = spot(rnd, clearR + 1.2, occupied);
       if (p) stoneLantern(B, W(p.x), Z(p.z), rnd);
+    }
+    /* 장터 뒤편의 소나무 — 화면 위쪽 원경에 수묵 실루엣을 세운다. */
+    for (let i = 0; i < 2; i++) {
+      const p = spot(rnd, clearR + 3.2, occupied);
+      if (!p) continue;
+      pineTree(B, W(p.x), Z(p.z), rnd);
+      addOcc(p.x, p.z, 2.2);
     }
     if (rnd() < 0.42) {
       const p = spot(rnd, clearR + 1.0, occupied);
@@ -426,7 +461,7 @@ export function buildChunkData(cx, cz, stageId) {
       if (p) {
         /* v0.36 팝업복: 바위 더미를 오린 바위 실루엣으로. */
         const rh = 2.3 + rnd() * 1.3;
-        push(B, 'pRock', W(p.x), rh * 0.5, Z(p.z), rh * 1.33, rh, rh * 1.33, rnd() * TAU);
+        push(B, 'pRock', W(p.x), rh * 0.5, Z(p.z), rh * 1.33, rh, rh * 1.33, faceRy(rnd, 0.5));
         push(B, 'ao', W(p.x), 0, Z(p.z), 2.6, 1, 2.4);
         addOcc(p.x, p.z, 2.2);
       }
@@ -453,6 +488,11 @@ export function buildChunkData(cx, cz, stageId) {
     if (rnd() < 0.5) {
       const p = spot(rnd, clearR + 1.0, occupied);
       if (p) stoneLantern(B, W(p.x), Z(p.z), rnd);
+    }
+    /* 대숲 사이 늙은 소나무 한 그루 — 잎 결이 다른 실루엣으로 원경을 나눈다. */
+    if (rnd() < 0.75) {
+      const p = spot(rnd, clearR + 2.6, occupied);
+      if (p) { pineTree(B, W(p.x), Z(p.z), rnd); addOcc(p.x, p.z, 2.2); }
     }
     for (let i = 0; i < 4; i++) {
       const p = spot(rnd, 1.4, occupied);
@@ -781,28 +821,69 @@ export function createChunkWorld(opts) {
     9: 0xffd0cc, 10: 0xf6e2cc, 11: 0xffc8c4, 12: 0xffbcbc
   }[stageId] || 0xfff3e2;
   const paperMats = {};
+  /* v0.37: images CLI 로 그린 수묵화 PNG(투명 컷아웃)가 있으면 그것을 쓴다.
+     없으면(로딩 실패·오프라인) v0.36 절차 캔버스로 그대로 되돌아간다. */
   [['house', 31], ['bamboo', 47], ['pine', 59], ['lantern', 71], ['rock', 83]].forEach(function (k) {
-    const tex = new THREE.CanvasTexture(paperPropCanvas(k[0], k[1]));
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = 4;
+    const png = texOf(k[0]);
+    let tex = png;
+    if (!tex) {
+      tex = new THREE.CanvasTexture(paperPropCanvas(k[0], k[1]));
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 4;
+    }
+    /* 등불·기와집은 창호지 창이 스스로 빛난다(밤 무대에서 호박빛이 살아나게). */
+    const lit = (k[0] === 'lantern' || k[0] === 'house');
     paperMats[k[0]] = new THREE.MeshStandardMaterial({
-      map: tex, color: new THREE.Color(PAPER_TINT).multiplyScalar(1.75), alphaTest: 0.44, side: THREE.DoubleSide,
-      roughness: 0.97, metalness: 0.0,
+      map: tex, color: new THREE.Color(PAPER_TINT).multiplyScalar(png ? 0.92 : 1.75),
+      alphaTest: png ? 0.4 : 0.44, side: THREE.DoubleSide,
+      roughness: 0.96, metalness: 0.0,
       /* 종이 윗면에만 아주 옅은 자체 빛 — 검은 실루엣이 완전한 구멍이 되지 않게. */
-      emissive: new THREE.Color(0.05, 0.043, 0.036), emissiveIntensity: 1.0
+      emissive: lit ? new THREE.Color(0xffb45c) : new THREE.Color(0.05, 0.043, 0.036),
+      emissiveMap: lit ? tex : null,
+      emissiveIntensity: lit ? 0.42 : 1.0
     });
   });
 
-  /* 바닥: 24m 판 하나를 청크마다 깔고, 텍스처 반복을 12로 맞춰 이웃 청크와 무늬가 이어진다(2m 주기). */
+  /* 바닥: 24m 판 하나를 청크마다 깔고, 텍스처 반복을 맞춰 이웃 청크와 무늬가 이어진다.
+     v0.37: images CLI 로 구운 사각 돌판(512, 심리스) + 그 휘도에서 뽑은 노멀·러프니스를 쓴다.
+     판 하나가 4.8m(반복 5) — 1.2m 판석 네 줄이 24m 청크에 깔린다(4번 시안과 같은 결). */
   const gStyle = GROUND_STYLE[stageId] || GROUND_STYLE[1];
   const gs = groundSet(gStyle);
-  const gmap = gs.map.clone(); gmap.needsUpdate = true; gmap.repeat.set(12, 12);
-  const gnorm = gs.normalMap.clone(); gnorm.needsUpdate = true; gnorm.repeat.set(12, 12);
-  const grough = gs.roughnessMap.clone(); grough.needsUpdate = true; grough.repeat.set(12, 12);
+  const REPEAT = 5;
+  const floorKey = 'floor-' + stageId;
+  let fset = FLOOR_CACHE.get(floorKey);
+  if (!fset) {
+    const fMap = texOf('floor'), fN = texOf('floorN'), fR = texOf('floorR');
+    const map = (fMap || gs.map).clone(); map.needsUpdate = true; map.repeat.set(REPEAT, REPEAT);
+    const nrm = (fN || gs.normalMap).clone(); nrm.needsUpdate = true; nrm.repeat.set(REPEAT, REPEAT);
+    const rgh = (fR || gs.roughnessMap).clone(); rgh.needsUpdate = true; rgh.repeat.set(REPEAT, REPEAT);
+    [map, nrm, rgh].forEach(function (t) { t.userData.shared = true; });
+    /* 장마다 다른 돌빛: 시드 스타일의 stone 색에 한지·호박 기운을 얹는다. */
+    const st = gStyle.stone;
+    /* v0.37: 사각 돌판 PNG 는 밝고 주황이 강해 그대로 쓰면 무대가 하얗게 뜬다.
+       장별 돌빛을 0.42 로 눌러 밤 알베도로 맞추고, 살짝 중성으로 당긴다. */
+    const raw = new THREE.Color(st[0] * 2.55 * 1.16, st[1] * 2.55, st[2] * 2.55 * 0.80);
+    if (fMap) {
+      const g = (raw.r + raw.g + raw.b) / 3;
+      raw.lerp(new THREE.Color(g, g, g), 0.28);
+    }
+    const base = raw.multiplyScalar((fMap ? 0.58 : 1) * FLOOR_MUL);
+    fset = { map: map, normalMap: nrm, roughnessMap: rgh, base: base, png: !!fMap };
+    FLOOR_CACHE.set(floorKey, fset);
+    /* 12장을 다 돌아도 GPU 텍스처가 쌓이지 않게 최근 4장만 남긴다(512 판석 3장 = 약 4MB). */
+    while (FLOOR_CACHE.size > 4) {
+      const oldKey = FLOOR_CACHE.keys().next().value;
+      const old = FLOOR_CACHE.get(oldKey);
+      FLOOR_CACHE.delete(oldKey);
+      [old.map, old.normalMap, old.roughnessMap].forEach(function (t) { if (t && t.userData && t.userData.shared) { try { t.dispose(); } catch (e) {} } });
+    }
+  }
+  const gmap = fset.map, gnorm = fset.normalMap, grough = fset.roughnessMap;
+  const groundBase = fset.base.clone();
   const groundMat = new THREE.MeshStandardMaterial({
-    map: gmap, normalMap: gnorm, roughnessMap: grough, normalScale: new THREE.Vector2(0.3, 0.3),
-    /* v0.36: 컨셉 아트의 따뜻한 판석 — 푸른 회색 대신 한지·호박이 스민 갈회색. */
-    color: 0x8a7660, roughness: 1.0, metalness: 0.0
+    map: gmap, normalMap: gnorm, roughnessMap: grough,
+    normalScale: new THREE.Vector2(fset.png ? 0.78 : 0.3, fset.png ? 0.78 : 0.3),
+    color: groundBase.clone(), roughness: 0.92, metalness: 0.0
   });
   groundMat.userData.inkGround = true; /* game.js 가 지면 소나 셰이더(inklights.js)를 붙이는 표식 */
   const groundGeo = new THREE.PlaneGeometry(CHUNK, CHUNK, 1, 1);
@@ -823,12 +904,79 @@ export function createChunkWorld(opts) {
 
   /* 영웅을 따라오는 등불: 무한맵에서도 심안 안쪽이 따뜻하게 읽힌다. v0.36: 컨셉 아트의 호박빛 못을 따라
      색을 더 붉고 따뜻하게(0xffa955), 어깨 너머 달빛은 조금 낮춰 가장자리를 먹빛으로 돌린다. */
-  const heroLight = new THREE.PointLight(0xffa955, 46, 34, 1.35);
+  const heroLight = new THREE.PointLight(0xffb45c, 34, 20, 1.7);
   heroLight.position.set(0, 3.6, 1.6);
   group.add(heroLight);
   const rimLight = new THREE.PointLight(0x9fc0e0, 8, 30, 1.5);
   rimLight.position.set(3.2, 5.4, -3.0);
   group.add(rimLight);
+
+  /* ---------- v0.37 접이식 비단 산수 병풍 ----------
+     화면 위쪽(카메라 반대편)에만 두르는 원호 띠 → 미니어처 무대의 배경막.
+     카메라 방위가 고정 45°라 "위쪽"도 고정: 영웅에서 (-1,-1) 방향 21m, 10판이 170°로 감싼다.
+     판을 번갈아 반경을 흔들어 실제 접이식 병풍처럼 꺾인 주름을 만들고, 파노라마는 미러 반복해
+     이음새 없이 잇는다. 판 높이 11m 라 화면 맨 위까지 덮고, 텍스처 위쪽은 알파로 하늘에 스민다.
+     한 장의 지오메트리 → 드로우콜 1. */
+  let screenMesh = null;
+  const SCREEN = { N: 10, R: 21, H: 11, arc: Math.PI * 170 / 180, mid: Math.PI * 1.25, pleat: 0.85, x: null, z: null, tex: null };
+  function buildScreenRing(srcTex) {
+    const tex = srcTex.clone();
+    tex.needsUpdate = true;
+    tex.wrapS = THREE.MirroredRepeatWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 2;
+    tex.repeat.set(1, 1);
+    SCREEN.tex = tex;
+    const N = SCREEN.N, R = SCREEN_R, H = SCREEN_H, pl = SCREEN.pleat;
+    const arc = SCREEN.arc, a0 = SCREEN.mid - arc / 2;
+    const chord = 2 * R * Math.sin(arc / (2 * N));
+    /* 텍스처 한 조각이 정사각(2048×512 의 1/4)이 되도록 u 폭을 판 비율에 맞춘다. */
+    const uw = 0.25 * (chord / H);
+    const pos = [], uv = [], col = [], idx = [];
+    for (let i = 0; i < N; i++) {
+      const t0a = a0 + (i / N) * arc, t1a = a0 + ((i + 1) / N) * arc;
+      const r0 = R + (i % 2 ? -pl : pl), r1 = R + (i % 2 ? pl : -pl);
+      const x0 = Math.cos(t0a) * r0, z0 = Math.sin(t0a) * r0;
+      const x1 = Math.cos(t1a) * r1, z1 = Math.sin(t1a) * r1;
+      const u0 = i * uw, u1 = (i + 1) * uw;
+      const b = i % 2 ? 0.80 : 1.0;   /* 접힌 면과 펴진 면의 명도 차 */
+      const base = pos.length / 3;
+      pos.push(x0, 0, z0, x1, 0, z1, x1, H, z1, x0, H, z0);
+      uv.push(u0, 0, u1, 0, u1, 1, u0, 1);
+      for (let k = 0; k < 4; k++) col.push(b, b, b);
+      idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    /* 배경막: 조명을 받지 않게(밤에 실크가 하얗게 뜨지 않게) 기본 재질 + 어두운 배율. */
+    const mat = new THREE.MeshBasicMaterial({
+      map: tex, color: new THREE.Color(0xe6d9bd), transparent: true, opacity: 0.96,
+      side: THREE.DoubleSide, depthWrite: false, fog: true, vertexColors: true
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.frustumCulled = false;
+    mesh.renderOrder = -2;
+    mesh.name = 'silkScreen';
+    group.add(mesh);
+    return mesh;
+  }
+  function followScreen(hx, hz, dt) {
+    if (SCREEN.x == null) { SCREEN.x = hx; SCREEN.z = hz; }
+    /* 시차를 조금 남기는 완만한 추적(초당 1.5배) — 배경이 판에 붙어 있는 느낌을 피한다. */
+    const k = Math.min(1, Math.max(0.02, (dt || 0.016) * 1.5));
+    SCREEN.x += (hx - SCREEN.x) * k;
+    SCREEN.z += (hz - SCREEN.z) * k;
+    screenMesh.position.set(SCREEN.x, 0, SCREEN.z);
+  }
+  try {
+    const st = texOf('screen');
+    if (st) screenMesh = buildScreenRing(st);
+  } catch (e) { screenMesh = null; }
 
   const geos = {
     box: new THREE.BoxGeometry(1, 1, 1),
@@ -838,6 +986,7 @@ export function createChunkWorld(opts) {
     leaf: crossQuads(),
     /* 한지 팝업북 스프라이트용: 세로로만 선 교차 평면(가로로 눕힌 세 번째 장은 뺐다). */
     paperPlane: (function () { const a = new THREE.PlaneGeometry(1, 1); const b2 = a.clone(); b2.rotateY(Math.PI / 2); return mergeGeo([a, b2]); })(),
+    /* 카메라를 바라보는 한 장(집·소나무·석등·바위). */ paperPlane1: new THREE.PlaneGeometry(1, 1),
     bamboo: (function () { const g = new THREE.CylinderGeometry(0.055, 0.085, 1, 6, 1, true); g.translate(0, 0.5, 0); return g; })(),
     jar: (function () {
       const pts = [[0.0, 0.0], [0.2, 0.01], [0.3, 0.1], [0.34, 0.26], [0.33, 0.4], [0.26, 0.55], [0.19, 0.62], [0.17, 0.68], [0.22, 0.72], [0.19, 0.75]]
@@ -870,12 +1019,12 @@ export function createChunkWorld(opts) {
     rock: { geo: geos.rock, mat: M.rock, cast: true },
     leaf: { geo: geos.leaf, mat: M.leaf, cast: false },
     bamboo: { geo: geos.bamboo, mat: M.bamboo, cast: true },
-    /* 한지 팝업북 스프라이트 배치 */
-    pHouse: { geo: geos.paperPlane, mat: paperMats.house, cast: true },
-    pBamboo: { geo: geos.paperPlane, mat: paperMats.bamboo, cast: true },
-    pPine: { geo: geos.paperPlane, mat: paperMats.pine, cast: true },
-    pLantern: { geo: geos.paperPlane, mat: paperMats.lantern, cast: true },
-    pRock: { geo: geos.paperPlane, mat: paperMats.rock, cast: true }
+    /* 한지 팝업북 스프라이트 배치 — aspect 는 텍스처 가로/세로 비(높이만 지정해도 그림이 안 늘어난다). */
+    pHouse: { geo: geos.paperPlane1, mat: paperMats.house, cast: true, aspect: aspectOf('house') },
+    pBamboo: { geo: geos.paperPlane, mat: paperMats.bamboo, cast: true, aspect: aspectOf('bamboo') },
+    pPine: { geo: geos.paperPlane1, mat: paperMats.pine, cast: true, aspect: aspectOf('pine') },
+    pLantern: { geo: geos.paperPlane1, mat: paperMats.lantern, cast: true, aspect: aspectOf('lantern') },
+    pRock: { geo: geos.paperPlane1, mat: paperMats.rock, cast: true, aspect: aspectOf('rock') }
   };
 
   const dataCache = new Map();
@@ -993,9 +1142,12 @@ export function createChunkWorld(opts) {
       if (!items.length) { if (pooled[k]) pooled[k].mesh.visible = false; return; }
       const p = ensurePool(k, spec, items.length);
       writeBatch(p, items, function (d, it) {
+        const sy = it.sy == null ? 1 : it.sy;
+        const sx = it.sx == null ? 1 : it.sx;
+        const w = spec.aspect ? sy * spec.aspect : sx;
         d.position.set(it.x || 0, it.y || 0, it.z || 0);
         d.rotation.set(it.rx || 0, it.ry || 0, it.rz || 0);
-        d.scale.set(it.sx == null ? 1 : it.sx, it.sy == null ? 1 : it.sy, it.sz == null ? 1 : it.sz);
+        d.scale.set(w, sy, spec.aspect ? w : (it.sz == null ? 1 : it.sz));
       });
     });
     /* 불티·바닥 그림자·먹 자국은 수가 적어 매번 새로 만든다(이전 판과 같다). */
@@ -1065,6 +1217,8 @@ export function createChunkWorld(opts) {
     world.jars = jars;
     world.stats.chunks = 9;
     world.stats.props = Object.keys(all).reduce(function (n, k) { return n + all[k].length; }, 0);
+    /* v0.37 검수용: 고화질 PNG 소품이 몇 개 서 있는지 종류별로 남긴다. */
+    world.stats.paper = { house: all.pHouse.length, bamboo: all.pBamboo.length, pine: all.pPine.length, lantern: all.pLantern.length, rock: all.pRock.length };
     world.stats.jars = jars.filter(function (j) { return j.alive; }).length;
     world.stats.jarTotal = jars.length;
     world.stats.batches = batches.length;
@@ -1084,11 +1238,12 @@ export function createChunkWorld(opts) {
       world.center = center;
       rebuild(cx, cz, hx, hz);
     }
-    /* 등불·잉걸불 숨쉬기 */
+    /* 등불·잉걸불 숨쉬기 — v0.37: 장별 돌빛을 유지하면서 밝기만 살짝 흔든다. */
     const pulse = 0.9 + Math.sin(t * 2.4) * 0.1;
-    if (groundMat && groundMat.color) groundMat.color.setScalar(0.68 + 0.02 * pulse);
+    if (groundMat && groundMat.color) groundMat.color.copy(groundBase).multiplyScalar(0.94 + 0.035 * pulse);
     heroLight.position.set(hx || 0, 3.5, (hz || 0) + 1.8);
-    heroLight.intensity = 34 + 5 * pulse;
+    heroLight.intensity = 30 + 4 * pulse;
+    if (screenMesh) followScreen(hx || 0, hz || 0, dt);
     rimLight.position.set((hx || 0) + 3.4, 5.6, (hz || 0) - 3.2);
   };
 
@@ -1118,6 +1273,10 @@ export function createChunkWorld(opts) {
     built = false;
     center.cx = null; center.cz = null;
     world.update(0, 0, hx || 0, hz || 0);
+  };
+
+  world.screenInfo = function () {
+    return screenMesh ? { panels: SCREEN.N, r: SCREEN.R, h: SCREEN.H, x: Math.round(SCREEN.x * 10) / 10, z: Math.round(SCREEN.z * 10) / 10, png: true } : null;
   };
 
   world.jarsOnPath = function (ax, az, bx, bz, r) {
@@ -1162,11 +1321,13 @@ export function createChunkWorld(opts) {
 
   world.dispose = function () {
     Object.keys(pooled).forEach(function (k) { const m = pooled[k].mesh; if (m) { if (m.parent) m.parent.remove(m); if (m.dispose) m.dispose(); } });
-    [glowMesh, aoMesh, stainMesh, jarMesh, jarSealMesh].forEach(function (m) { if (m) { if (m.parent) m.parent.remove(m); if (m.dispose) m.dispose(); } });
+    [glowMesh, aoMesh, stainMesh, jarMesh, jarSealMesh, screenMesh].forEach(function (m) { if (m) { if (m.parent) m.parent.remove(m); if (m.dispose) m.dispose(); } });
+    if (SCREEN.tex) { try { SCREEN.tex.dispose(); } catch (e) {} }
     grounds.forEach(function (g) { group.remove(g); });
     groundGeo.dispose();
     groundMat.dispose();
-    gmap.dispose(); gnorm.dispose(); grough.dispose();
+    /* 판석 텍스처는 장별로 공유된다 — 청크 월드를 버린다고 GPU 텍스처를 지우지 않는다. */
+    [gmap, gnorm, grough].forEach(function (t) { if (t && t.userData && t.userData.shared !== true) t.dispose(); });
     stainMat.dispose();
     jarMat.dispose(); sealMat.dispose();
     Object.keys(geos).forEach(function (k) { if (geos[k] && geos[k].dispose) geos[k].dispose(); });

@@ -148,7 +148,8 @@ export function glowBatch(items) {
   const geo = new THREE.PlaneGeometry(1, 1);
   geo.rotateX(-Math.PI / 2);
   const mat = new THREE.MeshBasicMaterial({
-    map: glowTexture(), transparent: true, opacity: 0.62, depthWrite: false,
+    /* v0.37: 0.62 는 어두워진 판석 위에서 등불 바닥빛이 흰 원으로 타 버렸다 — 조금 낮추고 호박빛을 진하게. */
+    map: glowTexture(), transparent: true, opacity: 0.40, depthWrite: false,
     blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: true
   });
   const mesh = new THREE.InstancedMesh(geo, mat, Math.max(1, items.length));
@@ -160,7 +161,7 @@ export function glowBatch(items) {
     d.scale.set(s, 1, s * (it.squash || 1));
     d.updateMatrix();
     mesh.setMatrixAt(i, d.matrix);
-    mesh.setColorAt(i, it.color || new THREE.Color(1, 0.55, 0.24));
+    mesh.setColorAt(i, it.color || new THREE.Color(1, 0.46, 0.17));
   });
   mesh.count = items.length;
   mesh.instanceMatrix.needsUpdate = true;

@@ -1,4 +1,7 @@
 /* 심안(SIMAN) v2 — 2.5D quarter-view, Three.js, camera-follow dashes.
+   v0.37: 비단 병풍 디오라마 — images CLI 로 그린 수묵화 PNG 소품(기와집·소나무·대나무·석등·바위)과
+          사각 돌판 바닥(노멀·러프니스 포함)·원경 접이식 산수 병풍 띠(1 드로우콜, 영웅 추적) ·
+          타이틀에서 디오라마 에셋 비동기 프리로드(출전 멈춤 없음) · 호박빛 0xffb45c 등불 풀
    v0.36: 한지·수묵 팝업북 소품(inkpaper.js — 기와집·대나무·소나무·돌등불·바위 교차평면 컷아웃) ·
           주인공 검은 무사복(두건·안대·상의·바지·장화, 한지빛 림) · HUD 잠금은 제스처 획 판정 중에만 ·
           소나 2D 링 제거(3D 지면 소나 한 겹) · 지면 시야안개(uSightFog)로 깊이 · 블룸 임계값 1.15로 빛 분리 · 점광원 품질별 4/2개
@@ -24,6 +27,7 @@ import { createCinematicPass } from './inkcinematic.js';
 import { createSlashArc } from './inkslash3d.js';
 import { StageAtmosphere } from './inkatmos.js';
 import { paperPropCanvas } from './inkpaper.js';
+import { preloadDiorama, dioramaInfo } from './inkdiorama.js';
 import { createChunkWorld, buildChunkData, chunkOf, prebakeGroundStage } from './inkchunks.js';
 import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariants } from './prewarm.js';
 import { InkFx, FX_COLORS } from './inkfx.js';
@@ -35,7 +39,7 @@ import {
 import { InkLightPool, createWorldInkUniforms, attachGroundInkShader } from './inklights.js';
 import { initOverlayShell } from './ui/overlayShell.js';
 const inkFx = new InkFx();
-const telemetry = createTelemetry({ version: '0.36' });
+const telemetry = createTelemetry({ version: '0.37' });
 let frameDt = 1 / 60;
 
 const G = window.GPGestures;
@@ -9127,6 +9131,17 @@ function drawRingFog(fog, w, h) {
   fog.fillStyle = g;
   fog.beginPath(); fog.arc(0, 0, CFG.fogOuter, 0, Math.PI * 2); fog.fill();
   fog.restore();
+  /* v0.37 디오라마 배경: 화면 맨 위는 안개를 조금 덜어 원경 비단 병풍과 무대 실루엣이 읽히게 한다.
+     (전투 시인성은 심안 궤도 안쪽이 담당하고, 여기는 20m 밖 배경만 해당한다.) */
+  fog.save();
+  fog.globalCompositeOperation = 'destination-out';
+  const topFade = fog.createLinearGradient(0, 0, 0, h * 0.34);
+  topFade.addColorStop(0, 'rgba(0,0,0,0.52)');
+  topFade.addColorStop(0.62, 'rgba(0,0,0,0.26)');
+  topFade.addColorStop(1, 'rgba(0,0,0,0)');
+  fog.fillStyle = topFade;
+  fog.fillRect(0, 0, w, h * 0.34);
+  fog.restore();
   /* Drifting mist along the rim: long thin banks stretched along the edge, pale and dark, slowly sliding. */
   const n = CFG.fogWisps;
   const paleImg = glowSprite('wisp-pale', [[0, 'rgba(160,162,158,1)'], [1, 'rgba(160,162,158,0)']], 64);
@@ -9518,6 +9533,8 @@ function fpsReport() {
 }
 
 async function boot() {
+  /* v0.37: 디오라마 PNG 는 모듈 로드와 동시에 받기 시작한다(타이틀 유휴 프리로드). 여기서 한 번 더 보장. */
+  try { preloadDiorama(); } catch (e) {}
   loadSave();
   qa.mute = !!save.muted;
   await probeAssets();
@@ -10275,6 +10292,12 @@ const GPv2 = {
   pickSpirits: function (shape, n, from, dir) { return pickSpirits(shape, n, from, dir); },
   audioInfo: function () { return audio ? audio.info() : null; },
   paperPreview: function (k) { try { return paperPropCanvas(k, 31).toDataURL('image/png'); } catch (e) { return null; } },
+  diorama: function () {
+    const info = dioramaInfo();
+    const w = three && three.chunks;
+    info.screen = !!(w && w.stats && w.screenInfo ? w.screenInfo() : null);
+    return info;
+  },
   triggerSightWave: triggerSightWave,
   drawSightFog: drawSightFog,
 
