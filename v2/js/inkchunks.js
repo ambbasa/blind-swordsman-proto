@@ -853,7 +853,8 @@ export function createChunkWorld(opts) {
   const dataCache = new Map();
   const brokenKeys = Object.create(null);
   const batches = [];
-  let jarBody = null, jarSeal = null;
+  let glowMesh = null, aoMesh = null, stainMesh = null;
+  let jarMesh = null, jarSealMesh = null, jarCap = 0;
   let center = { cx: null, cz: null };
   let built = false;
   const dummy = new THREE.Object3D();
@@ -873,6 +874,7 @@ export function createChunkWorld(opts) {
     if (!d) {
       d = buildChunkData(cx, cz, stageId);
       dataCache.set(k, d);
+      world.stats.dataBuilt = (world.stats.dataBuilt || 0) + 1;
       if (dataCache.size > 49) {
         const first = dataCache.keys().next().value;
         dataCache.delete(first);
@@ -881,60 +883,69 @@ export function createChunkWorld(opts) {
     return d;
   }
 
-  function disposeBatches() {
-    batches.forEach(function (m) {
-      m.parent && m.parent.remove(m);
-      if (m.isInstancedMesh) m.dispose();
-    });
-    batches.length = 0;
-    if (jarBody) { jarBody.parent && jarBody.parent.remove(jarBody); jarBody.dispose(); jarBody = null; }
-    if (jarSeal) { jarSeal.parent && jarSeal.parent.remove(jarSeal); jarSeal.dispose(); jarSeal = null; }
-  }
+  /* ---------- v0.34 §14 청크 다시 짓기 비용 줄이기 ----------
+     창(3×3)이 밀릴 때마다 지오메트리·InstancedMesh를 새로 만들면 그 프레임이 멈춘다.
+     그래서 배치(종류별 InstancedMesh)를 한 번 만들고 **용량을 넉넉히** 잡아 두고,
+     청크가 바뀌면 행렬만 다시 쓴다(버퍼 생성 없음). 창 밖 데이터는 데이터 캐시에서 버린다.
+     배칭은 창 전체를 하나로 묶으므로 드로우콜도 예전과 같다(종류 수만큼). */
+  const pooled = {};   /* bucket → { mesh, cap } */
+  let groundUsed = [];
 
-  function placeJars(list) {
-    if (!list.length) return;
-    jarBody = new THREE.InstancedMesh(geos.jar, jarMat, list.length);
-    jarSeal = new THREE.InstancedMesh(geos.seal, sealMat, list.length);
-    jarBody.castShadow = true; jarBody.receiveShadow = true;
-    jarBody.frustumCulled = false; jarSeal.frustumCulled = false;
-    jarBody.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    jarSeal.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    list.forEach(function (j, i) {
-      dummy.position.set(j.x, 0, j.z);
-      dummy.rotation.set(0, j.ry, 0);
-      dummy.scale.set(j.alive ? 1 : 0.0001, j.alive ? 1 : 0.0001, j.alive ? 1 : 0.0001);
-      dummy.updateMatrix();
-      jarBody.setMatrixAt(i, dummy.matrix);
-      dummy.position.set(j.x + Math.sin(j.ry) * 0.3, 0.44, j.z + Math.cos(j.ry) * 0.3);
-      dummy.rotation.set(-0.18, j.ry, 0.1);
-      dummy.scale.set(1, 1, 1);
-      dummy.updateMatrix();
-      jarSeal.setMatrixAt(i, dummy.matrix);
-      j.slot = i;
+  function makeBatch(spec, cap) {
+    const mesh = new THREE.InstancedMesh(spec.geo, spec.mat, cap);
+    mesh.castShadow = !!spec.cast;
+    mesh.receiveShadow = spec.receive !== false;
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    /* 소품 색(눈·혈석·해골)을 위해 색 버퍼를 함께 둔다. */
+    mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3).fill(1), 3);
+    mesh.frustumCulled = false;
+    return mesh;
+  }
+  function ensurePool(key, spec, need) {
+    let p = pooled[key];
+    if (p && p.cap >= need) return p;
+    const cap = Math.max(16, Math.ceil(need * 1.35));
+    if (p && p.mesh) { if (p.mesh.parent) p.mesh.parent.remove(p.mesh); if (p.mesh.dispose) p.mesh.dispose(); const ix = batches.indexOf(p.mesh); if (ix >= 0) batches.splice(ix, 1); }
+    const mesh = makeBatch(spec, cap);
+    group.add(mesh);
+    batches.push(mesh);
+    p = pooled[key] = { mesh: mesh, cap: cap };
+    return p;
+  }
+  const _d = new THREE.Object3D();
+  const _c = new THREE.Color();
+  function writeBatch(p, items, fill) {
+    const mesh = p.mesh;
+    items.forEach(function (it, i) {
+      fill(_d, it);
+      _d.updateMatrix();
+      mesh.setMatrixAt(i, _d.matrix);
+      if (mesh.instanceColor) {
+        if (it.color && it.color.length >= 3) { _c.setRGB(it.color[0], it.color[1], it.color[2]); mesh.setColorAt(i, _c); }
+        else { _c.setRGB(1, 1, 1); mesh.setColorAt(i, _c); }
+      }
     });
-    jarBody.instanceMatrix.needsUpdate = true;
-    jarSeal.instanceMatrix.needsUpdate = true;
-    group.add(jarBody);
-    group.add(jarSeal);
+    for (let i = items.length; i < p.cap; i++) {
+      _d.position.set(0, -999, 0); _d.rotation.set(0, 0, 0); _d.scale.set(0.0001, 0.0001, 0.0001);
+      _d.updateMatrix(); mesh.setMatrixAt(i, _d.matrix);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    mesh.visible = true;
   }
 
   function rebuild(cx, cz, hx, hz) {
-    disposeBatches();
     const all = emptyBuckets();
     const jars = [];
-    let idx = 0;
+    const chs = [];
     for (let dz = -WINDOW_R; dz <= WINDOW_R; dz++) {
       for (let dx = -WINDOW_R; dx <= WINDOW_R; dx++) {
         const ch = chunkData(cx + dx, cz + dz);
+        chs.push(ch);
         Object.keys(all).forEach(function (k) {
           const src = ch.buckets[k];
           if (src && src.length) for (let i = 0; i < src.length; i++) all[k].push(src[i]);
         });
-        /* 바닥 */
-        const g = grounds[idx++];
-        g.visible = true;
-        g.position.set((cx + dx) * CHUNK + HALF, 0, (cz + dz) * CHUNK + HALF);
-        /* 항아리 */
         ch.jars.forEach(function (j) {
           const key = chunkKey(ch.cx, ch.cz) + '#' + j.idx;
           const alive = !brokenKeys[key];
@@ -942,48 +953,88 @@ export function createChunkWorld(opts) {
         });
       }
     }
-
+    for (let i = 0; i < chs.length && i < grounds.length; i++) {
+      const g = grounds[i];
+      g.visible = true;
+      g.position.set(chs[i].cx * CHUNK + HALF, 0, chs[i].cz * CHUNK + HALF);
+    }
+    /* 소품 배치: 용량이 모자랄 때만 새 버퍼를 만든다(보통은 행렬만 다시 쓴다). */
     Object.keys(bucketSpec).forEach(function (k) {
       const items = all[k];
-      if (!items.length) return;
       const spec = bucketSpec[k];
-      const mesh = instanced(spec.geo, spec.mat, items, { cast: spec.cast, receive: k !== 'leaf' && k !== 'cloth' });
-      if (mesh) { group.add(mesh); batches.push(mesh); }
+      if (!items.length) { if (pooled[k]) pooled[k].mesh.visible = false; return; }
+      const p = ensurePool(k, spec, items.length);
+      writeBatch(p, items, function (d, it) {
+        d.position.set(it.x || 0, it.y || 0, it.z || 0);
+        d.rotation.set(it.rx || 0, it.ry || 0, it.rz || 0);
+        d.scale.set(it.sx == null ? 1 : it.sx, it.sy == null ? 1 : it.sy, it.sz == null ? 1 : it.sz);
+      });
     });
+    /* 불티·바닥 그림자·먹 자국은 수가 적어 매번 새로 만든다(이전 판과 같다). */
+    if (glowMesh) { if (glowMesh.parent) glowMesh.parent.remove(glowMesh); if (glowMesh.dispose) glowMesh.dispose(); glowMesh = null; }
+    if (aoMesh) { if (aoMesh.parent) aoMesh.parent.remove(aoMesh); if (aoMesh.dispose) aoMesh.dispose(); aoMesh = null; }
+    if (stainMesh) { if (stainMesh.parent) stainMesh.parent.remove(stainMesh); if (stainMesh.dispose) stainMesh.dispose(); stainMesh = null; }
     if (all.glow.length) {
-      const gl = glowBatch(all.glow.map(function (g) {
-        return { x: g.x, y: g.y, z: g.z, size: g.sx || 3, squash: 1, ry: g.ry || 0, color: g.color };
-      }));
-      if (gl) { group.add(gl); batches.push(gl); }
+      glowMesh = glowBatch(all.glow.map(function (g) { return { x: g.x, y: g.y, z: g.z, size: g.sx || 3, squash: 1, ry: g.ry || 0, color: g.color }; }));
+      if (glowMesh) { glowMesh.frustumCulled = false; group.add(glowMesh); }
     }
     if (all.ao.length) {
-      const ao = aoBatch(all.ao.map(function (a) { return { x: a.x, z: a.z, size: a.sx, squash: 0.85 }; }));
-      if (ao) { group.add(ao); batches.push(ao); }
+      aoMesh = aoBatch(all.ao.map(function (a) { return { x: a.x, z: a.z, size: a.sx, squash: 0.85 }; }));
+      if (aoMesh) { aoMesh.frustumCulled = false; group.add(aoMesh); }
     }
     if (all.stain.length) {
-      const items = all.stain;
-      const mesh = new THREE.InstancedMesh(geos.plank, stainMat, items.length);
+      stainMesh = new THREE.InstancedMesh(geos.plank, stainMat, all.stain.length);
       const d = new THREE.Object3D();
-      items.forEach(function (it, i) {
+      all.stain.forEach(function (it, i) {
         d.position.set(it.x, it.y || 0.014, it.z);
         d.rotation.set(-Math.PI / 2, 0, it.ry || 0);
         d.scale.set(it.sx, it.sz, 1);
         d.updateMatrix();
-        mesh.setMatrixAt(i, d.matrix);
+        stainMesh.setMatrixAt(i, d.matrix);
       });
-      mesh.instanceMatrix.needsUpdate = true;
-      mesh.renderOrder = 1;
-      mesh.frustumCulled = false;
-      mesh.receiveShadow = false;
-      mesh.castShadow = false;
-      group.add(mesh);
-      batches.push(mesh);
+      stainMesh.instanceMatrix.needsUpdate = true;
+      stainMesh.renderOrder = 1; stainMesh.frustumCulled = false;
+      stainMesh.receiveShadow = false; stainMesh.castShadow = false;
+      group.add(stainMesh);
     }
+    /* 항아리: 하나의 배치를 재사용하고, 부수면 그 슬롯만 줄인다. */
+    if (jars.length) {
+      if (!jarMesh || jarCap < jars.length) {
+        const cap = Math.max(16, Math.ceil(jars.length * 1.4));
+        if (jarMesh) { if (jarMesh.parent) jarMesh.parent.remove(jarMesh); if (jarMesh.dispose) jarMesh.dispose(); }
+        if (jarSealMesh) { if (jarSealMesh.parent) jarSealMesh.parent.remove(jarSealMesh); if (jarSealMesh.dispose) jarSealMesh.dispose(); }
+        jarMesh = new THREE.InstancedMesh(geos.jar, jarMat, cap);
+        jarSealMesh = new THREE.InstancedMesh(geos.seal, sealMat, cap);
+        jarMesh.castShadow = true; jarMesh.receiveShadow = true;
+        jarMesh.frustumCulled = false; jarSealMesh.frustumCulled = false;
+        jarMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        jarSealMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        group.add(jarMesh); group.add(jarSealMesh);
+        jarCap = cap;
+      }
+      jarMesh.visible = true; jarSealMesh.visible = true;
+      jars.forEach(function (j, i) {
+        dummy.position.set(j.x, 0, j.z);
+        dummy.rotation.set(0, j.ry, 0);
+        dummy.scale.set(j.alive ? 1 : 0.0001, j.alive ? 1 : 0.0001, j.alive ? 1 : 0.0001);
+        dummy.updateMatrix();
+        jarMesh.setMatrixAt(i, dummy.matrix);
+        dummy.position.set(j.x + Math.sin(j.ry) * 0.3, 0.44, j.z + Math.cos(j.ry) * 0.3);
+        dummy.rotation.set(-0.18, j.ry, 0.1);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        jarSealMesh.setMatrixAt(i, dummy.matrix);
+        j.slot = i;
+      });
+      for (let i = jars.length; i < jarCap; i++) {
+        dummy.position.set(0, -999, 0); dummy.scale.set(0.0001, 0.0001, 0.0001); dummy.rotation.set(0, 0, 0);
+        dummy.updateMatrix(); jarMesh.setMatrixAt(i, dummy.matrix); jarSealMesh.setMatrixAt(i, dummy.matrix);
+      }
+      jarMesh.instanceMatrix.needsUpdate = true; jarSealMesh.instanceMatrix.needsUpdate = true;
+    } else if (jarMesh) { jarMesh.visible = false; jarSealMesh.visible = false; }
 
-    /* Bonfire spots of the 3x3 window, for the floating embers (StageAtmosphere.setEmitters). */
     world.embers = all.ember.map(function (e) { return { x: e.x, y: (e.y || 0.12) + 0.2, z: e.z }; });
     world.jars = jars;
-    placeJars(jars);
     world.stats.chunks = 9;
     world.stats.props = Object.keys(all).reduce(function (n, k) { return n + all[k].length; }, 0);
     world.stats.jars = jars.filter(function (j) { return j.alive; }).length;
@@ -991,8 +1042,8 @@ export function createChunkWorld(opts) {
     world.stats.batches = batches.length;
     world.stats.cached = dataCache.size;
     world.stats.rebuilds++;
+    world.stats.lastBuilt = 9;
     built = true;
-    /* 창 밖 데이터는 버린다 */
     const keep = new Set();
     for (let dz = -WINDOW_R; dz <= WINDOW_R; dz++) for (let dx = -WINDOW_R; dx <= WINDOW_R; dx++) keep.add(chunkKey(cx + dx, cz + dz));
     Array.from(dataCache.keys()).forEach(function (k) { if (!keep.has(k)) dataCache.delete(k); });
@@ -1046,22 +1097,23 @@ export function createChunkWorld(opts) {
     if (n > 600) { /* 기록이 무한정 쌓이지 않게 오래된 것부터 */
       Object.keys(brokenKeys).slice(0, 200).forEach(function (k) { delete brokenKeys[k]; });
     }
-    if (jarBody && j.slot >= 0) {
+    if (jarMesh && j.slot >= 0) {
       dummy.position.set(j.x, 0, j.z);
       dummy.rotation.set(0, j.ry || 0, 0);
       dummy.scale.set(0.0001, 0.0001, 0.0001);
       dummy.updateMatrix();
-      jarBody.setMatrixAt(j.slot, dummy.matrix);
-      jarSeal.setMatrixAt(j.slot, dummy.matrix);
-      jarBody.instanceMatrix.needsUpdate = true;
-      jarSeal.instanceMatrix.needsUpdate = true;
+      jarMesh.setMatrixAt(j.slot, dummy.matrix);
+      jarSealMesh.setMatrixAt(j.slot, dummy.matrix);
+      jarMesh.instanceMatrix.needsUpdate = true;
+      jarSealMesh.instanceMatrix.needsUpdate = true;
     }
     if (world.stats) world.stats.jars = world.jars.filter(function (q) { return q.alive; }).length;
     return true;
   };
 
   world.dispose = function () {
-    disposeBatches();
+    Object.keys(pooled).forEach(function (k) { const m = pooled[k].mesh; if (m) { if (m.parent) m.parent.remove(m); if (m.dispose) m.dispose(); } });
+    [glowMesh, aoMesh, stainMesh, jarMesh, jarSealMesh].forEach(function (m) { if (m) { if (m.parent) m.parent.remove(m); if (m.dispose) m.dispose(); } });
     grounds.forEach(function (g) { group.remove(g); });
     groundGeo.dispose();
     groundMat.dispose();

@@ -556,15 +556,25 @@ export async function buildArt(THREE) {
     if (!upIconUrls[id]) upIconUrls[id] = drawUpgrade(id).toDataURL('image/png');
     return upIconUrls[id];
   }
-  let inkBossPack = null;
-  function inkBoss() {
-    if (!inkBossPack) {
-      const r = drawInkBossSheet();
+  let inkBossPacks = {};
+  function clampVar(v) { const n = Math.round(+v || 0); return n < 0 ? 0 : n > 3 ? 3 : n; }
+  /* §4.5 보스 개성: 장마다 다른 머리 장신구·무기로 시트를 하나씩 그린다(3막 색조는 재질 틴트).
+     네 벌만 만들고 장은 그중 하나를 골라 쓴다 — 모바일 텍스처 메모리를 지킨다. */
+  const BOSS_LOOK = [
+    { head: 'horns', weapon: 'sword' },   /* 0 — 뿔 둘, 검 (1막 정점 4장) */
+    { head: 'kasa', weapon: 'spear' },    /* 1 — 살갓, 장창 (2막 정점 8장) */
+    { head: 'crown', weapon: 'staff' },   /* 2 — 관, 지팡이 (3막 정점 12장) */
+    { head: 'veil', weapon: 'sword' }     /* 3 — 너저분한 수건, 검 (나머지 장) */
+  ];
+  function inkBoss(v) {
+    const k = clampVar(v);
+    if (!inkBossPacks[k]) {
+      const r = drawInkBossSheet(BOSS_LOOK[k]);
       const t = new THREE.CanvasTexture(r.canvas);
       t.colorSpace = THREE.SRGBColorSpace;
-      inkBossPack = { tex: t, sheet: r.sheet, eyes: r.eyes };
+      inkBossPacks[k] = { tex: t, sheet: r.sheet, eyes: r.eyes };
     }
-    return inkBossPack;
+    return inkBossPacks[k];
   }
   function packTex(sheet) {
     if (sheet && sheet.tex) return sheet.tex;
@@ -617,7 +627,8 @@ export async function buildArt(THREE) {
       applyUV(t, sheet, st0.frame, st0.dir);
     }
   }
-  function makeChar(kind, shape) {
+  function makeChar(kind, shape, opt) {
+    opt = opt || {};
     const group = new THREE.Group();
     const itemK = ITEM_KEY[kind];
     if (kind === 'hero' || kind === 'afterimage') {
@@ -656,11 +667,12 @@ export async function buildArt(THREE) {
     } else if (kind === 'spirit' || kind === 'boss') {
       const isBoss = kind === 'boss';
       const spiritSheet = !isBoss && inkChars().spirit;
-      const ib = isBoss ? inkBoss() : null;
+      const ib = isBoss ? inkBoss(opt.bossVar) : null;
       const bossSheet = ib && ib.sheet;
       const bodySheet = bossSheet || spiritSheet;
       const spiritBodyK = isBoss ? 1 : 0.7 * SPIRIT_VIEW_SCALE;
-      const H = isBoss ? bossH * 1.5 : spiritSheet.worldH * spiritBodyK;
+      const bossK = isBoss ? (opt.bossScale || 1) : 1;
+      const H = isBoss ? bossH * 1.5 * bossK : spiritSheet.worldH * spiritBodyK;
       group.userData.bodyScale = spiritBodyK;
       group.userData.bodyH = H;
       const spr = sheetSprite(bodySheet, ib ? ib.tex : bodySheet.tex, H, { depthTest: false, renderOrder: 2 });

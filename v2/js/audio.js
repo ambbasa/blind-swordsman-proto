@@ -106,13 +106,14 @@ export function createAudio() {
     return reverb;
   }
 
-  function bell(pan, shape) {
+  function bell(pan, shape, vol) {
     if (quiet) return;
     const c = resume(); if (!c) return;
     const t0 = c.currentTime + 0.005;
     const f0 = BELL_PITCH[shape] || 3000;
     const out = c.createGain();
-    out.gain.value = 1;
+    /* §9.4 묵은 방울: 방울 소리를 50% 크게(vol) */
+    out.gain.value = vol == null ? 1 : Math.max(0, Math.min(2.5, vol));
     if (c.createStereoPanner) {
       const panN = c.createStereoPanner();
       panN.pan.setValueAtTime(pan == null ? 0 : Math.max(-1, Math.min(1, pan)), t0);

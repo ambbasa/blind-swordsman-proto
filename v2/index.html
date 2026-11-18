@@ -42,6 +42,7 @@
       </div>
       <div class="hud-row row-dash">
         <span id="dashLabel">일섬 1</span>
+        <span id="goalLabel" hidden></span>
       </div>
       <div id="hudBtns">
         <button type="button" id="btnMute" aria-label="소리" title="소리">♪</button>
@@ -51,6 +52,12 @@
     <div id="guide" hidden></div>
     <button type="button" id="btnSkip" class="skip-chip" hidden>건너뛰기</button>
     <div id="toast" hidden></div>
+    <!-- v0.32 §4.5 보스 이름 카드: 등장 순간 1.2초 -->
+    <div id="bossCard" hidden aria-hidden="true">
+      <p class="bc-kicker">귀물</p>
+      <h3 id="bossCardName"></h3>
+      <p id="bossCardLine" class="bc-line"></p>
+    </div>
     <!-- v0.31 §5.2 멈추지 않는 레벨업: 화면 아래 22% 카드 3장 -->
     <div id="quickCards" class="quick-wrap" hidden>
       <div id="quickList" class="quick-list" role="group" aria-label="강화 선택"></div>
@@ -69,10 +76,12 @@
         <p class="stage-note" id="titleStageNote"></p>
         <div class="mode-row" id="titleModes" role="group" aria-label="난이도 모드"></div>
         <p class="mode-note" id="titleModeNote"></p>
+        <div class="challenge-row" id="titleChallenges" role="group" aria-label="도전 모드"></div>
         <button type="button" id="btnStart" class="btn primary">출전</button>
         <div class="title-foot">
-          <button type="button" id="btnTrain" class="btn small">수련</button>
+          <button type="button" id="btnTrain" class="btn small">수련장</button>
           <button type="button" id="btnShop" class="btn">성장</button>
+          <button type="button" id="btnCodex" class="btn small">도감</button>
           <button type="button" id="btnA11y" class="btn small">설정</button>
         </div>
         <div class="a11y-row" id="titleA11y" hidden>
@@ -83,15 +92,44 @@
       </div>
     </div>
     <div id="ov-shop" class="ov">
-      <div class="card">
+      <div class="card shop-card">
         <h2>성장</h2>
         <p class="shop-coins">엽전 <strong id="shopCoins">0</strong></p>
-        <div class="shop-list">
+        <div class="shop-tabs" id="shopTabs" role="tablist" aria-label="성장 항목">
+          <button type="button" data-tab="stat" class="on">상점</button>
+          <button type="button" data-tab="sword">무구</button>
+          <button type="button" data-tab="relic">유물</button>
+          <button type="button" data-tab="skin">외형</button>
+        </div>
+        <div class="shop-list" id="shopStatList">
           <button type="button" class="btn shop-item" data-buy="atk" id="buyAtk"></button>
           <button type="button" class="btn shop-item" data-buy="hp" id="buyHp"></button>
           <button type="button" class="btn shop-item" data-buy="coin" id="buyCoin"></button>
         </div>
+        <div class="shop-list" id="shopBody" hidden></div>
+        <p class="shop-note">힘을 파는 상품은 없습니다 — 배운 만큼 강해집니다. 여기는 외형·편의뿐입니다.</p>
         <button type="button" id="btnShopClose" class="btn primary">닫기</button>
+      </div>
+    </div>
+    <div id="ov-codex" class="ov">
+      <div class="card codex-card">
+        <h2>도감</h2>
+        <p class="shop-coins" id="codexBonus"></p>
+        <div class="codex-body" id="codexBody"></div>
+        <button type="button" id="btnCodexClose" class="btn primary">닫기</button>
+      </div>
+    </div>
+    <div id="ov-train" class="ov">
+      <div class="card train-card">
+        <h2>무늬 수련장</h2>
+        <p class="train-note" id="trainNote">무늬를 골라 자유롭게 그어 보세요. 최근 20회 인식률을 봅니다.</p>
+        <div class="train-shapes" id="trainShapes" role="group" aria-label="연습할 무늬"></div>
+        <canvas id="trainCanvas" width="320" height="230"></canvas>
+        <p class="train-stats" id="trainStats"></p>
+        <div class="train-foot">
+          <button type="button" id="btnTrainTut" class="btn small">몸통 튜토리얼</button>
+          <button type="button" id="btnTrainClose" class="btn primary">닫기</button>
+        </div>
       </div>
     </div>
     <div id="ov-stage" class="ov stage-ov">
@@ -101,6 +139,7 @@
         <p class="stage-sub" id="stageSub">불탄 기와집, 첫 번째 획</p>
         <div class="stage-rule" aria-hidden="true"></div>
         <p class="stage-goal" id="stageGoal"></p>
+        <p class="stage-terrain" id="stageTerrain"></p>
         <div class="stage-chips" id="stageChips" aria-hidden="true"></div>
         <button type="button" id="btnStageGo" class="btn primary">일섬</button>
         <p class="stage-tip" id="stageTip"></p>
@@ -125,8 +164,8 @@
         <h2>방치 보상</h2>
         <p id="idleBody">자리를 비운 동안 엽전이 쌓였습니다.</p>
         <button type="button" id="btnIdleTake" class="btn primary">받기</button>
-        <button type="button" id="btnIdleDouble" class="btn ad">광고로 두 배 받기</button>
-        <p class="ad-note">실제 광고는 나오지 않습니다 (자리만).</p>
+        <button type="button" id="btnIdleDouble" class="btn ad" hidden>광고로 두 배 받기</button>
+        <p class="ad-note" id="idleAdNote">광고는 아직 붙지 않았습니다 — 지금은 그냥 받으세요.</p>
       </div>
     </div>
     <div id="ov-pause" class="ov">

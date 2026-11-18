@@ -87,7 +87,37 @@ function drawFrame(ctx, f, P) {
     }
   });
 
-  /* Hood with two bent horns. */
+  /* ---------- §4.5 장기(武器): 장마다 다른 셋 중 하나 ---------- */
+  const wp = P.weapon || 'sword';
+  const wsw = Math.sin(T + 0.7) * 4;
+  ctx.save();
+  if (wp === 'sword') {
+    /* 먹빛 장검 — 오른쪽 소매에서 비스듬히 */
+    const bx = 352 + wsw, by = 250;
+    brush(ctx, curve([bx, by], [bx + 34, by - 120], [bx + 12, by - 235], 22), 13, 'rgba(9,8,12,', 1, rnd, 14);
+    brush(ctx, curve([bx + 2, by - 30], [bx + 30, by - 130], [bx + 12, by - 228], 18), 4, 'rgba(217,205,180,', 0.7, rnd, 6);
+    brush(ctx, curve([bx - 22, by - 18], [bx - 2, by - 6], [bx + 22, by - 20], 12), 7, 'rgba(232,192,74,', 0.8, rnd, 6);
+  } else if (wp === 'spear') {
+    /* 장창 — 세로로 길게 */
+    const bx = 368 + wsw;
+    brush(ctx, curve([bx, 360], [bx - 6, 210], [bx + 2, 58], 20), 7, 'rgba(52,42,34,', 0.95, rnd, 8);
+    brush(ctx, curve([bx + 2, 58], [bx + 10, 22], [bx + 26, 8], 12), 6, 'rgba(217,205,180,', 0.9, rnd, 5);
+    brush(ctx, curve([bx - 4, 74], [bx + 8, 60], [bx + 18, 74], 10), 5, 'rgba(200,40,30,', 0.8, rnd, 4);
+  } else {
+    /* 지팡이 — 끝에 매단 부적 */
+    const bx = 360 + wsw;
+    brush(ctx, curve([bx, 356], [bx + 8, 210], [bx - 4, 74], 20), 8, 'rgba(38,30,26,', 0.95, rnd, 8);
+    ctx.save();
+    ctx.translate(bx - 4, 70 + Math.sin(T * 1.4) * 3);
+    ctx.rotate(Math.sin(T + 1.1) * 0.18);
+    ctx.fillStyle = 'rgba(217,180,90,0.9)';
+    ctx.beginPath(); ctx.moveTo(-12, 0); ctx.lineTo(12, 0); ctx.lineTo(13, 54); ctx.lineTo(2, 50); ctx.lineTo(-6, 56); ctx.lineTo(-12, 50); ctx.closePath(); ctx.fill();
+    brush(ctx, [[0, 10], [2, 26], [-2, 42]], 3.4, 'rgba(180,24,18,', 0.9, rnd, 4);
+    ctx.restore();
+  }
+  ctx.restore();
+
+  /* Hood with a head ornament that differs per act boss (§4.5). */
   ctx.beginPath();
   ctx.moveTo(256, 62);
   ctx.quadraticCurveTo(318, 70, 314, 150);
@@ -96,11 +126,54 @@ function drawFrame(ctx, f, P) {
   ctx.quadraticCurveTo(194, 70, 256, 62);
   ctx.closePath();
   ctx.fillStyle = 'rgba(6,5,8,1)'; ctx.fill();
-  [-1, 1].forEach(function (side) {
-    const horn = curve([256 + side * 34, 84], [256 + side * 80, 52], [256 + side * 70 + Math.sin(T) * 2, 8], 16);
-    brush(ctx, horn, 14, 'rgba(20,17,19,', 1, rnd, 12);
-    brush(ctx, horn, 5, 'rgba(217,205,180,', 0.55, rnd, 4);
-  });
+  const head = P.head || 'horns';
+  if (head === 'horns') {
+    [-1, 1].forEach(function (side) {
+      const horn = curve([256 + side * 34, 84], [256 + side * 80, 52], [256 + side * 70 + Math.sin(T) * 2, 8], 16);
+      brush(ctx, horn, 14, 'rgba(20,17,19,', 1, rnd, 12);
+      brush(ctx, horn, 5, 'rgba(217,205,180,', 0.55, rnd, 4);
+    });
+  } else if (head === 'kasa') {
+    /* 살갓: 넓은 챙 — 세 겹의 먹선 원호 + 늘어진 염주 */
+    for (let k = 0; k < 3; k++) {
+      const ry0 = 84 - k * 9, rx0 = 132 - k * 26;
+      ctx.beginPath();
+      ctx.moveTo(256 - rx0, ry0 + 26);
+      ctx.quadraticCurveTo(256, ry0 - 34, 256 + rx0, ry0 + 26);
+      ctx.quadraticCurveTo(256, ry0 + 48, 256 - rx0, ry0 + 26);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(' + (10 - k * 2) + ',' + (9 - k * 2) + ',' + (12 - k * 2) + ',0.96)';
+      ctx.fill();
+      brush(ctx, curve([256 - rx0, ry0 + 26], [256, ry0 - 32], [256 + rx0, ry0 + 26], 24), 5, k === 0 ? 'rgba(217,205,180,' : 'rgba(46,40,44,', k === 0 ? 0.6 : 0.5, rnd, 5);
+    }
+    for (let i = 0; i < 5; i++) {
+      const px = 214 + i * 21, py = 116 + Math.sin(T + i * 0.8) * 4;
+      ctx.beginPath(); ctx.arc(px, py, 3.4, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(180,24,18,0.85)'; ctx.fill();
+    }
+  } else if (head === 'crown') {
+    /* 관: 검은 뿔 세 개 + 금빛 띠 */
+    for (let i = -1; i <= 1; i++) {
+      const bx = 256 + i * 36, tip = i === 0 ? -22 : -4;
+      brush(ctx, curve([bx, 84], [bx + i * 10, 40], [bx + i * 22, tip + 70], 14), 10, 'rgba(14,12,16,', 1, rnd, 10);
+      brush(ctx, curve([bx, 80], [bx + i * 10, 44], [bx + i * 22, tip + 76], 12), 3.4, 'rgba(232,192,74,', i === 0 ? 0.85 : 0.5, rnd, 4);
+    }
+    brush(ctx, curve([212, 92], [256, 78], [300, 92], 14), 6, 'rgba(232,192,74,0.8)', 0.85, rnd, 5);
+  } else {
+    /* 너저분한 수건: 눈 위로 흘러내리는 천 조각 */
+    for (let i = 0; i < 4; i++) {
+      const bx = 200 + i * 38;
+      const sway2 = Math.sin(T + i * 1.3) * 6;
+      ctx.beginPath();
+      ctx.moveTo(bx, 86);
+      ctx.quadraticCurveTo(bx + 8 + sway2, 120, bx + 4 + sway2, 152 + (i % 2) * 14);
+      ctx.lineTo(bx + 18 + sway2, 146 + (i % 2) * 12);
+      ctx.quadraticCurveTo(bx + 22, 116, bx + 26, 88);
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(26,22,26,0.9)'; ctx.fill();
+      brush(ctx, curve([bx + 2, 88], [bx + 6 + sway2, 120], [bx + 4 + sway2, 150 + (i % 2) * 14], 10), 3, 'rgba(217,205,180,', 0.35, rnd, 4);
+    }
+  }
 
   /* Vermilion eyes, flickering. */
   const flick = 0.75 + 0.25 * Math.sin(T * 3);
