@@ -119,7 +119,9 @@ export async function buildArt(THREE) {
     : heroH * 1.05;
   /* Spirits are small will-o'-wisps over zombies; the shape mark is baked into the orb, a rattle at the side. */
   /* Outline [scale, opacity] per kind, and the spirits' jade tint (HDR so they bloom). */
-  const CHAR_OUTLINE = { hero: [1.12, 0.9], zombie: [1.1, 0.85], spirit: [1.12, 0.7] };
+  const CHAR_OUTLINE = { hero: [1.07, 0.26], zombie: [1.1, 0.85], spirit: [1.12, 0.7] };
+  /* 2막부터 주인공이 검은 무사복을 입어, 검은 실루엣 대신 한지빛 테두리를 둔다 — 어두운 바닥에서도 또렷하다. */
+  const HERO_RIM = 0xa89a80;
   const SPIRIT_TINT = [0.45, 1.7, 1.2];
   const SPIRIT_VIEW_SCALE = 1.45;
   /* 0.26: the orb anchor box in world units (~57% of the orb's diameter). game.js measures the
@@ -478,11 +480,11 @@ export async function buildArt(THREE) {
     });
   }
   /* A dark ink silhouette a little larger than the body, drawn behind it, so pale figures stand off the lit ground. */
-  function addOutline(group, k, opacity) {
+  function addOutline(group, k, opacity, color) {
     const spr = group.userData && group.userData.sprite;
     if (!spr || !spr.material) return;
     const mat = new THREE.SpriteMaterial({
-      map: spr.material.map, color: 0x000000, transparent: true, depthWrite: false, depthTest: false,
+      map: spr.material.map, color: color == null ? 0x000000 : color, transparent: true, depthWrite: false, depthTest: false,
       opacity: opacity == null ? 0.85 : opacity, alphaTest: 0.05
     });
     const o = new THREE.Sprite(mat);
@@ -642,7 +644,7 @@ export async function buildArt(THREE) {
       group.userData.animPack = pack;
       group.userData.action = after ? 'afterimage' : 'idle';
       group.userData.anim = Anim.createController(sheet, { blend: 0.1 });
-      if (kind === 'hero') { addShadow(group, 1.5); addOutline(group, CHAR_OUTLINE.hero[0], CHAR_OUTLINE.hero[1]); }
+      if (kind === 'hero') { addShadow(group, 1.5); addOutline(group, CHAR_OUTLINE.hero[0], CHAR_OUTLINE.hero[1], HERO_RIM); }
     } else if (kind === 'zombie') {
       const pack = inkChars()[shape === 'brute' || shape === 'stone' ? shape : 'zombie'];
       const sheet = pack.actions.walk;

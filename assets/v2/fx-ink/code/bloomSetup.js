@@ -17,8 +17,10 @@ import { OutputPass } from './vendor/three-r170-addons/postprocessing/OutputPass
 export const BLOOM_PRESETS = {
   //       bloom buffer = view * res ; MSAA samples on the HDR scene target (WebGL2; 0 = off. samples 4 cost x3 frame time in the SW-GL test,
   //       on a desktop GPU you may pass override:{samples:4} to keep the build's antialias:true look) ; strength / radius / HDR threshold
-  high: { res: 0.5, samples: 0, strength: 0.6, radius: 0.45, threshold: 1.0 },
-  low: { res: 0.25, samples: 0, strength: 0.5, radius: 0.3, threshold: 1.0 },
+  // threshold 1.15: 달빛 받은 돌바닥·한지 톤(≈0.8~1.05)까지 번지면 화면이 뿌옇게 뭉개진다. 문턱을 올리고
+  //   반경을 줄여 1.15를 넘는 검기 코어·소나 링·타격 섬광만 또렷한 궤적을 갖게 한다.
+  high: { res: 0.5, samples: 0, strength: 0.85, radius: 0.33, threshold: 1.15 },
+  low: { res: 0.25, samples: 0, strength: 0.7, radius: 0.26, threshold: 1.15 },
   off: null,   // no bloom pass; the post passes (ink wash, tone mapping) still run when given — plain render only without them
 };
 

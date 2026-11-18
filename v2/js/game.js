@@ -1,4 +1,7 @@
 /* 심안(SIMAN) v2 — 2.5D quarter-view, Three.js, camera-follow dashes.
+   v0.36: 한지·수묵 팝업북 소품(inkpaper.js — 기와집·대나무·소나무·돌등불·바위 교차평면 컷아웃) ·
+          주인공 검은 무사복(두건·안대·상의·바지·장화, 한지빛 림) · HUD 잠금은 제스처 획 판정 중에만 ·
+          소나 2D 링 제거(3D 지면 소나 한 겹) · 지면 시야안개(uSightFog)로 깊이 · 블룸 임계값 1.15로 빛 분리 · 점광원 품질별 4/2개
    v0.35: 12장 '나락' 지형 규칙(검은 구덩이·0.5m/초 끌림) 제거 · 출전 직후 멈춤 제거 —
           셰이더/텍스처 예열을 타이틀 여유 프레임으로(10ms 예산) · 바닥 판석 512→256(계산 1/4) · 같은 자리 판 재시작 때 청크 재구축 생략
    v0.31: 판 안 재미 — 강적 깨는 법(장정 갑옷·돌 금·정예 봉인 순서) · 콤보 개편(반감 유지·단계 보상) ·
@@ -16,11 +19,11 @@ import { createAudio } from './audio.js';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
-import { drawSonarRing2D } from '../../assets/v2/fx-ink/code/sonarRing.js';
 import { createInkWashPass } from './inkwash.js';
 import { createCinematicPass } from './inkcinematic.js';
 import { createSlashArc } from './inkslash3d.js';
 import { StageAtmosphere } from './inkatmos.js';
+import { paperPropCanvas } from './inkpaper.js';
 import { createChunkWorld, buildChunkData, chunkOf, prebakeGroundStage } from './inkchunks.js';
 import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariants } from './prewarm.js';
 import { InkFx, FX_COLORS } from './inkfx.js';
@@ -32,7 +35,7 @@ import {
 import { InkLightPool, createWorldInkUniforms, attachGroundInkShader } from './inklights.js';
 import { initOverlayShell } from './ui/overlayShell.js';
 const inkFx = new InkFx();
-const telemetry = createTelemetry({ version: '0.35' });
+const telemetry = createTelemetry({ version: '0.36' });
 let frameDt = 1 / 60;
 
 const G = window.GPGestures;
@@ -197,7 +200,7 @@ const CFG = {
   bellDur: 8, slowDur: 0.45, slowScale: 0.35,
   sightWaveDur: 0.45,
   /* Fog outside the mind's-eye ring: clear inside fogInner x ring, fully fogged at fogOuter x ring. */
-  fogColor: [7, 6, 8], fogAlpha: 0.84, fogInner: 0.86, fogOuter: 1.16, fogWisps: 28, fogWispAlpha: 0.05,
+  fogColor: [7, 6, 8], fogAlpha: 0.78, fogInner: 0.86, fogOuter: 1.16, fogWisps: 28, fogWispAlpha: 0.05,
   /* 혼령의 창: 혼령은 먹안개를 뚫고 보인다. 링 경계·그 너머·짙은 안개에서도 혼령 몸과 기호가 읽히도록
      혼령 자리에 부드러운 창을 뚫는다(중심 지움 정도 / 구슬·몸 높이 대비 반지름 / 최소·최대 px). */
   spiritLightClear: 0.84, spiritLightOrb: 2.4, spiritLightBody: 0.72, spiritLightPx: 26,
@@ -1261,6 +1264,7 @@ function setMuted(m) {
 function pauseRun() {
   if (!S || !S.playing || S.paused) return false;
   S.paused = 'manual';
+  setDrawingActive(false);
   if (S.quick) { const q = recommendedPick(); if (q) pickQuick(q, true); else closeQuickCards(); }
   hideGuide();
   showOv('ov-pause');
@@ -1421,7 +1425,8 @@ async function makeWorld() {
   scene.add(amb);
   const hemi = new THREE.HemisphereLight(0x6a6860, 0x1a1612, 1.0);
   scene.add(hemi);
-  const moon = new THREE.DirectionalLight(0xc8c0b0, 1.45);
+  /* v0.36 컨셉 아트 톤: 달빛을 낮추고 중앙 등불을 키워, 가장자리는 먹빛으로 스며들고 가운데만 호박빛으로 맺힌다. */
+  const moon = new THREE.DirectionalLight(0xc8c0b0, 1.25);
   moon.position.set(-18, 28, 10);
   moon.castShadow = true;
   moon.shadow.mapSize.set(1024, 1024);
@@ -1434,7 +1439,7 @@ async function makeWorld() {
   scene.add(moon);
   scene.add(moon.target);
   /* 그림자 진 곳을 죽이지 않는 반대편 달빛(그림자 없음) — 먹 그림자가 검은 구멍이 되지 않게. */
-  const fill = new THREE.DirectionalLight(0x93a0b8, 0.85);
+  const fill = new THREE.DirectionalLight(0x93a0b8, 0.6);
   fill.position.set(14, 12, -16);
   scene.add(fill);
 
@@ -1450,8 +1455,9 @@ async function makeWorld() {
     view: view, fxForced: fxQForced, amb: amb, hemi: hemi, moon: moon, fill: fill, sky: sky, baseClear: clear,
     dprCap: dprCap, dprNow: dprCap, atmo: new StageAtmosphere(scene, 1)
   };
-  /* 점광원 풀은 재질 예열(prewarmInkSlash) 전에 만든다 — 조명 개수가 바뀌면 예열한 프로그램이 다시 링크된다. */
-  world.lights = new InkLightPool(scene, { maxLights: 4, distance: 14 });
+  /* 점광원 풀은 재질 예열(prewarmInkSlash) 전에 만든다 — 조명 개수가 바뀌면 예열한 프로그램이 다시 링크된다.
+     상시 visible(강도 0) 점광원은 모든 조명 재질의 프래그먼트 비용이므로, 품질이 high 가 아니면 2개만 만든다. */
+  world.lights = new InkLightPool(scene, { maxLights: fxQ === 'high' ? 4 : 2, distance: 13 });
   world.inkUniforms = createWorldInkUniforms();
   try {
     /* post() 는 build() 때마다 다시 불리므로(품질 변경) 패스도 매번 새로 만든다 — dispose 된 패스를 재사용하지 않게. */
@@ -4202,8 +4208,9 @@ function triggerComboBurst(n) {
   showJudge(n + '콤보!');
   if (audio) audio.explode();
   if (three && three.bloom && three.bloom.setStrength && fxQ !== 'off') {
-    const prev = three.bloom.quality === 'low' ? 0.5 : 0.6;
-    three.bloom.setStrength(1.2);
+    /* 콤보 버스트 순간에는 프리셋보다 조금 더 밝게 번쩍였다가 돌아온다(임계값 1.15 는 그대로). */
+    const prev = three.bloom.quality === 'low' ? 0.7 : 0.85;
+    three.bloom.setStrength(1.45);
     setTimeout(function () { if (three.bloom) three.bloom.setStrength(prev); }, qa.noDelay ? 0 : 300);
   }
   if (art && art.playFx && three) {
@@ -7703,6 +7710,7 @@ function starsFor(win) {
 function endRun(win, msg) {
   if (!S || S.won || S.lost) return;
   S.won = win; S.lost = !win; S.playing = false; S.paused = 'result'; S.dash = null;
+  setDrawingActive(false);
   closeQuickCards();
   hideGuide();
   const sk = $('btnSkip');
@@ -8254,6 +8262,16 @@ function localPts(e) {
   const r = $('ink').getBoundingClientRect();
   return { x: e.clientX - r.left, y: e.clientY - r.top };
 }
+/* HUD 잠금(drawing-active): 제스처 획이 실제로 판정되는 동안에만 #hud/#quickCards를 어둡게 하고 터치를 잠근다.
+   예전에는 #app pointerdown마다 잠겨서, 이동 드래그 중에도 HUD가 72%로 흐려지고 둘째 손가락의 일시정지·빠른 카드가 막혔다.
+   이제 game.js가 획 인식 결과(type/조준 대상)가 난 순간에만 켜고, 손을 떼거나 획이 사라지면 바로 푼다. */
+let _hudLock = false;
+function setDrawingActive(on) {
+  on = !!on;
+  if (on === _hudLock) return;
+  _hudLock = on;
+  try { document.body.classList.toggle('drawing-active', on); } catch (e) {}
+}
 function onDown(e) {
   if (pointers.down) return;
   if (e.target.closest && e.target.closest('.ov.show, .btn, #hudBtns button')) return;
@@ -8263,6 +8281,7 @@ function onDown(e) {
     if (p.y >= viewBox().height * (1 - (CFG.quick.zone || 0.22))) return;
   }
   pointers.down = true; pointers.id = e.pointerId; pointers.pts = [localPts(e)];
+  setDrawingActive(false);
   try { $('app').setPointerCapture(e.pointerId); } catch (err) {}
   paintInk(pointers.pts, 1);
 }
@@ -8295,6 +8314,14 @@ function onMove(e) {
     };
     paintInk(pointers.pts, 1, color);
     updateMarks();
+    /* HUD 잠금은 '지금 쓸 수 있는 제스처 획'이 판정된 때만 켠다.
+       - tap(짧은 탭 = 칼잡 패링)은 손을 때며 바로 끝나므로 잠그지 않는다.
+       - 아직 배우지 않은 무늬(획은 인식됐지만 pool에 없음)도 잠그지 않는다.
+       - 혼령/기물 조준(to)이 걸리면 항상 잠근다. */
+    const usable = !!type && type !== 'tap' && (S.sandbox || !S.pool || S.pool.indexOf(type) >= 0);
+    setDrawingActive(usable || !!to);
+  } else {
+    setDrawingActive(false);
   }
 }
 function onUp(e) {
@@ -8302,6 +8329,7 @@ function onUp(e) {
   pointers.down = false;
   const pts = pointers.pts;
   pointers._chip = null;
+  setDrawingActive(false);
   if (S) { S.preview = null; S.aimTarget = null; }
   finishStroke(pts);
 }
@@ -9151,22 +9179,15 @@ function punchSpiritLights(fog, w, h) {
 }
 function drawSightFog() {
   const c = $('sightFog');
-  const sc = $('sonarRing');
   const host = $('app') || c;
   if (!c || !host) return;
   const box = viewBox();
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   sizeOverlayCanvas(c, host, dpr, box);
-  if (sc) sizeOverlayCanvas(sc, host, dpr, box);
   const w = box.width, h = box.height;
   const fog = c.getContext('2d');
   fog.setTransform(1, 0, 0, 1, 0, 0);
   fog.clearRect(0, 0, c.width, c.height);
-  if (sc) {
-    const s0 = sc.getContext('2d');
-    s0.setTransform(1, 0, 0, 1, 0, 0);
-    s0.clearRect(0, 0, sc.width, sc.height);
-  }
   const playing = !!(S && S.playing);
   const wave = (S && S.sightWave) || 0;
   if (!playing) { punchAtmoRing(0, 0, 0, 0); return; }
@@ -9178,8 +9199,6 @@ function drawSightFog() {
   if (hxs !== _heroCssX) { host.style.setProperty('--hero-x', hxs); _heroCssX = hxs; }
   if (hys !== _heroCssY) { host.style.setProperty('--hero-y', hys); _heroCssY = hys; }
   drawRingFog(fog, w, h);
-  const ringCtx = sc ? sc.getContext('2d') : fog;
-  if (sc) ringCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
   /* 4차: 심안 파동은 안개 구멍을 열기만 하고, 궤도 안의 두 번째 동심원 획은 그리지 않음. */
   if (wave > 0.04 && S.hero) {
     const holePx = Math.min(w, h) * (0.12 + 0.28 * wave);
@@ -9187,22 +9206,20 @@ function drawSightFog() {
   } else {
     punchAtmoRing(0, 0, 0, 0);
   }
+  /* 착지 소나: 2D #sonarRing 은 걷어냈다(3D 지면 소나와 겹쳐 링이 두 겹이 되었다).
+     이제 지면 셰이더(inklights.js)가 한 겹의 수묵 파동만 지형을 따라 내보낸다. */
   if (S && S.landRipple && S.landRipple.t > 0) {
     const lp = projectXZ(S.landRipple.x, S.landRipple.z, 0.15);
     const lt = S.landRipple.t;
-    const lr = 28 + (1 - lt) * 70;
-    drawSonarRing2D(ringCtx, w, h, lt, {
-      r: lr, cx: lp.x, cy: lp.y,
-      coreAlpha: 0.8, coreWidth: 2.4, haloAlpha: 0.35, haloWidth: 6, glowAlpha: 0.12, innerAlpha: 0
-    });
+    const lr = 28 + (1 - lt) * 70;   /* 화면 픽셀 반경 */
     if (three && three.inkUniforms) {
-      /* lr 은 화면 픽셀 반경 — 착지점에서 1m 가 몇 px 인지로 나눠 월드 반경(m)으로 바꾼다. 2D 링과 크기가 맞는다. */
+      /* 착지점에서 1m 가 몇 px 인지로 나눠 월드 반경(m)으로 바꾼다 — 지면 링이 예전 2D 링과 같은 크기로 퍼진다. */
       const lp1 = projectXZ(S.landRipple.x + 1, S.landRipple.z, 0.15);
       const pxPerM = Math.max(1, Math.hypot(lp1.x - lp.x, lp1.y - lp.y));
       three.inkUniforms.uSonarOrigin.value.set(S.landRipple.x, 0, S.landRipple.z);
       three.inkUniforms.uSonarRadius.value = lr / pxPerM;
-      /* lt 는 1 → 0 으로 줄어든다: 2D 링처럼 처음에 밝고 점점 사라지게. */
-      three.inkUniforms.uSonarAlpha.value = Math.max(0, Math.min(1, lt));
+      /* lt 는 1 → 0 으로 줄어든다: 처음에 가장 밝고 사라진다. 한 겹만 남았으므로 조금 더 세게. */
+      three.inkUniforms.uSonarAlpha.value = Math.min(1.15, Math.max(0, lt) * 1.15);
     }
   } else if (three && three.inkUniforms) {
     three.inkUniforms.uSonarAlpha.value = 0;
@@ -9379,6 +9396,13 @@ function guardEvents() {
   window.addEventListener('resize', onResize);
   window.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
+    /* 상점·도감·수련장 같은 메뉴 오버레이가 열려 있으면 ESC는 그 오버레이 닿기(overlayShell)만 맡는다.
+       예전에는 같은 ESC가 상점을 닫은 뒤 일시정지까지 열어, 메뉴를 닫을 때 판이 멈춰 있었다. */
+    const menus = ['ov-shop', 'ov-codex', 'ov-train', 'ov-level', 'ov-stage', 'ov-result', 'ov-idle', 'ov-title'];
+    for (let i = 0; i < menus.length; i++) {
+      const el = $(menus[i]);
+      if (el && el.classList.contains('show')) return;
+    }
     if (S && S.paused === 'manual') resumeRun();
     else if (S && S.playing) pauseRun();
   });
@@ -10250,6 +10274,7 @@ const GPv2 = {
   },
   pickSpirits: function (shape, n, from, dir) { return pickSpirits(shape, n, from, dir); },
   audioInfo: function () { return audio ? audio.info() : null; },
+  paperPreview: function (k) { try { return paperPropCanvas(k, 31).toDataURL('image/png'); } catch (e) { return null; } },
   triggerSightWave: triggerSightWave,
   drawSightFog: drawSightFog,
 
@@ -10273,7 +10298,6 @@ const GPv2 = {
       atmoZ: atmo ? +getComputedStyle(atmo).zIndex : 0,
       marksZ: marks ? +getComputedStyle(marks).zIndex : 0,
       fogZ: fog ? +getComputedStyle(fog).zIndex : 0,
-      sonarZ: $('sonarRing') ? +getComputedStyle($('sonarRing')).zIndex : 0,
       rimHero: idle && (idle.file1x || idle.file),
       rimZombie: zWalk && (zWalk.file1x || zWalk.file),
       torch: art && art.torchGlowUrl && art.torchGlowUrl(),

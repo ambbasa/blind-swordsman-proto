@@ -148,7 +148,7 @@ export function glowBatch(items) {
   const geo = new THREE.PlaneGeometry(1, 1);
   geo.rotateX(-Math.PI / 2);
   const mat = new THREE.MeshBasicMaterial({
-    map: glowTexture(), transparent: true, opacity: 0.5, depthWrite: false,
+    map: glowTexture(), transparent: true, opacity: 0.62, depthWrite: false,
     blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: true
   });
   const mesh = new THREE.InstancedMesh(geo, mat, Math.max(1, items.length));

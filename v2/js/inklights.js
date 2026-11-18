@@ -57,17 +57,19 @@ export class InkLightPool {
 }
 
 /** Shared uniforms for attachGroundInkShader. All lengths are world units (metres).
- *  uSightFog is 0 by default: the 2D sight fog (drawSightFog) already owns the darkening, and running
- *  both stacks two vignettes. Raise it only if the 2D fog layer is removed. */
+ *  uSightFog darkens the GROUND by distance from the hero and by height, so hills and far paving sink while
+ *  tall props and enemies keep their silhouette — depth instead of a flat 2D cover. The 2D sight fog
+ *  (drawSightFog) still owns the sight-ring boundary, the mist and the spirit windows; the two are tuned
+ *  together (3D = terrain depth, 2D = sight edge), not stacked at full strength. */
 export function createWorldInkUniforms() {
   return {
     uHeroPos: { value: new THREE.Vector3(0, 0, 0) },
-    uSightFog: { value: 0.0 },
-    uSightRadius: { value: 11.5 },
-    uFogHeight: { value: 2.2 },
+    uSightFog: { value: 0.42 },
+    uSightRadius: { value: 12.5 },
+    uFogHeight: { value: 3.2 },
     uSonarOrigin: { value: new THREE.Vector3(0, 0, 0) },
     uSonarRadius: { value: 0.0 },
-    uSonarWidth: { value: 0.35 },
+    uSonarWidth: { value: 0.4 },
     uSonarAlpha: { value: 0.0 },
     uSonarColor: { value: new THREE.Color(0x5eead4) }
   };

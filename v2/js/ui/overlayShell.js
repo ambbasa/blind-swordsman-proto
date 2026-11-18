@@ -11,7 +11,10 @@ const CLOSE_MAP = {
 
 let inited = false;
 
-/** Wires ESC-to-close for menu overlays and the `drawing-active` body class (dims HUD while a stroke is drawn).
+/** Wires ESC-to-close for menu overlays. The `drawing-active` HUD lock is not driven here any more:
+ *  a pointerdown on #app is also how the player walks, so locking on it dimmed the HUD on every move drag
+ *  and blocked pause / quick cards for a second finger. game.js sets the class only while a gesture stroke
+ *  (or a spirit/totem aim) is actually being judged — see setDrawingActive there.
  *  Safe to call more than once; only the first call binds listeners.
  *  Label sync of duplicated buttons (btnCb/btnCb1 …) stays in game.js syncA11yUi; the training canvas keeps
  *  its 320×230 backing store (game.js draws in that space) and is scaled by CSS only. */
@@ -29,22 +32,4 @@ export function initOverlayShell() {
       }
     }
   });
-
-  const app = document.getElementById('app');
-  let drawing = false;
-  const startDraw = (e) => {
-    if (e.target && e.target.closest && e.target.closest('#hud, .ov.show, #quickCards, #btnSkip')) return;
-    drawing = true;
-    document.body.classList.add('drawing-active');
-  };
-  const endDraw = () => {
-    if (!drawing) return;
-    drawing = false;
-    document.body.classList.remove('drawing-active');
-  };
-  if (app) {
-    app.addEventListener('pointerdown', startDraw, { passive: true });
-    window.addEventListener('pointerup', endDraw, { passive: true });
-    window.addEventListener('pointercancel', endDraw, { passive: true });
-  }
 }

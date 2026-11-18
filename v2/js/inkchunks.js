@@ -8,7 +8,8 @@ import * as THREE from 'three';
 import {
   groundSet, bambooSet, leafTexture, woodSet, plainSet, glowTexture, shadowTexture, mulberry
 } from './inkbake.js';
-import { makeMaterials, instanced, rockGeo, crossQuads, glowBatch, aoBatch } from './inkprops3d.js';
+import { makeMaterials, instanced, rockGeo, crossQuads, glowBatch, aoBatch, mergeGeo } from './inkprops3d.js';
+import { paperPropCanvas } from './inkpaper.js';
 
 export const CHUNK = 24;
 export const WINDOW_R = 1; /* 3×3 */
@@ -54,7 +55,8 @@ function emptyBuckets() {
   return {
     wood: [], dark: [], plank: [], plaster: [], tile: [], canopy: [],
     cloth: [], ribbon: [], paper: [], ember: [], rock: [], leaf: [],
-    bamboo: [], glow: [], ao: [], stain: []
+    bamboo: [], glow: [], ao: [], stain: [],
+    pHouse: [], pBamboo: [], pPine: [], pLantern: [], pRock: []
   };
 }
 
@@ -104,12 +106,11 @@ function lanternPost(B, x, z, rnd) {
   push(B, 'ao', x, 0, z, 1.4, 1, 1.3);
 }
 function stoneLantern(B, x, z, rnd) {
+  /* v0.36 한지 팝업북: 돌을 쌓은 대신 오린 등불 한 장(호박빛 창을 품었다). */
   push(B, 'rock', x, 0.1, z, 0.9, 0.2, 0.9, rnd() * TAU);
-  push(B, 'dark', x, 0.75, z, 0.26, 1.1, 0.26);
-  push(B, 'rock', x, 1.5, z, 0.52, 0.46, 0.52, rnd() * TAU);
-  push(B, 'ember', x, 1.5, z, 0.36, 0.3, 0.36);
-  push(B, 'tile', x, 1.86, z, 0.86, 0.24, 0.86, Math.PI / 4);
-  push(B, 'glow', x, 0.03, z, 4.0, 1, 4.0);
+  const h = 2.35;
+  push(B, 'pLantern', x, h * 0.5, z, h * 0.5, h, h * 0.5, rnd() * TAU);
+  push(B, 'glow', x, 0.03, z, 4.2, 1, 4.2);
   push(B, 'ao', x, 0, z, 1.6, 1, 1.6);
 }
 
@@ -176,20 +177,23 @@ function deadTree(B, x, z, rnd) {
 }
 
 function bambooClump(B, x, z, rnd) {
-  const n = 6 + Math.floor(rnd() * 6);
-  for (let i = 0; i < n; i++) {
-    const a = rnd() * TAU, r = Math.sqrt(rnd()) * 1.4;
-    const h = 4.4 + rnd() * 3.6;
-    push(B, 'bamboo', x + Math.cos(a) * r, 0, z + Math.sin(a) * r, 1.15, h, 1.15, rnd() * TAU, (rnd() - 0.5) * 0.07, (rnd() - 0.5) * 0.07);
-    if (rnd() < 0.75) {
-      push(B, 'leaf', x + Math.cos(a) * r, h * (0.72 + rnd() * 0.2), z + Math.sin(a) * r,
-        2.0 + rnd() * 1.5, 1.8 + rnd() * 1.2, 2.0, rnd() * TAU);
-    }
-  }
+  /* v0.36 한지 팝업북: 원기둥 대신 오린 종이 대나무 스프라이트(교차 평면) 두 장. */
+  const h = 4.8 + rnd() * 2.6;
+  push(B, 'pBamboo', x, h * 0.5, z, h * 0.6, h, h * 0.6, rnd() * TAU);
+  const h2 = 3.2 + rnd() * 1.6;
+  push(B, 'pBamboo', x + (rnd() - 0.5) * 1.8, h2 * 0.5, z + (rnd() - 0.5) * 1.8, h2 * 0.6, h2, h2 * 0.6, rnd() * TAU);
   push(B, 'ao', x, 0, z, 3.0, 1, 2.6);
 }
 
 function wallRun(B, x, z, len, ry, rnd) {
+  /* 긴 담은 민가(기와집) 한 채로 세운다 — 박스 벽보다 팝업북 실루엣이 멀리서도 읽힌다. */
+  if (len >= 4.6) {
+    const h = 4.4 + rnd() * 1.0;
+    push(B, 'pHouse', x, h * 0.5, z, h, h, h, ry);
+    push(B, 'ao', x, 0, z, Math.max(3, len), 1, 2.4);
+    if (rnd() < 0.6) push(B, 'glow', x + Math.cos(ry) * 1.2, 0.03, z + Math.sin(ry) * 1.2, 3.2, 1, 3.2);
+    return;
+  }
   push(B, 'plaster', x, 1.15, z, len, 2.3, 0.72, ry);
   push(B, 'tile', x, 2.38, z, len + 0.36, 0.24, 1.02, ry);
   push(B, 'dark', x, 0.16, z, len + 0.4, 0.32, 0.92, ry);
@@ -244,13 +248,9 @@ function stonePagoda(B, x, z, rnd, tiers) {
 }
 /* 설송: 눈을 얹은 소나무 — 설산 폐사찰의 표지 */
 function snowPine(B, x, z, rnd) {
-  const h = 3.0 + rnd() * 2.8;
-  push(B, 'wood', x, h * 0.4, z, 0.22, h * 0.8, 0.22, rnd() * TAU);
-  for (let i = 0; i < 3; i++) {
-    const y = h * (0.32 + i * 0.23), sd = 2.5 - i * 0.55;
-    push(B, 'leaf', x, y, z, sd, 1.0, sd, rnd() * TAU, 0, 0, [1.35, 1.5, 1.6]);
-    push(B, 'rock', x, y + 0.46, z, sd * 0.46, 0.13, sd * 0.46, rnd() * TAU, 0, 0, [2.0, 2.15, 2.3]);
-  }
+  /* v0.36 한지 팝업북: 층층 쌓던 상자·잎 대신 오린 소나무 한 장. */
+  const h = 4.2 + rnd() * 2.8;
+  push(B, 'pPine', x, h * 0.5, z, h, h, h, rnd() * TAU);
   push(B, 'ao', x, 0, z, 2.2, 1, 2.0);
 }
 /* 산문: 두 기둥과 긴 들보, 문 앞 등불 */
@@ -337,23 +337,13 @@ export function buildChunkData(cx, cz, stageId) {
     if (rnd() < 0.62) {
       const p = spot(rnd, clearR + 3.0, occupied);
       if (p) {
-        const ry = rnd() * TAU, w = 4.4 + rnd() * 2.4, d = 3.6 + rnd() * 1.4, h = 2.6 + rnd() * 0.8;
-        const ca = Math.cos(ry), sa = Math.sin(ry);
-        const put = function (lx, lz, sx, sy, sz, yy) {
-          push(B, 'plaster', W(p.x) + lx * ca - lz * sa, yy, Z(p.z) + lx * sa + lz * ca, sx, sy, sz, ry);
-        };
-        put(0, -d / 2, w, h, 0.28, h / 2);
-        put(-w / 2, 0, 0.28, h, d, h / 2);
-        put(w / 2, 0, 0.28, h * 0.82, d, h * 0.41);
-        push(B, 'ao', W(p.x), 0, Z(p.z), w * 1.15, 1, d * 1.1);
+        const ry = rnd() * TAU, w = 4.4 + rnd() * 2.4, d = 3.6 + rnd() * 1.4, h = 4.2 + rnd() * 0.9;
+        /* v0.36 팝업복: 박스 벽 + 지붕 두 장 대신 오린 기와집 한 장. */
+        push(B, 'pHouse', W(p.x), h * 0.5, Z(p.z), h, h, h, ry + Math.PI);
+        push(B, 'ao', W(p.x), 0, Z(p.z), w * 1.2, 1, d * 1.15);
+        push(B, 'glow', W(p.x) + Math.sin(ry) * 0.9, 0.03, Z(p.z) + Math.cos(ry) * 0.9, 4.2, 1, 4.2);
+        if (rnd() < 0.6) push(B, 'paper', W(p.x) + Math.cos(ry) * 1.6, 1.9, Z(p.z) - Math.sin(ry) * 1.6, 0.42, 0.54, 0.42);
         addOcc(p.x, p.z, 3.6);
-        /* 기와 지붕 두 장 */
-        [-1, 1].forEach(function (sgn) {
-          push(B, 'tile', W(p.x) - sa * d * 0.29 * sgn, h + 0.5, Z(p.z) - ca * d * 0.29 * sgn,
-            w * 0.74, 0.22, d * 0.66, ry, 0.42 * sgn);
-        });
-        push(B, 'wood', W(p.x), h + 0.96, Z(p.z), w * 0.76, 0.2, 0.22, ry);
-        push(B, 'paper', W(p.x), h - 0.3, Z(p.z) + 0.4, 0.44, 0.56, 0.44);
       }
     }
     for (let i = 0; i < 5; i++) {
@@ -434,8 +424,9 @@ export function buildChunkData(cx, cz, stageId) {
     if (rnd() < 0.3) {
       const p = spot(rnd, clearR + 1.6, occupied);
       if (p) {
-        push(B, 'rock', W(p.x), 0.85, Z(p.z), 1.05, 0.9, 1.7, rnd() * TAU);
-        push(B, 'rock', W(p.x), 1.75, Z(p.z), 0.6, 0.55, 0.6, rnd() * TAU);
+        /* v0.36 팝업복: 바위 더미를 오린 바위 실루엣으로. */
+        const rh = 2.3 + rnd() * 1.3;
+        push(B, 'pRock', W(p.x), rh * 0.5, Z(p.z), rh * 1.33, rh, rh * 1.33, rnd() * TAU);
         push(B, 'ao', W(p.x), 0, Z(p.z), 2.6, 1, 2.4);
         addOcc(p.x, p.z, 2.2);
       }
@@ -782,6 +773,26 @@ export function createChunkWorld(opts) {
   const group = new THREE.Group();
   group.name = 'chunkworld-' + mapId + '-' + stageId;
 
+  /* v0.36 한지·수묵 팝업북 소품 재질 — 오린 종이 실루엣을 교차 평면에 세운다.
+     map 은 알파 컷아웃(alphaTest)이라 그림자도 종이 모양 그대로 떨어진다. color 는 장 색조. */
+  const PAPER_TINT = {
+    1: 0xfff3e2, 2: 0xdde6f4, 3: 0xe6f2e2, 4: 0xffd8cc,
+    5: 0xd8e6ee, 6: 0xe2eaf6, 7: 0xdceae0, 8: 0xe8e2f2,
+    9: 0xffd0cc, 10: 0xf6e2cc, 11: 0xffc8c4, 12: 0xffbcbc
+  }[stageId] || 0xfff3e2;
+  const paperMats = {};
+  [['house', 31], ['bamboo', 47], ['pine', 59], ['lantern', 71], ['rock', 83]].forEach(function (k) {
+    const tex = new THREE.CanvasTexture(paperPropCanvas(k[0], k[1]));
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    paperMats[k[0]] = new THREE.MeshStandardMaterial({
+      map: tex, color: new THREE.Color(PAPER_TINT).multiplyScalar(1.75), alphaTest: 0.44, side: THREE.DoubleSide,
+      roughness: 0.97, metalness: 0.0,
+      /* 종이 윗면에만 아주 옅은 자체 빛 — 검은 실루엣이 완전한 구멍이 되지 않게. */
+      emissive: new THREE.Color(0.05, 0.043, 0.036), emissiveIntensity: 1.0
+    });
+  });
+
   /* 바닥: 24m 판 하나를 청크마다 깔고, 텍스처 반복을 12로 맞춰 이웃 청크와 무늬가 이어진다(2m 주기). */
   const gStyle = GROUND_STYLE[stageId] || GROUND_STYLE[1];
   const gs = groundSet(gStyle);
@@ -790,7 +801,8 @@ export function createChunkWorld(opts) {
   const grough = gs.roughnessMap.clone(); grough.needsUpdate = true; grough.repeat.set(12, 12);
   const groundMat = new THREE.MeshStandardMaterial({
     map: gmap, normalMap: gnorm, roughnessMap: grough, normalScale: new THREE.Vector2(0.3, 0.3),
-    color: 0x707070, roughness: 1.0, metalness: 0.0
+    /* v0.36: 컨셉 아트의 따뜻한 판석 — 푸른 회색 대신 한지·호박이 스민 갈회색. */
+    color: 0x8a7660, roughness: 1.0, metalness: 0.0
   });
   groundMat.userData.inkGround = true; /* game.js 가 지면 소나 셰이더(inklights.js)를 붙이는 표식 */
   const groundGeo = new THREE.PlaneGeometry(CHUNK, CHUNK, 1, 1);
@@ -809,11 +821,12 @@ export function createChunkWorld(opts) {
     map: stainTex, transparent: true, opacity: 0.24, depthWrite: false, color: 0x07080c, fog: true
   });
 
-  /* 영웅을 따라오는 등불: 무한맵에서도 심안 안쪽이 따뜻하게 읽힌다. */
-  const heroLight = new THREE.PointLight(0xffb066, 38, 40, 1.2);
+  /* 영웅을 따라오는 등불: 무한맵에서도 심안 안쪽이 따뜻하게 읽힌다. v0.36: 컨셉 아트의 호박빛 못을 따라
+     색을 더 붉고 따뜻하게(0xffa955), 어깨 너머 달빛은 조금 낮춰 가장자리를 먹빛으로 돌린다. */
+  const heroLight = new THREE.PointLight(0xffa955, 46, 34, 1.35);
   heroLight.position.set(0, 3.6, 1.6);
   group.add(heroLight);
-  const rimLight = new THREE.PointLight(0x9fc0e0, 11, 36, 1.4);
+  const rimLight = new THREE.PointLight(0x9fc0e0, 8, 30, 1.5);
   rimLight.position.set(3.2, 5.4, -3.0);
   group.add(rimLight);
 
@@ -823,6 +836,8 @@ export function createChunkWorld(opts) {
     sphere: new THREE.SphereGeometry(1, 10, 7),
     rock: rockGeo(5),
     leaf: crossQuads(),
+    /* 한지 팝업북 스프라이트용: 세로로만 선 교차 평면(가로로 눕힌 세 번째 장은 뺐다). */
+    paperPlane: (function () { const a = new THREE.PlaneGeometry(1, 1); const b2 = a.clone(); b2.rotateY(Math.PI / 2); return mergeGeo([a, b2]); })(),
     bamboo: (function () { const g = new THREE.CylinderGeometry(0.055, 0.085, 1, 6, 1, true); g.translate(0, 0.5, 0); return g; })(),
     jar: (function () {
       const pts = [[0.0, 0.0], [0.2, 0.01], [0.3, 0.1], [0.34, 0.26], [0.33, 0.4], [0.26, 0.55], [0.19, 0.62], [0.17, 0.68], [0.22, 0.72], [0.19, 0.75]]
@@ -854,7 +869,13 @@ export function createChunkWorld(opts) {
     ember: { geo: geos.box, mat: M.ember, cast: false },
     rock: { geo: geos.rock, mat: M.rock, cast: true },
     leaf: { geo: geos.leaf, mat: M.leaf, cast: false },
-    bamboo: { geo: geos.bamboo, mat: M.bamboo, cast: true }
+    bamboo: { geo: geos.bamboo, mat: M.bamboo, cast: true },
+    /* 한지 팝업북 스프라이트 배치 */
+    pHouse: { geo: geos.paperPlane, mat: paperMats.house, cast: true },
+    pBamboo: { geo: geos.paperPlane, mat: paperMats.bamboo, cast: true },
+    pPine: { geo: geos.paperPlane, mat: paperMats.pine, cast: true },
+    pLantern: { geo: geos.paperPlane, mat: paperMats.lantern, cast: true },
+    pRock: { geo: geos.paperPlane, mat: paperMats.rock, cast: true }
   };
 
   const dataCache = new Map();

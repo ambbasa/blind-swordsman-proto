@@ -183,7 +183,7 @@ h2 { margin: 0 0 8px; font-size: 20px; }
 #comboLabel.hot { color: #8B1A1A; }
 
 #sightFog { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 3; pointer-events: none; }
-#sonarRing { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; }
+/* #sonarRing 2D 캔버스는 제거됨: 소나 파동은 3D 지면 셰이더(inklights.js) 한 겹만 쓴다. */
 #mindWave {
   position: absolute; inset: 0; pointer-events: none; z-index: 3;
   background: radial-gradient(circle at var(--hero-x, 50%) var(--hero-y, 50%), rgba(237,227,207,0.0) 0%, rgba(237,227,207,0.0) 40%, transparent 70%);

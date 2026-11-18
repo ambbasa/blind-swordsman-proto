@@ -31,76 +31,105 @@ function drawHero(ctx, pose, rnd) {
   const top = 50 + pose.bob;
   const w = pose.wind;
 
-  /* Blindfold tails and gat cords streaming behind (to the left). */
+  /* Blindfold tails streaming behind (to the left) — pale cloth against the black coat. */
   for (let k = 0; k < 2; k++) {
-    const y0 = top + 46 + k * 4;
+    const y0 = top + 44 + k * 3;
     const tail = curve([118, y0], [96 - 24 * w, y0 + 6 + Math.sin(pose.flap + k) * (4 + 6 * w)], [70 - 40 * w, y0 + 18 + Math.sin(pose.flap * 1.3 + k) * (6 + 8 * w)], 14);
-    stroke(ctx, tail, 5 - k, C.red + '0.9)');
+    stroke(ctx, tail, 4 - k * 0.8, k ? 'rgba(120,112,100,0.55)' : 'rgba(214,204,184,0.78)');
   }
 
-  /* Feet: black shoes under the hem. */
+  /* 검은 무사복(전복) — 갓도 흰 도포도 없다. 좁은 소매, 허리 넓은 띠, 검은 바지와 검은 장화.
+     어두운 바닥에 검은 옷이 묻히지 않게 왼쪽(달빛) 가장자리와 어깨·허리 띠에 은은한 한지빛 결을 둔다. */
   const st = pose.stride * 10;
-  stroke(ctx, [[112 - st, 228], [124 - st, 230]], 7, C.ink + '1)');
-  stroke(ctx, [[132 + st, 230], [146 + st, 232]], 7, C.ink + '1)');
+  const hemBack = 84 - 18 * w + Math.sin(pose.flap) * 3 * (0.4 + w);
+  const RIM = 'rgba(226,214,190,';      /* 한지빛 테두리 */
+  const CLOTH = 'rgba(17,16,19,';       /* 옷 검정 */
+  const CLOTHLIT = 'rgba(52,48,50,';    /* 달빛 받은 옷면 */
 
-  /* Robe (도포): paper white, flaring to the hem, hem trailing back with the wind. */
-  const hemBack = 82 - 22 * w + Math.sin(pose.flap) * 4 * (0.4 + w);
-  const robe = [[112, top + 62], [146, top + 62], [160, top + 110], [166, 226], [140, 224 + Math.sin(pose.flap + 1) * 2], [116, 226], [hemBack, 222 + Math.sin(pose.flap) * 4], [96, top + 120]];
-  const g = ctx.createLinearGradient(90, 0, 166, 0);
-  g.addColorStop(0, C.paper + '0.82)'); g.addColorStop(0.55, C.paper + '1)'); g.addColorStop(1, 'rgba(176,168,152,1)');
-  poly(ctx, robe, g);
-  ctx.save(); ctx.beginPath(); robe.forEach(function (p, i) { if (i) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]); }); ctx.closePath(); ctx.clip();
-  wash(ctx, 90, top + 60, 80, 170, 10, 'rgba(120,112,104,', rnd, 8, 24);
+  /* 장화: 바지 밑으로 나온 긴 목검정 가죽부츠. */
+  stroke(ctx, curve([118 - st, 204], [114 - st, 222], [126 - st, 228], 8), 11, CLOTH + '1)');
+  stroke(ctx, curve([142 + st, 204], [145 + st, 224], [157 + st, 228], 8), 11, CLOTH + '1)');
+  brush(ctx, curve([114 - st, 206], [111 - st, 222], [124 - st, 227], 8), 2, RIM, 0.34, rnd, 3);
+  brush(ctx, curve([146 + st, 206], [148 + st, 224], [158 + st, 227], 8), 2, RIM, 0.26, rnd, 3);
+
+  /* 검은 바지: 두 다리가 조금 흔들리는 헐렁한 형태. */
+  brush(ctx, curve([120, top + 128], [116 - st * 0.6, top + 172], [118 - st, 206], 10), 18, CLOTH, 1, rnd, 5);
+  brush(ctx, curve([141, top + 128], [147 + st * 0.6, top + 174], [147 + st, 206], 10), 18, CLOTH, 1, rnd, 5);
+  brush(ctx, curve([124, top + 136], [121 - st * 0.5, top + 176], [123 - st, 202], 8), 3, RIM, 0.20, rnd, 3);
+
+  /* 전복(무사 상의): 어깨에서 허리, 허벅지까지 내려오는 검은 겹옷. */
+  const coat = [[110, top + 60], [150, top + 60], [152, top + 86], [156, top + 104], [164, top + 148], [134, top + 154], [hemBack, top + 150], [104, top + 104], [108, top + 86]];
+  const g = ctx.createLinearGradient(98, 0, 168, 0);
+  g.addColorStop(0, CLOTHLIT + '0.98)'); g.addColorStop(0.34, 'rgba(24,23,26,1)'); g.addColorStop(1, 'rgba(8,8,10,1)');
+  poly(ctx, coat, g);
+  /* 누빔결: 가슴께의 가로 실금. */
+  ctx.save(); ctx.beginPath(); coat.forEach(function (p, i) { if (i) ctx.lineTo(p[0], p[1]); else ctx.moveTo(p[0], p[1]); }); ctx.closePath(); ctx.clip();
+  for (let i = 0; i < 5; i++) {
+    brush(ctx, [[104, top + 66 + i * 8], [156, top + 64 + i * 8]], 1.4, RIM, 0.10, rnd, 1);
+  }
+  wash(ctx, 100, top + 60, 66, 96, 9, 'rgba(6,6,8,', rnd, 5, 18);
   ctx.restore();
-  /* Folds and the dry-brush contour. */
-  brush(ctx, curve([128, top + 70], [124, top + 140], [118, 222], 14), 4, C.inkSoft, 0.6, rnd, 4);
-  brush(ctx, curve([146, top + 76], [152, top + 140], [150, 222], 14), 4, C.inkSoft, 0.5, rnd, 4);
-  brush(ctx, curve([112, top + 62], [96, top + 110], [hemBack, 222], 16), 6, C.ink, 0.9, rnd, 7);
-  brush(ctx, curve([146, top + 62], [162, top + 120], [166, 226], 16), 6, C.ink, 0.9, rnd, 7);
-  brush(ctx, [[hemBack, 222], [116, 226], [140, 224], [166, 226]], 4, C.ink, 0.8, rnd, 5);
+  /* 어깨 겹과 옷자락 윤곽. */
+  brush(ctx, curve([110, top + 64], [130, top + 61], [150, top + 64], 10), 4, 'rgba(70,64,64,', 0.75, rnd, 4);
+  brush(ctx, [[104, top + 148], [134, top + 153], [164, top + 147]], 3, RIM, 0.34, rnd, 4);
+  brush(ctx, curve([110, top + 62], [104, top + 96], [hemBack, top + 148], 12), 3, RIM, 0.40, rnd, 4);
+  brush(ctx, curve([150, top + 62], [156, top + 104], [164, top + 146], 12), 3, RIM, 0.20, rnd, 3);
 
-  /* Belt cord (세조대) with a vermilion tassel. */
-  stroke(ctx, [[104, top + 104], [130, top + 106], [158, top + 104]], 6, C.ink + '0.95)');
-  stroke(ctx, curve([138, top + 106], [134 - 6 * w, top + 124], [128 - 14 * w, top + 140 + Math.sin(pose.flap) * 3], 10), 4, C.red + '0.95)');
+  /* 넓은 허리띠: 검은 띠에 한지빛 가장자리를 얹고, 오른쪽에 매듭과 늘어진 띠끝. */
+  poly(ctx, [[103, top + 99], [157, top + 99], [159, top + 119], [101, top + 119]], 'rgba(5,5,7,1)');
+  stroke(ctx, [[103, top + 100], [157, top + 100]], 1.6, 'rgba(226,214,190,0.42)');
+  stroke(ctx, [[101, top + 118], [159, top + 118]], 1.6, 'rgba(196,186,166,0.26)');
+  ctx.beginPath(); ctx.ellipse(157, top + 108, 6, 8, -0.2, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(8,8,10,1)'; ctx.fill();
+  brush(ctx, curve([158, top + 112], [150 - 6 * w, top + 128], [142 - 12 * w, top + 140 + Math.sin(pose.flap) * 3], 10), 4, 'rgba(12,12,14,', 0.95, rnd, 4);
+
+  /* 흰 안감 깃이 목에서 한 줄 보인다 — 검은 옷 위의 밝은 초점. */
+  stroke(ctx, [[128, top + 61], [131, top + 71]], 2.6, 'rgba(220,212,194,0.75)');
+  stroke(ctx, [[139, top + 61], [136, top + 71]], 2.6, 'rgba(196,188,170,0.62)');
+
+  /* 좁은 소매: 왼팔은 허리로, 오른팔은 칼자루로. */
+  brush(ctx, curve([112, top + 66], [106, top + 90], [108, top + 114], 10), 12, CLOTH, 1, rnd, 4);
+  brush(ctx, curve([148, top + 66], [166, top + 84], [160, top + 104], 10), 12, CLOTH, 1, rnd, 4);
+  brush(ctx, curve([150, top + 70], [166, top + 86], [161, top + 103], 8), 2, RIM, 0.22, rnd, 3);
+  stroke(ctx, [[107, top + 116], [109, top + 122]], 6, 'rgba(206,184,156,1)');
+  stroke(ctx, [[158, top + 104], [154, top + 108]], 6, 'rgba(206,184,156,1)');
 
   /* Sword: sheathed at the hip pointing back, or drawn low in front. */
   if (pose.sword === 'sheathed') {
-    stroke(ctx, [[150, top + 98], [118, top + 118], [80, top + 140]], 8, C.ink + '1)');
-    brush(ctx, [[148, top + 97], [118, top + 115], [82, top + 137]], 2, 'rgba(200,190,170,', 0.6, rnd, 2);
-    stroke(ctx, [[150, top + 98], [166, top + 88]], 6, 'rgba(120,92,60,1)');
+    stroke(ctx, [[152, top + 104], [118, top + 124], [80, top + 146]], 8, 'rgba(12,12,14,1)');
+    brush(ctx, [[150, top + 103], [118, top + 121], [82, top + 143]], 2, 'rgba(200,190,170,', 0.5, rnd, 2);
+    stroke(ctx, [[152, top + 104], [168, top + 94]], 6, 'rgba(120,92,60,1)');
   } else {
     const blade = [[150, top + 104], [190, top + 128], [236, top + 150]];
     stroke(ctx, blade, 5, C.steel + '0.95)');
     brush(ctx, blade, 2, C.jade, 0.9, rnd, 3);
     stroke(ctx, [[140, top + 98], [150, top + 104]], 6, 'rgba(90,70,50,1)');
-    stroke(ctx, [[110, top + 112], [80, top + 130]], 6, C.ink + '1)');
+    stroke(ctx, [[110, top + 112], [80, top + 130]], 6, 'rgba(12,12,14,1)');
   }
 
-  /* Sleeve and arm toward the hilt. */
-  const sleeve = pose.sword === 'sheathed'
-    ? curve([134, top + 64], [170, top + 74], [160, top + 104], 10).concat(curve([160, top + 104], [140, top + 112], [128, top + 84], 10).slice(1))
-    : curve([132, top + 64], [176, top + 80], [158, top + 110], 10).concat(curve([158, top + 110], [134, top + 108], [126, top + 82], 10).slice(1));
-  poly(ctx, sleeve, C.paper + '1)');
-  brush(ctx, sleeve, 4, C.ink, 0.85, rnd, 5);
-  stroke(ctx, [[152, top + 100], [156, top + 102]], 7, 'rgba(214,190,160,1)');
-
-  /* Head, blindfold, gat. */
-  ctx.beginPath(); ctx.ellipse(132, top + 48, 12, 15, 0, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(222,200,170,1)'; ctx.fill();
-  brush(ctx, curve([120, top + 40], [118, top + 60], [130, top + 64], 10), 3, C.ink, 0.8, rnd, 3);
-  stroke(ctx, [[118, top + 44], [134, top + 46], [146, top + 44]], 7, C.red + '1)');
-  stroke(ctx, [[126, top + 30], [132, top + 34], [140, top + 30]], 4, C.ink + '0.9)');
-  /* Gat: dark crown and a wide translucent horsehair brim. */
-  poly(ctx, [[120, top + 32], [122, top + 6], [142, top + 6], [144, top + 32]], C.ink + '1)');
-  ctx.beginPath(); ctx.ellipse(132, top + 32, 50, 9, -0.05, 0, Math.PI * 2);
-  ctx.fillStyle = C.ink + '0.55)'; ctx.fill();
-  brush(ctx, curve([82, top + 34], [132, top + 24], [182, top + 30], 18), 4, C.ink, 0.9, rnd, 5);
-  brush(ctx, curve([86, top + 36], [132, top + 44], [178, top + 34], 18), 3, 'rgba(200,190,170,', 0.35, rnd, 3);
-  /* Gat cord of vermilion beads down to the chest. */
-  for (let i = 0; i < 6; i++) {
-    ctx.beginPath(); ctx.arc(146 + i * 0.8, top + 40 + i * 7, 2.2, 0, Math.PI * 2);
-    ctx.fillStyle = C.red + '1)'; ctx.fill();
-  }
+  /* Head: black hair, a black manggeon (상투 두건) and a pale blindfold — no gat.
+     The hats are off: the swordsman's face and hair read directly at game size. */
+  /* Hair mass behind the face, a touch wider than the head so the black silhouette reads. */
+  ctx.beginPath(); ctx.ellipse(129, top + 47, 15, 17, -0.08, 0, Math.PI * 2);
+  ctx.fillStyle = C.ink + '1)'; ctx.fill();
+  /* Face. */
+  ctx.beginPath(); ctx.ellipse(134, top + 50, 10.5, 12.5, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(214,190,160,1)'; ctx.fill();
+  /* Hair line over the brow, a strand falling at the nape (left). */
+  brush(ctx, curve([120, top + 42], [122, top + 30], [136, top + 29], 10), 4, C.ink, 0.95, rnd, 4);
+  brush(ctx, curve([120, top + 44], [116, top + 56], [118, top + 66], 8), 3, C.ink, 0.9, rnd, 3);
+  /* 상투 두건: 이마를 두른 검은 머리띠(망건) — 위엔 작은 상투와 비녀. */
+  stroke(ctx, [[121, top + 34], [134, top + 31], [146, top + 34]], 6, 'rgba(9,9,11,1)');
+  stroke(ctx, [[122, top + 32], [134, top + 29], [145, top + 32]], 1.6, RIM + '0.30)');
+  ctx.beginPath(); ctx.ellipse(130, top + 21, 7.5, 6.5, 0.05, 0, Math.PI * 2);
+  ctx.fillStyle = C.ink + '1)'; ctx.fill();
+  brush(ctx, curve([122, top + 23], [130, top + 15], [138, top + 21], 8), 2, 'rgba(196,182,158,', 0.85, rnd, 2);
+  stroke(ctx, [[124, top + 27], [130, top + 24], [137, top + 27]], 2.6, C.red + '0.9)');
+  /* 안대: 눈을 가로지르는 검은 천 한 줄 — 창백한 얼굴 위에 어두운 띠가 또렷하게 남는다. */
+  stroke(ctx, [[119, top + 45], [134, top + 47], [147, top + 45]], 6.6, 'rgba(10,10,12,1)');
+  stroke(ctx, [[119, top + 42.4], [134, top + 44.4], [147, top + 42.4]], 1.4, 'rgba(232,222,200,0.55)');
+  ctx.beginPath(); ctx.arc(118, top + 46, 3, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(214,204,184,0.95)'; ctx.fill();
 
   /* Speed streaks behind the dash. */
   if (w > 0.6) {
