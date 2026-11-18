@@ -792,6 +792,7 @@ export function createChunkWorld(opts) {
     map: gmap, normalMap: gnorm, roughnessMap: grough, normalScale: new THREE.Vector2(0.3, 0.3),
     color: 0x707070, roughness: 1.0, metalness: 0.0
   });
+  groundMat.userData.inkGround = true; /* game.js 가 지면 소나 셰이더(inklights.js)를 붙이는 표식 */
   const groundGeo = new THREE.PlaneGeometry(CHUNK, CHUNK, 1, 1);
   groundGeo.rotateX(-Math.PI / 2);
   const grounds = [];

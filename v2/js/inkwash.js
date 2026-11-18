@@ -1,7 +1,9 @@
-/* 수묵 후처리 v0.35+: 깊이(Depth) 기반 + 휘도(Luminance) 하이브리드 윤곽 먹선, 붓 번짐, 한지 결. */
+/* 수묵 후처리: 장면을 먹·한지 단색조로 바꾸고 비취·진홍·금 같은 강조색만 남긴다. 윤곽 먹선, 붓 번짐, 한지 결을 더한다.
+   v0.35+: 윤곽 먹선은 휘도(Luminance) 경계에 깊이(Depth) 경계를 더한 하이브리드 — 깊이는 enableDepth() 로 켠다. */
 import * as THREE from 'three';
 import { ShaderPass } from '../../assets/v2/fx-ink/code/vendor/three-r170-addons/postprocessing/ShaderPass.js';
 
+/** Tuning values for the ink-wash pass; every number a designer would tune lives here. */
 export const INKWASH = {
   ink: [0.004, 0.0035, 0.003],
   wash: [0.035, 0.032, 0.028],
@@ -16,12 +18,12 @@ export const INKWASH = {
   edgeLo: 0.035,
   edgeHi: 0.16,
   edgeDark: 0.22,
-  depthEdge: 0.95,
+  depthEdge: 0.95, /* 깊이 경계 먹선 세기 (enableDepth 가 켜졌을 때만) */
   depthLo: 0.012,
   depthHi: 0.065,
-  wobble: 0,
+  wobble: 0, /* screen warp blurred small figures; the ink look comes from tone, edges and grain */
   grain: 0.10,
-  vignette: 0,
+  vignette: 0, /* one vignette only: the cinematic pass owns it */
   strength: 0.85
 };
 
@@ -57,17 +59,20 @@ void main(){
   float mx = max(src.r, max(src.g, src.b)), mn = min(src.r, min(src.g, src.b));
   float sat = mx > 1e-4 ? (mx - mn) / mx : 0.0;
 
+  /* 먹의 농담: 焦·濃·淡을 부드러운 띠로 나눈다. */
   float t = pow(clamp(sqrt(max(l, 0.0)) * 1.25, 0.0, 1.0), uGamma);
   float b = t * uBands; float fb = fract(b);
   float tb = (floor(b) + smoothstep(0.5 - uBandSoft * 0.5, 0.5 + uBandSoft * 0.5, fb)) / uBands;
   tb = mix(tb, t, 0.35);
   vec3 tone = tb < 0.5 ? mix(uInk, uWash, tb * 2.0) : mix(uWash, uPaper, (tb - 0.5) * 2.0);
 
+  /* 강조색은 살린다 (비취 일섬, 진홍 경고, 금빛 표식). HDR 블룸은 그대로 빛난다. */
   float acc = smoothstep(uSatLo, uSatHi, sat) * smoothstep(0.004, 0.03, l);
   vec3 accent = src * uBoost;
   vec3 col = mix(tone, accent, acc);
   col += max(src - 1.0, 0.0);
 
+  /* 윤곽 먹선: 떨리는 붓처럼 굵기와 위치를 흔든다. 휘도 경계 + (있으면) 깊이 경계 중 강한 쪽. */
   float w = 1.0 + 0.8 * vnoise(vUv * uRes / 18.0 + uTime * 0.05);
   vec2 o = px * w;
   float tl = L(uv + vec2(-o.x, o.y)), tc = L(uv + vec2(0, o.y)), tr = L(uv + o);
@@ -91,6 +96,7 @@ void main(){
   e *= 0.65 + 0.35 * vnoise(vUv * uRes / 6.0);
   col = mix(col, uInk, e * (1.0 - acc * 0.7));
 
+  /* 한지 결과 번짐 얼룩 */
   float fiber = vnoise(vec2(vUv.x * uRes.x / 1.5, vUv.y * uRes.y / 40.0));
   float grain = (h21(floor(vUv * uRes)) - 0.5) * 0.6 + (fiber - 0.5) * 0.8;
   float stain = fbm(vUv * 3.0 + 11.0);
@@ -104,6 +110,9 @@ void main(){
   gl_FragColor = vec4(mix(src, col, uStrength), 1.0);
 }`;
 
+/** Creates the ink-wash ShaderPass; call tick(dt) each frame and setSize(w, h) on resize.
+ *  enableDepth(near, far) turns on depth-edge outlines; the composer's render targets must carry a
+ *  depthTexture (setupBloom({ depth: true })). */
 export function createInkWashPass(params) {
   const P = Object.assign({}, INKWASH, params || {});
   const pass = new ShaderPass({
@@ -121,11 +130,24 @@ export function createInkWashPass(params) {
     vertexShader: VERT,
     fragmentShader: FRAG
   });
-  pass.setDepthTexture = function (depthTex, near = 0.1, far = 200) {
-    pass.uniforms.tDepth.value = depthTex || null;
-    pass.uniforms.uHasDepth.value = depthTex ? 1 : 0;
-    pass.uniforms.uNear.value = near;
-    pass.uniforms.uFar.value = far;
+  /* 깊이는 고정 텍스처로 묶지 않고 매 프레임 readBuffer 에서 읽는다.
+     EffectComposer 는 rt1/rt2 를 핑퐁하고, 한 프레임의 swap 횟수가 홀수면 장면이 그려지는 버퍼가 프레임마다 바뀐다.
+     RenderPass·UnrealBloomPass 는 swap 하지 않으므로 이 패스 시점의 readBuffer 가 곧 장면 색·깊이를 가진 버퍼다.
+     writeBuffer 의 깊이를 샘플링하면 WebGL feedback loop(INVALID_OPERATION)로 그리기가 버려져 화면이 깨진다. */
+  let depthOn = false;
+  pass.enableDepth = function (near, far) {
+    depthOn = true;
+    pass.uniforms.uNear.value = near > 0 ? near : 0.1;
+    pass.uniforms.uFar.value = far > 0 ? far : 200;
+  };
+  pass.disableDepth = function () { depthOn = false; };
+  const baseRender = pass.render.bind(pass);
+  pass.render = function (renderer, writeBuffer, readBuffer, deltaTime, maskActive) {
+    let d = depthOn && readBuffer ? readBuffer.depthTexture : null;
+    if (d && writeBuffer && writeBuffer.depthTexture === d) d = null;
+    pass.uniforms.tDepth.value = d;
+    pass.uniforms.uHasDepth.value = d ? 1 : 0;
+    baseRender(renderer, writeBuffer, readBuffer, deltaTime, maskActive);
   };
   pass.tick = function (dt) { pass.uniforms.uTime.value += dt || 0; };
   const baseSize = pass.setSize.bind(pass);

@@ -1,12 +1,24 @@
-/* v2/js/ui/overlayShell.js — 8개 오버레이(#ov-*)와 인게임 제스처 입력 UX 일관성 계층. */
+/* v2/js/ui/overlayShell.js — 메뉴 오버레이(#ov-*) ESC 닫기와 인게임 제스처 입력 UX 일관성 계층. */
+
+/* ESC 로 닫는 메뉴 오버레이 → 닫기 버튼.
+   ov-pause 는 넣지 않는다: game.js(guardEvents)의 ESC 가 일시정지/재개를 맡는다. 이 리스너가 먼저 등록되므로
+   여기서도 재개하면 곧이어 game.js 가 다시 일시정지해 ESC 로 풀리지 않는다. */
 const CLOSE_MAP = {
   'ov-shop': 'btnShopClose',
   'ov-codex': 'btnCodexClose',
-  'ov-train': 'btnTrainClose',
-  'ov-pause': 'btnResume'
+  'ov-train': 'btnTrainClose'
 };
 
-export function initOverlayShell({ onResizeTrain } = {}) {
+let inited = false;
+
+/** Wires ESC-to-close for menu overlays and the `drawing-active` body class (dims HUD while a stroke is drawn).
+ *  Safe to call more than once; only the first call binds listeners.
+ *  Label sync of duplicated buttons (btnCb/btnCb1 …) stays in game.js syncA11yUi; the training canvas keeps
+ *  its 320×230 backing store (game.js draws in that space) and is scaled by CSS only. */
+export function initOverlayShell() {
+  if (inited) return;
+  inited = true;
+
   window.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     for (const [ovId, btnId] of Object.entries(CLOSE_MAP)) {
@@ -34,32 +46,5 @@ export function initOverlayShell({ onResizeTrain } = {}) {
     app.addEventListener('pointerdown', startDraw, { passive: true });
     window.addEventListener('pointerup', endDraw, { passive: true });
     window.addEventListener('pointercancel', endDraw, { passive: true });
-  }
-
-  const pairs = [['btnCb1', 'btnCb'], ['btnShake1', 'btnShake'], ['btnLvMode1', 'btnLvMode']];
-  for (const [aId, bId] of pairs) {
-    const a = document.getElementById(aId);
-    const b = document.getElementById(bId);
-    if (!a || !b) continue;
-    const sync = (src, dst) => { queueMicrotask(() => { dst.textContent = src.textContent; }); };
-    a.addEventListener('click', () => sync(a, b));
-    b.addEventListener('click', () => sync(b, a));
-  }
-
-  const trainCanvas = document.getElementById('trainCanvas');
-  if (trainCanvas && typeof ResizeObserver !== 'undefined') {
-    const ro = new ResizeObserver(() => {
-      const rect = trainCanvas.getBoundingClientRect();
-      if (rect.width < 10) return;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const w = Math.round(rect.width * dpr);
-      const h = Math.round((rect.width * (230 / 320)) * dpr);
-      if (trainCanvas.width !== w || trainCanvas.height !== h) {
-        trainCanvas.width = w;
-        trainCanvas.height = h;
-        if (onResizeTrain) onResizeTrain(trainCanvas, dpr);
-      }
-    });
-    ro.observe(trainCanvas);
   }
 }

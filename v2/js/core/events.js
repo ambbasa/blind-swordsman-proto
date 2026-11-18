@@ -1,4 +1,7 @@
-/* v2/js/core/events.js — game.js 모듈 분리를 위한 경량 Pub/Sub 이벤트 버스. */
+/* v2/js/core/events.js — game.js 모듈 분리를 위한 경량 Pub/Sub 이벤트 버스.
+   아직 구독/발행하는 곳이 없어 game.js 에 연결하지 않는다 — 모듈 분리 작업 때 연결한다. */
+
+/** Creates an isolated event bus: on(event, fn) returns an unsubscribe function; emit isolates handler errors. */
 export function createEventBus() {
   const listeners = new Map();
   function on(event, handler) {

@@ -30,7 +30,6 @@ import {
   newSaveMeta, swordFx, swordOf, equippedRelics, relicOn, relicSlots, skinOf, brushOf, codexCounts, codexBonus, isBasePat
 } from './meta.js';
 import { InkLightPool, createWorldInkUniforms, attachGroundInkShader } from './inklights.js';
-import { createEventBus } from './core/events.js';
 import { initOverlayShell } from './ui/overlayShell.js';
 const inkFx = new InkFx();
 const telemetry = createTelemetry({ version: '0.35' });
@@ -1369,6 +1368,14 @@ function setupChunkWorld(stageId, mapId) {
   try {
     three.chunks = createChunkWorld({ stageId: stageId || 1, mapId: mapId || 'map1' });
     three.scene.add(three.chunks.group);
+    /* 장이 바뀔 때마다 새 지면 재질이 생기므로 여기서 지면 소나 셰이더를 붙인다(지면만). */
+    if (three.inkUniforms) {
+      three.chunks.group.traverse(function (obj) {
+        if (obj.isMesh && obj.material && obj.material.userData && obj.material.userData.inkGround) {
+          attachGroundInkShader(obj.material, three.inkUniforms);
+        }
+      });
+    }
     const _t0 = performance.now();
     three.chunks.update(0, 0, (S && S.hero) ? S.hero.x : 0, (S && S.hero) ? S.hero.z : 0);
     perfMark('chunkWorld.build', performance.now() - _t0, { stage: stageId || 1 });
@@ -1443,16 +1450,21 @@ async function makeWorld() {
     view: view, fxForced: fxQForced, amb: amb, hemi: hemi, moon: moon, fill: fill, sky: sky, baseClear: clear,
     dprCap: dprCap, dprNow: dprCap, atmo: new StageAtmosphere(scene, 1)
   };
+  /* 점광원 풀은 재질 예열(prewarmInkSlash) 전에 만든다 — 조명 개수가 바뀌면 예열한 프로그램이 다시 링크된다. */
+  world.lights = new InkLightPool(scene, { maxLights: 4, distance: 14 });
+  world.inkUniforms = createWorldInkUniforms();
   try {
-    const washPass = createInkWashPass();
-     world.bloom = setupBloom(renderer, scene, camera, {
+    /* post() 는 build() 때마다 다시 불리므로(품질 변경) 패스도 매번 새로 만든다 — dispose 된 패스를 재사용하지 않게. */
+    world.bloom = setupBloom(renderer, scene, camera, {
       quality: fxQ,
-      post: function () { return [washPass, createCinematicPass()]; }
+      depth: true,
+      post: function () {
+        const wash = createInkWashPass();
+        wash.enableDepth(camera.near, camera.far);
+        return [wash, createCinematicPass()];
+      }
     });
-    if (world.bloom && world.bloom.depthTexture && washPass.setDepthTexture) {
-       washPass.setDepthTexture(world.bloom.depthTexture, camera.near, camera.far);
-    }
-    } catch (e) { world.bloom = null; }
+  } catch (e) { world.bloom = null; }
   try {
     world.ink = new InkParticles(scene, { base: FXINK_BASE, quality: fxQ === 'high' ? 'high' : 'low' });
     /* 바닥 먹 데칼은 밝아진 2.5D 바닥에서 검은 사각형으로 읽혀 끈다. 튐·터짐은 유지. */
@@ -1466,16 +1478,8 @@ async function makeWorld() {
     }, false);
   } catch (e) {}
   world.ql = { level: 0, lowT: 0, highT: 0, cool: 0, lockAt: 99, lastUp: -99, t: 0 };
-  world.lights = new InkLightPool(scene, { maxLights: 6, distance: 14 });
-  world.inkUniforms = createWorldInkUniforms();
-  world.bus = createEventBus();
   initOverlayShell();
-  scene.traverse(function (obj) {
-    if (obj.isMesh && obj.material && obj.material.isMeshStandardMaterial) {
-       attachGroundInkShader(obj.material, world.inkUniforms);
-    }
-     });
-   return world;
+  return world;
 }
 
 /* One quality ladder for the whole look. Going down: shadows off, bloom low, then resolution in steps.
@@ -5192,7 +5196,7 @@ function makeSlash(from, to) {
   } catch (e) {}
   if (three.ink) three.ink.slash(from, to);
   if (three.lights) three.lights.burst((from.x + to.x) * 0.5, 1.2, (from.z + to.z) * 0.5, { color: 0x5eead4, intensity: 4.5, duration: 0.28 });
-   fxinkStat.slashes++;
+  fxinkStat.slashes++;
   if (elemNow === 'fire' && art.trailTex) {
     const tgeo = new THREE.PlaneGeometry(pathR() * 2.2, len);
     const trail = new THREE.Mesh(tgeo, trailMaterial());
@@ -9192,13 +9196,17 @@ function drawSightFog() {
       coreAlpha: 0.8, coreWidth: 2.4, haloAlpha: 0.35, haloWidth: 6, glowAlpha: 0.12, innerAlpha: 0
     });
     if (three && three.inkUniforms) {
+      /* lr 은 화면 픽셀 반경 — 착지점에서 1m 가 몇 px 인지로 나눠 월드 반경(m)으로 바꾼다. 2D 링과 크기가 맞는다. */
+      const lp1 = projectXZ(S.landRipple.x + 1, S.landRipple.z, 0.15);
+      const pxPerM = Math.max(1, Math.hypot(lp1.x - lp.x, lp1.y - lp.y));
       three.inkUniforms.uSonarOrigin.value.set(S.landRipple.x, 0, S.landRipple.z);
-       three.inkUniforms.uSonarRadius.value = lr;
-       three.inkUniforms.uSonarAlpha.value = Math.max(0, 1 - lt);
+      three.inkUniforms.uSonarRadius.value = lr / pxPerM;
+      /* lt 는 1 → 0 으로 줄어든다: 2D 링처럼 처음에 밝고 점점 사라지게. */
+      three.inkUniforms.uSonarAlpha.value = Math.max(0, Math.min(1, lt));
     }
-  }   else {
-       if (three && three.inkUniforms) three.inkUniforms.uSonarAlpha.value = 0;
-    }
+  } else if (three && three.inkUniforms) {
+    three.inkUniforms.uSonarAlpha.value = 0;
+  }
 }
 function loop(ts) {
   raf = requestAnimationFrame(loop);
@@ -9341,7 +9349,7 @@ function loop(ts) {
     if (three.ink && three.ink.update) three.ink.update(dt);
     if (three.lights) three.lights.update(dt);
     if (three.inkUniforms && S && S.hero) three.inkUniforms.uHeroPos.value.set(S.hero.x, 0, S.hero.z);
-     if (three.bloom && three.bloom.render) three.bloom.render(dt);
+    if (three.bloom && three.bloom.render) three.bloom.render(dt);
     else three.renderer.render(three.scene, three.camera);
     updateMarks();
     drawSightFog();

@@ -22,7 +22,9 @@ export const BLOOM_PRESETS = {
   off: null,   // no bloom pass; the post passes (ink wash, tone mapping) still run when given — plain render only without them
 };
 
-export function setupBloom(renderer, scene, camera, { quality = 'high', override = null, post = null } = {}) {
+/** Builds the post chain. depth: true gives both composer targets a depthTexture (rt2 is a clone of rt1,
+ *  so it gets its own) — a post pass must read it from its readBuffer, never a fixed target (see inkwash.js). */
+export function setupBloom(renderer, scene, camera, { quality = 'high', override = null, post = null, depth = false } = {}) {
   const size = renderer.getSize(new THREE.Vector2()); let q = quality;
   const preset = (k) => (BLOOM_PRESETS[k] && override ? Object.assign({}, BLOOM_PRESETS[k], override) : BLOOM_PRESETS[k]); let P = preset(q);
   let composer = null, bloom = null, rt = null, extra = [];
@@ -30,7 +32,11 @@ export function setupBloom(renderer, scene, camera, { quality = 'high', override
     dispose();
     if (!P && !post) return;
     const pr = renderer.getPixelRatio();
-    rt = new THREE.WebGLRenderTarget(Math.max(1, size.x * pr), Math.max(1, size.y * pr), { type: THREE.HalfFloatType, samples: P ? P.samples : 0 , depthTexture: new THREE.DepthTexture(Math.max(1, size.x * pr), Math.max(1, size.y * pr))});
+    const rw = Math.max(1, size.x * pr), rh = Math.max(1, size.y * pr);
+    rt = new THREE.WebGLRenderTarget(rw, rh, {
+      type: THREE.HalfFloatType, samples: P ? P.samples : 0,
+      depthTexture: depth ? new THREE.DepthTexture(rw, rh) : null
+    });
     composer = new EffectComposer(renderer, rt);
     composer.addPass(new RenderPass(scene, camera));
     if (P) {
@@ -48,7 +54,7 @@ export function setupBloom(renderer, scene, camera, { quality = 'high', override
   return {
     get quality() { return q; }, get composer() { return composer; }, get bloomPass() { return bloom; },
     render(dt) { extra.forEach((p) => p.tick && p.tick(dt)); if (composer) composer.render(dt); else renderer.render(scene, camera); },
-    get post() { return extra; }, get depthTexture() { return rt ? rt.depthTexture : null; },
+    get post() { return extra; }, get hasDepth() { return !!(rt && rt.depthTexture); },
     setSize(w, h) { size.set(w, h); if (composer) composer.setSize(w, h); },
     /* Quality change without rebuilding the chain: a rebuild would create new pass materials and
        therefore relink ~10 shader programs on the very frame the frame rate was already bad.
