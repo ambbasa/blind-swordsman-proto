@@ -63,7 +63,7 @@ float linearDepth(vec2 uv){
    사물 재질(cardstock.js)이 같은 규칙으로 먼저 잠그므로, 여기서는 그 위에 얇게 한 겹만 더한다.
    밝고 선명한 것(혼령·등불·검기)은 '어둠이 표적을 삼키지 않는다' 규칙으로 남긴다. */
 float wfKeep( vec3 col ) {
-  /* 어돕이 삼키면 안 되는 것 = '빛나는 것'. 밝기만 본다(색이 진하다고 남기면 12장 혈석 같은
+  /* 어둠이 삼키면 안 되는 것 = '빛나는 것'. 밝기만 본다(색이 진하다고 남기면 12장 혈석 같은
      붉은 소품이 안개를 통과해 버린다). */
   return smoothstep( 0.45, 0.85, luma( col ) );
 }
@@ -79,11 +79,10 @@ vec3 wfApply( vec3 col, vec2 uv, float rawDepth ) {
       vec4 vp = uInvProj * clip;
       vp /= max( 1e-6, vp.w );
       vec3 wp = ( uCamWorld * vp ).xyz;
-      float d = length( wp.xz - uWfHero.xz );
       vec2 rel = wp.xz - uWfHero.xz;
       vec2 fw = uWfDirK.xy;
       vec2 rt = vec2( fw.y, - fw.x );
-      d = length( vec2( dot( rel, rt ), dot( rel, fw ) * uWfDirK.z ) );
+      float d = length( vec2( dot( rel, rt ), dot( rel, fw ) * uWfDirK.z ) );
       float near = smoothstep( uWfRange.x, uWfRange.y, d ) * uWfAmt.x;
       float far = smoothstep( uWfRange.y, max( uWfRange.z, uWfRange.y + 0.1 ), d ) * max( 0.0, uWfAmt.y - uWfAmt.x );
       f = clamp( near + far, 0.0, 1.0 );
@@ -176,7 +175,7 @@ export function createInkWashPass(params) {
       uWobble: { value: P.wobble }, uGrain: { value: P.grain }, uVig: { value: P.vignette }, uStrength: { value: P.strength },
       uInvProj: { value: new THREE.Matrix4() }, uCamWorld: { value: new THREE.Matrix4() },
       uWfHero: { value: new THREE.Vector3(0, 0, 0) }, uWfRange: { value: new THREE.Vector4(5.4, 7.3, 15.6, 0) },
-      uWfAmt: { value: new THREE.Vector4(0.78, 0.92, 0, 1) }, uWfColor: { value: new THREE.Vector3(0.01, 0.009, 0.009) },
+      uWfAmt: { value: new THREE.Vector4(0.62, 0.80, 0, 1) }, uWfColor: { value: new THREE.Vector3(0.01, 0.009, 0.009) },
       uHeroScreen: { value: new THREE.Vector2(0, 0) }, uWfPost: { value: 0.40 },
       uWfDirK: { value: new THREE.Vector3(0, -1, 0.70) }
     },
