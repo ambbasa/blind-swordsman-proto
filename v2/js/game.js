@@ -1754,8 +1754,16 @@ function addEntityVisual(kind, shape, opt) {
   try { if (group) paintCard(group, kind === 'spirit' ? 'spirit' : kind === 'item' ? 'item' : 'figure'); } catch (e) {}
   return group;
 }
-/* 잔상(파츠 리그)은 매 대시마다 새로 만들어진다 — 지오메트리·재질만 놓아 준다(공유 텍스처는 그대로). */
+/* 잔상(3D 뼈대 고스트)은 주인공의 지오메트리를 공유한다 — 지오메트리만 놓지 않고 재질만 놓아 준다. */
 function disposeCharGeom(g) {
+  if (g && g.userData && g.userData.sharedGeom) {
+    try {
+      g.traverse(function (o) {
+        if (o.isMesh && o.material && o.material.dispose) o.material.dispose();
+      });
+    } catch (e) {}
+    return;
+  }
   try {
     g.traverse(function (o) {
       if (o.geometry) o.geometry.dispose();
@@ -10863,6 +10871,97 @@ const GPv2 = {
       topW: +topW.toFixed(2), botW: +botW.toFixed(2), uFx: m.material && m.material.userData.frameU ? m.material.userData.frameU.uFx.value : null };
   },
   poseActs: function (name) { return art.actsOf ? art.actsOf(name) : null; },
+  /* v0.45 QA: 장면 객체 수·잔상(고스트) 수·GPU 자원 수 — 누수·정리 확인 */
+  sceneStats: function () {
+    if (!three || !three.scene) return null;
+    let meshes = 0, ghosts = 0, hulls = 0;
+    three.scene.traverse(function (o) {
+      if (!o.isMesh) return;
+      meshes++;
+      if (o.userData && o.userData.rig && o.userData.rig.kind === 'ghost') ghosts++;
+      if (o.userData && o.userData.hero3dHull) hulls++;
+    });
+    const inf = three.renderer.info;
+    return { meshes: meshes, ghosts: ghosts, hulls: hulls, geometries: inf.memory.geometries, textures: inf.memory.textures, programs: inf.programs ? inf.programs.length : null, fx: (three.fx || []).length };
+  },
+  /* v0.45 QA: 장면 한 번 그리기의 드로우콜·삼각형(후처리 제외) — 주인공 기여분 차분용 */
+  sceneCost: function () {
+    if (!three || !three.renderer) return null;
+    const r = three.renderer;
+    const prevAuto = r.info.autoReset;
+    r.info.autoReset = false;
+    r.info.reset();
+    try { r.render(three.scene, three.camera); } catch (e) {}
+    const out = { calls: r.info.render.calls, tris: r.info.render.triangles, programs: r.info.programs ? r.info.programs.length : null };
+    r.info.autoReset = prevAuto;
+    r.info.reset();
+    return out;
+  },
+  /* v0.45 QA: 프레임 비용 계측 — 드로우콜·삼각형·프로그램, 주인공 보이기/숨기기 차분용 */
+  renderInfo: function (heroOn) {
+    if (!three || !three.renderer) return null;
+    if (heroOn != null && three.heroSpr) three.heroSpr.visible = !!heroOn;
+    const inf = three.renderer.info;
+    return {
+      calls: inf.render.calls, triangles: inf.render.triangles, programs: inf.programs ? inf.programs.length : null,
+      textures: inf.memory.textures, geometries: inf.memory.geometries, heroOn: three.heroSpr ? three.heroSpr.visible : null,
+      fps: fps.last ? +(1 / fps.last).toFixed(1) : null
+    };
+  },
+  /* v0.45 QA: 주인공 3D 뼈대 — 상태·클립 가중치·방향 */
+  hero3dInfo: function () {
+    const g = three && three.heroSpr;
+    if (!g || !art.hero3d) return null;
+    const o = art.hero3d.info(g) || null;
+    if (o) o.bounds = art.hero3d.bounds(g);
+    return o;
+  },
+  /* v0.45 QA: 셰이더 uniform·정점색·렌더타깃 색공간 덤프(먹의 자리 진단) */
+  hero3dDump: function () {
+    const g = three && three.heroSpr;
+    const H = g && g.userData && g.userData.hero3d;
+    if (!H) return null;
+    const u = H.uniforms[0];
+    const mesh = H.meshes[0];
+    const col = mesh && mesh.geometry.getAttribute('color');
+    const uni = {};
+    Object.keys(u).forEach(function (k) {
+      const v = u[k].value;
+      uni[k] = (v && v.toArray) ? v.toArray().map(function (n) { return typeof n === 'number' ? +n.toFixed(4) : n; }) : (v && v.isTexture ? 'tex' : v);
+    });
+    const rt = three && three.bloom && three.bloom.composer && three.bloom.composer.renderTarget1;
+    return {
+      uniforms: uni,
+      color0: col ? [+col.getX(0).toFixed(4), +col.getY(0).toFixed(4), +col.getZ(0).toFixed(4)] : null,
+      colorCount: col ? col.count : 0,
+      rtColorSpace: rt ? rt.texture.colorSpace : 'none',
+      outputColorSpace: three.renderer.outputColorSpace,
+      toneMapping: three.renderer.toneMapping,
+      lights: H.lights ? { amb: !!H.lights.amb, hemi: !!H.lights.hemi, dirs: H.lights.dirs.length } : null,
+      moon: three.moon ? { i: +three.moon.intensity.toFixed(3), c: three.moon.color.toArray().map(function (n) { return +n.toFixed(3); }) } : null,
+      amb: three.amb ? { i: +three.amb.intensity.toFixed(3), c: three.amb.color.toArray().map(function (n) { return +n.toFixed(3); }) } : null
+    };
+  },
+  /* v0.45 QA: 클립을 특정 시각에 고정(스크린샷용). o={clip,t,yaw,freeze} */
+  hero3dPin: function (o) {
+    const g = three && three.heroSpr;
+    if (!g || !art.hero3d) return null;
+    return art.hero3d.pin(g, o || {});
+  },
+  /* v0.45 QA: n스텝 × dt 강제 진행(헤드리스 rAF 우회) — 궤적 기록 */
+  hero3dStep: function (o) {
+    const g = three && three.heroSpr;
+    if (!g || !art.hero3d) return null;
+    return art.hero3d.step(g, o || {});
+  },
+  /* v0.45 QA: 일섬·피격 동작을 직접 건다. */
+  hero3dAct: function (name, k) {
+    const g = three && three.heroSpr;
+    if (!g || !art.hero3d) return null;
+    if (name === 'slash') art.slashChar(g, k == null ? 1 : k);
+    else if (name === 'hit') art.kickChar(g, k == null ? 1 : k);
+    return art.hero3d.info(g);
+  },
   /* v0.44 QA: 포즈 리그를 dt 간격으로 n스텝 강제 진행하며 동작·프레임 궤적을 기록한다.
      (헤드리스는 rAF 가 1fps 라 실시간 관측이 불가능하다 — 로직을 직접 돌려 12칸이 실제로 도는지 본다.) */
   poseTrace: function (o) {

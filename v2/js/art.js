@@ -9,6 +9,10 @@ import { loadPixelPack, PIXEL_LOOK } from './pixellook.js';
 import { buildFigure, tickFigure, kick as rigKick, slashPose as rigSlash, setOpacity as rigOpacity, setTint as rigTint,
   setAuraColor as rigAuraColor, setOrder as rigOrder, setCamera as rigSetCamera, ready as rigReady,
   debugPose as rigDebugPose, actsOf as rigActsOf } from './inkchars3d.js';
+/* v0.45: 주인공만 3D 관절 뼈대 + 수묵 툰 셰이더 캐릭터(inkhero3d.js)로 교체한다. */
+import * as HERO3D from './inkhero3d.js';
+let QA_HERO2D = false;
+try { QA_HERO2D = new URLSearchParams(location.search).has('hero2d'); } catch (e) {}
 
 const BASE = '../assets/v2/';
 let QA_NORIG = false;
@@ -576,8 +580,9 @@ export async function buildArt(THREE) {
     if (!upIconUrls[id]) upIconUrls[id] = drawUpgrade(id).toDataURL('image/png');
     return upIconUrls[id];
   }
-  let inkBossPacks = {};
-  function clampVar(v) { const n = Math.round(+v || 0); return n < 0 ? 0 : n > 3 ? 3 : n; }
+  /* v0.45: 잔상(대시 고스트)은 지금 서 있는 주인공을 복제해 만든다 — 같은 뼈대 포즈를 그대로 쓴다. */
+  let hero3dSrc = null;
+  let inkBossPacks = {};  function clampVar(v) { const n = Math.round(+v || 0); return n < 0 ? 0 : n > 3 ? 3 : n; }
   /* §4.5 보스 개성: 장마다 다른 머리 장신구·무기로 시트를 하나씩 그린다(3막 색조는 재질 틴트).
      네 벌만 만들고 장은 그중 하나를 골라 쓴다 — 모바일 텍스처 메모리를 지킨다. */
   const BOSS_LOOK = [
@@ -650,6 +655,18 @@ export async function buildArt(THREE) {
   /* v0.38: 파츠 관절 리그(비단 병풍 디오라마 PNG). 텍스처가 아직/영영 없으면 null → 아래 코드 드로잉으로 폴백. */
   function makeRigChar(kind, shape, opt) {
     if (QA_NORIG) return null;
+    /* v0.45 주인공 3D 뼈대 — 벡터 이미지(포즈 카드) 없이 절차적으로 세운다. */
+    if ((kind === 'hero' || kind === 'afterimage') && !QA_HERO2D) {
+      try {
+        const g = kind === 'afterimage' ? HERO3D.buildGhost(hero3dSrc) : HERO3D.build({ shadow: true });
+        if (g) {
+          if (kind === 'hero') hero3dSrc = g;
+          return g;
+        }
+      } catch (e) {
+        if (window.console && console.warn) console.warn('[심안] 3D 주인공 생성 실패 — 파츠 리그로 되돌립니다', e);
+      }
+    }
     if (!rigReady()) return null;
     if (kind === 'hero' || kind === 'afterimage') {
       const after = kind === 'afterimage';
@@ -852,6 +869,7 @@ export async function buildArt(THREE) {
     const halo = group.userData && group.userData.halo;
     if (halo) { halo.rotation.z += (dt || 0) * 0.7; halo.material.opacity = 0.62 + 0.2 * Math.sin((group.userData.haloT = (group.userData.haloT || 0) + (dt || 0)) * 3.1); }
     if (group.userData && group.userData.rig && tickFigure(group, kind, state, dt, vx, vz)) return;
+    if (group.userData && group.userData.hero3d) { HERO3D.tick(group, kind, state, dt, vx, vz); return; }
     const spr = group.userData && group.userData.sprite;
     const pack = group.userData && group.userData.animPack;
     let useState = state;
@@ -964,28 +982,42 @@ export async function buildArt(THREE) {
     /* v0.42 QA: 포즈 고정·동작 목록 */
     debugPose: function (g, a, f) { return rigDebugPose(g, a, f); },
     actsOf: function (n) { return rigActsOf(n); },
-    kickChar: function (group, k) { rigKick(group, k); },
-    slashChar: function (group, k) { rigSlash(group, k); },
+    kickChar: function (group, k) {
+      if (group && group.userData && group.userData.hero3d) { HERO3D.kick(group, k); return; }
+      rigKick(group, k);
+    },
+    slashChar: function (group, k) {
+      if (group && group.userData && group.userData.hero3d) { HERO3D.slashPose(group, k); return; }
+      rigSlash(group, k);
+    },
     tintChar: function (group, r, g, b) {
       if (!group || !group.userData) return;
+      if (group.userData.hero3d) { HERO3D.setTint(group, r, g, b); return; }
       if (group.userData.rig) { rigTint(group, r, g, b); return; }
       const spr = group.userData.sprite;
       if (spr && spr.material && spr.material.color) spr.material.color.setRGB(r, g, b);
     },
     setCharOpacity: function (group, o) {
       if (!group || !group.userData) return;
+      if (group.userData.hero3d) { HERO3D.setOpacity(group, o); return; }
       if (group.userData.rig) { rigOpacity(group, o); return; }
       const spr = group.userData.sprite;
       if (spr && spr.material) spr.material.opacity = o;
     },
     setCharOrder: function (group, base) {
       if (!group || !group.userData) return;
+      if (group.userData.hero3d) { HERO3D.setOrder(group, base); return; }
       if (group.userData.rig) { rigOrder(group, base); return; }
       const spr = group.userData.sprite;
       if (spr) spr.renderOrder = base;
     },
-    setAuraColor: function (group, hex, op) { rigAuraColor(group, hex, op); },
-    rigInfo: function () { return { ready: rigReady() }; },
+    setAuraColor: function (group, hex, op) {
+      if (group && group.userData && group.userData.hero3d) { HERO3D.setAuraColor(group, hex, op); return; }
+      rigAuraColor(group, hex, op);
+    },
+    rigInfo: function () { return { ready: rigReady(), hero3d: HERO3D.ready() }; },
+    /* v0.45 QA: 3D 주인공 상태·고정·스텝·바운딩 */
+    hero3d: HERO3D,
     /* QA: 지금까지 먹획을 구운 혼령 기호 목록(예열 검증용) */
     spiritInkShapes: function () { return Object.keys(spiritInkCache); },
     sealUrl: sealUrl, upIconUrl: upIconUrl, itemIconUrl: itemIconUrl, setSpiritShape: setSpiritShape, setStatus: setStatus, setAura: setAura, setTelegraph: setTelegraph,
