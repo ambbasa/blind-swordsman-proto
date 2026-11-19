@@ -94,4 +94,5 @@ export function info() {
   return { ready: state.ready, n: state.n, ms: state.ms, fail: state.fail.slice(), files: Object.keys(tex) };
 }
 
-try { preloadChars(); } catch (e) {}
+/* v0.42: 자동 프리로드 제거 — inkchars3d.preload() 가 포즈 자산을 먼저 시도하고,
+   실패했을 때만 이 파츠를 받는다. */

@@ -7,7 +7,8 @@ import { drawHeroSheets, drawZombieSheets, drawZombieVariantSheets, drawSpiritSh
 import { drawRattle, drawItem, drawSeal, drawUpgrade } from './inkicons.js';
 import { loadPixelPack, PIXEL_LOOK } from './pixellook.js';
 import { buildFigure, tickFigure, kick as rigKick, slashPose as rigSlash, setOpacity as rigOpacity, setTint as rigTint,
-  setAuraColor as rigAuraColor, setOrder as rigOrder, setCamera as rigSetCamera, ready as rigReady } from './inkchars3d.js';
+  setAuraColor as rigAuraColor, setOrder as rigOrder, setCamera as rigSetCamera, ready as rigReady,
+  debugPose as rigDebugPose, actsOf as rigActsOf } from './inkchars3d.js';
 
 const BASE = '../assets/v2/';
 let QA_NORIG = false;
@@ -466,8 +467,11 @@ export async function buildArt(THREE) {
     if (rim && rim.material && rim.material.color) {
       /* Warning red only while close; otherwise the kind's own rim colour (elite gold, variant tints). */
       const ud = group.userData;
-      rim.material.color.setHex(on ? 0xc8281e : (ud.rimHex != null ? ud.rimHex : 0x3ec8c0));
-      rim.material.opacity = on ? 0.7 : (ud.rimOp != null ? ud.rimOp : 0.42);
+      const hex = on ? 0xc8281e : (ud.rimHex != null ? ud.rimHex : 0x3ec8c0);
+      const op = on ? 0.7 : (ud.rimOp != null ? ud.rimOp : 0.42);
+      /* v0.42 포즈 카드는 테두리 판의 투명도를 매 프레임 다시 계산하므로 리그 쪽으로 넘긴다. */
+      if (group.userData.rig && group.userData.rig.kind === 'pose') rigAuraColor(group, hex, op);
+      else { rim.material.color.setHex(hex); rim.material.opacity = op; }
     }
     group.userData.teleOn = !!on;
   }
@@ -669,12 +673,12 @@ export async function buildArt(THREE) {
       /* 테두리(아우라)를 그대로 rim 슬롯에 물린다 — 정예 금테·변주 색 구분·예고 붉은 테가 그대로 동작. */
       if (g.userData.rig && g.userData.rig.aura) {
         g.userData.rim = g.userData.rig.aura;
-        g.userData.rimHex = 0x4fd6b0; g.userData.rimOp = 0.5;
+        g.userData.rimHex = 0x5fb8a0; g.userData.rimOp = 0.20;
       }
       if (shape === 'elite' && g.userData.rim) {
         g.userData.rim.material.color.setHex(0xE8C04A);
         g.userData.rim.material.opacity = 0.62;
-        g.userData.rimHex = 0xE8C04A; g.userData.rimOp = 0.62;
+        g.userData.rimHex = 0xE8C04A; g.userData.rimOp = 0.34;
         addHalo(g, g.userData.worldH);
       }
       return g;
@@ -690,7 +694,7 @@ export async function buildArt(THREE) {
       g.userData.bellLocal = { x: 0, y: H * 0.76 };
       if (g.userData.rig && g.userData.rig.aura) {
         g.userData.rim = g.userData.rig.aura;
-        g.userData.rimHex = 0xF2E2C0; g.userData.rimOp = 0.62;
+        g.userData.rimHex = 0xF2E2C0; g.userData.rimOp = 0.40;
       }
       return g;
     }
@@ -875,7 +879,8 @@ export async function buildArt(THREE) {
       if (spr && spr.material && spr.material.map && anim.sheet) applyUV(spr.material.map, anim.sheet, st.frame, st.dir);
       if (!group.userData.noFlip) applyFlip(spr, st.flip);
       else if (spr) applyFlip(spr, false);
-      if (group.userData.rim || group.userData.outline) syncRim(group);
+      if ((group.userData.rim || group.userData.outline) &&
+          !(group.userData.rig && group.userData.rig.kind === 'pose')) syncRim(group);
     }
     const rat = group.userData && group.userData.rattle;
     if (rat) {
@@ -956,6 +961,9 @@ export async function buildArt(THREE) {
     makeChar: makeChar, tickChar: tickChar, buildStage3D: buildStage3D,
     /* v0.38 파츠 리그 훅: 카메라·피격 반동·틴트·투명도·그리기 순서 */
     setCamera: function (cam) { rigSetCamera(cam); },
+    /* v0.42 QA: 포즈 고정·동작 목록 */
+    debugPose: function (g, a, f) { return rigDebugPose(g, a, f); },
+    actsOf: function (n) { return rigActsOf(n); },
     kickChar: function (group, k) { rigKick(group, k); },
     slashChar: function (group, k) { rigSlash(group, k); },
     tintChar: function (group, r, g, b) {

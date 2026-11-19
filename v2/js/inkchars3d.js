@@ -11,12 +11,23 @@
    · 부모→자식 사슬: 몸통(허리) → 머리·어깨·팔꿈치·자락, 다리는 허리 회전의 60%만.
    · 텍스처가 하나라도 없으면 null → art.js 가 기존 코드 드로잉으로 폴백. */
 import * as THREE from 'three';
-import { manifest, texOf, rigReady } from './inkcharart.js';
+import { manifest, texOf, rigReady, preloadChars } from './inkcharart.js';
+import * as POSE from './inkpose3d.js';
 
 let CAM = null;
-export function setCamera(c) { CAM = c; }
-export function ready() { return rigReady(); }
-export function manifestOf(name) { return (rigReady() && manifest[name]) || null; }
+export function setCamera(c) { CAM = c; POSE.setCamera(c); }
+/* v0.42: 동작별 포즈 카드가 준비되면 그것을 쓴다. 실패하면 v0.41 파츠 리그로 폴백. */
+export function ready() { return POSE.ready() || rigReady(); }
+export function manifestOf(name) { return (POSE.manifestOf(name) || (rigReady() && manifest[name])) || null; }
+export function preload() {
+  return POSE.preload().then(function (st) {
+    if (st && st.ready) return { poses: st, parts: null };
+    return preloadChars().then(function (p) { return { poses: st, parts: p }; });
+  });
+}
+export function poseInfo() { return POSE.info(); }
+export function debugPose(group, action, frame) { return POSE.debugPose(group, action, frame); }
+export function actsOf(name) { return POSE.actsOf(name); }
 
 /* 종류별 움직임 상수 — 걷기 기준 속도, 바운스(m), 앞기울기(rad), 팔·다리·자락 진폭 */
 const MOTION = {
@@ -122,6 +133,8 @@ function frameBlend(mat, v) {
  * opt: { scale, bossVar, order, face, aura(opacity), tint, tools }
  */
 export function buildFigure(name, opt) {
+  const pg = POSE.ready() ? POSE.buildPose(name, opt) : null;
+  if (pg) return pg;
   if (!rigReady()) return null;
   const M = manifest[name];
   if (!M) return null;
@@ -203,6 +216,7 @@ export function buildFigure(name, opt) {
 export function kick(group, strength) {
   const rig = group && group.userData && group.userData.rig;
   if (!rig) return;
+  if (rig.kind === 'pose') { POSE.kick(group, strength); return; }
   const s = strength == null ? 1 : strength;
   rig.recoilV += 5.2 * s;
   rig.hit = Math.min(1.4, rig.hit + 0.85 * s);
@@ -212,10 +226,13 @@ export function kick(group, strength) {
 export function slashPose(group, k) {
   const rig = group && group.userData && group.userData.rig;
   if (!rig) return;
+  if (rig.kind === 'pose') { POSE.slashPose(group, k); return; }
   rig.slash = Math.min(1.4, rig.slash + (k == null ? 0.9 : k));
 }
 
 export function setOpacity(group, o) {
+  const gr = group && group.userData && group.userData.rig;
+  if (gr && gr.kind === 'pose') { POSE.setOpacity(group, o); return; }
   const ps = group && group.userData && group.userData.parts;
   if (!ps) return;
   for (let i = 0; i < ps.length; i++) {
@@ -224,6 +241,8 @@ export function setOpacity(group, o) {
 }
 
 export function setTint(group, r, g, b) {
+  const gr = group && group.userData && group.userData.rig;
+  if (gr && gr.kind === 'pose') { POSE.setTint(group, r, g, b); return; }
   const ps = group && group.userData && group.userData.parts;
   if (!ps) return;
   for (let i = 0; i < ps.length; i++) {
@@ -234,6 +253,7 @@ export function setTint(group, r, g, b) {
 
 export function setAuraColor(group, hex, opacity) {
   const rig = group && group.userData && group.userData.rig;
+  if (rig && rig.kind === 'pose') { POSE.setAuraColor(group, hex, opacity); return; }
   if (!rig || !rig.aura) return;
   rig.aura.material.color.setHex(hex);
   if (opacity != null) rig.aura.material.opacity = opacity;
@@ -242,6 +262,7 @@ export function setAuraColor(group, hex, opacity) {
 export function setOrder(group, base) {
   const rig = group && group.userData && group.userData.rig;
   if (!rig) return;
+  if (rig.kind === 'pose') { POSE.setOrder(group, base); return; }
   rig.base = base;
   Object.keys(rig.parts).forEach(function (kind) {
     const m = rig.parts[kind];
@@ -258,6 +279,7 @@ export function tickFigure(group, kind, state, dt, vx, vz) {
   const ud = group && group.userData;
   const rig = ud && ud.rig;
   if (!rig) return false;
+  if (rig.kind === 'pose') return POSE.tickPose(group, kind, state, dt, vx, vz);
   if (rig.freeze) return true;          /* QA: 포즈를 고정해 스크린샷을 찍는다 */
   if (!(dt > 0)) dt = 1 / 60;
   if (dt > 0.1) dt = 0.1;

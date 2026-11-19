@@ -42,7 +42,7 @@ import { createSlashArc } from './inkslash3d.js';
 import { PaperFx, preloadFx, fxInfo as fxSheetInfo, brushTex } from './inkfx3d.js';
 import { StageAtmosphere } from './inkatmos.js';
 import { paperPropCanvas } from './inkpaper.js';
-import { preloadChars } from './inkcharart.js';
+import { preload as preloadFigures, poseInfo as figurePoseInfo } from './inkchars3d.js';
 import { preloadDiorama, dioramaInfo } from './inkdiorama.js';
 import { createChunkWorld, buildChunkData, chunkOf, prebakeGroundStage, floorStatus } from './inkchunks.js';
 import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariants } from './prewarm.js';
@@ -8235,7 +8235,12 @@ function step(dt) {
     placeGroup(z.obj, z.x, z.z);
     if (art.tickChar) {
       const kind = z.isBoss ? 'boss' : 'zombie';
-      const st = z.isBoss ? ('boss:' + (z.state || 'idle')) : (frozen ? 'frozen' : (z.burn > 0 ? 'burning' : (z.poison > 0 ? 'poisoned' : 'walk')));
+      /* v0.42: 공격 예비·돌진·경직도 자세가 다르다 — 상태를 넘겨 동작별 그림을 고르게 한다. */
+      const st = z.isBoss ? ('boss:' + (z.state || 'idle'))
+        : (frozen ? 'frozen'
+          : (z.flinchT > 0 ? 'hit'
+            : ((z.windT || 0) > 0 || (z.dashPhase || 0) > 0 ? 'attack'
+              : (z.burn > 0 ? 'burning' : (z.poison > 0 ? 'poisoned' : 'walk')))));
       const vx = S.hero.x - z.x, vz = S.hero.z - z.z;
       art.tickChar(z.obj, kind, st, Math.min(0.05, dt), vx, vz);
     }
@@ -9734,8 +9739,8 @@ async function boot() {
      네트워크가 느리면 2.5초만 기다리고 진행한다(그 판은 기존 코드 드로잉으로 폴백). */
   try {
     await Promise.race([
-      preloadChars().catch(function () { return null; }),
-      new Promise(function (res) { setTimeout(res, 2500); })
+      preloadFigures().catch(function () { return null; }),
+      new Promise(function (res) { setTimeout(res, 6000); })
     ]);
   } catch (e) {}
   loadSave();
@@ -10703,13 +10708,108 @@ const GPv2 = {
     return { chars: list.length, ticks: N, ms: +ms.toFixed(2), perCharFrame: +(ms / N / list.length).toFixed(4),
       sceneSprites: (function () { let a = 0, b = 0; three.scene.traverse(function (o) { if (o.isSprite) a++; else if (o.isMesh) b++; }); return { sprites: a, meshes: b }; })() };
   },
+  /* v0.42 QA: 포즈를 한 장에 고정한다 — i=-1 주인공, 0+ 원귀/보스. action=null 이면 해제. */
+  posePin: function (i, action, frame) {
+    const g = (i < 0) ? (three && three.heroSpr) : (S && S.zombies && S.zombies[i] && S.zombies[i].obj);
+    if (!g || !art.debugPose) return null;
+    art.debugPose(g, action, frame == null ? 0 : frame);
+    return { ok: true, act: action, frame: frame };
+  },
+  poseActs: function (name) { return art.actsOf ? art.actsOf(name) : null; },
+  /* v0.42 QA: 검수용 무대 — 배경을 평평한 한지색으로 두고 그 캐릭터만 남긴다. */
+  /* v0.42 QA: 한 캐릭터만 보이기/숨기기 — 두 장을 찍어 차분하면 그 캐릭터의 정확한 화면 영역이 나온다. */
+  poseVis: function (i, on) {
+    const g = (i < 0) ? (three && three.heroSpr) : (S && S.zombies && S.zombies[i] && S.zombies[i].obj);
+    if (!g) return 0;
+    const r = g.userData && g.userData.rig;
+    if (r && r.kind === 'pose') {
+      /* 그림 판만 끈다(아우라·그림자는 남겨 두어 차분이 '인물'만 잡게). */
+      r.layers.forEach(function (L) {
+        L.mesh.visible = !!on;
+        L.aura.visible = !!on && !!L.aura.material.map && L.mesh.material.opacity > 0.01;
+      });
+      g.userData.heroHidden = !on;
+      return 1;
+    }
+    g.visible = !!on;
+    g.scale.y = on ? 1 : 0.0001;
+    return 1;
+  },
+  poseStage: function (mode) {
+    if (!three || !three.scene) return null;
+    const sc = three.scene;
+    if (!window.__psSaved || mode === 'reset') {
+      window.__psSaved = sc.children.map(function (o) { return o.visible; });
+      window.__psBg = sc.background && sc.background.isColor ? sc.background.getHex() : null;
+      window.__psFog = sc.fog ? sc.fog.color.getHex() : null;
+    }
+    if (!mode || mode === 'reset') {
+      sc.children.forEach(function (o, i) { o.visible = window.__psSaved[i] !== false; });
+      if (window.__psBg != null) { if (!sc.background || !sc.background.isColor) sc.background = new THREE.Color(window.__psBg); else sc.background.setHex(window.__psBg); }
+      if (window.__psFog != null && sc.fog) sc.fog.color.setHex(window.__psFog);
+      return 1;
+    }
+    const only = (mode === 'hero') ? three.heroSpr : ((S.boss && S.boss.obj) || (S.zombies[0] && S.zombies[0].obj));
+    if (!only) return 0;
+    sc.children.forEach(function (o) { if (!(o === only || o === only.parent)) o.visible = false; });
+    only.visible = true;
+    if (!sc.background || !sc.background.isColor) sc.background = new THREE.Color(0x15130f); else sc.background.setHex(0x15130f);
+    if (sc.fog) sc.fog.color.setHex(0x15130f);
+    return 1;
+  },
+  poseTransforms: function (i) {
+    const g = (i < 0) ? (three && three.heroSpr) : (S && S.zombies && S.zombies[i] && S.zombies[i].obj);
+    if (!g) return null;
+    function t(o) { return { p: o.position.toArray().map(function (v) { return +v.toFixed(3); }),
+      q: o.quaternion.toArray().map(function (v) { return +v.toFixed(3); }),
+      s: o.scale.toArray().map(function (v) { return +v.toFixed(3); }), vis: o.visible,
+      geo: o.geometry && o.geometry.parameters ? o.geometry.parameters : null }; }
+    const out = { group: t(g), kids: [] };
+    g.children.forEach(function (c) { if (c.children) c.children.forEach(function (m) { out.kids.push(t(m)); }); else out.kids.push(t(c)); });
+    return out;
+  },
+  /* v0.42 QA: 캐릭터가 화면 어디에 서 있는지(발·머리 픽셀) — 리뷰 시트 크롭용 */
+  poseScreen: function (i) {
+    const g = (i < 0) ? (three && three.heroSpr) : (S && S.zombies && S.zombies[i] && S.zombies[i].obj);
+    if (!g || !three || !three.camera) return null;
+    const v = new THREE.Vector3();
+    g.getWorldPosition(v);
+    const foot = v.clone().project(three.camera);
+    const top = v.clone(); top.y += (g.userData.worldH || 2.4);
+    top.project(three.camera);
+    const W = three.renderer.domElement.width, H = three.renderer.domElement.height;
+    return { x: (foot.x * 0.5 + 0.5) * W, y: (-foot.y * 0.5 + 0.5) * H,
+      top: (-top.y * 0.5 + 0.5) * H, h: (top.y - foot.y) * 0.5 * H, w: W, hh: H };
+  },
+  /* v0.42 QA: 동작별 포즈 카드 상태(현재 동작·프레임·레이어 겹침). */
+  poseInfo: function () {
+    const out = figurePoseInfo();
+    function brief(g) {
+      const r = g && g.userData && g.userData.rig;
+      if (!r || r.kind !== 'pose') return null;
+      return { name: r.name, act: r.cur, frame: r.frameOf[r.cur], burst: r.burst,
+        face: r.face, speed: +r.speed.toFixed(2), lean: +r.lean.toFixed(3),
+        layers: r.layers.map(function (l) { return { act: l.act, f: l.frame, op: +l.mesh.material.opacity.toFixed(2) }; }) };
+    }
+    out.hero = brief(three && three.heroSpr);
+    out.enemies = [];
+    if (S && S.zombies) {
+      S.zombies.forEach(function (z) { const b = brief(z.obj); if (b) out.enemies.push(b); });
+    }
+    return out;
+  },
   rigInfo: function () {
     const out = { ready: !!(art && art.rigInfo && art.rigInfo().ready), hero: null, enemies: 0, rigEnemies: 0, parts: 0, sample: null };
     function brief(g) {
       if (!g || !g.userData || !g.userData.rig) return null;
       const r = g.userData.rig;
-      return { name: r.name, parts: Object.keys(r.parts), face: r.face, lean: +r.lean.toFixed(3),
-        bob: +g.children[0].position.y.toFixed(3), speed: +r.speed.toFixed(2), arm: +r.arm.toFixed(2),
+      /* v0.42: 포즈 카드 리그(kind='pose')도 같은 함수로 본다 — 없는 값은 null. */
+      const nParts = r.parts ? (Array.isArray(r.parts) ? r.parts.length : Object.keys(r.parts).length) : 0;
+      return { name: r.name, kind: r.kind || 'rig', parts: nParts, face: r.face,
+        lean: r.lean != null ? +r.lean.toFixed(3) : null,
+        bob: +(g.children[0].position.y || 0).toFixed(3), speed: +(r.speed || 0).toFixed(2),
+        arm: r.arm != null ? +r.arm.toFixed(2) : null,
+        act: r.cur || null,
         scaleX: +g.scale.x.toFixed(2), visible: g.visible };
     }
     out.hero = brief(three && three.heroSpr);
@@ -10717,7 +10817,7 @@ const GPv2 = {
       S.zombies.forEach(function (z) {
         if (!z.obj || !z.obj.userData) return;
         out.enemies++;
-        if (z.obj.userData.rig) { out.rigEnemies++; out.parts += Object.keys(z.obj.userData.rig.parts).length; if (!out.sample) out.sample = brief(z.obj); }
+        if (z.obj.userData.rig) { out.rigEnemies++; const rp = z.obj.userData.rig.parts; out.parts += rp ? (Array.isArray(rp) ? rp.length : Object.keys(rp).length) : 0; if (!out.sample) out.sample = brief(z.obj); }
       });
     }
     if (S && S.boss && S.boss.obj) out.boss = brief(S.boss.obj);
