@@ -12,6 +12,7 @@ import { makeMaterials, instanced, rockGeo, crossQuads, glowBatch, aoBatch, merg
 import { paperPropCanvas } from './inkpaper.js';
 import { texOf, aspectOf, panoOf } from './inkdiorama.js';
 import { createFloorLayer, floorReady, soilTexture, floorInfo } from './inkfloor.js';
+import { buildArena, ARENA } from './inkarena.js';
 
 export const CHUNK = 24;
 export const WINDOW_R = 1; /* 3×3 */
@@ -802,7 +803,8 @@ export function buildChunkData(cx, cz, stageId) {
 }
 
 /* ---------- 청크 월드 ---------- */
-export function createChunkWorld(opts) {
+/* v0.48 이전의 3×3 시드 청크 무한맵 — `?arena=0` 비교용으로만 남긴다. */
+function createChunkWindow(opts) {
   opts = opts || {};
   const stageId = opts.stageId || 1;
   const mapId = opts.mapId || 'map1';
@@ -1381,4 +1383,251 @@ export function createChunkWorld(opts) {
   };
 
   return world;
+}
+
+/* ================================================================== v0.48 고정 아레나
+   창현님 지시: "맵이 계속 확장 되면서 움직이지 말고 이 영상의 맵처럼 맵이 고정되어 있는
+   상태에서…" — 청크 창이 영웅을 따라 밀리던 구조를 끄고, 한 번만 짓는 무대를 세운다.
+   바닥·판석 레이어는 창 전체(ARENA.GROUND 반경)에 한 번 깔고, 기물은 inkarena.js 가
+   전부 3D 메시로 지어 하나의 그룹으로 돌려준다. update() 는 이제 아무것도 다시 짓지 않는다. */
+function createArenaWorld(opts) {
+  opts = opts || {};
+  const stageId = opts.stageId || 1;
+  const mapId = opts.mapId || 'map1';
+  const group = new THREE.Group();
+  group.name = 'arenaWorld-' + mapId + '-' + stageId;
+
+  const gStyle = GROUND_STYLE[stageId] || GROUND_STYLE[1];
+  const gs = groundSet(gStyle);
+  const v41Floor = floorReady();
+  /* v0.43 의 따뜻한 한지 알베도 규칙 그대로. 한 장의 큰 판을 깔고 무늬를 반복한다. */
+  const gMap = (v41Floor ? soilTexture() : texOf('floor')) || gs.map;
+  const map = gMap.clone();
+  map.needsUpdate = true;
+  map.wrapS = map.wrapT = THREE.RepeatWrapping;
+  map.repeat.set(v41Floor ? 10 : 20, v41Floor ? 10 : 20);
+  map.userData = map.userData || {};
+  const groundBase = v41Floor ? new THREE.Color(1.02, 0.955, 0.855).multiplyScalar(FLOOR_MUL) : new THREE.Color(0.82, 0.78, 0.70).multiplyScalar(FLOOR_MUL);
+  const groundMat = new THREE.MeshStandardMaterial({
+    map: map, color: groundBase.clone(), roughness: 0.95, metalness: 0.0
+  });
+  groundMat.userData.inkGround = true;
+  groundMat.userData.cardProfile = 'ground';
+  const groundGeo = new THREE.PlaneGeometry(ARENA.GROUND * 2, ARENA.GROUND * 2, 1, 1);
+  groundGeo.rotateX(-Math.PI / 2);
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.receiveShadow = true;
+  ground.name = 'arenaGround';
+  group.add(ground);
+
+  /* 판석·물길·다진 길·풀잎 — 고정 사각형 한 번. */
+  const floorLayer = v41Floor ? createFloorLayer({ stageId: stageId, style: gStyle }) : null;
+  if (floorLayer) {
+    group.add(floorLayer.group);
+    floorLayer.layout(-ARENA.GROUND * 0.5, -ARENA.GROUND * 0.5, ARENA.GROUND * 0.5, ARENA.GROUND * 0.5);
+  }
+
+  /* 3D 수묵 기물 — 이 무대의 본체. */
+  let arena = null;
+  try { arena = buildArena({ stageId: stageId, seed: 20261120 + stageId * 31 }); } catch (e) {
+    arena = null;
+    if (window.console && console.warn) console.warn('[심안] 아레나 기물 생성 실패', e);
+  }
+  if (arena) group.add(arena.group);
+
+  /* ---------- 묵항아리 — 고정 자리(시드 고정). 부수면 다시 서지 않는다. */
+  const rnd = mulberry(0x5eed ^ (stageId * 2654435761 >>> 0));
+  const jarPts = [[0.0, 0.0], [0.2, 0.01], [0.3, 0.1], [0.34, 0.26], [0.33, 0.4], [0.26, 0.55], [0.19, 0.62], [0.17, 0.68], [0.22, 0.72], [0.19, 0.75]]
+    .map(function (p) { return new THREE.Vector2(p[0], p[1]); });
+  const jarGeo = new THREE.LatheGeometry(jarPts, 16);
+  const jarMat = new THREE.MeshStandardMaterial({
+    color: 0x24242c, roughness: 0.42, metalness: 0.14,
+    emissive: new THREE.Color(0.05, 0.06, 0.1), emissiveIntensity: 0.9
+  });
+  const sealMat = new THREE.MeshStandardMaterial({
+    map: plainSet('paper').map, color: 0xffe0b0, side: THREE.DoubleSide,
+    emissive: new THREE.Color(1, 0.62, 0.28), emissiveIntensity: 0.85, roughness: 0.9
+  });
+  const sealGeo = new THREE.PlaneGeometry(0.26, 0.42);
+  const jars = [];
+  const NOBJ = 10;
+  for (let i = 0; i < NOBJ; i++) {
+    const a = rnd() * Math.PI * 2;
+    const r = 4.2 + Math.pow(rnd(), 0.85) * 13.0;
+    jars.push({ id: 'jar#' + i, cx: 0, cz: 0, x: Math.cos(a) * r, z: Math.sin(a) * r, ry: rnd() * Math.PI * 2, alive: true, broken: false, slot: i });
+  }
+  const jarMesh = new THREE.InstancedMesh(jarGeo, jarMat, NOBJ);
+  const jarSealMesh = new THREE.InstancedMesh(sealGeo, sealMat, NOBJ);
+  jarMesh.castShadow = true; jarMesh.receiveShadow = true;
+  jarMesh.frustumCulled = false; jarSealMesh.frustumCulled = false;
+  jarMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  jarSealMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  group.add(jarMesh); group.add(jarSealMesh);
+  const dummy = new THREE.Object3D();
+  function writeJars() {
+    jars.forEach(function (j, i) {
+      const k = j.alive ? 1 : 0.0001;
+      dummy.position.set(j.x, 0, j.z); dummy.rotation.set(0, j.ry, 0); dummy.scale.set(k, k, k);
+      dummy.updateMatrix(); jarMesh.setMatrixAt(i, dummy.matrix);
+      dummy.position.set(j.x + Math.sin(j.ry) * 0.3, 0.44, j.z + Math.cos(j.ry) * 0.3);
+      dummy.rotation.set(-0.18, j.ry, 0.1); dummy.scale.set(k, k, k);
+      dummy.updateMatrix(); jarSealMesh.setMatrixAt(i, dummy.matrix);
+      j.slot = i;
+    });
+    jarMesh.instanceMatrix.needsUpdate = true; jarSealMesh.instanceMatrix.needsUpdate = true;
+  }
+  writeJars();
+
+  /* ---------- 영웅을 따라오는 등불(무대 위 조명) — 기존과 같은 색·세기. */
+  const heroLight = new THREE.PointLight(0xffb45c, 34, 22, 1.7);
+  heroLight.position.set(0, 3.6, 1.6);
+  group.add(heroLight);
+  const rimLight = new THREE.PointLight(0x9fc0e0, 8, 32, 1.5);
+  rimLight.position.set(3.2, 5.4, -3.0);
+  group.add(rimLight);
+
+  /* ---------- 뒤편 병풍 — 고정 무대이므로 카메라 초점을 그대로 따라간다(하늘함처럼). */
+  let screenMesh = null;
+  const SCREEN = { N: 12, R: 31, H: 15, arc: Math.PI * 170 / 180, mid: Math.PI * 1.25, pleat: 0.9, x: null, z: null, tex: null };
+  function buildScreenRing(srcTex) {
+    const tex = srcTex.clone();
+    tex.needsUpdate = true;
+    tex.wrapS = THREE.MirroredRepeatWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 2;
+    tex.repeat.set(1, 1);
+    SCREEN.tex = tex;
+    const N = SCREEN.N, R = SCREEN.R, H = SCREEN.H, pl = SCREEN.pleat;
+    const arc = SCREEN.arc, a0 = SCREEN.mid - arc / 2;
+    const chord = 2 * R * Math.sin(arc / (2 * N));
+    const uw = 0.25 * (chord / H);
+    const pos = [], uv = [], col = [], idx = [];
+    for (let i = 0; i < N; i++) {
+      const t0a = a0 + (i / N) * arc, t1a = a0 + ((i + 1) / N) * arc;
+      const r0 = R + (i % 2 ? -pl : pl), r1 = R + (i % 2 ? pl : -pl);
+      const x0 = Math.cos(t0a) * r0, z0 = Math.sin(t0a) * r0;
+      const x1 = Math.cos(t1a) * r1, z1 = Math.sin(t1a) * r1;
+      const u0 = i * uw, u1 = (i + 1) * uw;
+      const b = i % 2 ? 0.80 : 1.0;
+      const base = pos.length / 3;
+      pos.push(x0, 0, z0, x1, 0, z1, x1, H, z1, x0, H, z0);
+      uv.push(u0, 0, u1, 0, u1, 1, u0, 1);
+      for (let k = 0; k < 4; k++) col.push(b, b, b);
+      idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    const mat = new THREE.MeshBasicMaterial({
+      map: tex, color: new THREE.Color(0xe6d9bd), transparent: true, opacity: 0.96,
+      side: THREE.DoubleSide, depthWrite: false, fog: true, vertexColors: true
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.frustumCulled = false;
+    mesh.renderOrder = -2;
+    mesh.name = 'silkScreen';
+    group.add(mesh);
+    return mesh;
+  }
+  /* v0.48: 고정 아레나에서는 원경 원통(44m)이 이미 병풍 역할을 한다. 31m 비단 병풍을 겹치면
+     절벽 위로 종이 조각처럼 뜯긴 판때기가 보여서 끈다(`?screen=1` 비교용). */
+  try {
+    const wantScreen = (function () { try { return new URLSearchParams(location.search).get('screen') === '1'; } catch (e) { return false; } })();
+    const act = stageId <= 4 ? 1 : (stageId <= 8 ? 2 : 3);
+    const st = wantScreen ? (panoOf(act) || texOf('screen')) : null;
+    if (st) screenMesh = buildScreenRing(st);
+  } catch (e) { screenMesh = null; }
+
+  const embers = (arena ? arena.lightSpots : []).slice(0, 6).map(function (s) {
+    return { x: s.x, y: 1.6, z: s.z };
+  });
+
+  const center = { cx: 0, cz: 0 };
+  const world = {
+    group: group, stageId: stageId, mapId: mapId, jars: jars, center: center,
+    embers: embers, materials: null, arena: arena,
+    bounds: { x: 0, z: 0, r: ARENA.R },
+    stats: { chunks: 1, props: arena ? arena.stats.props : 0, jars: jars.length, batches: arena ? 3 : 0, cached: 0, rebuilds: 1, fixed: true }
+  };
+
+  world.update = function (dt, t, hx, hz) {
+    const pulse = 0.9 + Math.sin((t || 0) * 2.4) * 0.1;
+    if (groundMat && groundMat.color) groundMat.color.copy(groundBase).multiplyScalar(0.94 + 0.035 * pulse);
+    heroLight.position.set(hx || 0, 3.5, (hz || 0) + 1.8);
+    heroLight.intensity = 30 + 4 * pulse;
+    rimLight.position.set((hx || 0) + 3.4, 5.6, (hz || 0) - 3.2);
+    if (screenMesh) {
+      /* 정지 무대 + 고정 카메라 방위 → 병풍은 초점을 그대로 따라간다(시차로 흔들리지 않게 즉시). */
+      SCREEN.x = hx || 0; SCREEN.z = hz || 0;
+      screenMesh.position.set(SCREEN.x, 0, SCREEN.z);
+    }
+  };
+
+  world.reset = function (hx, hz) {
+    jars.forEach(function (j) { j.alive = true; j.broken = false; });
+    writeJars();
+    world.stats.jars = jars.length;
+  };
+
+  world.screenInfo = function () {
+    return screenMesh ? { panels: SCREEN.N, r: SCREEN.R, h: SCREEN.H, x: Math.round((SCREEN.x || 0) * 10) / 10, z: Math.round((SCREEN.z || 0) * 10) / 10, fixed: true } : null;
+  };
+  world.jarsOnPath = function (ax, az, bx, bz, r) {
+    const out = [];
+    const dx = bx - ax, dz = bz - az;
+    const L2 = dx * dx + dz * dz || 1;
+    jars.forEach(function (j) {
+      if (!j.alive) return;
+      const t = Math.max(0, Math.min(1, ((j.x - ax) * dx + (j.z - az) * dz) / L2));
+      const px = ax + dx * t, pz = az + dz * t;
+      if (Math.hypot(j.x - px, j.z - pz) <= (r || 1) + 0.55) out.push(j);
+    });
+    return out;
+  };
+  world.jarsNear = function (x, z, r) {
+    return jars.filter(function (j) { return j.alive && Math.hypot(j.x - x, j.z - z) <= (r || 3); });
+  };
+  world.breakJar = function (j) {
+    if (!j || !j.alive) return false;
+    j.alive = false; j.broken = true;
+    writeJars();
+    world.stats.jars = jars.filter(function (q) { return q.alive; }).length;
+    return true;
+  };
+
+  world.materials = (function () {
+    const list = [groundMat, jarMat, sealMat];
+    if (arena && arena.materials) arena.materials.forEach(function (m) { if (m) list.push(m); });
+    if (floorLayer) floorLayer.materials.forEach(function (m) { if (m) list.push(m); });
+    return list;
+  })();
+
+  world.dispose = function () {
+    if (arena) { try { arena.group.removeFromParent(); } catch (e) {} }
+    if (arena && arena.body) { try { arena.body.geometry.dispose(); } catch (e) {} }
+    if (arena && arena.hull) { try { arena.hull.geometry.dispose(); } catch (e) {} }
+    if (arena && arena.glow) { try { arena.glow.geometry.dispose(); } catch (e) {} }
+    jarMesh.dispose(); jarSealMesh.dispose(); jarGeo.dispose(); sealGeo.dispose();
+    jarMat.dispose(); sealMat.dispose();
+    if (screenMesh) { if (screenMesh.parent) screenMesh.parent.remove(screenMesh); screenMesh.geometry.dispose(); screenMesh.material.dispose(); }
+    if (SCREEN.tex) { try { SCREEN.tex.dispose(); } catch (e) {} }
+    groundGeo.dispose(); groundMat.dispose();
+    if (floorLayer) floorLayer.dispose();
+    if (map && map.userData && map.userData.shared !== true) { try { map.dispose(); } catch (e) {} }
+    group.removeFromParent();
+  };
+
+  return world;
+}
+
+/** v0.48 무대 팩토리 — 기본은 고정 아레나, `?arena=0` 이면 옛 무한 청크(비교용). */
+export function createChunkWorld(opts) {
+  let legacy = false;
+  try { legacy = new URLSearchParams(location.search).get('arena') === '0'; } catch (e) {}
+  if (legacy) return createChunkWindow(opts);
+  return createArenaWorld(opts);
 }

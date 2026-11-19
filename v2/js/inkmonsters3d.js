@@ -1224,9 +1224,35 @@ export function tick(group, kind, state, dt, vx, vz) {
     applyCloth(H, use);
   }
   if (H.actions.walk) H.actions.walk.setEffectiveTimeScale(Math.max(0.55, Math.min(1.9, 0.75 + H.speed * 0.35)));
+
+  /* v0.48 무게감 — 클립 위에 절차적으로 얹는 '살아 있는' 층:
+     ① 걷기 위상에 맞춘 골반·가슴 좌우 흔들림과 어깨 반동(상체가 통째로 고정된 판처럼 보이지 않게),
+     ② 공격 예비에서 상체를 젖혔다가 타격에 실리는 오버슈트(완급),
+     ③ 추적 중 머리의 미세한 끄덕임. */
+  H.walkT = (H.walkT || 0) + dt * (H.base === 'walk' ? (0.85 + H.speed * 0.4) : 0.35);
+  const wAmp = H.base === 'walk' ? Math.min(1.15, 0.4 + H.speed * 0.5) : 0.15;
+  const ph = H.walkT * 2.5;
+  const sway = Math.sin(ph) * 0.06 * wAmp;
+  const bob = Math.cos(ph * 2) * 0.032 * wAmp;
+  if (H.bones.pelvis) H.bones.pelvis.rotateZ(sway * 0.9);
+  if (H.bones.spine) H.bones.spine.rotateZ(sway * 0.4);
+  if (H.bones.chest) { H.bones.chest.rotateZ(-sway * 0.85); H.bones.chest.rotateX(bob); }
+  if (H.bones.head) { H.bones.head.rotateZ(sway * 0.55); H.bones.head.rotateX(-bob * 0.6); }
+  if (H.bones.upperarmL) H.bones.upperarmL.rotateX(sway * 1.25);
+  if (H.bones.upperarmR) H.bones.upperarmR.rotateX(-sway * 1.25);
+  /* 공격 완급: 예비(젖힘) → 타격(몸이 실림) — 클립의 키 위에 작게 겹쳐 맛을 낸다. */
+  if (H.burst === 'attack') {
+    const a = H.actions.attack;
+    const u = a ? Math.min(1, a.time / (a.getClip().duration || 0.55)) : 0;
+    const wind = u < 0.22 ? (u / 0.22) : Math.max(0, 1 - (u - 0.22) / 0.18);
+    const hit = u >= 0.22 && u < 0.42 ? 1 - (u - 0.22) / 0.20 : 0;
+    if (H.bones.chest) H.bones.chest.rotateX(-wind * 0.10 + hit * 0.13);
+    if (H.bones.spine) H.bones.spine.rotateX(-wind * 0.06 + hit * 0.08);
+  }
   H.t += dt;
   return true;
 }
+
 
 /* 망토·자락·부적끈: 2차 지연 스프링(프레임률 무관). */
 function spring(st, key, target, dt, k, damp) {

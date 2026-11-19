@@ -3045,6 +3045,8 @@ function spawnZombie(opts) {
   opts = opts || {};
   const zr = CFG.zombieRing || [10, 14];
   const p = opts.x != null ? { x: opts.x, z: opts.z } : ringPos(opts.r != null ? opts.r : (zr[0] + Math.random() * (zr[1] - zr[0])));
+  /* v0.48: 고정 아레나 밖(절벽 너머)에서 태어나지 않게 경계 안으로 당긴다. */
+  { const cp = clipWorld(p, 1.0); p.x = cp.x; p.z = cp.z; }
   const type = opts.type || pickZombieType();
   const def = CFG.zombieTypes[type] || CFG.zombieTypes.imp;
   const grow = 1 + (CFG.hpGrowth || 0) * clamp(S.elapsed / runLimit(), 0, 1);
@@ -4621,16 +4623,34 @@ function clampPointToArena(x, z, pad) {
   if (ro <= R) return { x: x, z: z };
   return { x: A.x + dx * R / ro, z: A.z + dz * R / ro };
 }
-function clipBound(p) {
-  if (!arenaActive()) return { x: p.x, z: p.z };
-  const A = S.arena, R = arenaR() - (CFG.arenaEdge || 0.6);
-  const dx = p.x - A.x, dz = p.z - A.z;
-  const ro = Math.hypot(dx, dz);
+/* v0.48 고정 아레나: 무대 자체의 플레이 반경(three.chunks.bounds) — 영웅과 귀물이 이 밖으로 나가지 않는다.
+   보스 결계(arenaActive)는 그 안에서 한 번 더 좁힌다. */
+function worldBounds() {
+  const b = three && three.chunks && three.chunks.bounds;
+  return (b && b.r > 0) ? b : null;
+}
+function clipWorld(p, pad) {
+  const b = worldBounds();
+  if (!b) return { x: p.x, z: p.z };
+  const R = Math.max(2, b.r - (pad == null ? 0.55 : pad));
+  const dx = p.x - b.x, dz = p.z - b.z, ro = Math.hypot(dx, dz);
   if (ro <= R) return { x: p.x, z: p.z };
+  return { x: b.x + dx * R / ro, z: b.z + dz * R / ro };
+}
+function clipBound(p) {
+  const w = clipWorld(p);
+  if (!arenaActive()) return w;
+  const A = S.arena, R = arenaR() - (CFG.arenaEdge || 0.6);
+  const dx = w.x - A.x, dz = w.z - A.z;
+  const ro = Math.hypot(dx, dz);
+  if (ro <= R) return w;
   return { x: A.x + dx * R / ro, z: A.z + dz * R / ro };
 }
 /* 넉백·반동으로도 결계 밖으로 밀리지 않게 영웅을 다시 안으로 넣는다. */
-function clampHeroToArena() {  if (!S || !S.hero || !arenaActive()) return false;
+function clampHeroToArena() {
+  if (!S || !S.hero) return false;
+  /* 돌진 중에는 from→to 보간을 건드리지 않는다(목표점은 시작할 때 이미 경계 안으로 잘렸다). */
+  if (S.dash) return false;
   const c = clipBound(S.hero);
   if (Math.abs(c.x - S.hero.x) < 1e-6 && Math.abs(c.z - S.hero.z) < 1e-6) return false;
   S.hero.x = c.x; S.hero.z = c.z;
@@ -8418,6 +8438,19 @@ function step(dt) {
   });
   /* v0.43: 무리 간 간격 유지 — 한 점에 겹쳐 뭉치지 않게 서로를 살짝 민다. */
   if (!qa.noMove) separateCrowd(dt);
+  /* v0.48: 무리도 고정 아레나 밖으로 나가지 않는다(절벽·난간 앞에서 멈춘다). */
+  if (S.zombies.length) {
+    const wb = worldBounds();
+    if (wb) {
+      const lim = wb.r + 0.35;
+      for (let i = 0; i < S.zombies.length; i++) {
+        const z = S.zombies[i];
+        if (!z.alive || z.isClone || z.isPillar || z.isTotem) continue;
+        const dx = z.x - wb.x, dz = z.z - wb.z, ro = Math.hypot(dx, dz);
+        if (ro > lim) { const k = lim / ro; z.x = wb.x + dx * k; z.z = wb.z + dz * k; }
+      }
+    }
+  }
   stepShots(dt);
   stepHazards(dt);
   stepShrink(dt);
@@ -8492,8 +8525,19 @@ function stepDash(dt) {
   if (u >= 1) { landDash(d); S.dash = null; startSeg(); }
 }
 
+/* v0.48 부드러운 카메라 — 프레임 독립 지수 감속(exp)으로 두 단계(따라가기·시선)를 나눠 굴린다.
+   v0.47까지는 `cam += (hero - cam) * dt * 6` 이라 저프레임에서 뚝뚝 끊기고(곱셈 계수가 dt 에 비례),
+   돌진 시작·착지에서 화면이 튀었다. 이제 ① dt 와 무관한 계수 ② 돌진 방향으로 살짝 앞을 보는 시선
+   ③ 무대 밖 허공을 비추지 않는 경계 패딩(초점 클램프)을 함께 쓴다. */
+function camLerpK(tau, dt) { return 1 - Math.exp(-Math.max(0, dt) / Math.max(0.0001, tau)); }
+let QA_CAM = null;   /* QA 전용: 특정 시점을 고정해 기물·동작을 클로즈업한다 */
 function updateCam(dt) {
   if (!three) return;
+  if (QA_CAM) {
+    three.camera.position.set(QA_CAM.x, QA_CAM.y, QA_CAM.z);
+    three.camera.lookAt(QA_CAM.tx, QA_CAM.ty, QA_CAM.tz);
+    return;
+  }
   const targetX = S ? S.hero.x : 0, targetZ = S ? S.hero.z : 0;
   if (!S) {
     /* 타이틀: 무대를 천천히 도는 고정 시점 — 3D 무대를 보여 준다. */
@@ -8504,19 +8548,33 @@ function updateCam(dt) {
     three.camera.lookAt(0, CFG.camLookY, 0);
     return;
   }
-  S.cam.x += (targetX - S.cam.x) * Math.min(1, dt * 6);
-  S.cam.z += (targetZ - S.cam.z) * Math.min(1, dt * 6);
-  /* 보스가 결계 안에 서면 시선을 살짝 보스 쪽으로 옮겨, 몸 앞쪽이 화면 아래로 잘리지 않게 한다. */
-  let fx = S.cam.x, fz = S.cam.z;
+  /* 1단계 — 따라갈 목표: 영웅 + 돌진 방향 1.1m 앞 + 보스 쪽 2.6m */
+  let tx = targetX, tz = targetZ;
+  if (S.dash) {
+    const dx = S.dash.to.x - S.dash.from.x, dz = S.dash.to.z - S.dash.from.z;
+    const L = Math.hypot(dx, dz);
+    if (L > 1e-4) { tx += dx / L * 1.1; tz += dz / L * 1.1; }
+  }
   const b = S.boss;
   if (b && b.alive && !b.hidden && arenaActive()) {
-    const bx = b.x - S.hero.x, bz = b.z - S.hero.z, bd = Math.hypot(bx, bz) || 1;
+    const bx = b.x - targetX, bz = b.z - targetZ, bd = Math.hypot(bx, bz) || 1;
     const k = Math.min(2.6, bd * 0.3);
-    fx += bx / bd * k; fz += bz / bd * k;
+    tx += bx / bd * k; tz += bz / bd * k;
   }
-  if (!S.focus) S.focus = { x: fx, z: fz };
-  S.focus.x += (fx - S.focus.x) * Math.min(1, dt * 5);
-  S.focus.z += (fz - S.focus.z) * Math.min(1, dt * 5);
+  /* 2단계 — 경계 패딩: 초점이 무대 가장자리를 넘어 허공을 비추지 않게 클램프한다.
+     영웅이 울타리에 닿으면 화면 안에서 영웅이 가장자리로 걸어가고, 배경(절벽·병풍)은 그대로 남는다. */
+  const wb = worldBounds();
+  if (wb) {
+    const R = Math.max(4, wb.r - 5.6);
+    const dx = tx - wb.x, dz = tz - wb.z, ro = Math.hypot(dx, dz);
+    if (ro > R) { tx = wb.x + dx * R / ro; tz = wb.z + dz * R / ro; }
+  }
+  /* 3단계 — 부드러운 추적(지수 감속). 따라가기 0.10s · 시선 0.17s 순차 이중 감쇠 = 관성 있는 무빙. */
+  S.cam.x += (tx - S.cam.x) * camLerpK(0.10, dt);
+  S.cam.z += (tz - S.cam.z) * camLerpK(0.10, dt);
+  if (!S.focus) S.focus = { x: S.cam.x, z: S.cam.z };
+  S.focus.x += (S.cam.x - S.focus.x) * camLerpK(0.17, dt);
+  S.focus.z += (S.cam.z - S.focus.z) * camLerpK(0.17, dt);
   let sx = 0, sy = 0, sz = 0;
   if (S.recoil && S.recoil.t > 0) {
     S.recoil.t -= dt;
@@ -10441,6 +10499,65 @@ const GPv2 = {
     return this.starProbe();
   },
   patCode: function () { return PAT_CODE.map(function (p) { return Object.assign({}, p); }); },
+  /* v0.48 고정 아레나 검수: 무대 정보·영웅 위치·카메라·기물 통계 */
+  arenaWorldInfo: function () {
+    const c = three && three.chunks;
+    if (!c) return null;
+    const a = c.arena;
+    return {
+      fixed: !!c.stats.fixed, stageId: c.stageId,
+      bounds: c.bounds ? { x: c.bounds.x, z: c.bounds.z, r: c.bounds.r } : null,
+      stats: Object.assign({}, c.stats),
+      props: a ? a.stats : null,
+      spots: a ? a.spots.slice(0, 40) : [],
+      screen: c.screenInfo ? c.screenInfo() : null,
+      jars: c.jars.filter(function (j) { return j.alive; }).length,
+      drawCalls: three.renderer && three.renderer.info ? three.renderer.info.render.calls : null,
+      tris: three.renderer && three.renderer.info ? three.renderer.info.render.triangles : null
+    };
+  },
+  qaCam: function (o) {
+    if (!three) return null;
+    QA_CAM = o ? { x: +(o.x || 0), y: +(o.y == null ? 8 : o.y), z: +(o.z || 0), tx: +(o.tx || 0), ty: +(o.ty == null ? 1 : o.ty), tz: +(o.tz || 0) } : null;
+    return QA_CAM;
+  },
+  arenaDebug: function () {
+    const c = three && three.chunks;
+    if (!c || !c.arena || !c.arena.body) return null;
+    const m = c.arena.body.material;
+    const geo = c.arena.body.geometry;
+    const col = geo.getAttribute('color');
+    const z = geo.getAttribute('zone');
+    const u = m.uniforms || {};
+    return {
+      hasColor: !!col, hasZone: !!z, verts: geo.getAttribute('position').count,
+      col0: col ? [col.getX(0), col.getY(0), col.getZ(0)] : null,
+      col100: col ? [col.getX(100), col.getY(100), col.getZ(100)] : null,
+      zone100: z ? z.getX(100) : null,
+      uAmb: u.uAmbCol ? u.uAmbCol.value.toArray() : null,
+      uKey: u.uKeyCol ? u.uKeyCol.value.toArray() : null,
+      uTexAmt: u.uTexAmt ? u.uTexAmt.value : null,
+      uRamp: !!u.uRamp,
+      prog: m.program ? 1 : 0
+    };
+  },
+  heroArenaInfo: function () {
+    if (!S || !S.hero) return null;
+    const c = three && three.chunks;
+    const b = c && c.bounds;
+    return {
+      hero: { x: +S.hero.x.toFixed(2), z: +S.hero.z.toFixed(2) },
+      r: b ? +Math.hypot(S.hero.x - b.x, S.hero.z - b.z).toFixed(2) : null,
+      bound: b ? b.r : null,
+      cam: three && three.camera ? [+three.camera.position.x.toFixed(2), +three.camera.position.y.toFixed(2), +three.camera.position.z.toFixed(2)] : null,
+      focus: S.focus ? { x: +S.focus.x.toFixed(2), z: +S.focus.z.toFixed(2) } : null,
+      zombies: S.zombies ? S.zombies.filter(function (z) { return z.alive; }).map(function (z) { return +Math.hypot(z.x - (b ? b.x : 0), z.z - (b ? b.z : 0)).toFixed(1); }).sort(function (p, q) { return q - p; }).slice(0, 3) : null
+    };
+  },
+  cameraPos: function () {
+    const c = three && three.camera;
+    return c ? { x: +c.position.x.toFixed(2), y: +c.position.y.toFixed(2), z: +c.position.z.toFixed(2), fov: c.fov } : null;
+  },
   /* v0.22 QA 훅: 청크·항아리·결계·진화 */
   chunkInfo: function () {
     const c = three && three.chunks;

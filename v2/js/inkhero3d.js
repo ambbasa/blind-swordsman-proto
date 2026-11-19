@@ -601,25 +601,25 @@ function slashClip() {
     thighL: [-0.10, 0, 0.05], thighR: [0.06, 0, -0.06], shinL: [0.30, 0, 0], shinR: [0.22, 0, 0]
   }, -0.04);
   mk(0.060, {
-    pelvis: [0.03, -0.34, 0], spine: [-0.03, -0.26, 0], chest: [-0.05, -0.44, 0.04], neck: [0, 0.14, 0], head: [-0.03, -0.26, 0],
+    pelvis: [0.03, -0.40, 0], spine: [-0.03, -0.31, 0], chest: [-0.05, -0.52, 0.05], neck: [0, 0.16, 0], head: [-0.03, -0.30, 0],
     upperarmR: [-0.86, 0.12, -0.72], forearmR: [-1.50, 0, -0.05], handR: [0.10, 0, -0.24], weapon: [3.05, 0.34, 0.28],
     upperarmL: [-0.30, 0, 0.30], forearmL: [-0.62, 0, 0.05],
     thighL: [-0.12, 0, 0.06], thighR: [0.08, 0, -0.07], shinL: [0.34, 0, 0], shinR: [0.24, 0, 0]
   }, -0.05);
   mk(0.130, {
-    pelvis: [0.04, 0.10, -0.02], spine: [0.06, 0.16, 0], chest: [0.10, 0.30, -0.04], neck: [0.02, 0.10, 0], head: [-0.04, 0.18, 0],
+    pelvis: [0.04, 0.16, -0.02], spine: [0.08, 0.22, 0], chest: [0.13, 0.40, -0.05], neck: [0.02, 0.12, 0], head: [-0.04, 0.22, 0],
     upperarmR: [-1.62, -0.16, -0.05], forearmR: [-0.28, 0, 0], handR: [0.10, 0, 0.06], weapon: [3.45, -0.14, 0.02],
     upperarmL: [-0.10, 0, 0.18], forearmL: [-0.40, 0, 0.04],
     thighL: [-0.06, 0, 0.05], thighR: [0.02, 0, -0.05], shinL: [0.22, 0, 0], shinR: [0.16, 0, 0]
   }, 0.02);
   mk(0.185, {
-    pelvis: [0.05, 0.24, -0.04], spine: [0.10, 0.26, 0], chest: [0.16, 0.52, -0.06], neck: [0.03, 0.12, 0], head: [-0.02, 0.30, 0],
+    pelvis: [0.05, 0.30, -0.04], spine: [0.12, 0.32, 0], chest: [0.19, 0.64, -0.07], neck: [0.03, 0.14, 0], head: [-0.02, 0.36, 0],
     upperarmR: [-1.52, -0.20, 0.26], forearmR: [-0.18, 0, 0], handR: [0.10, 0, 0.10], weapon: [3.02, -0.26, -0.10],
     upperarmL: [0.18, 0, 0.30], forearmL: [-0.30, 0, 0.04],
     thighL: [-0.18, 0, 0.06], thighR: [0.12, 0, -0.06], shinL: [0.26, 0, 0], shinR: [0.18, 0, 0]
   }, 0.05);
   mk(0.235, {
-    pelvis: [0.04, 0.30, -0.03], spine: [0.09, 0.30, 0], chest: [0.13, 0.60, -0.05], neck: [0.03, 0.14, 0], head: [0.00, 0.34, 0],
+    pelvis: [0.04, 0.34, -0.03], spine: [0.10, 0.34, 0], chest: [0.15, 0.70, -0.06], neck: [0.03, 0.16, 0], head: [0.00, 0.40, 0],
     upperarmR: [-1.28, -0.16, 0.50], forearmR: [-0.34, 0, 0], handR: [0.10, 0, 0.12], weapon: [2.95, -0.30, -0.14],
     upperarmL: [0.22, 0, 0.34], forearmL: [-0.36, 0, 0.04],
     thighL: [-0.16, 0, 0.06], thighR: [0.10, 0, -0.06], shinL: [0.24, 0, 0], shinR: [0.16, 0, 0]
@@ -891,13 +891,36 @@ export function tick(group, kind, state, dt, vx, vz) {
   }
   if (H.actions.walk) H.actions.walk.setEffectiveTimeScale(Math.max(0.55, Math.min(2.4, H.speed / WALK_SPEED)));
 
-  /* 대시 중에는 몸을 조금 더 앞으로 누인다(클립 위에 절차적으로 얹는다). */
-  const leanT = (st === 'dash' ? 0.16 : 0) + Math.min(0.10, H.speed * 0.012);
-  H.lean += (leanT - H.lean) * Math.min(1, dt * 9);
+  /* v0.48 무게감 — 일섬(유일한 이동) 자세를 클립 위에 절차적으로 얹는다.
+     ① 상체 전경: 돌진 중 0.30rad(약 17°)까지 눕는다(종전 0.16 은 서 있는 듯 보였다).
+     ② 회전 비틀림: 몸이 도는 각속도에 비례해 가슴을 반대로 비튼다(무협의 허리 비틀기).
+     ③ 검 뒤로 젖힘: 오른팔·검을 진행 반대쪽으로 끌어 잔상과 함께 '베고 지나가는' 실루엣.
+     ④ 출발 웅크림: 돌진 시작 0.06초 동안 골반을 살짝 낮춰 예비동작을 만든다. */
+  const isDash = st === 'dash';
+  if (isDash && !H.wasDash) { H.dashT = 0; H.crouchV = 0.16; }
+  H.wasDash = isDash;
+  if (isDash) H.dashT = (H.dashT || 0) + dt;
+  H.crouchV = Math.max(0, (H.crouchV || 0) - dt * 3.2);
+  const leanT = (isDash ? 0.30 : 0) + Math.min(0.12, H.speed * 0.014);
+  H.lean += (leanT - H.lean) * Math.min(1, dt * 11);
+  /* 각속도(rad/s) — 부드럽게 재서 비틀림에 쓴다 */
+  H.yawRate = (H.yawRate || 0) * 0.85 + ((H.yawTarget - H.yaw) * 6) * 0.15;
+  const twist = Math.max(-0.34, Math.min(0.34, (H.yawRate || 0) * 0.06));
 
   H.mixer.update(dt);
-  if (H.lean > 0.001 && H.bones.spine) H.bones.spine.rotateX(H.lean * 0.55);
-  if (H.lean > 0.001 && H.bones.chest) H.bones.chest.rotateX(H.lean * 0.45);
+  if (H.lean > 0.001 && H.bones.spine) H.bones.spine.rotateX(H.lean * 0.62);
+  if (H.lean > 0.001 && H.bones.chest) H.bones.chest.rotateX(H.lean * 0.50);
+  if (Math.abs(twist) > 0.002 && H.bones.chest) H.bones.chest.rotateY(twist * 0.55);
+  if (Math.abs(twist) > 0.002 && H.bones.spine) H.bones.spine.rotateY(twist * 0.30);
+  if (H.crouchV > 0.001 && H.bones.pelvis) H.bones.pelvis.position.y -= H.crouchV * 0.35;
+  /* ③ 검 뒤로 — 돌진 중 오른팔을 진행 반대쪽으로 끌고, 칼끝을 아래로 눕힌다(잔상과 겹쳐 궤적이 길어진다). */
+  const armTrailT = isDash ? 0.34 : 0;
+  H.armTrail = (H.armTrail || 0) + (armTrailT - (H.armTrail || 0)) * Math.min(1, dt * 12);
+  if (H.armTrail > 0.004 && H.bones.upperarmR) {
+    H.bones.upperarmR.rotateX(-H.armTrail * 0.9);
+    H.bones.upperarmR.rotateZ(-H.armTrail * 0.35);
+  }
+  if (H.armTrail > 0.004 && H.bones.weapon) H.bones.weapon.rotateX(-H.armTrail * 0.55);
 
   H.t += dt;
   applyCloth(H, dt, dx / Math.max(dt, 1e-4), dz / Math.max(dt, 1e-4), sp);
