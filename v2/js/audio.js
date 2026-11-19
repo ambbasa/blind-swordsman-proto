@@ -364,6 +364,57 @@ export function createAudio() {
     }
   }
 
+  /* ---------- 종이 소리 (v0.40 5단계, Papertrails audio/paper.js 응용) ----------
+     샘플 없이 합성한다: 크래클 그레인(0.1~1.5ms 노이즈 버스트를 1~6kHz 카드 몸통 공명 3개에 통과)
+     + 온셋 스냅 + 바람 같은 브러시 베드. 접힘은 짧고 밝게, 찢김은 길고 거칠게, 으깸은 낮게.
+     버스의 보이스 슬롯·리미터·방을 그대로 지나므로 과밀해도 잡음 밭이 되지 않는다. */
+  const CARD_RES = [1180, 2650, 4700];
+  function crackle(t0, count, spread, peak, out) {
+    const c = ac(); if (!c) return;
+    for (let i = 0; i < count; i++) {
+      const tb = t0 + Math.random() * spread;
+      const dur = 0.004 + Math.random() * 0.016;
+      const res = CARD_RES[i % CARD_RES.length] * (0.82 + Math.random() * 0.42);
+      noise(tb, dur, 'bandpass', res, 1.8 + Math.random() * 2.2, peak * (0.5 + Math.random() * 0.8), out);
+    }
+  }
+  /** 종이를 펼칠 때(부적·카드·결계): 스냅 → 짧은 브러시 → 잔크래클. strength 0~1. */
+  function paperFold(strength) {
+    if (quiet) return;
+    const c = resume(); if (!c) return;
+    const s = strength == null ? 0.7 : Math.max(0.05, Math.min(1.4, strength));
+    const t0 = c.currentTime + 0.004;
+    const V = voice(0.45 + 0.4 * s, 0.22); if (!V) return;
+    noise(t0, 0.02, 'highpass', 3200, 0.8, 0.10 * s, V);            /* 온셋 스냅 */
+    noise(t0 + 0.004, 0.10 + 0.05 * s, 'bandpass', 2400, 0.9, 0.11 * s, V); /* 브러시 베드 */
+    crackle(t0 + 0.006, 4 + Math.round(5 * s), 0.10, 0.05 * s, V);
+    tone(t0, 210, 0.06, 0.03 * s, 'sine', V, 150);                  /* 종이가 눌리며 나는 낮은 몸통 */
+  }
+  /** 종이를 찢을 때(항아리 파손): 길고 거친 노이즈 + 중간에 끊기는 리프. */
+  function paperTear(strength) {
+    if (quiet) return;
+    const c = resume(); if (!c) return;
+    const s = strength == null ? 0.8 : Math.max(0.05, Math.min(1.4, strength));
+    const t0 = c.currentTime + 0.003;
+    const V = voice(0.6 + 0.4 * s, 0.34); if (!V) return;
+    for (let i = 0; i < 3; i++) {
+      const tb = t0 + i * (0.05 + Math.random() * 0.04);
+      noise(tb, 0.10 + Math.random() * 0.06, 'highpass', 1800 + Math.random() * 1400, 0.7, 0.10 * s, V);
+    }
+    crackle(t0, 8 + Math.round(8 * s), 0.22, 0.06 * s, V);
+  }
+  /** 종이를 으깰 때(묵항아리): 뭉툭한 저음 + 듬성한 크래클. */
+  function paperCrush(strength) {
+    if (quiet) return;
+    const c = resume(); if (!c) return;
+    const s = strength == null ? 0.9 : Math.max(0.05, Math.min(1.4, strength));
+    const t0 = c.currentTime + 0.003;
+    const V = voice(0.55 + 0.35 * s, 0.3); if (!V) return;
+    tone(t0, 120, 0.16, 0.14 * s, 'sine', V, 62);
+    noise(t0, 0.16, 'lowpass', 1100, 0.6, 0.12 * s, V);
+    crackle(t0 + 0.01, 6 + Math.round(6 * s), 0.20, 0.05 * s, V);
+  }
+
   return {
     setQuiet: setQuiet,
     resume: resume,
@@ -377,6 +428,9 @@ export function createAudio() {
     parry: parry,
     drum: drum,
     gong: gong,
+    paperFold: paperFold,
+    paperTear: paperTear,
+    paperCrush: paperCrush,
     charge: charge,
     setLastPans: setLastPans,
     lastPans: function () { return lastPans.slice(); },
@@ -388,7 +442,7 @@ export function createAudio() {
       return {
         synth: true,
         bpm: 100,
-        kinds: ['slash', 'hit', 'explode', 'bell', 'bellCut', 'whiff', 'pickup', 'drum', 'bgm-daegeum-buk'],
+        kinds: ['slash', 'hit', 'explode', 'bell', 'bellCut', 'whiff', 'pickup', 'drum', 'paperFold', 'paperTear', 'paperCrush', 'bgm-daegeum-buk'],
         muted: muted,
         bgmOn: bgmOn,
         source: 'original-webaudio',

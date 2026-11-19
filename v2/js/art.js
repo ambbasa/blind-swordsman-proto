@@ -658,11 +658,10 @@ export async function buildArt(THREE) {
       return g;
     }
     if (kind === 'zombie') {
-      /* 돌덩이 귀신은 바위 괴물이라 손그림 시트를 유지하고, 원혼 무사·장정만 리그로 올린다. */
-      if (shape === 'stone') return null;
+      /* v0.40: 돌덩이(바위 괴물)도 종이 파츠 리그로 올렸다 — 손그림 시트만 남으면 무대에서 혼자 톤이 튄다. */
       const heavy = shape === 'brute';
-      const figName = heavy ? 'heavy' : 'minion';
-      /* 기존 시트와 같은 키(원혼 2.4m · 장정 3.0m) — 판정 반경·심안 링과 비율이 맞아 있다. */
+      const figName = shape === 'stone' ? 'stone' : (heavy ? 'heavy' : 'minion');
+      /* 기존 시트와 같은 키(원혼 2.4m · 장정 3.0m · 돌덩이 2.6m) — 판정 반경·심안 링과 비율이 맞아 있다. */
       const g = buildFigure(figName, { order: 2, scale: 1, auraColor: 0x54e0ba, auraOpacity: 0.5 });
       if (!g) return null;
       addShadow(g, heavy ? 1.7 : 1.35);
@@ -676,6 +675,7 @@ export async function buildArt(THREE) {
         g.userData.rim.material.color.setHex(0xE8C04A);
         g.userData.rim.material.opacity = 0.62;
         g.userData.rimHex = 0xE8C04A; g.userData.rimOp = 0.62;
+        addHalo(g, g.userData.worldH);
       }
       return g;
     }
@@ -828,8 +828,25 @@ export async function buildArt(THREE) {
     spr.scale.x = flip ? -ax : ax;
   }
 
+  /* 정예 황금 후광(파츠) — 종이 인형 머리 뒤에 금빛 종이 고리를 세운다. */
+  function addHalo(group, worldH) {
+    const H = worldH || 2.4;
+    const geo = new THREE.TorusGeometry(H * 0.155, Math.max(0.012, H * 0.014), 6, 26);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xE8C04A, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending,
+      depthWrite: false, fog: false, side: THREE.DoubleSide
+    });
+    const ring = new THREE.Mesh(geo, mat);
+    ring.position.set(0, H * 0.90, -0.06);
+    ring.rotation.x = -1.12;
+    ring.renderOrder = 7;
+    group.add(ring);
+    group.userData.halo = ring;
+  }
   function tickChar(group, kind, state, dt, vx, vz) {
     if (!group) return;
+    const halo = group.userData && group.userData.halo;
+    if (halo) { halo.rotation.z += (dt || 0) * 0.7; halo.material.opacity = 0.62 + 0.2 * Math.sin((group.userData.haloT = (group.userData.haloT || 0) + (dt || 0)) * 3.1); }
     if (group.userData && group.userData.rig && tickFigure(group, kind, state, dt, vx, vz)) return;
     const spr = group.userData && group.userData.sprite;
     const pack = group.userData && group.userData.animPack;

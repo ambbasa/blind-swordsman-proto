@@ -34,6 +34,8 @@ import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/ink
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
 import { createInkWashPass } from './inkwash.js';
+import { createTiltShiftPass, createDepthCapture, focusDistance } from './doftilt.js';
+import { foldPop, tickFolds } from './foldspring.js';
 import { PIXEL_LOOK, createPixelLookPass } from './pixellook.js';
 import { createCinematicPass } from './inkcinematic.js';
 import { createSlashArc } from './inkslash3d.js';
@@ -1509,13 +1511,20 @@ async function makeWorld() {
         }
         const wash = createInkWashPass();
         wash.enableDepth(camera.near, camera.far);
-        return [wash, createCinematicPass()];
+        /* v0.40 4단계: 마지막에 틸트시프트 심도 — 디오라마를 접사로 찍은 룩. 저사양은 레더가 끈다.
+           깊이는 RenderPass 직후에 따로 떠 둔다(체인 끝에서는 readBuffer 깊이가 이미 비어 있다). */
+        const dof = createTiltShiftPass({ amount: 0.72, band: 6.5, soft: 14.0 });
+        const dep = createDepthCapture(dof);
+        dof.setCamera(camera);
+        dep.setCamera(camera);
+        dof.setLevel(0);
+        return [dep, wash, createCinematicPass(), dof];
       }
     });
   } catch (e) { world.bloom = null; }
   /* v0.39 2단계: 후처리에도 같은 월드 안개 목표를 넘긴다 — 재질이 놓친 픽셀(하늘·구멍)을 한 겹 더 잠근다. */
   try {
-    const wash = world.bloom && world.bloom.post && world.bloom.post[0];
+    const wash = world.bloom && world.bloom.post && washOf(world.bloom.post);
     if (wash && wash.setFadeSource) wash.setFadeSource(camera, WF_POST);
   } catch (e) {}
   try {
@@ -1541,9 +1550,35 @@ const WF_POST = { uWfHero: WF.uWfHero, uWfRange: WF.uWfRange, uWfAmt: WF.uWfAmt,
 function wireFadeSource() {
   try {
     const w = three;
-    const wash = w && w.bloom && w.bloom.post && w.bloom.post[0];
+    const wash = w && w.bloom && washOf(w.bloom.post);
     if (wash && wash.setFadeSource && w.camera) wash.setFadeSource(w.camera, WF_POST);
+    const dp = dofPassOf();
+    if (dp && w && w.camera) { dp.setCamera(w.camera); dp.setLevel(w.ql ? w.ql.level : 0); }
+    const dc = depPassOf();
+    if (dc && w && w.camera) dc.setCamera(w.camera);
   } catch (e) {}
+}
+/* v0.40: 포스트 체인에서 수묵 워시 패스를 찾는다(체인 앞에 깊이 캐시 패스가 들어와도 안전). */
+function washOf(post) {
+  if (!post) return null;
+  for (let i = 0; i < post.length; i++) if (post[i] && post[i].setFadeSource) return post[i];
+  return null;
+}
+/* v0.40: 깊이 캐시 패스(체인 맨 앞)를 찾는다. */
+function depPassOf() {
+  const w = three;
+  const post = w && w.bloom && w.bloom.post;
+  if (!post) return null;
+  for (let i = 0; i < post.length; i++) if (post[i] && post[i].setCamera && !post[i].setFocus) return post[i];
+  return null;
+}
+/* v0.40: 포스트 체인에서 틸트시프트 심도 패스를 찾는다(품질 변경으로 체인이 새로 만들어져도 매번 찾는다). */
+function dofPassOf() {
+  const w = three;
+  const post = w && w.bloom && w.bloom.post;
+  if (!post) return null;
+  for (let i = 0; i < post.length; i++) if (post[i] && post[i].setFocus) return post[i];
+  return null;
 }
 /* QA/튜닝 스위치 — 0 이면 각 층의 안개를 끈다(전후 비교 스크린샷용). */
 let qaFadeMat = 1, qaFadePostK = 1, qaFadeColor = false;
@@ -1641,6 +1676,8 @@ function applyQuality(level) {
   }
   /* 가장 낮은 두 단계에서는 후처리 안개 한 겸을 생략한다(재질 안개가 그대로 남아 룩은 유지된다). */
   qaFadePostK = level >= 3 ? 0 : 1;
+  /* v0.40 4단계: 틸트시프트 심도도 같은 레더에 매단다 — 3단계 이하(저사양)에서 자동으로 꺼진다. */
+  try { const dp = dofPassOf(); if (dp) dp.setLevel(level); } catch (e) {}
   const bq = level < 2 ? fxQualityFromUrl() : 'low';
   if (w.bloom && w.bloom.quality !== bq && bq !== 'off') {
     w.bloom.setQuality(bq);
@@ -2725,6 +2762,11 @@ function openArena(cx, cz) {
   a.t = 0;
   a.group.position.set(S.arena.x, 0, S.arena.z);
   a.group.visible = true;
+  /* v0.40 5단계: 결계 벽이 바닥에서 종이처럼 펴져 솟는다(1자유도 접힘 스프링). */
+  try {
+    if (a.wall) foldPop(a.wall, { from: 0.03, stiff: 145, damp: 10.5, anchorY: 1.4 });
+    if (audio && !qa.mute && audio.paperFold) audio.paperFold(1.1);
+  } catch (e) {}
   /* 예열 때 만든 결계를 그대로 장면에 둔다(보스 순간에 처음 붙이지 않는다). */
   if (a.group.parent !== three.scene) three.scene.add(a.group);
   three.arena = a;
@@ -2990,6 +3032,11 @@ function spawnItem(opts) {
   const e = { id: ++S._id, kind: type, x: p.x, z: p.z, r: 0.45, alive: true, shape: opts.shape, dur: opts.dur, born: S.elapsed || 0 };
   e.obj = addEntityVisual(type);
   placeGroup(e.obj, e.x, e.z, 0.2);
+  /* v0.40 5단계: 떨어진 부적/혼백이 종이처럼 탁 펴지며 등장한다(과회전 후 정착). */
+  try {
+    if (e.obj && e.obj.scale) foldPop(e.obj, { from: 0.06, stiff: 210, damp: 14, tilt: 0.16 });
+    if (audio && !qa.mute && audio.paperFold) audio.paperFold(0.45);
+  } catch (err) {}
   S.items.push(e);
   return e;
 }
@@ -3014,7 +3061,7 @@ function breakJar(j) {
     if (fx) three.fx.push(fx);
   }
   if (three && three.ink) three.ink.hit(j.x, j.z, 0.7, 0.7);
-  if (audio && !qa.mute) audio.hit();
+  if (audio && !qa.mute) { audio.hit(); if (audio.paperCrush) audio.paperCrush(0.9); if (audio.paperTear) audio.paperTear(0.55); }
   S.shake = Math.max(S.shake || 0, 0.18);
   const kind = pickJarDrop();
   spawnItem({ type: kind, x: j.x, z: j.z });
@@ -9463,6 +9510,16 @@ function loop(ts) {
     }
     if (three.ink && three.ink.update) three.ink.update(dt);
     if (three.lights) three.lights.update(dt);
+    /* v0.40 4단계: 초점 거리 = 주인공 가슴. 디오라마의 접사 초점 밴드가 주인공에 고정된다. */
+    try {
+      const dp = dofPassOf();
+      if (dp && three.camera) {
+        const hx = S && S.hero ? S.hero.x : 0, hz = S && S.hero ? S.hero.z : 0;
+        dp.setFocus(focusDistance(three.camera, hx, 1.05, hz));
+      }
+    } catch (e) {}
+    /* v0.40 5단계: 접힘 스프링 대상(부적·결계·카드) 적분 */
+    try { tickFolds(dt); } catch (e) {}
     if (three.inkUniforms && S && S.hero) three.inkUniforms.uHeroPos.value.set(S.hero.x, 0, S.hero.z);
     /* v0.39: 그림자 프러스텀을 그 프레임의 카메라 가시 바닥에 맞춘다(텍셀 스냅 포함). */
     fitShadowFrustum();
@@ -10384,7 +10441,33 @@ const GPv2 = {
     return S ? { won: !!S.won, lost: !!S.lost, stars: S.stars || 0, kills: S.kills || 0, comboMax: S.comboMax || 0, coinGain: S.coinGain || 0, score: S.score || 0, nextStage: S.nextStage || null, stageNo: S.stageNo || 0 } : null;
   },
   pickSpirits: function (shape, n, from, dir) { return pickSpirits(shape, n, from, dir); },
+  /* v0.40 QA: 파츠 리그 상태 덤프(부위별 위치·회전·스케일) — 이음매 진단용. */
+  rigDump: function (i) {
+    if (!three || !S || !S.zombies) return null;
+    const z = S.zombies[i || 0];
+    if (!z || !z.obj) return null;
+    const rig = z.obj.userData.rig;
+    if (!rig) return { name: z.shape || z.type, rig: false };
+    const out = { fig: rig.name, speed: +rig.speed.toFixed(2), phase: +rig.phase.toFixed(2), parts: {} };
+    Object.keys(rig.parts).forEach(function (k) {
+      const m = rig.parts[k];
+      if (!m) return;
+      out.parts[k] = { p: [+m.position.x.toFixed(2), +m.position.y.toFixed(2)], rz: +m.rotation.z.toFixed(3), s: [+m.scale.x.toFixed(2), +m.scale.y.toFixed(2)], piv: m.userData.pivot };
+    });
+    out.anim = { hero: three.heroSpr && three.heroSpr.userData.rig ? { fig: three.heroSpr.userData.rig.name } : null };
+    return out;
+  },
   audioInfo: function () { return audio ? audio.info() : null; },
+  /* v0.40 QA: 종이 소리 3종을 직접 때려 버스 보이스가 잡히는지 확인한다. */
+  paperProbe: function () {
+    if (!audio) return null;
+    const r = {};
+    if (audio.paperFold) { audio.paperFold(0.8); r.fold = true; }
+    if (audio.paperTear) { audio.paperTear(0.9); r.tear = true; }
+    if (audio.paperCrush) { audio.paperCrush(1.0); r.crush = true; }
+    r.bus = audio.info().bus;
+    return r;
+  },
   /* v0.39 QA: 같은 순간에 소리 N개를 몰아쳐 보이스 상한·레이트리밋·덕킹을 확인한다. */
   audioHammer: function (n) {
     if (!audio) return null;
@@ -10639,6 +10722,11 @@ const GPv2 = {
       vignette: ps[1] && ps[1].uniforms && ps[1].uniforms.uVignette ? ps[1].uniforms.uVignette.value : null
     };
   },
+  /* v0.40 QA: 틸트시프트 심도 세기 조절(0=off) — 전후 스크린샷 비교용 */
+  dofSet: function (v) {
+    try { const d = dofPassOf(); if (d && d.setAmount) { d.setAmount(v); return d.debugInfo ? d.debugInfo() : true; } } catch (e) { return String(e); }
+    return false;
+  },
   visualInfo: function () {
     const r = three && three.renderer;
     return {
@@ -10656,6 +10744,7 @@ const GPv2 = {
       lights: three && three.map ? (three.map.lights || []).length : 0,
       atmoFields: three && three.atmo ? three.atmo.fields.length : 0,
       post: three && three.bloom && three.bloom.composer ? three.bloom.composer.passes.map(function (p) { return p.constructor && p.constructor.name; }) : [],
+      dof: (function () { try { const d = dofPassOf(); return d && d.debugInfo ? d.debugInfo() : null; } catch (e) { return null; } })(),
       calls: r ? r.info.render.calls : 0,
       tris: r ? r.info.render.triangles : 0,
       programs: r ? r.info.programs.length : 0,
