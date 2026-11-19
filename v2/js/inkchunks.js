@@ -11,6 +11,7 @@ import {
 import { makeMaterials, instanced, rockGeo, crossQuads, glowBatch, aoBatch, mergeGeo } from './inkprops3d.js';
 import { paperPropCanvas } from './inkpaper.js';
 import { texOf, aspectOf } from './inkdiorama.js';
+import { createFloorLayer, floorReady, soilTexture, floorInfo } from './inkfloor.js';
 
 export const CHUNK = 24;
 export const WINDOW_R = 1; /* 3×3 */
@@ -63,6 +64,8 @@ export function prebakeGroundStage(stageId) {
   groundSet(GROUND_STYLE[stageId] || GROUND_STYLE[1]);
   return stageId;
 }
+/* v0.41 QA: 바닥 에셋 로드 상태 */
+export function floorStatus() { return floorInfo(); }
 
 /* 좌표를 섞어 32bit 시드로: 같은 자리·같은 장은 언제나 같은 무대. */
 export function seedOf(cx, cz, stageId) {
@@ -852,14 +855,17 @@ export function createChunkWorld(opts) {
   const gStyle = GROUND_STYLE[stageId] || GROUND_STYLE[1];
   const gs = groundSet(gStyle);
   const REPEAT = 5;
-  const floorKey = 'floor-' + stageId;
+  /* v0.41: 바탕면은 '흙(soil)'이 되고, 판석은 inkfloor.js 의 인스턴스 레이어가 얹는다.
+     바닥 에셋이 없으면(로드 실패) v0.40 의 512 사각 판석으로 그대로 폴백한다. */
+  const v41Floor = floorReady();
+  const floorKey = 'floor-' + stageId + (v41Floor ? '-soil' : '');
   let fset = FLOOR_CACHE.get(floorKey);
   if (!fset) {
-    const fMap = texOf('floor'), fN = texOf('floorN'), fR = texOf('floorR');
-    const map = (fMap || gs.map).clone(); map.needsUpdate = true; map.repeat.set(REPEAT, REPEAT);
-    const nrm = (fN || gs.normalMap).clone(); nrm.needsUpdate = true; nrm.repeat.set(REPEAT, REPEAT);
-    const rgh = (fR || gs.roughnessMap).clone(); rgh.needsUpdate = true; rgh.repeat.set(REPEAT, REPEAT);
-    [map, nrm, rgh].forEach(function (t) { t.userData.shared = true; });
+    const fMap = v41Floor ? soilTexture() : texOf('floor'), fN = v41Floor ? null : texOf('floorN'), fR = v41Floor ? null : texOf('floorR');
+    const map = (fMap || gs.map).clone(); map.needsUpdate = true; map.repeat.set(v41Floor ? 6 : REPEAT, v41Floor ? 6 : REPEAT);
+    const nrm = fN ? (fN || gs.normalMap).clone() : null; if (nrm) { nrm.needsUpdate = true; nrm.repeat.set(REPEAT, REPEAT); }
+    const rgh = fR ? (fR || gs.roughnessMap).clone() : null; if (rgh) { rgh.needsUpdate = true; rgh.repeat.set(REPEAT, REPEAT); }
+    [map, nrm, rgh].forEach(function (t) { if (t && t.userData) t.userData.shared = true; });
     /* 장마다 다른 돌빛: 시드 스타일의 stone 색에 한지·호박 기운을 얹는다. */
     const st = gStyle.stone;
     /* v0.37: 사각 돌판 PNG 는 밝고 주황이 강해 그대로 쓰면 무대가 하얗게 뜬다.
@@ -869,8 +875,8 @@ export function createChunkWorld(opts) {
       const g = (raw.r + raw.g + raw.b) / 3;
       raw.lerp(new THREE.Color(g, g, g), 0.28);
     }
-    const base = raw.multiplyScalar((fMap ? 0.58 : 1) * FLOOR_MUL);
-    fset = { map: map, normalMap: nrm, roughnessMap: rgh, base: base, png: !!fMap };
+    const base = raw.multiplyScalar((v41Floor ? 1.05 : fMap ? 0.58 : 1) * FLOOR_MUL);
+    fset = { map: map, normalMap: nrm, roughnessMap: rgh, base: base, png: !!fMap, soil: v41Floor };
     FLOOR_CACHE.set(floorKey, fset);
     /* 12장을 다 돌아도 GPU 텍스처가 쌓이지 않게 최근 4장만 남긴다(512 판석 3장 = 약 4MB). */
     while (FLOOR_CACHE.size > 4) {
@@ -883,9 +889,9 @@ export function createChunkWorld(opts) {
   const gmap = fset.map, gnorm = fset.normalMap, grough = fset.roughnessMap;
   const groundBase = fset.base.clone();
   const groundMat = new THREE.MeshStandardMaterial({
-    map: gmap, normalMap: gnorm, roughnessMap: grough,
+    map: gmap, normalMap: gnorm || null, roughnessMap: grough || null,
     normalScale: new THREE.Vector2(fset.png ? 0.78 : 0.3, fset.png ? 0.78 : 0.3),
-    color: groundBase.clone(), roughness: 0.92, metalness: 0.0
+    color: groundBase.clone(), roughness: 0.95, metalness: 0.0
   });
   groundMat.userData.inkGround = true; /* game.js 가 지면 소나 셰이더(inklights.js)를 붙이는 표식 */
   groundMat.userData.cardProfile = 'ground'; /* v0.39: 월드 안개를 가장 짙게 받는 층 */
@@ -898,6 +904,16 @@ export function createChunkWorld(opts) {
     g.visible = false;
     group.add(g);
     grounds.push(g);
+  }
+
+  /* v0.41: 판석 레이어(창 전체에 한 번). 청크 창이 움직일 때 판 위치만 다시 쓴다. */
+  const floorLayer = v41Floor ? createFloorLayer({ stageId: stageId, style: gStyle }) : null;
+  if (floorLayer) group.add(floorLayer.group);
+  let floorPlaced = false;
+  function placeFloor(x0, z0, x1, z1) {
+    if (!floorLayer) return;
+    floorLayer.layout(x0, z0, x1, z1);
+    floorPlaced = true;
   }
 
   const stainTex = shadowTexture();
@@ -1140,6 +1156,7 @@ export function createChunkWorld(opts) {
       g.visible = true;
       g.position.set(chs[i].cx * CHUNK + HALF, 0, chs[i].cz * CHUNK + HALF);
     }
+    placeFloor((cx - WINDOW_R) * CHUNK, (cz - WINDOW_R) * CHUNK, (cx + WINDOW_R + 1) * CHUNK, (cz + WINDOW_R + 1) * CHUNK);
     /* 소품 배치: 용량이 모자랄 때만 새 버퍼를 만든다(보통은 행렬만 다시 쓴다). */
     Object.keys(bucketSpec).forEach(function (k) {
       const items = all[k];
@@ -1307,6 +1324,7 @@ export function createChunkWorld(opts) {
     Object.keys(M).forEach(function (k) { if (M[k] && M[k].isMaterial) list.push(M[k]); });
     Object.keys(paperMats).forEach(function (k) { if (paperMats[k]) list.push(paperMats[k]); });
     [groundMat, stainMat, jarMat, sealMat].forEach(function (m) { if (m) list.push(m); });
+    if (floorLayer) floorLayer.materials.forEach(function (m) { if (m) list.push(m); });
     return list;
   })();
 
@@ -1340,6 +1358,7 @@ export function createChunkWorld(opts) {
     grounds.forEach(function (g) { group.remove(g); });
     groundGeo.dispose();
     groundMat.dispose();
+    if (floorLayer) floorLayer.dispose();
     /* 판석 텍스처는 장별로 공유된다 — 청크 월드를 버린다고 GPU 텍스처를 지우지 않는다. */
     [gmap, gnorm, grough].forEach(function (t) { if (t && t.userData && t.userData.shared !== true) t.dispose(); });
     stainMat.dispose();

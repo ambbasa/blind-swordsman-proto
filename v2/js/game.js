@@ -39,11 +39,12 @@ import { foldPop, tickFolds } from './foldspring.js';
 import { PIXEL_LOOK, createPixelLookPass } from './pixellook.js';
 import { createCinematicPass } from './inkcinematic.js';
 import { createSlashArc } from './inkslash3d.js';
+import { PaperFx, preloadFx, fxInfo as fxSheetInfo, brushTex } from './inkfx3d.js';
 import { StageAtmosphere } from './inkatmos.js';
 import { paperPropCanvas } from './inkpaper.js';
 import { preloadChars } from './inkcharart.js';
 import { preloadDiorama, dioramaInfo } from './inkdiorama.js';
-import { createChunkWorld, buildChunkData, chunkOf, prebakeGroundStage } from './inkchunks.js';
+import { createChunkWorld, buildChunkData, chunkOf, prebakeGroundStage, floorStatus } from './inkchunks.js';
 import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariants } from './prewarm.js';
 import { InkFx, FX_COLORS } from './inkfx.js';
 import { createTelemetry } from './telemetry.js';
@@ -1529,6 +1530,8 @@ async function makeWorld() {
   } catch (e) {}
   try {
     world.ink = new InkParticles(scene, { base: FXINK_BASE, quality: fxQ === 'high' ? 'high' : 'low' });
+    /* v0.41: 종이 컷아웃 멀티프레임 이펙트(스킬·타격·부적·혼소멸) */
+    try { world.paper = new PaperFx(scene, { quality: fxQ === 'high' ? 'high' : 'low' }); } catch (e) { world.paper = null; }
     /* 바닥 먹 데칼은 밝아진 2.5D 바닥에서 검은 사각형으로 읽혀 끈다. 튐·터짐은 유지. */
     if (world.ink.decals) world.ink.decals.mesh.visible = false;
   } catch (e) { world.ink = null; }
@@ -2188,6 +2191,7 @@ function clearEntities() {
   (three.fx || []).forEach(function (f) { three.scene.remove(f.mesh); });
   three.fx = [];
   if (three.ink && three.ink.clear) three.ink.clear();
+  if (three.paper && three.paper.clear) three.paper.clear();
   (three.slashes || []).forEach(function (s) {
     if (s.mesh) three.scene.remove(s.mesh);
     if (s.dispose) s.dispose();
@@ -3036,6 +3040,8 @@ function spawnItem(opts) {
   try {
     if (e.obj && e.obj.scale) foldPop(e.obj, { from: 0.06, stiff: 210, damp: 14, tilt: 0.16 });
     if (audio && !qa.mute && audio.paperFold) audio.paperFold(0.45);
+    /* v0.41: 부적이 종이로 펄럭이며 떨어진다. */
+    if (three && three.paper) three.paper.talisman(e.x, 0.9, e.z, { size: 0.9 });
   } catch (err) {}
   S.items.push(e);
   return e;
@@ -5224,6 +5230,7 @@ function hurtZombie(z, amount, why, rec) {
   else {
     const d = inkDir(rec, z);
     if (three && three.ink) { three.ink.hit(z.x, z.z, d.x, d.z); fxinkStat.hits++; }
+    if (three && three.paper) three.paper.hit(z.x, 1.0, z.z, { size: z.type === 'stone' ? 1.6 : 1.1 });
     /* Stagger: a white flash and a short shove along the cut; the boss and status ticks do not shove. */
     z.flinchT = CFG.flinchDur || 0.14;
     if (z.obj && art.kickChar) art.kickChar(z.obj, 1);
@@ -5235,6 +5242,8 @@ function hurtZombie(z, amount, why, rec) {
 }
 function applyElement(z, elem, rec) {
   if (!z.alive || !elem) return;
+  /* v0.41: 원소 스킬 시트 — 붙은 자리에서 그 원소가 종이 컷으로 터진다. */
+  if (three && three.paper) three.paper.elem(elem, z.x, z.z, { size: 1.6, ringR: 1.8 });
   if (elem === 'fire') {
     if (z.frozen > 0) shatterZombie(z, rec);
     else if (z.poison > 0) explodeZombie(z, rec);
@@ -5411,6 +5420,10 @@ function makeSlash(from, to) {
     three.slashes.push(arc);
   } catch (e) {}
   if (three.ink) three.ink.slash(from, to);
+  /* v0.41: 검기 시트(초승달 종이 아크) — 원소면 그 원소 시트가 함께 터진다. */
+  if (three.paper) three.paper.slash(from, to, elemNow);
+  /* v0.41: 베기 자세 프레임 — 주인공 팔·몸통이 베는 그림으로 빠르게 넘어간다 */
+  if (three.heroSpr && art.slashChar) art.slashChar(three.heroSpr, 1.0);
   if (three.lights) three.lights.burst((from.x + to.x) * 0.5, 1.2, (from.z + to.z) * 0.5, { color: palColor('jade'), intensity: 4.5, duration: 0.28 });
   fxinkStat.slashes++;
   if (elemNow === 'fire' && art.trailTex) {
@@ -5587,6 +5600,8 @@ function killZombie(z, rec) {
   assignSpiritTargets();
   z.marked = false;
   if (z.obj) startDying(z.obj);
+  /* v0.41: 처치 — 혼령 자리에서 종이 부스러기로 흩어진다. */
+  if (three && three.paper) three.paper.dissolve(z.x, (z.isBoss ? 3.2 : 1.3), z.z, { size: z.isBoss ? 4.2 : 1.5 });
   if (three && three.ink) {
     const d = inkDir(rec || (S && S.lastDash), z);
     /* §3.1: 처치의 먹 번짐은 반경 ×1.4 — 한 획에 여러 마리가 사라져도 '벌었다'가 보이게. */
@@ -8220,7 +8235,7 @@ function step(dt) {
     placeGroup(z.obj, z.x, z.z);
     if (art.tickChar) {
       const kind = z.isBoss ? 'boss' : 'zombie';
-      const st = z.isBoss ? 'idle' : (frozen ? 'frozen' : (z.burn > 0 ? 'burning' : (z.poison > 0 ? 'poisoned' : 'walk')));
+      const st = z.isBoss ? ('boss:' + (z.state || 'idle')) : (frozen ? 'frozen' : (z.burn > 0 ? 'burning' : (z.poison > 0 ? 'poisoned' : 'walk')));
       const vx = S.hero.x - z.x, vz = S.hero.z - z.z;
       art.tickChar(z.obj, kind, st, Math.min(0.05, dt), vx, vz);
     }
@@ -8444,7 +8459,7 @@ function paintInk(pts, fading, color) {
     const p = pts[i], q = pts[i === 0 ? i + 1 : i - 1];
     const dx = p.x - q.x, dy = p.y - q.y, L = Math.hypot(dx, dy) || 1;
     const tt = i / (pts.length - 1);
-    const w = (1.8 + 6.8 * Math.sin(Math.PI * tt)) * (0.7 + 0.3 * a);
+    const w = (1.3 + 4.4 * Math.sin(Math.PI * tt)) * (0.72 + 0.28 * a);
     left.push({ x: p.x + -dy / L * w, y: p.y + dx / L * w });
     right.push({ x: p.x - -dy / L * w, y: p.y - dx / L * w });
   }
@@ -8453,10 +8468,41 @@ function paintInk(pts, fading, color) {
   for (let i = 1; i < left.length; i++) ctx.lineTo(left[i].x, left[i].y);
   for (let i = right.length - 1; i >= 0; i--) ctx.lineTo(right[i].x, right[i].y);
   ctx.closePath();
-  ctx.fillStyle = color ? hexRgba(color, 0.62 * a) : paperRgba(0.94 * a);
+  /* v0.41: 획 자체도 '먹 붓 자국' — 바탕은 먹, 둘레는 한지 단면, 결은 붓털 텍스처. */
+  ctx.fillStyle = color ? hexRgba(color, 0.62 * a) : 'rgba(20,17,16,' + (0.58 * a).toFixed(3) + ')';
   ctx.fill();
-  const dab = paintInk._dab;
-  if (dab && dab.complete) {
+  /* v0.41: 획을 '한지 붓 자국'으로 — 붓털·금박 텍스처를 폴리곤에 채우고 크림 단면을 두른다. */
+  if (brushTex.ink) {
+    try {
+      const b = paintInk._box || (paintInk._box = {});
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      for (let i = 0; i < left.length; i++) {
+        x0 = Math.min(x0, left[i].x, right[i].x); x1 = Math.max(x1, left[i].x, right[i].x);
+        y0 = Math.min(y0, left[i].y, right[i].y); y1 = Math.max(y1, left[i].y, right[i].y);
+      }
+      const pat = paintInk._pat || (paintInk._pat = ctx.createPattern(brushTex.ink, 'repeat'));
+      if (pat) {
+        if (pat.setTransform) { try { pat.setTransform(new DOMMatrix([0.5, 0, 0, 0.42, (x0 * 0.7) % 64, (y0 + (paintInk._t = (paintInk._t || 0) + 9)) % 64])); } catch (e) {} }
+        ctx.save();
+        ctx.globalAlpha = 0.62 * a;
+        ctx.fillStyle = pat;
+        ctx.fill();
+        ctx.restore();
+      }
+      /* 다이컷 종이 단면: 바깥쪽 옅은 크림 테 */
+      ctx.save();
+      ctx.globalAlpha = 0.42 * a;
+      ctx.strokeStyle = paperRgba(0.9);
+      ctx.lineWidth = 1.1;
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+      ctx.restore();
+    } catch (e) {}
+  }
+  const dab = brushTex.splat || paintInk._dab;
+  const dabIsSheet = dab === brushTex.splat;
+  const dabW = dabIsSheet ? dab.width / 6 : 0;
+  if (dab && dab.complete !== false) {
     let acc = 0, prev = pts[0];
     for (let i = 1; i < pts.length; i++) {
       const p = pts[i];
@@ -8464,7 +8510,13 @@ function paintInk(pts, fading, color) {
       if (acc >= 4) {
         const s = 7 + (i % 3);
         ctx.globalAlpha = 0.55 * a;
-        ctx.drawImage(dab, p.x - s / 2, p.y - s / 2, s, s);
+        if (dabIsSheet) {
+          /* v0.41: 획 꼬리마다 잉크 흩날림 프레임을 찍는다(프레임은 위치로 고른다). */
+          const fi = (i + (paintInk._n = (paintInk._n || 0) + 1)) % 6;
+          ctx.drawImage(dab, fi * dabW, 0, dabW, dabW, p.x - s * 0.9, p.y - s * 0.9, s * 1.8, s * 1.8);
+        } else {
+          ctx.drawImage(dab, p.x - s / 2, p.y - s / 2, s, s);
+        }
         ctx.globalAlpha = 1;
         acc = 0;
       }
@@ -9509,6 +9561,7 @@ function loop(ts) {
       sl.length = w;
     }
     if (three.ink && three.ink.update) three.ink.update(dt);
+    if (three.paper) three.paper.update(dt);
     if (three.lights) three.lights.update(dt);
     /* v0.40 4단계: 초점 거리 = 주인공 가슴. 디오라마의 접사 초점 밴드가 주인공에 고정된다. */
     try {
@@ -10727,6 +10780,13 @@ const GPv2 = {
     try { const d = dofPassOf(); if (d && d.setAmount) { d.setAmount(v); return d.debugInfo ? d.debugInfo() : true; } } catch (e) { return String(e); }
     return false;
   },
+  floorInfo: function () { try { return floorStatus(); } catch (e) { return String(e); } },
+  fxInfo: function () { try { const a = fxSheetInfo(); const b = three && three.paper ? three.paper.info() : null; return { sheets: a, live: b }; } catch (e) { return String(e); } },
+  /* v0.41 QA: 실제 일섬 경로를 그대로 만들어 검기 이펙트를 확인한다. */
+  dashQa: function (shape) {
+    try { const t = (S.zombies || []).filter(function (z) { return z.alive; })[0] || null; return beginDash(shape || 'vline', { target: t, rec: null }); } catch (e) { return String(e); }
+  },
+  fxEmit: function (kind, x, y, z, size) { try { return !!(three && three.paper && three.paper.emit(kind, { x: x, y: y, z: z, size: size || 2 })); } catch (e) { return String(e); } },
   visualInfo: function () {
     const r = three && three.renderer;
     return {

@@ -1,0 +1,49 @@
+{
+ "slabs": [
+  {
+   "f": "slab_0.png",
+   "nf": "slab_0_n.png",
+   "px": 256
+  },
+  {
+   "f": "slab_1.png",
+   "nf": "slab_1_n.png",
+   "px": 256
+  },
+  {
+   "f": "slab_2.png",
+   "nf": "slab_2_n.png",
+   "px": 256
+  },
+  {
+   "f": "slab_3.png",
+   "nf": "slab_3_n.png",
+   "px": 256
+  },
+  {
+   "f": "slab_4.png",
+   "nf": "slab_4_n.png",
+   "px": 256
+  },
+  {
+   "f": "slab_5.png",
+   "nf": "slab_5_n.png",
+   "px": 256
+  }
+ ],
+ "soil": "soil.png",
+ "cards": [
+  "grass_a",
+  "grass_b",
+  "grass_c",
+  "pebble_a",
+  "pebble_b",
+  "moss_a",
+  "moss_b",
+  "leaf_a",
+  "leaf_b",
+  "straw",
+  "sprout"
+ ],
+ "version": "0.41"
+}

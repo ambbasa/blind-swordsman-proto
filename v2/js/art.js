@@ -6,7 +6,7 @@ import { drawInkBossSheet } from './inkboss.js';
 import { drawHeroSheets, drawZombieSheets, drawZombieVariantSheets, drawSpiritSheet } from './inkchars.js';
 import { drawRattle, drawItem, drawSeal, drawUpgrade } from './inkicons.js';
 import { loadPixelPack, PIXEL_LOOK } from './pixellook.js';
-import { buildFigure, tickFigure, kick as rigKick, setOpacity as rigOpacity, setTint as rigTint,
+import { buildFigure, tickFigure, kick as rigKick, slashPose as rigSlash, setOpacity as rigOpacity, setTint as rigTint,
   setAuraColor as rigAuraColor, setOrder as rigOrder, setCamera as rigSetCamera, ready as rigReady } from './inkchars3d.js';
 
 const BASE = '../assets/v2/';
@@ -957,6 +957,7 @@ export async function buildArt(THREE) {
     /* v0.38 파츠 리그 훅: 카메라·피격 반동·틴트·투명도·그리기 순서 */
     setCamera: function (cam) { rigSetCamera(cam); },
     kickChar: function (group, k) { rigKick(group, k); },
+    slashChar: function (group, k) { rigSlash(group, k); },
     tintChar: function (group, r, g, b) {
       if (!group || !group.userData) return;
       if (group.userData.rig) { rigTint(group, r, g, b); return; }

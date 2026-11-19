@@ -1,0 +1,72 @@
+{
+ "slash": {
+  "f": "slash.png",
+  "n": 6,
+  "cw": 256,
+  "ch": 160
+ },
+ "spark": {
+  "f": "spark.png",
+  "n": 6,
+  "cw": 128,
+  "ch": 128
+ },
+ "fire": {
+  "f": "fire.png",
+  "n": 6,
+  "cw": 128,
+  "ch": 160
+ },
+ "ice": {
+  "f": "ice.png",
+  "n": 6,
+  "cw": 128,
+  "ch": 160
+ },
+ "bolt": {
+  "f": "bolt.png",
+  "n": 6,
+  "cw": 128,
+  "ch": 160
+ },
+ "poison": {
+  "f": "poison.png",
+  "n": 6,
+  "cw": 128,
+  "ch": 160
+ },
+ "talisman": {
+  "f": "talisman.png",
+  "n": 6,
+  "cw": 96,
+  "ch": 128
+ },
+ "ring": {
+  "f": "ring.png",
+  "n": 6,
+  "cw": 256,
+  "ch": 256
+ },
+ "dissolve": {
+  "f": "dissolve.png",
+  "n": 8,
+  "cw": 96,
+  "ch": 96
+ },
+ "splat": {
+  "f": "splat.png",
+  "n": 6,
+  "cw": 96,
+  "ch": 96
+ },
+ "brush_ink": {
+  "f": "brush_ink.png",
+  "w": 256,
+  "h": 64
+ },
+ "brush_gold": {
+  "f": "brush_gold.png",
+  "w": 256,
+  "h": 64
+ }
+}
