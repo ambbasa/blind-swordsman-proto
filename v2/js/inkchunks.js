@@ -10,7 +10,7 @@ import {
 } from './inkbake.js';
 import { makeMaterials, instanced, rockGeo, crossQuads, glowBatch, aoBatch, mergeGeo } from './inkprops3d.js';
 import { paperPropCanvas } from './inkpaper.js';
-import { texOf, aspectOf } from './inkdiorama.js';
+import { texOf, aspectOf, panoOf } from './inkdiorama.js';
 import { createFloorLayer, floorReady, soilTexture, floorInfo } from './inkfloor.js';
 
 export const CHUNK = 24;
@@ -35,7 +35,7 @@ function qnum(k, d) {
     return isFinite(v) && v > 0 ? v : d;
   } catch (e) { return d; }
 }
-const FLOOR_MUL = qnum('floorMul', 1);
+const FLOOR_MUL = qnum('floorMul', 0.22);   /* v0.43: 한지 바탕 알베도(예전 밤 돌바닥보다 밝되 종이처럼) */
 const SCREEN_R = qnum('screenR', 21);
 const SCREEN_H = qnum('screenH', 11);
 
@@ -858,11 +858,11 @@ export function createChunkWorld(opts) {
   /* v0.41: 바탕면은 '흙(soil)'이 되고, 판석은 inkfloor.js 의 인스턴스 레이어가 얹는다.
      바닥 에셋이 없으면(로드 실패) v0.40 의 512 사각 판석으로 그대로 폴백한다. */
   const v41Floor = floorReady();
-  const floorKey = 'floor-' + stageId + (v41Floor ? '-soil' : '');
+  const floorKey = 'floor-' + stageId + (v41Floor ? '-hanji' : '');
   let fset = FLOOR_CACHE.get(floorKey);
   if (!fset) {
     const fMap = v41Floor ? soilTexture() : texOf('floor'), fN = v41Floor ? null : texOf('floorN'), fR = v41Floor ? null : texOf('floorR');
-    const map = (fMap || gs.map).clone(); map.needsUpdate = true; map.repeat.set(v41Floor ? 6 : REPEAT, v41Floor ? 6 : REPEAT);
+    const map = (fMap || gs.map).clone(); map.needsUpdate = true; map.repeat.set(v41Floor ? 8 : REPEAT, v41Floor ? 8 : REPEAT);
     const nrm = fN ? (fN || gs.normalMap).clone() : null; if (nrm) { nrm.needsUpdate = true; nrm.repeat.set(REPEAT, REPEAT); }
     const rgh = fR ? (fR || gs.roughnessMap).clone() : null; if (rgh) { rgh.needsUpdate = true; rgh.repeat.set(REPEAT, REPEAT); }
     [map, nrm, rgh].forEach(function (t) { if (t && t.userData) t.userData.shared = true; });
@@ -871,11 +871,21 @@ export function createChunkWorld(opts) {
     /* v0.37: 사각 돌판 PNG 는 밝고 주황이 강해 그대로 쓰면 무대가 하얗게 뜬다.
        장별 돌빛을 0.42 로 눌러 밤 알베도로 맞추고, 살짝 중성으로 당긴다. */
     const raw = new THREE.Color(st[0] * 2.55 * 1.16, st[1] * 2.55, st[2] * 2.55 * 0.80);
-    if (fMap) {
-      const g = (raw.r + raw.g + raw.b) / 3;
-      raw.lerp(new THREE.Color(g, g, g), 0.28);
+    if (!v41Floor) {
+      if (fMap) {
+        const g = (raw.r + raw.g + raw.b) / 3;
+        raw.lerp(new THREE.Color(g, g, g), 0.28);
+      }
     }
-    const base = raw.multiplyScalar((v41Floor ? 1.05 : fMap ? 0.58 : 1) * FLOOR_MUL);
+    /* v0.43: 바닥은 이제 '따뜻한 한지·연갈색'(1~3막 공통). 장별로 아주 옅은 기운만 남긴다. */
+    if (v41Floor) {
+      const warm = new THREE.Color(1.02, 0.955, 0.855);
+      const g = (st[0] + st[1] + st[2]) / 3;
+      const cool = new THREE.Color(Math.min(1.1, st[2] / Math.max(1e-4, g)), Math.min(1.1, st[1] / Math.max(1e-4, g)), Math.min(1.1, st[0] / Math.max(1e-4, g)));
+      warm.lerp(cool, stageId >= 5 && stageId <= 8 ? 0.16 : (stageId >= 9 ? 0.12 : 0.08));
+      raw.copy(warm);
+    }
+    const base = raw.multiplyScalar((v41Floor ? 1.02 : fMap ? 0.58 : 1) * FLOOR_MUL);
     fset = { map: map, normalMap: nrm, roughnessMap: rgh, base: base, png: !!fMap, soil: v41Floor };
     FLOOR_CACHE.set(floorKey, fset);
     /* 12장을 다 돌아도 GPU 텍스처가 쌓이지 않게 최근 4장만 남긴다(512 판석 3장 = 약 4MB). */
@@ -993,7 +1003,9 @@ export function createChunkWorld(opts) {
     screenMesh.position.set(SCREEN.x, 0, SCREEN.z);
   }
   try {
-    const st = texOf('screen');
+    /* v0.43: 막별 원경 파노라마(먼 산·처마·배·안개)를 먼저 쓰고, 없으면 옛 병풍으로. */
+    const act = stageId <= 4 ? 1 : (stageId <= 8 ? 2 : 3);
+    const st = panoOf(act) || texOf('screen');
     if (st) screenMesh = buildScreenRing(st);
   } catch (e) { screenMesh = null; }
 

@@ -40,6 +40,7 @@ import { PIXEL_LOOK, createPixelLookPass } from './pixellook.js';
 import { createCinematicPass } from './inkcinematic.js';
 import { createSlashArc } from './inkslash3d.js';
 import { PaperFx, preloadFx, fxInfo as fxSheetInfo, brushTex } from './inkfx3d.js';
+import { TraceField, preloadTraces, tracesReady } from './traces.js';
 import { StageAtmosphere } from './inkatmos.js';
 import { paperPropCanvas } from './inkpaper.js';
 import { preload as preloadFigures, poseInfo as figurePoseInfo } from './inkchars3d.js';
@@ -569,6 +570,39 @@ const STAGES = [
   }
 ];
 function actOf(n) { return Math.max(1, Math.min(3, Math.ceil((n | 0) / 4))); }
+/* ---------- v0.43 한지 톤 정돈 ----------
+   창현님 지시(@coldmountainlab): 어두운 무대 대신 **1~3막 기본 톤을 따뜻한 한지·연갈색**으로.
+   장 고유의 기운(달빛·안개·혈월)은 남기되, 바탕(clear)·안개·조도를 한지 쪽으로 당긴다.
+   여기 한 곳만 고치면 12장이 같이 따라온다(값은 위 atmo 원본에서 파생). */
+const HANJI_TONE = {
+  /* fog = '멀어진 곳이 잠기는 색'(장면 안 색) — 밝은 종이색을 넣으면 원경이 하얗게 날아간다.
+     따뜻한 먹물(연갈색 안료가 섞인 검정)로 잠겨야 한지 톤이 유지된다. */
+  1: { mix: 0.70, paper: 0xdcc9a4, fog: [78, 64, 46], dens: 0.0090, light: 1.45 },
+  2: { mix: 0.66, paper: 0xcfd2c8, fog: [80, 88, 90], dens: 0.0125, light: 1.35 },
+  3: { mix: 0.62, paper: 0xd6b49a, fog: [74, 40, 32], dens: 0.0110, light: 1.40 }
+};
+const _hc = new THREE.Color();
+const _hp = new THREE.Color();
+STAGES.forEach(function (st) {
+  const a = st.atmo;
+  if (!a) return;
+  const t = HANJI_TONE[actOf(st.id)] || HANJI_TONE[1];
+  _hc.setHex(a.clear || 0x1b1a1c);
+  _hp.setHex(t.paper);
+  _hc.lerp(_hp, t.mix);
+  a.clear = _hc.getHex();
+  a.fogCol = t.fog.slice();
+  a.fog = t.dens;
+  ['moon', 'amb', 'hemiI', 'fill'].forEach(function (k) {
+    if (a[k] != null) a[k] = +(a[k] * t.light).toFixed(2);
+  });
+  a.hemi = _hc.clone().offsetHSL(0, -0.04, 0.06).getHex();
+  a.ground = _hp.clone().offsetHSL(0.01, -0.02, -0.16).getHex();
+  a.moonCol = _hp.clone().offsetHSL(0.02, 0.16, 0.18).getHex();
+  a.tint = actOf(st.id) === 3
+    ? 'linear-gradient(180deg, rgba(150,60,34,0.10) 0%, rgba(60,18,12,0.10) 100%)'
+    : 'linear-gradient(180deg, rgba(198,168,116,0.10) 0%, rgba(120,96,62,0.08) 100%)';
+});
 const ACT_NAMES = { 1: '폐허의 도성', 2: '안개 산사', 3: '혈월의 나락' };
 function stageOf(n) { return STAGES[clamp((n | 0) || 1, 1, STAGES.length) - 1]; }
 function curStage() { return (S && S.stage) || stageOf(save.stage || 1); }
@@ -1532,6 +1566,8 @@ async function makeWorld() {
     world.ink = new InkParticles(scene, { base: FXINK_BASE, quality: fxQ === 'high' ? 'high' : 'low' });
     /* v0.41: 종이 컷아웃 멀티프레임 이펙트(스킬·타격·부적·혼소멸) */
     try { world.paper = new PaperFx(scene, { quality: fxQ === 'high' ? 'high' : 'low' }); } catch (e) { world.paper = null; }
+    /* v0.43: 바닥에 남는 원소 흔적(먹 튐·그을림·얼음 균열·번개 자국) */
+    try { world.traces = new TraceField(scene, { cap: fxQ === 'high' ? 10 : 6 }); } catch (e) { world.traces = null; }
     /* 바닥 먹 데칼은 밝아진 2.5D 바닥에서 검은 사각형으로 읽혀 끈다. 튐·터짐은 유지. */
     if (world.ink.decals) world.ink.decals.mesh.visible = false;
   } catch (e) { world.ink = null; }
@@ -2192,6 +2228,7 @@ function clearEntities() {
   three.fx = [];
   if (three.ink && three.ink.clear) three.ink.clear();
   if (three.paper && three.paper.clear) three.paper.clear();
+  if (three.traces && three.traces.clear) three.traces.clear();
   (three.slashes || []).forEach(function (s) {
     if (s.mesh) three.scene.remove(s.mesh);
     if (s.dispose) s.dispose();
@@ -2203,9 +2240,17 @@ function clearEntities() {
   S.shots = []; S.hazards = []; S.reflects = [];
 }
 
+/* v0.43 최적화: 한 프레임에 여러 번 불려도 배열을 한 번만 만든다(프레임 번호로 캐시).
+   혼령은 프레임 중에 늘거나 줄지 않으므로 같은 프레임이면 같은 결과다. */
+let _lmList = [];
 function livingMarks() {
-  if (!S) return [];
-  return (S.spirits || []).filter(function (s) { return s.alive; });
+  /* v0.43: 매번 새 배열을 만들지 않고 하나를 재사용한다(읽기 전용으로만 쓴다). */
+  if (!S) return _lmList;
+  const sp = S.spirits || [];
+  let n = 0;
+  for (let i = 0; i < sp.length; i++) if (sp[i] && sp[i].alive) _lmList[n++] = sp[i];
+  _lmList.length = n;
+  return _lmList;
 }
 function refreshSpirits() {
   return livingMarks();
@@ -5240,10 +5285,19 @@ function hurtZombie(z, amount, why, rec) {
     }
   }
 }
+/* v0.43: 원소별 바닥 흔적 — 화염=그을림, 빙결=얼음 균열, 번개=벼락 자국, 나머지=먹 튐. */
+function groundTrace(elem, x, z, r) {
+  if (!three || !three.traces) return;
+  const kind = elem === 'fire' ? 'scorch' : elem === 'ice' ? 'ice' : (elem === 'lightning' || elem === 'bolt') ? 'bolt' : 'ink';
+  const size = (r != null ? r * 2.1 : 2.7) * (0.85 + Math.random() * 0.4);
+  three.traces.decal(kind, x, z, { size: size, dur: kind === 'scorch' ? 4.6 : kind === 'ice' ? 5.2 : kind === 'bolt' ? 3.4 : 3.0, alpha: 0.85 });
+}
 function applyElement(z, elem, rec) {
   if (!z.alive || !elem) return;
   /* v0.41: 원소 스킬 시트 — 붙은 자리에서 그 원소가 종이 컷으로 터진다. */
   if (three && three.paper) three.paper.elem(elem, z.x, z.z, { size: 1.6, ringR: 1.8 });
+  /* v0.43: 같은 순간 바닥에 흔적이 남는다 — 궤적·터짐·흔적이 한 프레임에 맞물린다. */
+  groundTrace(elem, z.x, z.z);
   if (elem === 'fire') {
     if (z.frozen > 0) shatterZombie(z, rec);
     else if (z.poison > 0) explodeZombie(z, rec);
@@ -5928,6 +5982,7 @@ function stepBolts(dt) {
     if (b.done || b.t < b.delay) return;
     b.done = true;
     if (art && art.playFx && three) { const fx = art.playFx(three.scene, 'ink-splat', b.x, b.z, b.r); if (fx) three.fx.push(fx); }
+    groundTrace('lightning', b.x, b.z, b.r);
     S.shake = Math.max(S.shake || 0, 0.3);
     const dmg = CFG.boltCard.dmg || 2.2;
     S.zombies.slice().forEach(function (z) {
@@ -8056,6 +8111,34 @@ function endRun(win, msg) {
   renderHud();
 }
 
+/* v0.43: 무리 간 간격 유지(separation). 좁은 무리에서 서로 밀어내 한 덩어리로 겹치지 않게 한다.
+   비용: 살아 있는 잔몹 n 에 대해 n(n-1)/2 거리 비교(상한 45마리 → 1천 회 내외). */
+function separateCrowd(dt) {
+  if (!S || !S.zombies || S.zombies.length < 2) return;
+  const list = [];
+  for (let i = 0; i < S.zombies.length; i++) {
+    const z = S.zombies[i];
+    if (z && z.alive && !z.isBoss && !z.isClone && !z.isPillar && !z.isTotem) list.push(z);
+  }
+  const n = list.length;
+  if (n < 2) return;
+  const k = Math.min(1, dt * 14) * 0.5;
+  for (let i = 0; i < n; i++) {
+    const a = list[i];
+    for (let j = i + 1; j < n; j++) {
+      const b = list[j];
+      const dx = a.x - b.x, dz = a.z - b.z;
+      const min = (a.r + b.r) * 0.92;
+      const d2 = dx * dx + dz * dz;
+      if (d2 >= min * min) continue;
+      const d = Math.sqrt(d2) || 0.001;
+      const push = (min - d) * k;
+      const ux = dx / d, uz = dz / d;
+      a.x += ux * push; a.z += uz * push;
+      b.x -= ux * push; b.z -= uz * push;
+    }
+  }
+}
 function step(dt) {
   if (!S || !S.playing || S.paused) return;
   S.elapsed += dt; S.timeLeft -= dt;
@@ -8154,10 +8237,18 @@ function step(dt) {
     else if (delayed) { S.zAcc = 0; zMax = 0; }
     else if (early) { zMax = SP.earlyMax || CFG.earlyZombieMax || 4; zBase = Math.max(zBase, SP.earlyMinMs || CFG.earlyZombieMinMs || 2000); }
     const zms = Math.max(CFG.spawnZombieMinMs || 450, zBase / (practicing || delayed ? 1 : wave));
+    /* v0.43 최적화: 잔몹 수를 한 번만 세고(예전엔 매 프레임 some+filter 로 배열 2개를 새로 만들었다)
+       스폰할 때마다 +1 한다. 스폰 루프 안에서 다시 filter 하지 않는다. */
+    let aliveNormal = 0;
+    for (let i = 0; i < S.zombies.length; i++) {
+      const z = S.zombies[i];
+      if (z && z.alive && !z.isBoss) aliveNormal++;
+    }
     /* 귀물이 하나도 남지 않았으면 다음 스폰을 기다리지 않고 바로 한 마리 내보낸다(비는 시간 0). */
-    if (zMax > 0 && !S.zombies.some(function (z) { return z.alive && !z.isBoss; })) S.zAcc = Math.max(S.zAcc, zms);
-    while (zMax > 0 && S.zAcc >= zms && S.zombies.filter(function (z) { return z.alive && !z.isBoss; }).length < zMax) {
-      S.zAcc -= zms; spawnZombie();
+    if (zMax > 0 && aliveNormal === 0) S.zAcc = Math.max(S.zAcc, zms);
+    let guardSpawn = 0;
+    while (zMax > 0 && S.zAcc >= zms && aliveNormal < zMax && guardSpawn++ < 8) {
+      S.zAcc -= zms; spawnZombie(); aliveNormal++;
     }
     stepSpirits(dt);
   } else {
@@ -8221,16 +8312,40 @@ function step(dt) {
     const d = dist(z, S.hero) || 0.001;
     const frozen = z.frozen > 0 || (z.stun || 0) > 0;
     if (z.flinchT > 0) z.flinchT = Math.max(0, z.flinchT - dt);
+    /* v0.43 적 AI: 접촉 피해 몹도 '치기 전 동작'을 한다.
+       사거리에 들어오면 0.34초 몸을 웅크려(공격 포즈) 거의 멈추고, 그 뒤에야 닿는다.
+       → 때리는 순간이 눈에 보이고, 플레이어가 비켜설 틈이 생긴다. */
+    if (!z.isBoss && !frozen) {
+      z.atkCd = Math.max(0, (z.atkCd || 0) - dt);
+      if (z.atkTele > 0) {
+        z.atkTele -= dt;
+        if (z.atkTele <= 0) z.atkTele = 0;
+      } else if (z.atkCd <= 0 && d < z.r + 1.55 && !S.dash) {
+        z.atkTele = CFG.atkTele || 0.34;
+        z.atkCd = (CFG.atkTele || 0.34) + (CFG.atkCool || 0.95);
+      }
+    }
     const bossHandled = z.isBoss ? stepBoss(z, dt) : (qa.noMove ? false : stepEnemySpecial(z, dt, d, frozen, zsp));
     if (!qa.noMove && !frozen && !bossHandled && !(z.flinchT > 0 && !z.isBoss)) {
       const kd = CFG.zombieTypes[z.type] || CFG.zombieTypes.imp;
       /* The boss speeds up the farther it is outside the ring, so a dashing hero cannot outrun it. */
-      const sp = z.isBoss ? (CFG.bossSpeed || 1) * (1 + (CFG.bossCatchUp || 0) * Math.max(0, d - ringR())) : zsp * kd.speed * slowMulOf(z) * terrainSlowMul(z);
+      let sp = z.isBoss ? (CFG.bossSpeed || 1) * (1 + (CFG.bossCatchUp || 0) * Math.max(0, d - ringR())) : zsp * kd.speed * slowMulOf(z) * terrainSlowMul(z);
+      /* 공격 예비 동작 동안은 발이 묶인다(웅크린 채로 밀고 들어오지 않는다). */
+      if (!z.isBoss && z.atkTele > 0) sp *= CFG.atkTeleSp || 0.22;
       /* §6.2 수호: 석등을 노리는 무리는 주인공이 아니라 석등으로 간다. */
       const tgt = (z.goalTarget && goalPos) ? goalPos : S.hero;
       const md = Math.hypot(tgt.x - z.x, tgt.z - z.z) || 0.001;
-      z.x += (tgt.x - z.x) / md * sp * dt;
-      z.z += (tgt.z - z.z) / md * sp * dt;
+      const ux = (tgt.x - z.x) / md, uz = (tgt.z - z.z) / md;
+      /* v0.43: 살짝 측면으로 우회 기동 — 한 줄로 곧장 몰려오지 않는다. */
+      if (!z.isBoss) {
+        if (!z.sw) z.sw = (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.7);
+        const lat = Math.sin((S.elapsed || 0) * 1.15 + (z.id || 0) * 1.7) * (CFG.mobWeave || 0.26) * z.sw;
+        z.x += (ux - uz * lat) * sp * dt;
+        z.z += (uz + ux * lat) * sp * dt;
+      } else {
+        z.x += ux * sp * dt;
+        z.z += uz * sp * dt;
+      }
     }
     placeGroup(z.obj, z.x, z.z);
     if (art.tickChar) {
@@ -8239,7 +8354,7 @@ function step(dt) {
       const st = z.isBoss ? ('boss:' + (z.state || 'idle'))
         : (frozen ? 'frozen'
           : (z.flinchT > 0 ? 'hit'
-            : ((z.windT || 0) > 0 || (z.dashPhase || 0) > 0 ? 'attack'
+            : ((z.windT || 0) > 0 || (z.dashPhase || 0) > 0 || (z.atkTele || 0) > 0 ? 'attack'
               : (z.burn > 0 ? 'burning' : (z.poison > 0 ? 'poisoned' : 'walk')))));
       const vx = S.hero.x - z.x, vz = S.hero.z - z.z;
       art.tickChar(z.obj, kind, st, Math.min(0.05, dt), vx, vz);
@@ -8293,6 +8408,8 @@ function step(dt) {
       }
     }
   });
+  /* v0.43: 무리 간 간격 유지 — 한 점에 겹쳐 뭉치지 않게 서로를 살짝 민다. */
+  if (!qa.noMove) separateCrowd(dt);
   stepShots(dt);
   stepHazards(dt);
   stepShrink(dt);
@@ -9297,6 +9414,13 @@ function fadeFx(obj, a) {
 
 
 /* 스테이지 분위기: 밤 색·안개 농도·달빛·색조를 스테이지마다 바꾼다. */
+/* v0.43 QA 노브: 바탕이 한지로 밝아진 만큼 빛의 세기를 화면에서 바로 맞춘다(?atmoK=0.5). */
+const ATMO_K = (function () {
+  try {
+    const v = parseFloat(new URLSearchParams(location.search).get('atmoK'));
+    return isFinite(v) && v > 0 ? v : 0.32;   /* v0.43 기본값: 한지 바탕에 맞춘 조도 */
+  } catch (e) { return 1; }
+})();
 function applyStageAtmo(st) {
   st = st || (S && S.stage) || stageOf(save.stage || 1);
   const a = (st && st.atmo) || {};
@@ -9308,12 +9432,12 @@ function applyStageAtmo(st) {
     }
     if (three.sky && three.sky.material && three.sky.material.color) three.sky.material.color.set(clear);
     if (three.moon) {
-      three.moon.intensity = a.moon != null ? a.moon : 1.45;
+      three.moon.intensity = (a.moon != null ? a.moon : 1.45) * ATMO_K;
       if (a.moonCol != null && three.moon.color) three.moon.color.setHex(a.moonCol);
     }
-    if (three.amb) three.amb.intensity = a.amb != null ? a.amb : 1.0;
-    if (three.fill) three.fill.intensity = a.fill != null ? a.fill : 0.85;
-    if (three.hemi && a.hemiI != null) three.hemi.intensity = a.hemiI;
+    if (three.amb) three.amb.intensity = (a.amb != null ? a.amb : 1.0) * ATMO_K;
+    if (three.fill) three.fill.intensity = (a.fill != null ? a.fill : 0.85) * ATMO_K;
+    if (three.hemi && a.hemiI != null) three.hemi.intensity = a.hemiI * ATMO_K;
     if (three.hemi && a.hemi != null) three.hemi.color.setHex(a.hemi);
     if (three.hemi && a.ground != null) three.hemi.groundColor.setHex(a.ground);
     if (three.renderer) three.renderer.setClearColor(clear, 1);
@@ -9567,6 +9691,7 @@ function loop(ts) {
     }
     if (three.ink && three.ink.update) three.ink.update(dt);
     if (three.paper) three.paper.update(dt);
+    if (three.traces) three.traces.update(dt);
     if (three.lights) three.lights.update(dt);
     /* v0.40 4단계: 초점 거리 = 주인공 가슴. 디오라마의 접사 초점 밴드가 주인공에 고정된다. */
     try {

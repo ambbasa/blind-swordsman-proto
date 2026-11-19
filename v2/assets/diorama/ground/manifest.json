@@ -1,0 +1,15 @@
+{
+ "files": [
+  "hanji.png",
+  "earth.png",
+  "water.png",
+  "snow.png",
+  "abyss.png",
+  "wash.png",
+  "trace_ink.png",
+  "trace_scorch.png",
+  "trace_ice.png",
+  "trace_bolt.png"
+ ],
+ "note": "v0.43 일체형 수묵 지형 바닥 · 원소 흔적"
+}

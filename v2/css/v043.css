@@ -1,0 +1,82 @@
+/* v2/css/v043.css — v0.43 UI 톤 정돈("AI 티 벗기기").
+   원칙: 게임 화면이 한지·먹으로 바뀌었으니 UI 도 같은 종이 위에 얹힌 것처럼.
+     · 패널 = 한지 바탕 + 1px 먹선 한 겹(금테 두 줄·네온 글로우 제거)
+     · 강조 = 작은 낙관(주홍) 점 하나. 색을 여러 겹 칠하지 않는다
+     · 모서리 반경은 2~3px(종이를 자른 느낌), 그림자는 얕게
+   기존 규칙을 지우지 않고 뒤에서 덮어쓴다(롤백은 이 파일만 빼면 된다). */
+
+.card {
+  border-radius: 3px;
+  background-color: #1d1915;
+  background-image:
+    linear-gradient(180deg, rgba(239, 228, 204, .10), rgba(239, 228, 204, .035) 42%, rgba(8, 7, 6, .10)),
+    url(../../assets/v2/bg/hanji-ink.png);
+  background-size: auto, cover;
+  box-shadow:
+    inset 0 0 0 1px rgba(239, 228, 204, .16),
+    inset 0 0 0 2px rgba(8, 7, 6, .55),
+    0 18px 40px rgba(0, 0, 0, .55);
+  border: 0;
+}
+/* 낙관(주홍) 점 — 카드마다 하나. 장식은 이 하나로 끝낸다. */
+.card::after {
+  content: '';
+  position: absolute;
+  right: 12px; top: 12px;
+  width: 9px; height: 9px;
+  background: var(--vermilion, #c8281e);
+  border-radius: 1px;
+  opacity: .85;
+  pointer-events: none;
+}
+.title-card::after { display: none; }
+
+.card h2 { font-weight: 400; letter-spacing: .06em; }
+.title-card h1 { text-shadow: none; }
+.card .tagline, .title-card .tagline { letter-spacing: .18em; }
+
+/* 버튼: 금테 글로우 대신 먹 테두리 + 종이 바탕 */
+.btn {
+  border-radius: 3px;
+  border: 1px solid rgba(239, 228, 204, .22);
+  background: rgba(28, 24, 20, .82);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .35);
+  letter-spacing: .03em;
+}
+.btn.primary {
+  background: linear-gradient(180deg, #d8b862, #b89441);
+  color: #16110c;
+  border-color: rgba(20, 15, 10, .5);
+  box-shadow: inset 0 0 0 1px rgba(255, 246, 222, .35), 0 2px 0 rgba(0, 0, 0, .35);
+  font-weight: 700;
+}
+.btn.primary:active { transform: translateY(1px); box-shadow: inset 0 0 0 1px rgba(255, 246, 222, .3); }
+
+/* 레벨업 카드: 종이 위에 먹 글씨, 선택지는 얇은 먹선 */
+.btn.quick-card {
+  background: rgba(30, 26, 22, .90);
+  border: 1px solid rgba(239, 228, 204, .20);
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .4);
+}
+.btn.quick-card strong { color: #f0e3c8; font-weight: 400; letter-spacing: .04em; }
+.btn.quick-card .qc-lv { background: #d8b862; color: #14100b; border-radius: 1px; }
+.btn.quick-card.new .qc-lv { background: var(--vermilion, #c8281e); color: #fff4e8; }
+.btn.quick-card.evo {
+  border-color: rgba(255, 215, 102, .55);
+  box-shadow: inset 3px 0 0 rgba(255, 215, 102, .8), inset 0 0 0 1px rgba(0, 0, 0, .35);
+}
+.btn.quick-card:active { background: rgba(60, 42, 30, .92); }
+
+/* 일시정지·정산 패널의 목록 줄: 지그재그 배경 대신 얇은 먹 밑줄 */
+.ov .card li, .ov .card .row { border-color: rgba(239, 228, 204, .12) !important; }
+
+/* 상단 HUD: 바탕이 밝아졌으므로 먹 그림자를 조금 더 진하게(가독성). */
+#hud { background: linear-gradient(to bottom, rgba(10, 8, 6, .82) 0%, rgba(10, 8, 6, .46) 52%, rgba(10, 8, 6, 0) 100%); }
+#hud .hud-row { text-shadow: 0 1px 2px rgba(0, 0, 0, .55); }
+#stageLabel { letter-spacing: .10em; }
+#chargeWrap { border-radius: 2px; }
+#xpWrap, #chargeWrap { background: rgba(10, 8, 6, .55); }
+
+/* 하단 스킬 안내 칩도 같은 종이 톤 */
+.skip-chip, .mode-row .btn, .act-tabs .btn, .stage-select .btn { border-radius: 2px; }

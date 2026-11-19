@@ -1,4 +1,4 @@
-/* v2/js/inkpose3d.js — v0.42 '동작마다 전용 그림' 포즈 카드 캐릭터.
+/* v2/js/inkpose3d.js — v0.43 '동작마다 전용 그림' 포즈 카드 캐릭터.
 
    v0.41 리그는 한 장의 정면 그림을 부위로 잘라 비틀어 움직였다(자세 자체는 하나).
    v0.42 는 캐릭터마다 **동작별로 실제로 다른 자세를 그린 그림**을 가로로 이어 붙인 스트립을 쓴다.
@@ -6,9 +6,11 @@
    · 자산: assets/diorama/poses/{char}_{action}.png  — N칸 가로 스트립(칸마다 같은 발 앵커)
            assets/diorama/poses/{char}_{action}_aura.png — 같은 실루엣을 부풀린 발광판(정예 금테·예고)
    · 동작: idle(호흡) · walk(보폭) · slash(일섬) · attack · windup(기 모으기) · strike(강공) · hit(피격)
-   · 전환: 레이어 두 장을 겹쳐 두고 새 동작이 짧게 페이드 인 → 동작 사이가 뚝 끊기지 않는다.
+   · v0.43: 그림판은 **한 장만** 쓴다. 동작이 바뀌면 그 판의 스트립·칸 수를 바로 갈아 끼우고
+     프레임 0 부터 다시 센다 — 반투명 크로스페이드가 없으므로 같은 인물이 두 겹으로 보이지 않는다.
+   · v0.43: 프레임 UV 는 `uFx = 정수 프레임 번호` 다(셰이더가 uFx * 1/nf 로 칸을 찾는다).
    · 보조 움직임: 걷기 위상에 맞춘 상하 바운스·앞기울기·좌우 흔들림(그림은 그대로, 몸만 산다).
-   · 좌우 반전은 group.scale.x. 지오메트리·텍스처는 캐릭터 간 공유, 재질은 레이어당 한 장. */
+   · 좌우 반전은 group.scale.x. 지오메트리·텍스처는 캐릭터 간 공유, 재질은 한 장. */
 import * as THREE from 'three';
 
 const BASE = new URL('../assets/diorama/poses/', import.meta.url).href;
@@ -23,13 +25,13 @@ let promise = null;
    fade : 동작 전환 크로스페이드(초)     hold: 마지막 프레임을 붙잡는 여운(초)
    burst: 상태가 아니라 사건(일섬·피격)으로 터지는 동작 */
 const ACT = {
-  idle:   { loop: true,  fps: 0.85, fade: 0.32 },
-  walk:   { loop: true,  fps: 8.0,  fade: 0.16, stride: true },
-  slash:  { loop: false, fps: 18.0, fade: 0.05, hold: 0.10, burst: true },
-  attack: { loop: false, fps: 9.5,  fade: 0.08, hold: 0.15, burst: true },
-  windup: { loop: false, fps: 6.0,  fade: 0.14, hold: 2.00 },
-  strike: { loop: false, fps: 8.5,  fade: 0.06, hold: 0.30 },
-  hit:    { loop: false, fps: 15.0, fade: 0.04, hold: 0.08, burst: true }
+  idle:   { loop: true,  fps: 0.85 },
+  walk:   { loop: true,  fps: 8.0,  stride: true },
+  slash:  { loop: false, fps: 18.0, hold: 0.10, burst: true },
+  attack: { loop: false, fps: 9.5,  hold: 0.15, burst: true },
+  windup: { loop: false, fps: 6.0,  hold: 2.00 },
+  strike: { loop: false, fps: 8.5,  hold: 0.30 },
+  hit:    { loop: false, fps: 15.0, hold: 0.08, burst: true }
 };
 /* 한 걸음에 나아가는 거리(m) — 걷기 위상을 실제 이동 속도에 묶는다 */
 const STRIDE = { hero: 1.15, minion: 0.95, heavy: 1.25, stone: 1.05, boss: 1.55 };
@@ -116,7 +118,10 @@ function frameMat(texImg, nf, opt) {
     blending: opt.add ? THREE.AdditiveBlending : THREE.NormalBlending,
     premultipliedAlpha: !opt.add, opacity: 1, fog: true
   });
-  const u = { uFx: { value: 0 }, uFs: { value: 1 / Math.max(1, nf) }, uInset: { value: 0.0016 } };
+  /* uInset: 이웃 칸과의 경계에서 한두 픽셀이 섞이지 않도록 각 칸 안쪽으로 조금 들어간다.
+     칸 폭(1/nf)의 약 1.2%(최소 0.004) — 그림 여백 안에서만 잘리므로 인물은 온전히 남는다. */
+  const inset = Math.min(0.02, Math.max(0.004, 0.012 / Math.max(1, nf)));
+  const u = { uFx: { value: 0 }, uFs: { value: 1 / Math.max(1, nf) }, uInset: { value: inset } };
   mat.userData.frameU = u;
   mat.userData.nf = Math.max(1, nf);
   mat.onBeforeCompile = function (sh) {
@@ -180,7 +185,7 @@ export function buildPose(name, opt) {
     layers: [], parts: [], bob: 0, frameOf: {}
   };
 
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < 1; i++) {
     const mesh = new THREE.Mesh(geo, frameMat(tex[acts[start].f], acts[start].nf, { depthTest: false }));
     mesh.frustumCulled = false;
     mesh.renderOrder = base;
@@ -201,9 +206,6 @@ export function buildPose(name, opt) {
   rig.fadeOn = false;
   rig.layers[0].mesh.material.opacity = rig.alpha;
   rig.layers[0].aura.visible = !!acts[start].a;
-  rig.layers[1].mesh.material.opacity = 0;
-  rig.layers[1].mesh.visible = false;
-  rig.layers[1].aura.visible = false;
 
   group.userData.rig = rig;
   group.userData.pose = rig;
@@ -229,6 +231,7 @@ function setLayerAction(L, action, acts) {
     L.aura.material.map = ai;
     L.aura.material.userData.frameU.uFs.value = 1 / L.nf;
   }
+  L.frame = 0;
   L.aura.visible = !!ai;
   return true;
 }
@@ -243,41 +246,41 @@ function applyFrame(rig, L) {
   else f = Math.floor(Math.min(L.t * def.fps, nf - 1e-4));
   if (f < 0 || !isFinite(f)) f = 0;
   L.frame = f;
-  const ux = f / nf;
-  L.mesh.material.userData.frameU.uFx.value = ux;
-  L.aura.material.userData.frameU.uFx.value = ux;
+  /* v0.43 버그 수정: 셰이더는 inkX = uFx * uFs + inset 로 칸을 찾는다 → uFx 는 **정수 프레임 번호**.
+     예전에는 f/nf 를 넣어 f/nf² 가 되어 두 칸 경계에 걸쳤고, 그 때문에 인물이 반쪽씩 두 겹으로 보였다. */
+  L.mesh.material.userData.frameU.uFx.value = f;
+  L.aura.material.userData.frameU.uFx.value = f;
   rig.frameOf[L.act] = f;
 }
 
-/* 동작 전환 시작: 표시 중이 아닌 레이어(1번)에 새 동작을 물리고 크로스페이드 */
+/* 동작 전환 — 한 장짜리 판의 스트립·칸 수만 바로 갈아 끼우고 프레임 0 부터 다시 센다.
+   v0.43: 두 층 크로스페이드 제거(같은 인물이 두 겹으로 보이던 원인). */
 function begin(rig, action) {
   if (!rig || !action || rig.cur === action) return false;
-  /* 이미 그 동작으로 넘어가는 중이면 다시 시작하지 않는다(저프레임에서 전환이 멈추는 것 방지) */
-  if (rig.fadeOn && rig.layers[1].act === action) return false;
-  const B = rig.layers[1];
-  if (!setLayerAction(B, action, rig.acts)) return false;
-  B.t = 0;
+  const A = rig.layers[0];
+  if (!setLayerAction(A, action, rig.acts)) return false;
+  A.t = 0;
   rig.cur = action;
-  rig.trans = 0;
-  rig.fadeOn = true;
-  B.mesh.visible = true;
-  B.mesh.material.opacity = 0;
-  B.aura.visible = !!B.aura.material.map;
-  B.aura.material.opacity = 0;
-  applyFrame(rig, B);
+  applyFrame(rig, A);
   return true;
 }
 
-/* 사건형 동작(일섬·피격·공격)을 처음부터 */
-function burst(rig, action) {
+/* 사건형 동작(일섬·피격·공격)을 처음부터.
+   force=true 는 '새 사건'(맞았다·베었다) — 같은 동작이라도 0프레임부터 다시.
+   force=false 는 상태가 매 프레임 같은 값을 보내는 경우 — 재시작하지 않고 그대로 재생한다
+   (그렇지 않으면 걷기 사이사이 공격 자세가 0프레임에 멈춘다). */
+function burst(rig, action, force) {
   if (!rig || !rig.acts[action]) return;
-  if (rig.burst === action) { rig.burstT = 0; return; }
-  begin(rig, action);
+  const A = rig.layers[0];
+  if (A.act === action && rig.burst === action && !force) { rig.burstT = 0; return; }
+  if (A.act !== action) {
+    if (!setLayerAction(A, action, rig.acts)) return;
+    rig.cur = action;
+  }
+  A.t = 0;
   rig.burst = action;
   rig.burstT = 0;
-  const B = rig.layers[1];
-  if (B.act === action) { B.t = 0; applyFrame(rig, B); }
-  rig.trans = Math.max(rig.trans, 0);
+  applyFrame(rig, A);
 }
 
 /** 한 프레임. state: idle/walk/dash/attack/hit/boss:walk/boss:telegraph … */
@@ -336,7 +339,7 @@ export function tickPose(group, kind, state, dt, vx, vz) {
   /* 사건형 동작이 살아 있는 동안은 그 동작을 유지(끝나면 상태로 복귀) */
   if (rig.burst) {
     const def = ACT[rig.burst] || ACT.idle;
-    const L = (rig.layers[0].act === rig.burst) ? rig.layers[0] : rig.layers[1];
+    const L = rig.layers[0];
     const dur = L.nf / def.fps + (def.hold || 0);
     rig.burstT += dt;
     if (rig.burstT < dur && L.act === rig.burst) want = rig.burst;
@@ -344,16 +347,8 @@ export function tickPose(group, kind, state, dt, vx, vz) {
   }
   begin(rig, want);
 
-  /* --- 레이어 시간·전환 가중치 --- */
-  const A = rig.layers[0], B = rig.layers[1];
-  const fading = !!rig.fadeOn;
-  const defA = ACT[A.act] || ACT.idle;
-  if (fading) {
-    rig.trans = Math.min(1, rig.trans + dt / Math.max(0.02, defA.fade || 0.1));
-    B.t += dt;
-  } else {
-    rig.trans = 1;
-  }
+  /* --- 한 장짜리 판 진행 --- */
+  const A = rig.layers[0];
   A.t += dt;
 
   /* 걷기 위상: 실제 이동 거리에 묶는다 */
@@ -362,28 +357,9 @@ export function tickPose(group, kind, state, dt, vx, vz) {
   else rig.phase += dt * 0.6;
 
   applyFrame(rig, A);
-  if (fading) applyFrame(rig, B);
-
-  /* --- 전환 완료 → 앞 레이어 승격, 뒤 레이어는 완전히 숨긴다 --- */
-  if (fading && rig.trans >= 1) {
-    rig.layers[0] = B; rig.layers[1] = A;
-    rig.fadeOn = false;
-    rig.trans = 1;
-    A.mesh.material.opacity = 0;
-    A.aura.material.opacity = 0;
-    A.mesh.visible = false;
-    A.aura.visible = false;
-  }
-
-  /* --- 겹침 가중치·색 --- */
-  const wB = fading ? rig.trans : 0;
-  const wA = 1 - wB;
-  A.mesh.material.opacity = rig.alpha * wA;
-  A.aura.material.opacity = rig.auraOp * rig.alpha * wA;
-  B.mesh.material.opacity = rig.alpha * wB;
-  B.aura.material.opacity = rig.auraOp * rig.alpha * wB;
-  B.mesh.visible = wB > 0.004;
-  B.aura.visible = wB > 0.004 && !!B.aura.material.map;
+  A.mesh.visible = true;
+  A.mesh.material.opacity = rig.alpha;
+  A.aura.material.opacity = rig.auraOp * rig.alpha;
   A.aura.visible = !!A.aura.material.map;
 
   /* --- 보조 움직임: 바운스·기울기·좌우 흔들림 --- */
@@ -392,7 +368,7 @@ export function tickPose(group, kind, state, dt, vx, vz) {
   const cyc = Math.PI * (rig.phase / nfA) * 2;
   rig.bob = Math.abs(Math.sin(cyc)) * (BOB[name] || 0.06) * walkK + Math.sin(rig.t * 1.2) * 0.004;
   root.position.y = rig.bob;
-  const active = (fading && wB > 0.5) ? B : A;
+  const active = A;
   const lunge = (active.act === 'slash' || active.act === 'attack' || active.act === 'strike') ? 0.06 : 0;
   const leanT = (walking ? 0.05 * walkK : 0) + lunge;
   rig.lean += (leanT - rig.lean) * Math.min(1, dt * 9);
@@ -401,10 +377,8 @@ export function tickPose(group, kind, state, dt, vx, vz) {
   const sway = Math.sin(cyc) * 0.020 * walkK;
   if (CAM) {
     A.mesh.quaternion.copy(CAM.quaternion); A.aura.quaternion.copy(CAM.quaternion);
-    B.mesh.quaternion.copy(CAM.quaternion); B.aura.quaternion.copy(CAM.quaternion);
   }
   A.mesh.rotateZ(tilt); A.aura.rotateZ(tilt);
-  B.mesh.rotateZ(tilt); B.aura.rotateZ(tilt);
   root.position.x = RIGHT.x * sway * rig.face;
   root.position.z = RIGHT.z * sway * rig.face;
   rig.t += dt;
@@ -415,14 +389,14 @@ export function tickPose(group, kind, state, dt, vx, vz) {
 export function kick(group, strength) {
   const rig = group && group.userData && group.userData.rig;
   if (!rig) return;
-  burst(rig, rig.acts.hit ? 'hit' : 'attack');
+  burst(rig, rig.acts.hit ? 'hit' : 'attack', true);
 }
 
 /** 일섬: slash 동작을 처음부터 */
 export function slashPose(group, k) {
   const rig = group && group.userData && group.userData.rig;
   if (!rig) return;
-  burst(rig, rig.acts.slash ? 'slash' : 'attack');
+  burst(rig, rig.acts.slash ? 'slash' : 'attack', true);
 }
 
 export function setOpacity(group, o) {
@@ -474,11 +448,8 @@ export function debugPose(group, action, frame) {
   if (!rig || rig.kind !== 'pose') return false;
   if (action == null) { rig.freeze = false; return true; }
   rig.freeze = true;
-  const A = rig.layers[0], B = rig.layers[1];
+  const A = rig.layers[0];
   if (A.act !== action) setLayerAction(A, action, rig.acts);
-  if (B.act !== action) setLayerAction(B, action, rig.acts);
-  B.mesh.visible = false; B.aura.visible = false;
-  B.mesh.material.opacity = 0; B.aura.material.opacity = 0;
   A.mesh.visible = true; A.aura.visible = !!A.aura.material.map;
   A.mesh.material.opacity = rig.alpha;
   A.aura.material.opacity = rig.auraOp * rig.alpha;
@@ -486,9 +457,8 @@ export function debugPose(group, action, frame) {
   A.t = 0; rig.phase = 0;
   const nf = Math.max(1, A.nf);
   const f = Math.max(0, Math.min(nf - 1, frame | 0));
-  const ux = f / nf;
-  A.mesh.material.userData.frameU.uFx.value = ux;
-  A.aura.material.userData.frameU.uFx.value = ux;
+  A.mesh.material.userData.frameU.uFx.value = f;
+  A.aura.material.userData.frameU.uFx.value = f;
   A.mesh.material.userData.frameU.uFs.value = 1 / nf;
   A.aura.material.userData.frameU.uFs.value = 1 / nf;
   A.frame = f;

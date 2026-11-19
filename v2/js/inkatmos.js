@@ -197,8 +197,111 @@ export class EmberField {
   dispose() { this.scene.remove(this.mesh); this.geo.dispose(); this.base.dispose(); this.mat.dispose(); }
 }
 
-export class StageAtmosphere {
-  constructor(scene, stageId) {
+/* ---------- v0.43: 갓레이(사선 빛줄기) ----------
+   sky-rays 기법을 우리 방식으로: 화면 공간에서 기울어진 부드러운 빛기둥 몇 장.
+   · 텍스처는 캔버스로 한 장만 굽는다(에셋 없음, 64×256).
+   · 큰 평면 몇 장 = 드로우콜 1(인스턴스) · 알파 합성만 하므로 모바일 비용이 낮다.
+   · 시간에 따라 아주 느리게 흔들리고 숨 쉬며, 카메라를 따라온다. */
+let _shaftTex = null;
+function shaftTexture() {
+  if (_shaftTex) return _shaftTex;
+  const cv = document.createElement('canvas');
+  cv.width = 64; cv.height = 256;
+  const c2 = cv.getContext('2d');
+  const gx = c2.createLinearGradient(0, 0, 64, 0);
+  gx.addColorStop(0, 'rgba(255,255,255,0)');
+  gx.addColorStop(0.35, 'rgba(255,255,255,0.55)');
+  gx.addColorStop(0.5, 'rgba(255,255,255,0.95)');
+  gx.addColorStop(0.65, 'rgba(255,255,255,0.55)');
+  gx.addColorStop(1, 'rgba(255,255,255,0)');
+  c2.fillStyle = gx;
+  c2.fillRect(0, 0, 64, 256);
+  const gy = c2.createLinearGradient(0, 0, 0, 256);
+  gy.addColorStop(0, 'rgba(0,0,0,0)');
+  gy.addColorStop(0.25, 'rgba(0,0,0,0.0)');
+  gy.addColorStop(0.55, 'rgba(0,0,0,0.35)');
+  gy.addColorStop(1, 'rgba(0,0,0,1)');
+  c2.globalCompositeOperation = 'destination-out';
+  c2.fillStyle = gy;
+  c2.fillRect(0, 0, 64, 256);
+  const t = new THREE.CanvasTexture(cv);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.needsUpdate = true;
+  _shaftTex = t;
+  return t;
+}
+
+const RAY_VERT = /* glsl */`
+attribute vec3 aSeed;
+uniform float uTime; uniform vec3 uCenter; uniform vec2 uBox; uniform float uW, uL, uTilt;
+varying vec2 vUv; varying float vA;
+void main(){
+  vUv = uv;
+  /* 화면 공간에 세운 빛기둥: 중심에서 좌우로 흔들리며 아주 느리게 움직인다. */
+  float ph = uTime * 0.045 + aSeed.x * 6.2832;
+  vec3 p = vec3(uCenter.x + sin(ph) * uBox.x * 0.42 + (aSeed.y - 0.5) * uBox.x * 0.9,
+                uCenter.y + uBox.y * 0.35,
+                uCenter.z + cos(ph * 0.8) * uBox.y * 0.42 + (aSeed.z - 0.5) * uBox.y * 0.9);
+  vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  float c = cos(uTilt), s2 = sin(uTilt);
+  vec2 q = vec2(c * (position.x * uW) - s2 * (position.y * uL),
+                s2 * (position.x * uW) + c * (position.y * uL));
+  mv.xy += q;
+  gl_Position = projectionMatrix * mv;
+  vA = (0.55 + 0.45 * sin(ph * 1.7 + 1.3)) * (0.45 + 0.55 * aSeed.y);
+}`;
+
+const RAY_FRAG = /* glsl */`
+uniform sampler2D map; uniform vec3 uColor; uniform float uAlpha;
+varying vec2 vUv; varying float vA;
+void main(){
+  vec4 t = texture2D(map, vUv);
+  float a = t.a * vA * uAlpha;
+  if (a < 0.004) discard;
+  gl_FragColor = vec4(uColor * a, a);
+}`;
+
+export class RayField {
+  constructor(scene, o) {
+    o = o || {};
+    this.scene = scene;
+    const n = o.count || 5;
+    const base = new THREE.PlaneGeometry(1, 1);
+    const g = new THREE.InstancedBufferGeometry();
+    g.index = base.index;
+    g.setAttribute('position', base.getAttribute('position'));
+    g.setAttribute('uv', base.getAttribute('uv'));
+    const seed = new Float32Array(n * 3);
+    for (let i = 0; i < n * 3; i++) seed[i] = Math.random();
+    g.setAttribute('aSeed', new THREE.InstancedBufferAttribute(seed, 3));
+    g.instanceCount = n;
+    this.geo = g; this.base = base;
+    this.mat = new THREE.ShaderMaterial({
+      uniforms: {
+        map: { value: shaftTexture() },
+        uTime: { value: 0 },
+        uCenter: { value: new THREE.Vector3(0, 4, 0) },
+        uBox: { value: new THREE.Vector2(o.box ? o.box[0] : 16, o.box ? o.box[1] : 12) },
+        uW: { value: o.width || 4.2 }, uL: { value: o.length || 26 },
+        uTilt: { value: o.tilt != null ? o.tilt : 0.42 },
+        uColor: { value: new THREE.Color(o.color || 0xfff0d2) },
+        uAlpha: { value: o.alpha != null ? o.alpha : 0.085 }
+      },
+      vertexShader: RAY_VERT, fragmentShader: RAY_FRAG,
+      transparent: true, depthWrite: false, depthTest: true,
+      blending: THREE.AdditiveBlending, side: THREE.DoubleSide
+    });
+    this.mesh = new THREE.Mesh(g, this.mat);
+    this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = 6.5;
+    scene.add(this.mesh);
+  }
+  setCenter(x, y, z) { this.mat.uniforms.uCenter.value.set(x, y, z); }
+  update(dt) { this.mat.uniforms.uTime.value += dt; }
+  dispose() { this.scene.remove(this.mesh); this.geo.dispose(); this.base.dispose(); this.mat.dispose(); }
+}
+
+export class StageAtmosphere {  constructor(scene, stageId) {
     this.fields = [];
     const rnd = Math.random;
     const add = function (f) { this.fields.push(f); }.bind(this);
@@ -232,6 +335,14 @@ export class StageAtmosphere {
       add(mk({ count: 200, texture: moteTexture(), mode: 0, box: [32, 18, 32], size: 0.05, fall: 0.34, color: stageId === 4 ? 0xd8a898 : 0xc8c2b4, opacity: 0.4, rot: 0.7 }));
       add(mk({ count: 26, texture: moteTexture(), mode: 0, box: [28, 12, 28], size: 0.16, fall: 0.12, color: stageId === 4 ? 0x6a4038 : 0x8a8478, opacity: 0.16, rot: 1.2 }));
     }
+    /* v0.43: 사선 빛줄기(갓레이) — 막마다 색만 다르고, 아주 옅게 깔린다. */
+    try {
+      const rayCol = stageId >= 9 ? 0xff9a74 : (stageId >= 5 && stageId <= 8 ? 0xdfe9f2 : 0xfff0d0);
+      this.rays = new RayField(scene, { count: 5, color: rayCol, alpha: stageId >= 5 && stageId <= 8 ? 0.075 : 0.09, width: 3.6, length: 26, tilt: 0.42 });
+      this.fields.push(this.rays);
+    } catch (e) { this.rays = null; }
+    /* v0.43: 한지 먼지 — 모든 장에 아주 옅은 따뜻한 티끌을 한 겹 더한다. */
+    add(mote({ count: 90, box: [30, 14, 30], size: 0.045, fall: 0.10, drift: 0.35, color: stageId >= 9 ? 0xd9a288 : 0xe8dcc0, opacity: 0.30, rot: 0.6 }));
     /* 등불 불티: the chunk world hands its bonfires over with setEmitters on every rebuild. */
     this.scene = scene;
     this.ember = null;

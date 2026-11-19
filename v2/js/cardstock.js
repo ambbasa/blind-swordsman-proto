@@ -17,7 +17,8 @@ import * as THREE from 'three';
 export const WF = {
   uWfHero: { value: new THREE.Vector3(0, 0, 0) },
   uWfRange: { value: new THREE.Vector4(5.4, 7.3, 15.6, 0) }, // inner, outer, far, pulse
-  uWfAmt: { value: new THREE.Vector4(0.62, 0.80, 0, 1) },    // 링 안쪽 양, 먼 곳 최대 양, 미사용, 사용 스위치
+  uWfAmt: { value: new THREE.Vector4(0.30, 0.56, 0, 1) },    // 링 안쪽 양, 먼 곳 최대 양, 미사용, 사용 스위치
+  /* v0.43: 한지 톤 — 어둠이 아니라 '따뜻한 먹물'로 멀어진다(바탕이 밝아졌으므로). */
   uWfColor: { value: new THREE.Color(0.01, 0.009, 0.009) },
   /* 화면 위쪽(멀어지는) 방향 xz 와 앞뒤 압축 계수. 원근 카메라에서는 월드 원이 화면 타원보다
      위로 길게 투영되므로, 예전 2D 안개의 '화면 타원' 감성을 유지하려면 앞뒤 거리를 덜 잰다. */

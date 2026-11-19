@@ -15,7 +15,11 @@ const FILES = {
   floor: 'stone_floor.png',
   floorN: 'stone_floor_n.png',
   floorR: 'stone_floor_r.png',
-  screen: 'folding_screen.png'
+  screen: 'folding_screen.png',
+  /* v0.43 막별 원경 파노라마 — 1막 저잣거리·나루터, 2막 안개 산사, 3막 혈월 나락. */
+  pano1: 'pano_1.jpg',
+  pano2: 'pano_2.jpg',
+  pano3: 'pano_3.jpg'
 };
 const COLORS = { floorN: false, floorR: false };
 const REPEAT = { floor: true, floorN: true, floorR: true };
@@ -71,6 +75,11 @@ export function preloadDiorama() {
 
 export function isReady() { return state.done; }
 export function texOf(k) { return state.done ? (tex[k] || null) : (tex[k] || null); }
+/** 막(1~3)에 맞는 원경 파노라마. 없으면 null(→ 기존 병풍 한 장). */
+export function panoOf(act) {
+  const k = 'pano' + Math.max(1, Math.min(3, act | 0));
+  return tex[k] || null;
+}
 export function aspectOf(k) {
   const t = tex[k];
   if (!t || !t.image) return 1;

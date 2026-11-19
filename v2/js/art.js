@@ -655,7 +655,7 @@ export async function buildArt(THREE) {
       const after = kind === 'afterimage';
       const g = buildFigure('hero', {
         order: after ? 3 : 8, tools: after ? [] : ['sash', 'arm'],
-        add: after, opacity: after ? 0.34 : 1, aura: !after, auraColor: 0xE7D7B2, auraOpacity: 0.18
+        add: after, opacity: after ? 0.34 : 1, aura: !after, auraColor: 0xE7D7B2, auraOpacity: 0.06
       });
       if (!g) return null;
       if (!after) { addShadow(g, 1.45); g.userData.noFlip = true; }
@@ -666,14 +666,14 @@ export async function buildArt(THREE) {
       const heavy = shape === 'brute';
       const figName = shape === 'stone' ? 'stone' : (heavy ? 'heavy' : 'minion');
       /* 기존 시트와 같은 키(원혼 2.4m · 장정 3.0m · 돌덩이 2.6m) — 판정 반경·심안 링과 비율이 맞아 있다. */
-      const g = buildFigure(figName, { order: 2, scale: 1, auraColor: 0x54e0ba, auraOpacity: 0.5 });
+      const g = buildFigure(figName, { order: 2, scale: 1, auraColor: 0x54e0ba, auraOpacity: 0.26 });
       if (!g) return null;
       addShadow(g, heavy ? 1.7 : 1.35);
       addTelegraph(g, g.userData.worldH);
       /* 테두리(아우라)를 그대로 rim 슬롯에 물린다 — 정예 금테·변주 색 구분·예고 붉은 테가 그대로 동작. */
       if (g.userData.rig && g.userData.rig.aura) {
         g.userData.rim = g.userData.rig.aura;
-        g.userData.rimHex = 0x5fb8a0; g.userData.rimOp = 0.20;
+        g.userData.rimHex = 0x5fb8a0; g.userData.rimOp = 0.12;
       }
       if (shape === 'elite' && g.userData.rim) {
         g.userData.rim.material.color.setHex(0xE8C04A);
