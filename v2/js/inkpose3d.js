@@ -1,16 +1,22 @@
-/* v2/js/inkpose3d.js — v0.43 '동작마다 전용 그림' 포즈 카드 캐릭터.
+/* v2/js/inkpose3d.js — v0.44 '물 흐르는 12프레임' 포즈 카드 캐릭터.
 
-   v0.41 리그는 한 장의 정면 그림을 부위로 잘라 비틀어 움직였다(자세 자체는 하나).
-   v0.42 는 캐릭터마다 **동작별로 실제로 다른 자세를 그린 그림**을 가로로 이어 붙인 스트립을 쓴다.
+   v0.42~0.43 은 동작당 3~6장이라 프레임 사이 간극이 커서 걸음·베기가 뚝뚝 끊겼다.
+   v0.44 는 자산 자체를 **동작당 12프레임 연속 동작**으로 다시 그렸고(assets/diorama/poses, nf=12),
+   그 위에 60fps 보간을 얹는다.
 
-   · 자산: assets/diorama/poses/{char}_{action}.png  — N칸 가로 스트립(칸마다 같은 발 앵커)
-           assets/diorama/poses/{char}_{action}_aura.png — 같은 실루엣을 부풀린 발광판(정예 금테·예고)
-   · 동작: idle(호흡) · walk(보폭) · slash(일섬) · attack · windup(기 모으기) · strike(강공) · hit(피격)
-   · v0.43: 그림판은 **한 장만** 쓴다. 동작이 바뀌면 그 판의 스트립·칸 수를 바로 갈아 끼우고
-     프레임 0 부터 다시 센다 — 반투명 크로스페이드가 없으므로 같은 인물이 두 겹으로 보이지 않는다.
-   · v0.43: 프레임 UV 는 `uFx = 정수 프레임 번호` 다(셰이더가 uFx * 1/nf 로 칸을 찾는다).
-   · 보조 움직임: 걷기 위상에 맞춘 상하 바운스·앞기울기·좌우 흔들림(그림은 그대로, 몸만 산다).
-   · 좌우 반전은 group.scale.x. 지오메트리·텍스처는 캐릭터 간 공유, 재질은 한 장. */
+   · 타이밍 곡선: 프레임마다 머무는 시간이 다르다(기 모으기 느리게 → 베기 빠르게 → 여운 느리게).
+     ACT[].curve 가 프레임별 가중치다. 12장을 균등 재생하면 '기계처럼' 보이므로 손그림 타이밍을 흉내낸다.
+   · 판 2차 흔들림(uShear): 아래(발)는 고정, 위로 갈수록 늦게 따라오는 전단 변형 — 도포자락·머리카락이
+     프레임과 무관하게 60fps 로 흔들린다.
+   · 접지 스쿼시: 발이 땅에 닿는 위상에서 세로로 눌리고 가로로 퍼진다.
+   · 좌우 반전은 종이 뒤집힘: 판 폭이 0을 지나며 반전(즉시 스냅 없음). 부모 group 은 절대 뒤집지 않는다
+     (v0.43.2 핫픽스 — 부모 반전은 빌보드 회전까지 거울 반사해 2시 방향으로 눕혔다).
+   · 무리 동기화 방지: 적마다 걷기 위상·호흡 시계를 어긋나게 시작한다.
+
+   자산 규칙(반드시 지킬 것)
+   · uFx = **정수 프레임 번호**, uFs = 1 / nf. (uFx 에 f/nf 를 넣으면 칸 경계에 걸려 분신처럼 보인다.)
+   · 판은 캐릭터당 한 장. 동작이 바뀌면 그 판의 스트립·칸 수만 갈아 끼우고 프레임 0부터 센다.
+     반투명 크로스페이드를 쓰지 않는다(같은 인물이 두 겹으로 보이던 원인). */
 import * as THREE from 'three';
 
 const BASE = new URL('../assets/diorama/poses/', import.meta.url).href;
@@ -21,21 +27,52 @@ const tex = {};
 let promise = null;
 
 /* 동작별 재생 규칙
-   fps  : 초당 프레임(그림 전환 속도)   loop: 반복
-   fade : 동작 전환 크로스페이드(초)     hold: 마지막 프레임을 붙잡는 여운(초)
-   burst: 상태가 아니라 사건(일섬·피격)으로 터지는 동작 */
+   dur  : 한 번(또는 한 주기) 재생 시간(초) — v0.43 의 nf/fps 와 같은 길이로 맞춰 게임 리듬을 유지한다
+   loop : 반복   hold: 마지막 프레임을 붙잡는 여운(초)   burst: 상태가 아니라 사건(일섬·피격)
+   curve: 프레임별 머무름 가중치(합은 자유 — 정규화한다) */
 const ACT = {
-  idle:   { loop: true,  fps: 0.85 },
-  walk:   { loop: true,  fps: 8.0,  stride: true },
-  slash:  { loop: false, fps: 18.0, hold: 0.10, burst: true },
-  attack: { loop: false, fps: 9.5,  hold: 0.15, burst: true },
-  windup: { loop: false, fps: 6.0,  hold: 2.00 },
-  strike: { loop: false, fps: 8.5,  hold: 0.30 },
-  hit:    { loop: false, fps: 15.0, hold: 0.08, burst: true }
+  idle:   { loop: true,  dur: 3.50, curve: [1.00, 1.05, 1.10, 1.06, 1.00, 0.95, 0.98, 1.04, 1.10, 1.06, 1.00, 0.96] },
+  walk:   { loop: true,  stride: true },
+  slash:  { loop: false, dur: 0.28, hold: 0.10, burst: true, curve: [1.90, 1.60, 1.30, 1.05, 0.90, 0.82, 0.80, 0.85, 0.95, 1.10, 1.35, 1.70] },
+  attack: { loop: false, dur: 0.42, hold: 0.15, burst: true, curve: [1.90, 1.50, 1.15, 0.90, 0.75, 0.65, 0.70, 0.80, 0.95, 1.15, 1.45, 1.70] },
+  windup: { loop: false, dur: 0.83, hold: 2.00, curve: [1.40, 1.30, 1.20, 1.10, 1.00, 0.95, 0.90, 0.90, 0.95, 1.05, 1.15, 1.20] },
+  strike: { loop: false, dur: 0.47, hold: 0.30, curve: [1.80, 1.45, 1.10, 0.85, 0.70, 0.60, 0.65, 0.75, 0.95, 1.20, 1.50, 1.75] },
+  hit:    { loop: false, dur: 0.20, hold: 0.08, burst: true, curve: [1.30, 0.95, 0.75, 0.62, 0.58, 0.60, 0.72, 0.90, 1.15, 1.45, 1.70, 1.85] }
 };
 /* 한 걸음에 나아가는 거리(m) — 걷기 위상을 실제 이동 속도에 묶는다 */
 const STRIDE = { hero: 1.15, minion: 0.95, heavy: 1.25, stone: 1.05, boss: 1.55 };
-const BOB = { hero: 0.070, minion: 0.048, heavy: 0.060, stone: 0.040, boss: 0.090 };
+const BOB = { hero: 0.055, minion: 0.040, heavy: 0.050, stone: 0.034, boss: 0.075 };
+/* 전단(2차 흔들림) 세기 — 키 대비 비율 */
+const SHEAR = { hero: 0.030, minion: 0.026, heavy: 0.020, stone: 0.012, boss: 0.024 };
+
+const CUMS = {};   /* 동작별 누적 타이밍 곡선 캐시 */
+function cumFor(act, nf) {
+  const key = act + ':' + nf;
+  if (CUMS[key]) return CUMS[key];
+  const def = ACT[act];
+  if (!def || !def.curve) { CUMS[key] = null; return null; }
+  const c = def.curve;
+  const w = [];
+  let s = 0;
+  for (let i = 0; i < nf; i++) {
+    const j = Math.min(c.length - 1, Math.floor(((i + 0.5) / nf) * c.length));
+    w.push(c[j]); s += c[j];
+  }
+  const out = [];
+  let acc = 0;
+  for (let i = 0; i < nf; i++) { out.push(acc / s); acc += w[i]; }
+  out.push(1);
+  CUMS[key] = out;
+  return out;
+}
+function frameAt(u, cum, nf) {
+  if (!cum) return Math.max(0, Math.min(nf - 1, Math.floor(u * nf)));
+  if (u <= 0) return 0;
+  if (u >= 1) return nf - 1;
+  let lo = 0, hi = cum.length - 1;
+  while (lo + 1 < hi) { const m = (lo + hi) >> 1; if (cum[m] <= u) lo = m; else hi = m; }
+  return Math.max(0, Math.min(nf - 1, lo));
+}
 
 function loadImage(url) {
   return new Promise(function (resolve) {
@@ -121,11 +158,22 @@ function frameMat(texImg, nf, opt) {
   /* uInset: 이웃 칸과의 경계에서 한두 픽셀이 섞이지 않도록 각 칸 안쪽으로 조금 들어간다.
      칸 폭(1/nf)의 약 1.2%(최소 0.004) — 그림 여백 안에서만 잘리므로 인물은 온전히 남는다. */
   const inset = Math.min(0.02, Math.max(0.004, 0.012 / Math.max(1, nf)));
-  const u = { uFx: { value: 0 }, uFs: { value: 1 / Math.max(1, nf) }, uInset: { value: inset } };
+  const u = {
+    uFx: { value: 0 }, uFs: { value: 1 / Math.max(1, nf) }, uInset: { value: inset },
+    uShear: { value: new THREE.Vector2(0, 0) }, uH: { value: opt.h || 1 }
+  };
   mat.userData.frameU = u;
+  mat.userData.shearU = u;
   mat.userData.nf = Math.max(1, nf);
   mat.onBeforeCompile = function (sh) {
     Object.assign(sh.uniforms, u);
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform vec2 uShear;\nuniform float uH;')
+      .replace('#include <begin_vertex>', [
+        '#include <begin_vertex>',
+        'float inkK = clamp(position.y / uH, 0.0, 1.0);',
+        'transformed.x += uShear.x * inkK * inkK;'
+      ].join('\n'));
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', '#include <common>\nuniform float uFx;\nuniform float uFs;\nuniform float uInset;')
       .replace('#include <map_fragment>', [
@@ -158,7 +206,7 @@ function geomOf(name, fig) {
 
 /**
  * 포즈 카드 캐릭터를 만든다. 자산이 없으면 null(→ art.js 가 v0.41 리그·코드 드로잉으로 폴백).
- * opt: { order, bossVar, tint, opacity, auraColor, opacity }
+ * opt: { order, bossVar, tint, opacity, auraColor, auraOpacity }
  */
 export function buildPose(name, opt) {
   if (!ready()) return null;
@@ -173,25 +221,30 @@ export function buildPose(name, opt) {
   const root = new THREE.Group();
   group.add(root);
   const geo = geomOf(name, fig);
+  const geoH = fig.cell[1] / fig.ppm;
   const base = opt.order != null ? opt.order : (name === 'hero' ? 8 : 2);
   const auraHex = opt.auraColor != null ? opt.auraColor : 0xE7D7B2;
 
   const rig = {
-    kind: 'pose', name: name, fig: fig, acts: acts, face: opt.face || 1, root: root,
+    kind: 'pose', name: name, fig: fig, acts: acts, face: opt.face || 1, faceS: opt.face || 1, root: root,
     speed: 0, px: 0, pz: 0, first: true, base: base,
-    cur: null, trans: 1, t: 0, phase: 0, burst: null, burstT: 0,
+    cur: null, trans: 1, t: 0, burst: null, burstT: 0,
     lean: 0, st: {}, alpha: opt.opacity != null ? opt.opacity : 1,
     tint: [1, 1, 1], auraHex: auraHex, auraOp: opt.auraOpacity != null ? opt.auraOpacity : 0.55,
-    layers: [], parts: [], bob: 0, frameOf: {}
+    layers: [], parts: [], bob: 0, frameOf: {},
+    /* v0.44: 무리 전체가 같은 박자로 걷지 않도록 위상·호흡 시계를 어긋나게 시작한다 */
+    phase: name === 'hero' ? 0 : Math.random() * 12,
+    sq: 0, sqV: 0, sh: 0, shV: 0, wind: Math.random() * 6.28, rec: 0, land: 0
   };
+  rig.t = name === 'hero' ? 0 : Math.random() * 2.6;
 
   for (let i = 0; i < 1; i++) {
-    const mesh = new THREE.Mesh(geo, frameMat(tex[acts[start].f], acts[start].nf, { depthTest: false }));
+    const mesh = new THREE.Mesh(geo, frameMat(tex[acts[start].f], acts[start].nf, { depthTest: false, h: geoH }));
     mesh.frustumCulled = false;
     mesh.renderOrder = base;
     root.add(mesh);
     const aura = new THREE.Mesh(geo, frameMat(tex[acts[start].a] || tex[acts[start].f], acts[start].nf,
-      { depthTest: false, add: true }));
+      { depthTest: false, add: true, h: geoH }));
     aura.frustumCulled = false;
     aura.renderOrder = base - 0.06;
     aura.material.color.setHex(auraHex);
@@ -212,7 +265,7 @@ export function buildPose(name, opt) {
 
   group.userData.rig = rig;
   group.userData.pose = rig;
-  group.userData.worldH = fig.cell[1] / fig.ppm;
+  group.userData.worldH = geoH;
   group.userData.sprite = rig.layers[0].mesh;
   group.userData.parts = rig.parts;
   group.userData.poseSource = 'pose';
@@ -244,20 +297,23 @@ function applyFrame(rig, L) {
   const nf = L.nf;
   const def = ACT[L.act] || ACT.idle;
   let f;
-  if (def.loop && def.stride) f = Math.floor(rig.phase) % nf;
-  else if (def.loop) f = Math.floor(L.t * def.fps) % nf;
-  else f = Math.floor(Math.min(L.t * def.fps, nf - 1e-4));
+  if (def.stride) {
+    f = Math.floor(rig.phase) % nf;
+  } else {
+    const dur = def.dur || 1;
+    const u = def.loop ? ((L.t % dur) / dur) : Math.min(1, L.t / dur);
+    f = frameAt(u, cumFor(L.act, nf), nf);
+  }
   if (f < 0 || !isFinite(f)) f = 0;
   L.frame = f;
-  /* v0.43 버그 수정: 셰이더는 inkX = uFx * uFs + inset 로 칸을 찾는다 → uFx 는 **정수 프레임 번호**.
-     예전에는 f/nf 를 넣어 f/nf² 가 되어 두 칸 경계에 걸쳤고, 그 때문에 인물이 반쪽씩 두 겹으로 보였다. */
+  /* 셰이더는 inkX = uFx * uFs + inset 로 칸을 찾는다 → uFx 는 **정수 프레임 번호**. */
   L.mesh.material.userData.frameU.uFx.value = f;
   L.aura.material.userData.frameU.uFx.value = f;
   rig.frameOf[L.act] = f;
 }
 
 /* 동작 전환 — 한 장짜리 판의 스트립·칸 수만 바로 갈아 끼우고 프레임 0 부터 다시 센다.
-   v0.43: 두 층 크로스페이드 제거(같은 인물이 두 겹으로 보이던 원인). */
+   두 층 크로스페이드는 쓰지 않는다(같은 인물이 두 겹으로 보이던 원인). */
 function begin(rig, action) {
   if (!rig || !action || rig.cur === action) return false;
   const A = rig.layers[0];
@@ -270,8 +326,7 @@ function begin(rig, action) {
 
 /* 사건형 동작(일섬·피격·공격)을 처음부터.
    force=true 는 '새 사건'(맞았다·베었다) — 같은 동작이라도 0프레임부터 다시.
-   force=false 는 상태가 매 프레임 같은 값을 보내는 경우 — 재시작하지 않고 그대로 재생한다
-   (그렇지 않으면 걷기 사이사이 공격 자세가 0프레임에 멈춘다). */
+   force=false 는 상태가 매 프레임 같은 값을 보내는 경우 — 재시작하지 않고 그대로 재생한다. */
 function burst(rig, action, force) {
   if (!rig || !rig.acts[action]) return;
   const A = rig.layers[0];
@@ -309,17 +364,20 @@ export function tickPose(group, kind, state, dt, vx, vz) {
   const walking = rig.speed > (rig.walking ? 0.25 : 0.45);
   rig.walking = walking;
 
-  /* --- 좌우 반전 --- */
+  /* --- 좌우 반전: 종이 뒤집힘(판 폭이 0을 지나며 반전) --- */
   const fd = (vx || 0) - (vz || 0);
   if (Math.abs(fd) > 0.05) rig.face = fd < 0 ? -1 : 1;
-  /* v0.43.2 핫픽스: 부모 group.scale.x = face 로 뒤집으면 자식의 빌보드 회전(R_cam)까지 거울 반사되어
-     캐릭터·적이 화면에서 2시 방향으로 기울어졌다. 반전은 판(mesh)에만 준다(재질 DoubleSide). */
-  group.scale.x = 1;
-  for (let li = 0; li < rig.layers.length; li++) {
-    const LL = rig.layers[li];
-    if (LL.mesh) LL.mesh.scale.x = rig.face;
-    if (LL.aura) LL.aura.scale.x = rig.face;
-  }
+  group.scale.x = 1;                      /* v0.43.2 핫픽스 — 부모는 절대 뒤집지 않는다 */
+  const fT = rig.face;
+  /* v0.44: 방향 전환은 '종이 뒤집힘' — 0.12초 동안 폭이 0을 지나며 부드럽게 뒤집힌다(즉시 스냅 금지). */
+  if (rig.flipTo !== fT) { rig.flipFrom = rig.faceS == null ? fT : rig.faceS; rig.flipTo = fT; rig.flipT = 0; }
+  if (rig.flipT == null || rig.flipT < 1) {
+    rig.flipT = Math.min(1, (rig.flipT || 0) + dt / 0.12);
+    const e = rig.flipT * rig.flipT * (3 - 2 * rig.flipT);
+    rig.faceS = rig.flipFrom + (rig.flipTo - rig.flipFrom) * e;
+  } else rig.faceS = fT;
+  const fS = rig.faceS == null ? fT : rig.faceS;
+  const vis = Math.abs(fS) < 0.12 ? (fS < 0 ? -0.12 : 0.12) : fS;   /* 폭 0 순간을 피한다 */
 
   /* --- 상태 → 원하는 동작 --- */
   let want = 'idle';
@@ -350,7 +408,7 @@ export function tickPose(group, kind, state, dt, vx, vz) {
   if (rig.burst) {
     const def = ACT[rig.burst] || ACT.idle;
     const L = rig.layers[0];
-    const dur = L.nf / def.fps + (def.hold || 0);
+    const dur = (def.dur || 0) + (def.hold || 0);
     rig.burstT += dt;
     if (rig.burstT < dur && L.act === rig.burst) want = rig.burst;
     else { rig.burst = null; }
@@ -372,27 +430,68 @@ export function tickPose(group, kind, state, dt, vx, vz) {
   A.aura.material.opacity = rig.auraOp * rig.alpha;
   A.aura.visible = !!A.aura.material.map;
 
-  /* --- 보조 움직임: 바운스·기울기·좌우 흔들림 --- */
+  /* --- 보조 움직임: 바운스·기울기·좌우 흔들림·접지 스쿼시 --- */
   const nfA = Math.max(1, A.nf);
   const walkK = walking ? Math.min(1, rig.speed / 1.6) : 0;
   const cyc = Math.PI * (rig.phase / nfA) * 2;
-  rig.bob = Math.abs(Math.sin(cyc)) * (BOB[name] || 0.06) * walkK + Math.sin(rig.t * 1.2) * 0.004;
+  const breathe = Math.sin(rig.t * 1.2) * 0.004;
+  rig.bob = Math.abs(Math.sin(cyc)) * (BOB[name] || 0.05) * walkK + breathe;
+
+  /* 접지 순간(위상 0 · nf/2)에 세로로 눌리고 가로로 퍼진다 — 종이가 땅을 딛는 무게 */
+  const contact = Math.max(0, Math.cos(2 * cyc));
+  const actNow = A.act;
+  const defA = ACT[actNow] || ACT.idle;
+  const progA = defA.dur ? Math.min(1, A.t / defA.dur) : 0;
+  let sqT = -0.050 * contact * walkK;
+  if (actNow === 'slash' || actNow === 'attack' || actNow === 'strike') {
+    /* 내려치는 순간 살짝 길게 뻗었다가 착지에서 눌린다 */
+    sqT += 0.045 * Math.max(0, Math.sin(Math.PI * Math.min(1, progA / 0.55))) - 0.03 * Math.max(0, (progA - 0.5) * 2);
+  }
+  rig.sqV += (-(rig.sq - sqT) * 190 - rig.sqV * 17) * dt;
+  rig.sq += rig.sqV * dt;
+  rig.sq = Math.max(-0.09, Math.min(0.09, rig.sq));
+
   root.position.y = rig.bob;
-  const active = A;
-  const lunge = (active.act === 'slash' || active.act === 'attack' || active.act === 'strike') ? 0.06 : 0;
-  const leanT = (walking ? 0.05 * walkK : 0) + lunge;
+  const leanT = (walking ? 0.05 * walkK : 0) + ((actNow === 'slash' || actNow === 'attack' || actNow === 'strike') ? 0.06 : 0);
   rig.lean += (leanT - rig.lean) * Math.min(1, dt * 9);
   rig.lean = Math.max(-0.09, Math.min(0.13, rig.lean));
-  const tilt = (-rig.lean * rig.face * 0.7) + Math.sin(rig.t * 1.1) * 0.005;
-  const sway = Math.sin(cyc) * 0.020 * walkK;
+  /* 화면 기울기 = +tilt → 앞으로 기울이는 방향은 -lean * (향한 쪽) */
+  const tilt = (-rig.lean * (fS < 0 ? -1 : 1) * 0.7) + Math.sin(rig.t * 1.1) * 0.005;
+  const sway = Math.sin(cyc) * 0.018 * walkK;
+
+  /* 판 2차 흔들림: 화면 오른쪽 성분 속도에 뒤처지며 도포·머리가 늦게 따라온다 */
+  const velR = (dx / Math.max(1e-4, dt)) * RIGHT.x + (dz / Math.max(1e-4, dt)) * RIGHT.z;
+  const shT = Math.max(-1, Math.min(1, -velR * 0.16 + Math.sin(rig.t * 0.85 + rig.wind) * 0.22 * (0.4 + walkK)));
+  rig.shV += ((shT - rig.sh) * 120 - rig.shV * 15) * dt;
+  rig.sh += rig.shV * dt;
+  const shearX = rig.sh * (SHEAR[name] || 0.02) * (geoHFor(rig));
+
   if (CAM) {
     A.mesh.quaternion.copy(CAM.quaternion); A.aura.quaternion.copy(CAM.quaternion);
   }
   A.mesh.rotateZ(tilt); A.aura.rotateZ(tilt);
-  root.position.x = RIGHT.x * sway * rig.face;
-  root.position.z = RIGHT.z * sway * rig.face;
+  A.mesh.scale.x = vis; A.aura.scale.x = vis;
+  A.mesh.scale.y = 1 + rig.sq; A.aura.scale.y = 1 + rig.sq;
+  const us = A.mesh.material.userData.shearU;
+  if (us && us.uShear) us.uShear.value.set(shearX, 0);
+  const ua = A.aura.material.userData.shearU;
+  if (ua && ua.uShear) ua.uShear.value.set(shearX, 0);
+  root.position.x = RIGHT.x * sway * (fT < 0 ? -1 : 1);
+  root.position.z = RIGHT.z * sway * (fT < 0 ? -1 : 1);
+  /* 피격 반등 — 맞은 쪽 반대로 살짝 밀렸다가 제자리로 */
+  if (rig.rec > 0.0005) {
+    rig.rec *= Math.max(0, 1 - dt * 6.5);
+    const back = -rig.rec * (fT < 0 ? -1 : 1);
+    root.position.x += RIGHT.x * back;
+    root.position.z += RIGHT.z * back;
+  } else rig.rec = 0;
   rig.t += dt;
   return true;
+}
+
+function geoHFor(rig) {
+  const g = rig && rig.fig;
+  return g && g.cell ? g.cell[1] / g.ppm : 2.4;
 }
 
 /** 피격: hit 동작을 처음부터 재생 + 살짝 밀리는 반동 */
@@ -400,6 +499,7 @@ export function kick(group, strength) {
   const rig = group && group.userData && group.userData.rig;
   if (!rig) return;
   burst(rig, rig.acts.hit ? 'hit' : 'attack', true);
+  rig.rec = Math.min(0.16, 0.05 + (strength || 0) * 0.06);
 }
 
 /** 일섬: slash 동작을 처음부터 */
@@ -474,8 +574,8 @@ export function debugPose(group, action, frame) {
   A.frame = f;
   rig.frameOf[action] = f;
   rig.root.position.set(0, 0, 0);
+  A.mesh.scale.set(rig.face, 1, 1); A.aura.scale.set(rig.face, 1, 1);
   if (CAM) { A.mesh.quaternion.copy(CAM.quaternion); A.aura.quaternion.copy(CAM.quaternion); }
-  A.mesh.scale.x = rig.face; A.aura.scale.x = rig.face;
   return true;
 }
 

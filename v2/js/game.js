@@ -10863,6 +10863,31 @@ const GPv2 = {
       topW: +topW.toFixed(2), botW: +botW.toFixed(2), uFx: m.material && m.material.userData.frameU ? m.material.userData.frameU.uFx.value : null };
   },
   poseActs: function (name) { return art.actsOf ? art.actsOf(name) : null; },
+  /* v0.44 QA: 포즈 리그를 dt 간격으로 n스텝 강제 진행하며 동작·프레임 궤적을 기록한다.
+     (헤드리스는 rAF 가 1fps 라 실시간 관측이 불가능하다 — 로직을 직접 돌려 12칸이 실제로 도는지 본다.) */
+  poseTrace: function (o) {
+    o = o || {};
+    const i = o.i == null ? -1 : o.i;
+    const g = (i < 0) ? (three && three.heroSpr) : (S && S.zombies && S.zombies[i] && S.zombies[i].obj);
+    const r = g && g.userData && g.userData.rig;
+    if (!r) return null;
+    const kind = r.name === 'hero' ? 'hero' : (r.name === 'boss' ? 'boss' : 'zombie');
+    const n = o.n || 60, dt = o.dt || (1 / 60), st = o.state || 'idle';
+    const vx = o.vx == null ? 1 : o.vx, vz = o.vz == null ? 0 : o.vz;
+    const walk = o.walk == null ? 0 : o.walk;   /* 스텝당 전진(m) — 걷기 위상 구동 */
+    const px0 = g.position.x, pz0 = g.position.z;
+    const out = [];
+    for (let k = 0; k < n; k++) {
+      if (walk) { g.position.x = px0 + walk * (k + 1); }
+      art.tickChar(g, kind, st, dt, vx, vz);
+      const L = r.layers && r.layers[0];
+      out.push({ t: +((k + 1) * dt).toFixed(3), act: r.cur, f: r.frameOf[r.cur],
+        uFx: L && L.mesh && L.mesh.material && L.mesh.material.userData.frameU ? L.mesh.material.userData.frameU.uFx.value : null,
+        sq: +r.sq.toFixed(3), sh: +r.sh.toFixed(3), faceS: +r.faceS.toFixed(2) });
+    }
+    g.position.x = px0; g.position.z = pz0;
+    return out;
+  },
   /* v0.43.2 QA: 좌우 반전을 강제한다(빌보드 축 검사 — 양방향 모두 12시 정방향이어야 한다). */
   poseFace: function (i, f) {
     const g = (i < 0) ? (three && three.heroSpr) : (S && S.zombies && S.zombies[i] && S.zombies[i].obj);
