@@ -1,4 +1,4 @@
-/* v2/js/inkmonsters3d.js — v0.46 몬스터·보스 전종 **3D 관절 뼈대 + 수묵 툰 셰이더**(SkinnedMesh).
+/* v2/js/inkmonsters3d.js — v0.47 몬스터·보스 전종 **3D 관절 뼈대 + 수묵 툰 셰이더 + 동양 수묵 텍스처**.
 
    v0.45에서 주인공만 3D 관절 뼈대(inkhero3d.js)로 세웠다. v0.46은 원귀(조선 좀비)·거한(장정)·
    돌덩이(석인)·보스를 같은 방식으로 올린다. v0.44까지의 2D 포즈 카드는 폴백으로 남긴다.
@@ -16,12 +16,16 @@
       AnimationMixer 로 재생, crossFadeTo 로 잇는다. 무리 위상은 개체마다 랜덤 오프셋을 줘
       좀비들이 같은 박자로 걷지 않는다.
    4) **8방향** — group.scale.x = -1 을 쓰지 않는다. 이동·조준 방향으로 rotation.y 를 slerp 한다.
+   5) **v0.47 텍스처·걷기** — 부위마다 아틀라스 칸(zone)을 굽고(원귀=관복 천·붉은 부적 한자,
+      거한=찰갑 비늘, 석인=바위 균열, 보스=금박 구름) uv 로 결을 얹는다. 그리고 v0.46에서 걷기
+      키프레임이 `p:{}` 밖에 놓여 **다리가 전혀 움직이지 않던 버그**를 고쳤다(아래 clips 참조).
 
    상태 문자열은 게임이 이미 넘겨 주는 것을 그대로 받는다(art.js tickChar):
      원귀 = walk | frozen | hit | attack | burning | poisoned,  보스 = 'boss:<상태>'.
 */
 import * as THREE from 'three';
 import { INK3D } from './inkhero3d.js';
+import * as TEX from './inktex3d.js';
 
 const B = INK3D;
 const P = B.P, lathe = B.lathe, limbGeo = B.limbGeo, ballGeo = B.ballGeo, ringGeo = B.ringGeo, ribbonGeo = B.ribbonGeo;
@@ -41,16 +45,21 @@ export function stats() {
 /* 주인공(inkhero3d.js)의 정점/프래그먼트와 같은 계조를 쓰되, 정점만 스키닝을 위해 청크를 끼운다. */
 const VERT = [
   'attribute vec3 color;',
+  'attribute float zone;',
   'uniform float uHeight;',
   'varying vec3 vAlb;',
   'varying vec3 vN;',
   'varying vec3 vV;',
   'varying vec3 vW;',
   'varying float vH;',
+  'varying vec2 vTuv;',
+  'varying float vZone;',
   '#include <common>',
   '#include <skinning_pars_vertex>',
   'void main() {',
   '  vAlb = color;',
+  '  vTuv = uv;',
+  '  vZone = zone;',
   '  vec3 transformed = vec3(position);',
   '  vec3 objectNormal = vec3(normal);',
   '#include <skinbase_vertex>',
@@ -65,7 +74,8 @@ const VERT = [
   '}'
 ].join('\n');
 
-/* 주인공 프래그먼트에 개체별 tint(uTint)와 투명도(uAlpha)만 얹는다 — 나머지는 글자 하나 안 바뀐다. */
+/* 주인공 프래그먼트에 개체별 tint(uTint)와 투명도(uAlpha)만 얹는다 — 나머지는 글자 하나 안 바뀐다.
+   v0.47의 한지·먹결 텍스처 샘플링은 주인공 셰이더에 이미 들어 있어 이대로 따라온다. */
 const FRAG = B.FRAG
   .replace('uniform float uRim, uWash, uGrain;', 'uniform float uRim, uWash, uGrain;\nuniform vec3 uTint;\nuniform float uAlpha;')
   /* 테는 '가장자리 선'이어야 한다 — 몬스터는 정예 금테·예고 붉은 테를 자주 켜므로
@@ -167,27 +177,32 @@ function mergeSkinned(parts, boneIdx, wantHull, rest) {
     const r = rest[p.b] || [0, 0, 0];
     T.makeTranslation(r[0], r[1], r[2]);
     const mm = p.m ? T.clone().multiply(p.m) : T.clone();
+    const mode = TEX.uvModeFor(p.geo);
     const geo = prepGeo(p.geo, mm);
     const pos = geo.getAttribute('position'), nrm = geo.getAttribute('normal');
     if (!pos || !nrm) return;
     const bi = boneIdx[p.b] == null ? 0 : boneIdx[p.b];
     const index = geo.getIndex();
-    bufs.push({ pos: pos, nrm: nrm, col: new THREE.Color(p.color), bi: bi, index: index ? index.array : null, off: total, n: pos.count });
+    bufs.push({ pos: pos, nrm: nrm, col: new THREE.Color(p.color), uv: TEX.makeUV(geo, mode),
+      zone: p.z || 0, bi: bi, index: index ? index.array : null, off: total, n: pos.count });
     total += pos.count;
     idxTotal += index ? index.count : pos.count;
   });
   const P3 = new Float32Array(total * 3), N3 = new Float32Array(total * 3), C3 = new Float32Array(total * 3);
+  const U2 = new Float32Array(total * 2), Z1 = new Float32Array(total);
   const S4 = new Uint16Array(total * 4), W4 = new Float32Array(total * 4);
   const IDX = idxTotal > 65000 ? new Uint32Array(idxTotal) : new Uint16Array(idxTotal);
   let o = 0, k3 = 0;
   for (let i = 0; i < bufs.length; i++) {
     const b = bufs[i], n = b.n;
-    const pa = b.pos.array, na = b.nrm.array, c = b.col;
+    const pa = b.pos.array, na = b.nrm.array, c = b.col, ua = b.uv;
     for (let k = 0; k < n; k++) {
       const v = o + k, p3 = v * 3;
       P3[p3] = pa[k * 3]; P3[p3 + 1] = pa[k * 3 + 1]; P3[p3 + 2] = pa[k * 3 + 2];
       N3[p3] = na[k * 3]; N3[p3 + 1] = na[k * 3 + 1]; N3[p3 + 2] = na[k * 3 + 2];
       C3[p3] = c.r; C3[p3 + 1] = c.g; C3[p3 + 2] = c.b;
+      if (ua) { U2[v * 2] = ua[k * 2]; U2[v * 2 + 1] = ua[k * 2 + 1]; }
+      Z1[v] = b.zone;
       S4[v * 4] = b.bi; W4[v * 4] = 1;
     }
     if (b.index) {
@@ -201,6 +216,8 @@ function mergeSkinned(parts, boneIdx, wantHull, rest) {
   geo.setAttribute('position', new THREE.BufferAttribute(P3, 3));
   geo.setAttribute('normal', new THREE.BufferAttribute(N3, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(C3, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(U2, 2));
+  geo.setAttribute('zone', new THREE.BufferAttribute(Z1, 1));
   geo.setAttribute('skinIndex', new THREE.BufferAttribute(S4, 4));
   geo.setAttribute('skinWeight', new THREE.BufferAttribute(W4, 4));
   geo.setIndex(new THREE.BufferAttribute(IDX, 1));
@@ -234,6 +251,9 @@ function makeBones(defs) {
   return { bones: bones, list: list, root: list[0] };
 }
 const _e = new THREE.Euler(), _q = new THREE.Quaternion();
+/* keys 의 자세는 **반드시 k.p 안에** 둔다. k 최상위에 두면 조용히 무시되어 '뼈가 안 도는'
+   클립이 된다 — v0.46 의 걷기 클립이 정확히 그랬고(다리가 가만히), v0.47 에서 frames() 가
+   돌려주는 자세를 p 로 감싸 고쳤다. */
 function mkClip(spec, name, dur, keys) {
   const names = spec.animBones;
   const times = keys.map(function (k) { return k.t; });
@@ -270,6 +290,12 @@ function frames(n, dur, fn) {
    구부정한 실루엣. 걷기는 한쪽 다리를 끄는 절뚝거림(위상 비대칭)이다. */
 const MINION = {
   key: 'minion', h: 2.4, pelvisY: 1.04,
+  /* v0.47 — 붉은 부적은 주사 한자(칸 3), 창백한 살·삼베는 한지(칸 1), 나머지는 해진 관복 천. */
+  zoneOf: function (c) {
+    if (c === 0x7c2621 || c === 0xc44a2e) return TEX.Z.TALIS;
+    if (c === 0x8b8578) return TEX.Z.PAPER;
+    return TEX.Z.CLOTH;
+  },
   defs: [
     ['pelvis', null, [0, 1.04, 0]],
     ['spine', 'pelvis', [0, 0.16, 0]],
@@ -307,7 +333,9 @@ const MINION = {
     footL: [-0.05, 0, 0], footR: [-0.05, 0, 0]
   },
   parts: function () {
-    const ROBE = 0x3c3b40, ROBE2 = 0x333236, SKIN = 0x8b8578, HAIR = 0x232227;
+    /* v0.47 — 관복을 한 단계 밝힌다(0x3c3b40→0x47464b). 완전 검정에 가까우면 한지 마모·먹획 텍스처가
+       화면에서 죽는다(실측: 종전 값에서는 결이 보이지 않았다). */
+    const ROBE = 0x47464b, ROBE2 = 0x3d3c41, SKIN = 0x8b8578, HAIR = 0x232227;
     const TAL = 0x7c2621, TAL2 = 0xc44a2e, BELT = 0x4c443a;
     const out = {};
     const add = function (b, p) { (out[b] || (out[b] = [])).push(p); };
@@ -378,17 +406,17 @@ const MINION = {
       const c = Math.cos(p), s = Math.sin(p);
       const drag = Math.max(0, Math.sin(p - 1.9));
       return {
+        p: {
         pelvis: [0.03, 0.09 * s, 0.10 * Math.sin(p * 0.5)],
         spine: [0.11, -0.05 * s, -0.05 * Math.sin(p * 0.5)],
         chest: [0.18 + 0.03 * c, -0.08 * s, -0.04 * Math.sin(p * 0.5)],
         neck: [0.12, 0.03 * s, 0], head: [-0.08 + 0.05 * s, 0.05 * s, 0.05 * Math.sin(p * 0.5 + 0.6)],
         upperarmL: [-1.34 + 0.10 * c, 0, 0.10], upperarmR: [-1.28 - 0.08 * c, 0, -0.12],
         forearmL: [-0.20 - 0.10 * Math.max(0, c), 0, 0.04], forearmR: [-0.24 + 0.08 * Math.max(0, -c), 0, -0.04],
-        thighL: [0.02 + 0.30 * c, 0, 0.02], thighR: [0.02 - 0.26 * c, 0, -0.02],
-        shinL: [0.11 + 0.34 * drag, 0, 0], shinR: [0.11 + 0.16 * Math.max(0, -Math.sin(p - 1.9)), 0, 0],
-        footL: [-0.05 - 0.20 * drag, 0, 0], footR: [-0.05, 0, 0],
-        py: -0.03 + 0.030 * Math.abs(s) - 0.012 * drag
-      };
+        thighL: [0.02 + 0.66 * c, 0, 0.02], thighR: [0.02 - 0.60 * c, 0, -0.02],
+        shinL: [0.11 + 0.66 * drag, 0, 0], shinR: [0.11 + 0.46 * Math.max(0, -Math.sin(p - 1.9)), 0, 0],
+        footL: [-0.05 - 0.34 * drag, 0, 0], footR: [-0.05 + 0.14 * Math.max(0, c), 0, 0]
+      }, py: -0.03 + 0.030 * Math.abs(s) - 0.012 * drag };
     });
     /* attack — 두 팔을 앞으로 내지르며 상체가 따라간다(할퀴기). */
     const attack = [
@@ -413,6 +441,14 @@ const MINION = {
    키와 어깨가 큰 장수 체형. 묵직한 갑옷 판·투구·대검. 성큼성큼, 땅을 밟을 때마다 몸이 가라앉는다. */
 const HEAVY = {
   key: 'heavy', h: 3.0, pelvisY: 1.48,
+  /* v0.47 — 철갑(찰갑 비늘)·금테·칼날 하몬·맨살 한지. */
+  zoneOf: function (c) {
+    if (c === 0x6d5c38) return TEX.Z.GOLD;
+    if (c === 0x8f9598) return TEX.Z.BLADE;
+    if (c === 0x45403a || c === 0x37332e || c === 0x585a5c) return TEX.Z.IRON;
+    if (c === 0x6f6558) return TEX.Z.PAPER;
+    return TEX.Z.CLOTH;
+  },
   defs: [
     ['pelvis', null, [0, 1.48, 0]],
     ['spine', 'pelvis', [0, 0.24, 0]],
@@ -525,17 +561,17 @@ const HEAVY = {
       const c = Math.cos(p), s = Math.sin(p);
       const stomp = Math.abs(Math.sin(p));
       return {
+        p: {
         pelvis: [0.02, 0.13 * s, 0.05 * s],
         spine: [0.05, -0.06 * s, 0], chest: [0.07, -0.12 * s, -0.03 * s],
         neck: [0.03, 0.04 * s, 0], head: [-0.05, 0.05 * s, 0],
         upperarmL: [0.10 + 0.34 * c, 0, 0.20], upperarmR: [0.02 - 0.16 * c, 0, -0.22],
         forearmL: [-0.30 - 0.16 * Math.max(0, c), 0, 0.05], forearmR: [-0.34, 0, -0.05],
         weapon: [0.42 + 0.05 * s, 0, 0.10],
-        thighL: [-0.03 + 0.40 * c, 0, 0.03], thighR: [-0.03 - 0.40 * c, 0, -0.03],
-        shinL: [0.07 + 0.42 * Math.max(0, Math.sin(p - 0.3)), 0, 0], shinR: [0.07 + 0.42 * Math.max(0, Math.sin(p + Math.PI - 0.3)), 0, 0],
-        footL: [-0.03 - 0.20 * Math.max(0, s), 0, 0], footR: [-0.03 - 0.20 * Math.max(0, -s), 0, 0],
-        py: -0.05 + 0.045 * stomp
-      };
+        thighL: [-0.03 + 0.78 * c, 0, 0.03], thighR: [-0.03 - 0.78 * c, 0, -0.03],
+        shinL: [0.07 + 0.62 * Math.max(0, Math.sin(p - 0.3)), 0, 0], shinR: [0.07 + 0.62 * Math.max(0, Math.sin(p + Math.PI - 0.3)), 0, 0],
+        footL: [-0.03 - 0.30 * Math.max(0, s), 0, 0], footR: [-0.03 - 0.30 * Math.max(0, -s), 0, 0]
+      }, py: -0.05 + 0.045 * stomp };
     });
     /* attack — 대검을 머리 위로 들어 내려찍는다. */
     const attack = [
@@ -561,6 +597,8 @@ const HEAVY = {
    걷기는 한 걸음마다 땅이 울리는 둔중한 스톰프. */
 const STONE = {
   key: 'stone', h: 2.6, pelvisY: 1.06,
+  /* v0.47 — 화강암 [균열 + 이끼]. */
+  zoneOf: function (c) { return TEX.Z.ROCK; },
   defs: [
     ['pelvis', null, [0, 1.06, 0]],
     ['spine', 'pelvis', [0, 0.20, 0]],
@@ -641,16 +679,16 @@ const STONE = {
       const c = Math.cos(p), s = Math.sin(p);
       const stomp = Math.abs(Math.sin(p));
       return {
+        p: {
         pelvis: [0.03, 0.10 * s, 0.07 * s],
         spine: [0.07, -0.05 * s, -0.03 * s], chest: [0.09, -0.09 * s, -0.04 * s],
         neck: [0.05, 0.04 * s, 0], head: [-0.02 + 0.04 * s, 0.05 * s, 0.04 * s],
         upperarmL: [0.10 - 0.26 * c, 0, 0.22], upperarmR: [0.10 + 0.26 * c, 0, -0.22],
         forearmL: [-0.34 - 0.10 * Math.max(0, -c), 0, 0.04], forearmR: [-0.34 - 0.10 * Math.max(0, c), 0, -0.04],
-        thighL: [-0.02 + 0.30 * c, 0, 0.03], thighR: [-0.02 - 0.30 * c, 0, -0.03],
-        shinL: [0.14 + 0.34 * Math.max(0, Math.sin(p - 0.4)), 0, 0], shinR: [0.14 + 0.34 * Math.max(0, Math.sin(p + Math.PI - 0.4)), 0, 0],
-        footL: [-0.06 - 0.16 * Math.max(0, s), 0, 0], footR: [-0.06 - 0.16 * Math.max(0, -s), 0, 0],
-        py: -0.045 + 0.040 * stomp
-      };
+        thighL: [-0.02 + 0.74 * c, 0, 0.03], thighR: [-0.02 - 0.74 * c, 0, -0.03],
+        shinL: [0.14 + 0.60 * Math.max(0, Math.sin(p - 0.4)), 0, 0], shinR: [0.14 + 0.60 * Math.max(0, Math.sin(p + Math.PI - 0.4)), 0, 0],
+        footL: [-0.06 - 0.26 * Math.max(0, s), 0, 0], footR: [-0.06 - 0.26 * Math.max(0, -s), 0, 0]
+      }, py: -0.045 + 0.040 * stomp };
     });
     /* attack — 두 주먹을 들어 내리찍는다. */
     const attack = [
@@ -676,6 +714,15 @@ const STONE = {
    wind(예비 동작 — 칼을 머리 위로 들어 드는 자세로 굳는다) / strike(내려베기) 가 보스 패턴의 몸짓이다. */
 const BOSS = {
   key: 'boss', h: 6.2, pelvisY: 2.75,
+  /* v0.47 — 대장군 갑옷(비늘·철판)·금박 구름 문양·망토 홍색 천·환도 하몬. */
+  zoneOf: function (c) {
+    if (c === 0x5f4c2e) return TEX.Z.GOLD;
+    if (c === 0x8f9598) return TEX.Z.BLADE;
+    if (c === 0x3d3b40 || c === 0x2e2c31 || c === 0x55575a) return TEX.Z.IRON;
+    if (c === 0x6e2a24) return TEX.Z.SASH;
+    if (c === 0x6a6154) return TEX.Z.PAPER;
+    return TEX.Z.CLOTH;
+  },
   defs: [
     ['pelvis', null, [0, 2.75, 0]],
     ['spine', 'pelvis', [0, 0.42, 0]],
@@ -815,17 +862,17 @@ const BOSS = {
     const walk = frames(12, 1.70, function (u, p) {
       const c = Math.cos(p), s = Math.sin(p);
       return {
+        p: {
         pelvis: [0.02, 0.10 * s, 0.03 * s],
         spine: [0.05, -0.06 * s, 0], chest: [0.08, -0.12 * s, -0.03 * s],
         neck: [0.03, 0.05 * s, 0], head: [-0.05, 0.06 * s, 0],
         upperarmL: [0.06 + 0.18 * c, 0, 0.16], upperarmR: [-0.10 - 0.10 * c, 0, -0.18],
         forearmL: [-0.26 - 0.10 * Math.max(0, c), 0, 0.04],
         weapon: [0.62 + 0.06 * s, 0, 0.12],
-        thighL: [-0.04 + 0.34 * c, 0, 0.03], thighR: [-0.04 - 0.34 * c, 0, -0.03],
-        shinL: [0.08 + 0.30 * Math.max(0, Math.sin(p - 0.35)), 0, 0], shinR: [0.08 + 0.30 * Math.max(0, Math.sin(p + Math.PI - 0.35)), 0, 0],
-        footL: [-0.03 - 0.16 * Math.max(0, s), 0, 0], footR: [-0.03 - 0.16 * Math.max(0, -s), 0, 0],
-        py: -0.045 + 0.035 * Math.abs(s)
-      };
+        thighL: [-0.04 + 0.64 * c, 0, 0.03], thighR: [-0.04 - 0.64 * c, 0, -0.03],
+        shinL: [0.08 + 0.54 * Math.max(0, Math.sin(p - 0.35)), 0, 0], shinR: [0.08 + 0.54 * Math.max(0, Math.sin(p + Math.PI - 0.35)), 0, 0],
+        footL: [-0.03 - 0.24 * Math.max(0, s), 0, 0], footR: [-0.03 - 0.24 * Math.max(0, -s), 0, 0]
+      }, py: -0.045 + 0.035 * Math.abs(s) };
     });
     /* wind — 예비 동작. 검을 머리 위로 높이 들어 몸을 비튼 자세로 굳는다(텔레그래프). */
     const wind = [
@@ -869,7 +916,7 @@ function bake(spec, variant) {
   const parts = spec.parts(variant);
   const list = [];
   Object.keys(parts).forEach(function (b) {
-    parts[b].forEach(function (p) { p.b = b; list.push(p); });
+    parts[b].forEach(function (p) { p.b = b; p.z = spec.zoneOf ? spec.zoneOf(p.color) : 0; list.push(p); });
   });
   const geo = mergeSkinned(list, boneIdx, false, rest);
   const hull = hullFrom(mergeSkinned(list, boneIdx, true, rest), 0.028);
@@ -1138,7 +1185,12 @@ export function tick(group, kind, state, dt, vx, vz) {
   if (H.freeze) return true;
 
   const plan = planFor(H, st);
-  const wantBase = plan.base || (H.speed > 0.45 ? 'walk' : 'idle');
+  /* v0.47 — 창현님 지적 "몬스터들이 걷는 모션이 없네 다리가 가만히 있네".
+     느린 원귀는 실측 속도가 0.45m/s 아래로 떨어지는 순간(공격 예비 0.22배·지형 감속·무리 밀집)이
+     잦아 idle 로 떨어졌다. 게임이 걷기 상태를 넘기면 **속도와 무관하게** 걷는다 — 얼음(frozen)·
+     경직(hit)·공격(attack) 같은 '몸이 멈춘' 상태만 예외다. */
+  const walkingState = (st === 'walk' || st === 'burning' || st === 'poisoned' || st === 'chase');
+  const wantBase = plan.base || ((walkingState || H.speed > 0.45) ? 'walk' : 'idle');
   if (!H.burst && !H.held && wantBase !== H.base && H.actions[wantBase]) {
     crossFade(H, H.base, wantBase, 0.18);
     H.base = wantBase;
@@ -1151,12 +1203,15 @@ export function tick(group, kind, state, dt, vx, vz) {
   }
   H.prevBurst = plan.burst;
 
-  /* 원거리·화면 밖은 2~3프레임에 한 번만 적분한다(CPU 절감). */
+  /* 원거리·화면 밖은 2~3프레임에 한 번만 적분한다(CPU 절감).
+     v0.47 — 기준 거리를 14m→40m 로 늘였다. 카메라 오프셋이 (14.4, 22.4, 14.4) 라 **카메라의 xz**
+     는 이미 주인공에서 20m 떨어져 있다. 14m 기준이면 화면 안 몬스터까지 전부 '원거리'가 되어
+     걷기가 3프레임(20fps)에 한 번만 갱신됐다 — 다리가 가만히 있는 것처럼 보인 주범. */
   const far = (function () {
     if (!CAM) return false;
     const cp = CAM.position;
     const ddx = cp.x - gx, ddz = cp.z - gz;
-    return (ddx * ddx + ddz * ddz) > 196;      /* 14m 밖 */
+    return (ddx * ddx + ddz * ddz) > 1600;     /* 카메라 xz 기준 40m 밖 */
   })();
   H.acc += dt;
   let step = false;
@@ -1231,6 +1286,9 @@ export function setAuraColor(group, hex, op) {
 }
 export function setOrder(group, base) { return true; }
 export function ready() { return true; }
+/* QA — 텍스처 아틀라스가 실제로 붙었는지(칸·세기·PNG) 확인한다. */
+export function texInfo() { return TEX.info(); }
+export function texAtlas() { return TEX.dataUrl(); }
 
 /* ---------------------------------------------------------------- QA */
 export function info(group) {

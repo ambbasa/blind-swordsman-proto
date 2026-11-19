@@ -1,4 +1,4 @@
-/* v2/js/inkhero3d.js — v0.45 주인공 전용 **3D 관절 뼈대 + 수묵 툰 셰이더** 캐릭터.
+/* v2/js/inkhero3d.js — v0.47 주인공 전용 **3D 관절 뼈대 + 수묵 툰 셰이더 + 동양 수묵 텍스처** 캐릭터.
 
    v0.44까지 주인공은 손그림 포즈 카드(빌보드)였다. v0.45는 주인공만 진짜 3D 뼈대로 세운다
    (원귀·보스는 v0.44 그대로).
@@ -16,8 +16,12 @@
    4) 동작 — 12키 이상의 키프레임을 AnimationClip 으로 만들고 AnimationMixer 로 재생한다.
       idle(호흡) / walk(발딛기) / slash(일섬) / hit(피격) 4종 + 상태 전환 crossFadeTo(0.10~0.18s).
    5) 방향 — group.scale.x = -1 을 쓰지 않는다. 이동·공격 방향으로 rotation.y 를 slerp 해서
-      8방향 어디로 가도 몸이 돌아 걸어가고 벤다. */
+      8방향 어디로 가도 몸이 돌아 걸어가고 벤다.
+   6) v0.47 텍스처 — 부위마다 아틀라스 칸(zone)을 굽고(inktex3d.js), 프래그먼트가 uv 로 한지 섬유·
+      먹 붓질·칼날 하몬을 곱한다. 색은 그대로 uColor(버텍스)가 내고 텍스처는 '결'만 얹는다.
+      ?notex=1 이면 아틀라스를 만들지 않아 v0.46과 픽셀 단위로 같다. */
 import * as THREE from 'three';
+import * as TEX from './inktex3d.js';
 
 export const HERO_H = 2.45;          /* 기존 주인공(파츠 리그 m=2.45)과 같은 키 — 그림자·HUD 기준이 맞는다 */
 const WALK_SPEED = 1.7;              /* 걷기 위상의 기준 속도(m/s) */
@@ -109,13 +113,18 @@ function gradMap() {
 /* ---------------------------------------------------------------- 수묵 툰 셰이더 */
 const VERT = /* glsl */`
 attribute vec3 color;
+attribute float zone;
 varying vec3 vAlb;
 varying vec3 vN;
 varying vec3 vV;
 varying vec3 vW;
 varying float vH;
+varying vec2 vTuv;
+varying float vZone;
 void main() {
   vAlb = color;
+  vTuv = uv;
+  vZone = zone;
   vec4 wp = modelMatrix * vec4(position, 1.0);
   vW = wp.xyz;
   vN = normalize(mat3(modelMatrix) * normal);
@@ -128,6 +137,19 @@ const FRAG = /* glsl */`
 uniform sampler2D uRamp;
 uniform vec3 uKeyDir, uKeyCol, uFillDir, uFillCol, uAmbCol, uRimCol;
 uniform float uRim, uWash, uGrain;
+uniform sampler2D uTex;
+uniform float uTexAmt;
+varying vec2 vTuv;
+varying float vZone;
+vec3 inkTexAtlas() {
+  float col = mod(vZone, 2.0);
+  float row = floor(vZone * 0.5);
+  vec2 f = vec2(clamp(fract(vTuv.x), 0.008, 0.992), clamp(fract(vTuv.y), 0.012, 0.988));
+  vec3 c = texture2D(uTex, vec2((col + f.x) * 0.5, (row + f.y) * 0.25)).rgb;
+  /* 0.75 = '아무 결도 아닌 바탕'. 이 점을 1.0으로 두고 명암을 1.9배 벌린다
+     (검은 옷의 albedo 0.04 위에서도 먹획과 한지빛 마모가 읽히게). */
+  return max(vec3(0.0), 1.0 + (c - 0.75) * 1.9);
+}
 varying vec3 vAlb;
 varying vec3 vN;
 varying vec3 vV;
@@ -154,6 +176,9 @@ void main() {
   /* 마른 붓 그레인 — 넓은 얼룩과 잔 결 두 겹. 플라스틱 면을 종이로 바꾼다. */
   float grain = 1.0 + uGrain * ((vnoise(vW * 7.0) - 0.5) * 0.7 + (vnoise(vW * 23.0) - 0.5) * 0.5);
   vec3 col = vAlb * light * wash * grain;
+  /* v0.47 동양 수묵 텍스처 — 한지 섬유·먹 붓질·비늘·부적 같은 '결'만 1.0 근처로 곱한다.
+     색은 버텍스가 내고(uColor), 텍스처는 종이와 붓의 질감만 얹는다(?notex=1 이면 uTexAmt 0). */
+  col *= mix(vec3(1.0), inkTexAtlas(), uTexAmt);
   /* 붓끝 먹 고임: 실루엣 가장자리로 갈수록 먹이 진해진다(먹그림의 가장자리 농도). */
   float edge = pow(1.0 - clamp(dot(N, normalize(vV)), 0.0, 1.0), 2.0);
   col *= mix(1.0, 0.80, edge);
@@ -174,7 +199,10 @@ function inkUniforms() {
     uRimCol: { value: new THREE.Color(1.0, 0.93, 0.80) },
     uRim: { value: LIGHT.rim },
     uWash: { value: LIGHT.wash },
-    uGrain: { value: 0.16 }
+    uGrain: { value: 0.16 },
+    /* v0.47 텍스처 아틀라스 — 전 재질이 한 장을 공유한다(샘플러 1개, 드로우콜 그대로). */
+    uTex: { value: TEX.atlas() },
+    uTexAmt: { value: TEX.amount() }
   };
 }
 function inkMat(opt) {
@@ -269,8 +297,18 @@ function mat4(pos, rot, scale) {
 }
 function P(geo, color, opt) {
   opt = opt || {};
-  return { geo: geo, color: color, m: mat4(opt.pos, opt.rot, opt.scale) };
+  return { geo: geo, color: color, m: mat4(opt.pos, opt.rot, opt.scale), zone: opt.zone };
 }
+
+/* v0.47 — 부위 색으로 아틀라스 칸을 고른다: 칼날은 하몬, 안대·살갗은 한지, 나머지는 옷감. */
+const HERO_ZONE = (function () {
+  return function (c) {
+    if (c === 0x8f9598 || c === 0xb0b6b8) return TEX.Z.BLADE;
+    if (c === 0x9c968a || c === 0x7a6a5c) return TEX.Z.PAPER;
+    if (c === 0x574c3e) return TEX.Z.GOLD;
+    return TEX.Z.CLOTH;
+  };
+})();
 
 /* ---------------------------------------------------------------- 병합·외곽선 */
 function mergeParts(list) {
@@ -280,23 +318,29 @@ function mergeParts(list) {
     let g = list[i].geo;
     if (g.index) g = g.toNonIndexed();
     else g = g.clone();
+    const mode = TEX.uvModeFor(g);
     if (list[i].m) g.applyMatrix4(list[i].m);
     if (!g.getAttribute('normal')) g.computeVertexNormals();
     const pos = g.getAttribute('position'), nrm = g.getAttribute('normal');
     if (!pos || !nrm) continue;
-    bufs.push({ pos: pos, nrm: nrm, col: new THREE.Color(list[i].color) });
+    /* v0.47 — 부위마다 결의 방향(plate/cyl)과 밀도를 정한 UV 를 굽는다. */
+    bufs.push({ pos: pos, nrm: nrm, col: new THREE.Color(list[i].color), uv: TEX.makeUV(g, mode),
+      zone: list[i].zone != null ? list[i].zone : HERO_ZONE(list[i].color) });
     total += pos.count;
   }
   const P3 = new Float32Array(total * 3), N3 = new Float32Array(total * 3), C3 = new Float32Array(total * 3);
+  const U2 = new Float32Array(total * 2), Z1 = new Float32Array(total);
   let o = 0;
   for (let i = 0; i < bufs.length; i++) {
     const b = bufs[i], n = b.pos.count;
-    const pa = b.pos.array, na = b.nrm.array, c = b.col;
+    const pa = b.pos.array, na = b.nrm.array, c = b.col, ua = b.uv;
     for (let k = 0; k < n; k++) {
       const p3 = (o + k) * 3;
       P3[p3] = pa[k * 3]; P3[p3 + 1] = pa[k * 3 + 1]; P3[p3 + 2] = pa[k * 3 + 2];
       N3[p3] = na[k * 3]; N3[p3 + 1] = na[k * 3 + 1]; N3[p3 + 2] = na[k * 3 + 2];
       C3[p3] = c.r; C3[p3 + 1] = c.g; C3[p3 + 2] = c.b;
+      U2[(o + k) * 2] = ua[k * 2]; U2[(o + k) * 2 + 1] = ua[k * 2 + 1];
+      Z1[o + k] = b.zone;
     }
     o += n;
   }
@@ -304,6 +348,8 @@ function mergeParts(list) {
   geo.setAttribute('position', new THREE.BufferAttribute(P3, 3));
   geo.setAttribute('normal', new THREE.BufferAttribute(N3, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(C3, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(U2, 2));
+  geo.setAttribute('zone', new THREE.BufferAttribute(Z1, 1));
   geo.computeBoundingSphere();
   return geo;
 }
