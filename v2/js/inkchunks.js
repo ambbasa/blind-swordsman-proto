@@ -862,7 +862,7 @@ export function createChunkWorld(opts) {
   let fset = FLOOR_CACHE.get(floorKey);
   if (!fset) {
     const fMap = v41Floor ? soilTexture() : texOf('floor'), fN = v41Floor ? null : texOf('floorN'), fR = v41Floor ? null : texOf('floorR');
-    const map = (fMap || gs.map).clone(); map.needsUpdate = true; map.repeat.set(v41Floor ? 8 : REPEAT, v41Floor ? 8 : REPEAT);
+    const map = (fMap || gs.map).clone(); map.needsUpdate = true; map.repeat.set(v41Floor ? 3 : REPEAT, v41Floor ? 3 : REPEAT);
     const nrm = fN ? (fN || gs.normalMap).clone() : null; if (nrm) { nrm.needsUpdate = true; nrm.repeat.set(REPEAT, REPEAT); }
     const rgh = fR ? (fR || gs.roughnessMap).clone() : null; if (rgh) { rgh.needsUpdate = true; rgh.repeat.set(REPEAT, REPEAT); }
     [map, nrm, rgh].forEach(function (t) { if (t && t.userData) t.userData.shared = true; });

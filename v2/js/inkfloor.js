@@ -20,7 +20,7 @@ const SLAB_N = 6;
 const PAVE_N = 4;
 const CARDS = ['grass_a', 'grass_b', 'grass_c', 'pebble_a', 'pebble_b', 'moss_a', 'moss_b', 'leaf_a', 'leaf_b', 'straw', 'sprout'];
 const GROUND_FILES = {
-  hanji: 'hanji.png', earth: 'earth.png', water: 'water.png',
+  hanji: 'hanji.png', earth: 'earth.png', water: 'water.png', dock: 'dock.png',
   snow: 'snow.png', abyss: 'abyss.png', wash: 'wash.png'
 };
 const FILES = (function () {
@@ -225,6 +225,25 @@ export function createFloorLayer(opts) {
   pathMesh.frustumCulled = false;
   group.add(pathMesh);
 
+  /* ---------- 1b) 나루터 잔교 (물가) ---------- */
+  let dockMesh = null;
+  if (tex.dock) {
+    const dm = new THREE.MeshStandardMaterial({
+      map: tex.dock, transparent: true, alphaTest: 0.35, depthWrite: true,
+      roughness: 0.9, metalness: 0.0, side: THREE.DoubleSide, color: tcol(0.98)
+    });
+    dm.userData.cardProfile = 'ground';
+    materials.push(dm);
+    dockMesh = new THREE.InstancedMesh(paveGeoShared(), dm, 16);
+    dockMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    dockMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(16 * 3).fill(1), 3);
+    dockMesh.frustumCulled = false;
+    dockMesh.count = 0;
+    dockMesh.renderOrder = 0.66;
+    dockMesh.receiveShadow = true;
+    group.add(dockMesh);
+  }
+
   /* ---------- 2) 번짐 얼룩 · 눈밭 · 심연 패치 (인스턴스 3배치) ---------- */
   const patchGeo = new THREE.PlaneGeometry(1, 1);
   patchGeo.rotateX(-Math.PI / 2);
@@ -308,6 +327,14 @@ export function createFloorLayer(opts) {
 
   const _d = new THREE.Object3D();
   const _c = new THREE.Color();
+  function paveGeoShared() {
+    if (!paveGeoShared.g) {
+      const g = new THREE.PlaneGeometry(1, 1);
+      g.rotateX(-Math.PI / 2);
+      paveGeoShared.g = g;
+    }
+    return paveGeoShared.g;
+  }
 
   function layout(x0, z0, x1, z1) {
     /* 물길 · 다진 길 */
@@ -325,6 +352,36 @@ export function createFloorLayer(opts) {
       pathMesh.geometry.dispose();
       pathMesh.geometry = g2;
       pathMesh.visible = true;
+    }
+
+    /* 나루터 잔교: 물가에 16m 간격으로. 긴 축이 물을 향한다. */
+    if (dockMesh) {
+      let nd = 0;
+      if (T.water > 0) {
+        const zA2 = Math.floor((z0 - 8) / 16) * 16, zB2 = z1 + 12;
+        for (let z = zA2; z <= zB2 && nd < 16; z += 16) {
+          if (h2(Math.round(z), 3, stageId * 19 + 7) > 0.72) continue;
+          const side = h2(Math.round(z), 5, stageId + 13) < 0.5 ? -1 : 1;
+          const rx = riverX(z, s) + T.waterOff;
+          const tz = (riverX(z + 0.5, s) - riverX(z - 0.5, s));
+          const nx = 1 / Math.sqrt(1 + tz * tz), nz = -tz / Math.sqrt(1 + tz * tz);
+          const off = T.water * 0.5 * 0.55 + 1.6;
+          const x = rx + nx * off * side, zz = z + nz * off * side;
+          _d.position.set(x, 0.02, zz);
+          /* 긴 축(로컬 +z)이 물 쪽(-side 방향)을 향하도록 회전 */
+          _d.rotation.set(0, Math.atan2(-nx * side, -nz * side), 0);
+          _d.scale.set(1.9, 1, 4.4);
+          _d.updateMatrix();
+          dockMesh.setMatrixAt(nd, _d.matrix);
+          _c.copy(srgb(1, 1, 1));
+          dockMesh.setColorAt(nd, _c);
+          nd++;
+        }
+      }
+      dockMesh.count = nd;
+      dockMesh.instanceMatrix.needsUpdate = true;
+      if (dockMesh.instanceColor) dockMesh.instanceColor.needsUpdate = true;
+      dockMesh.visible = nd > 0;
     }
 
     /* 길 돌: 길을 따라 촘촘히 깔고, 나머지 바닥에는 아주 드물게. */
@@ -379,7 +436,7 @@ export function createFloorLayer(opts) {
     }
 
     /* 번짐 얼룩 · 눈밭 · 심연 패치 — 월드 격자에 시드로 */
-    const cells = { wash: [8, T.wash, 6, 11], snow: [7, T.snow, 9, 13], abyss: [10, T.abyss, 8, 17] };
+    const cells = { wash: [6.5, Math.min(1.0, T.wash * 1.15), 6, 11], snow: [7, T.snow, 9, 13], abyss: [10, T.abyss, 8, 17] };
     Object.keys(cells).forEach(function (k) {
       const mesh = patchMeshes[k];
       if (!mesh) return;
@@ -422,7 +479,7 @@ export function createFloorLayer(opts) {
     for (let l = l0; l <= l1; l++) {
       for (let k = k0; k <= k1; k++) {
         const r = h2(k, l, stageId * 17 + 3);
-        if (r > 0.46 * (0.6 + (T.moss || 0.3))) continue;
+        if (r > 0.62 * (0.6 + (T.moss || 0.3))) continue;
         const px = (k + 0.2 + h2(k, l, stageId + 41) * 0.6) * CARD_CELL;
         const pz = (l + 0.2 + h2(k, l, stageId + 43) * 0.6) * CARD_CELL;
         if (Math.abs(px - pathX(pz, s)) < 2.2) continue;
