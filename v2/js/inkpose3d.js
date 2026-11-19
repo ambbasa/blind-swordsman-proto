@@ -198,6 +198,9 @@ export function buildPose(name, opt) {
     aura.material.opacity = 0;
     aura.visible = !!acts[start].a;
     root.add(aura);
+    mesh.scale.x = rig.face;      /* v0.43.2: 좌우 반전은 판(자식)에서 한다 — 부모를 뒤집으면
+                                     카메라 회전(빌보드)까지 함께 뒤집혀 캐릭터가 2시 방향으로 누운다. */
+    aura.scale.x = rig.face;
     const L = { act: start, t: 0, nf: acts[start].nf, mesh: mesh, aura: aura, frame: 0 };
     rig.layers.push(L);
     rig.parts.push(mesh, aura);
@@ -309,7 +312,14 @@ export function tickPose(group, kind, state, dt, vx, vz) {
   /* --- 좌우 반전 --- */
   const fd = (vx || 0) - (vz || 0);
   if (Math.abs(fd) > 0.05) rig.face = fd < 0 ? -1 : 1;
-  group.scale.x = rig.face;
+  /* v0.43.2 핫픽스: 부모 group.scale.x = face 로 뒤집으면 자식의 빌보드 회전(R_cam)까지 거울 반사되어
+     캐릭터·적이 화면에서 2시 방향으로 기울어졌다. 반전은 판(mesh)에만 준다(재질 DoubleSide). */
+  group.scale.x = 1;
+  for (let li = 0; li < rig.layers.length; li++) {
+    const LL = rig.layers[li];
+    if (LL.mesh) LL.mesh.scale.x = rig.face;
+    if (LL.aura) LL.aura.scale.x = rig.face;
+  }
 
   /* --- 상태 → 원하는 동작 --- */
   let want = 'idle';
@@ -465,6 +475,7 @@ export function debugPose(group, action, frame) {
   rig.frameOf[action] = f;
   rig.root.position.set(0, 0, 0);
   if (CAM) { A.mesh.quaternion.copy(CAM.quaternion); A.aura.quaternion.copy(CAM.quaternion); }
+  A.mesh.scale.x = rig.face; A.aura.scale.x = rig.face;
   return true;
 }
 

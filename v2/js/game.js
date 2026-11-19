@@ -10840,7 +10840,38 @@ const GPv2 = {
     art.debugPose(g, action, frame == null ? 0 : frame);
     return { ok: true, act: action, frame: frame };
   },
+  /* v0.43.2 QA: 포즈 판(mesh) 네 모서리의 화면 좌표 — 빌보드가 카메라 평면에 바로 서 있는지 검사.
+     좌·우 변의 x 차이(px)가 곧 기울기다(0 이면 정립, 크면 2시 방향으로 누운 것). */
+  poseQuad: function (i) {
+    const g = (i < 0) ? (three && three.heroSpr) : (S && S.zombies && S.zombies[i] && S.zombies[i].obj);
+    const r = g && g.userData && g.userData.rig;
+    const L = r && r.layers && r.layers[0];
+    if (!L || !L.mesh || !three || !three.camera) return null;
+    const m = L.mesh, geo = m.geometry;
+    const px = geo.parameters ? geo.parameters.width / 2 : 0.5;
+    const h = geo.parameters ? geo.parameters.height : 1;
+    const v = new THREE.Vector3();
+    const corners = [[-px, 0], [px, 0], [-px, h], [px, h]].map(function (c) {
+      v.set(c[0], c[1], 0).applyMatrix4(m.matrixWorld).project(three.camera);
+      return { x: +((v.x * 0.5 + 0.5) * 1000).toFixed(2), y: +((-v.y * 0.5 + 0.5) * 1000).toFixed(2) };
+    });
+    const leftSlant = corners[2].x - corners[0].x;
+    const rightSlant = corners[3].x - corners[1].x;
+    const topW = corners[3].x - corners[2].x, botW = corners[1].x - corners[0].x;
+    return { face: r.face, groupScaleX: g.scale.x, meshScaleX: m.scale.x, corners: corners,
+      leftSlant: +leftSlant.toFixed(2), rightSlant: +rightSlant.toFixed(2),
+      topW: +topW.toFixed(2), botW: +botW.toFixed(2), uFx: m.material && m.material.userData.frameU ? m.material.userData.frameU.uFx.value : null };
+  },
   poseActs: function (name) { return art.actsOf ? art.actsOf(name) : null; },
+  /* v0.43.2 QA: 좌우 반전을 강제한다(빌보드 축 검사 — 양방향 모두 12시 정방향이어야 한다). */
+  poseFace: function (i, f) {
+    const g = (i < 0) ? (three && three.heroSpr) : (S && S.zombies && S.zombies[i] && S.zombies[i].obj);
+    const r = g && g.userData && g.userData.rig;
+    if (!r) return null;
+    r.face = f < 0 ? -1 : 1;
+    if (r.layers) r.layers.forEach(function (L) { if (L.mesh) L.mesh.scale.x = r.face; if (L.aura) L.aura.scale.x = r.face; });
+    return { face: r.face, groupScaleX: g.scale.x, meshScaleX: r.layers && r.layers[0] ? r.layers[0].mesh.scale.x : null };
+  },
   /* v0.42 QA: 검수용 무대 — 배경을 평평한 한지색으로 두고 그 캐릭터만 남긴다. */
   /* v0.42 QA: 한 캐릭터만 보이기/숨기기 — 두 장을 찍어 차분하면 그 캐릭터의 정확한 화면 영역이 나온다. */
   poseVis: function (i, on) {
