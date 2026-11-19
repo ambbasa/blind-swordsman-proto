@@ -8370,7 +8370,7 @@ function step(dt) {
     /* Hit flash over the status tint (tintZombie resets the colour next frame). */
     if (z.flinchT > 0 && z.obj && z.obj.userData && z.obj.userData.sprite) {
       const fk = 1 + 1.6 * (z.flinchT / (CFG.flinchDur || 0.14));
-      if (z.obj.userData.rig) art.tintChar(z.obj, fk, fk, fk * 0.95);
+      if (z.obj.userData.rig || z.obj.userData.m3d) art.tintChar(z.obj, fk, fk, fk * 0.95);
       else z.obj.userData.sprite.material.color.setRGB(fk, fk, fk * 0.95);
     }
     if (art.setTelegraph && !z.isBoss) art.setTelegraph(z.obj, !frozen && (d < (CFG.telegraphRange || 3.2) || z.windT > 0 || z.dashPhase > 0));
@@ -11079,7 +11079,7 @@ const GPv2 = {
     return out;
   },
   rigInfo: function () {
-    const out = { ready: !!(art && art.rigInfo && art.rigInfo().ready), hero: null, enemies: 0, rigEnemies: 0, parts: 0, sample: null };
+    const out = { ready: !!(art && art.rigInfo && art.rigInfo().ready), hero: null, enemies: 0, rigEnemies: 0, parts: 0, sample: null, mon3d: 0, mon3dSample: null };
     function brief(g) {
       if (!g || !g.userData || !g.userData.rig) return null;
       const r = g.userData.rig;
@@ -11098,6 +11098,7 @@ const GPv2 = {
         if (!z.obj || !z.obj.userData) return;
         out.enemies++;
         if (z.obj.userData.rig) { out.rigEnemies++; const rp = z.obj.userData.rig.parts; out.parts += rp ? (Array.isArray(rp) ? rp.length : Object.keys(rp).length) : 0; if (!out.sample) out.sample = brief(z.obj); }
+        if (z.obj.userData.m3d && art.mon3d) { out.mon3d++; if (!out.mon3dSample) out.mon3dSample = art.mon3d.info(z.obj); }
       });
     }
     if (S && S.boss && S.boss.obj) out.boss = brief(S.boss.obj);

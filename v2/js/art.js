@@ -11,8 +11,12 @@ import { buildFigure, tickFigure, kick as rigKick, slashPose as rigSlash, setOpa
   debugPose as rigDebugPose, actsOf as rigActsOf } from './inkchars3d.js';
 /* v0.45: 주인공만 3D 관절 뼈대 + 수묵 툰 셰이더 캐릭터(inkhero3d.js)로 교체한다. */
 import * as HERO3D from './inkhero3d.js';
+/* v0.46: 원귀·거한·돌덩이·보스도 주인공과 같은 3D 관절 뼈대(단일 SkinnedMesh)로 세운다. */
+import * as MON3D from './inkmonsters3d.js';
 let QA_HERO2D = false;
 try { QA_HERO2D = new URLSearchParams(location.search).has('hero2d'); } catch (e) {}
+let QA_MON2D = false;
+try { QA_MON2D = new URLSearchParams(location.search).has('mon2d'); } catch (e) {}
 
 const BASE = '../assets/v2/';
 let QA_NORIG = false;
@@ -667,6 +671,47 @@ export async function buildArt(THREE) {
         if (window.console && console.warn) console.warn('[심안] 3D 주인공 생성 실패 — 파츠 리그로 되돌립니다', e);
       }
     }
+    if (kind === 'zombie' && !QA_MON2D) {
+      /* v0.46: 좀비 종류별 3D 뼈대 — 마리당 몸통 1콜 + 먹선 1콜. 실패하면 아래 2D 포즈 카드로. */
+      try {
+        const sp = shape === 'stone' ? 'stone' : (shape === 'brute' ? 'heavy' : 'minion');
+        const g = MON3D.build(sp, {});
+        if (g) {
+          /* 2D 리그와 같은 키(원귀 2.4m · 거한 3.0m · 돌덩이 2.6m) — 판정 반경·심안 링 비율 유지. */
+          addShadow(g, sp === 'heavy' ? 1.7 : (sp === 'stone' ? 1.6 : 1.35));
+          addTelegraph(g, g.userData.worldH);
+          g.userData.rim = g.userData.mrim;
+          g.userData.rimHex = 0x5fb8a0; g.userData.rimOp = 0.16;
+          if (shape === 'elite') {
+            g.userData.rim.material.color.setHex(0xE8C04A);
+            g.userData.rim.material.opacity = 0.62;
+            g.userData.rimHex = 0xE8C04A; g.userData.rimOp = 0.34;
+            addHalo(g, g.userData.worldH);
+          }
+          return g;
+        }
+      } catch (e) {
+        if (window.console && console.warn) console.warn('[심안] 3D 원귀 생성 실패 — 포즈 카드로 되돌립니다', e);
+      }
+    }
+    if (kind === 'boss' && !QA_MON2D) {
+      try {
+        const H = bossH * 1.5 * (opt.bossScale || 1);
+        const g = MON3D.build('boss', { scale: H / 6.2, variant: opt.bossVar, shadow: true });
+        if (g) {
+          g.userData.noFlip = true;
+          g.userData.isBoss = true;
+          g.userData.bellLocal = { x: 0, y: H * 0.76 };
+          g.userData.rim = g.userData.mrim;
+          g.userData.rim.material.color.setHex(0xF2E2C0);
+          g.userData.rim.material.opacity = 0.40;
+          g.userData.rimHex = 0xF2E2C0; g.userData.rimOp = 0.40;
+          return g;
+        }
+      } catch (e) {
+        if (window.console && console.warn) console.warn('[심안] 3D 보스 생성 실패 — 포즈 카드로 되돌립니다', e);
+      }
+    }
     if (!rigReady()) return null;
     if (kind === 'hero' || kind === 'afterimage') {
       const after = kind === 'afterimage';
@@ -839,6 +884,7 @@ export async function buildArt(THREE) {
     const spr = group.userData.sprite;
     const c = (elem && !(pack && pack.actions && pack.actions[mapped]) && STATUS_TINT[elem]) || [1, 1, 1];
     if (group.userData.rig) { rigTint(group, c[0], c[1], c[2]); return; }
+    if (group.userData.m3d) { MON3D.setTint(group, c[0], c[1], c[2]); return; }
     if (!spr || !spr.material || !spr.material.color) return;
     spr.material.color.setRGB(c[0], c[1], c[2]);
   }
@@ -868,6 +914,7 @@ export async function buildArt(THREE) {
     if (!group) return;
     const halo = group.userData && group.userData.halo;
     if (halo) { halo.rotation.z += (dt || 0) * 0.7; halo.material.opacity = 0.62 + 0.2 * Math.sin((group.userData.haloT = (group.userData.haloT || 0) + (dt || 0)) * 3.1); }
+    if (group.userData && group.userData.m3d) { MON3D.tick(group, kind, state, dt, vx, vz); return; }
     if (group.userData && group.userData.rig && tickFigure(group, kind, state, dt, vx, vz)) return;
     if (group.userData && group.userData.hero3d) { HERO3D.tick(group, kind, state, dt, vx, vz); return; }
     const spr = group.userData && group.userData.sprite;
@@ -978,21 +1025,24 @@ export async function buildArt(THREE) {
     night: hexColor(pal.night || pal.ground, 0x1e1c1a),
     makeChar: makeChar, tickChar: tickChar, buildStage3D: buildStage3D,
     /* v0.38 파츠 리그 훅: 카메라·피격 반동·틴트·투명도·그리기 순서 */
-    setCamera: function (cam) { rigSetCamera(cam); },
+    setCamera: function (cam) { rigSetCamera(cam); try { MON3D.setCamera(cam); } catch (e) {} },
     /* v0.42 QA: 포즈 고정·동작 목록 */
     debugPose: function (g, a, f) { return rigDebugPose(g, a, f); },
     actsOf: function (n) { return rigActsOf(n); },
     kickChar: function (group, k) {
       if (group && group.userData && group.userData.hero3d) { HERO3D.kick(group, k); return; }
+      if (group && group.userData && group.userData.m3d) { MON3D.kick(group, k); return; }
       rigKick(group, k);
     },
     slashChar: function (group, k) {
       if (group && group.userData && group.userData.hero3d) { HERO3D.slashPose(group, k); return; }
+      if (group && group.userData && group.userData.m3d) { MON3D.slashPose(group, k); return; }
       rigSlash(group, k);
     },
     tintChar: function (group, r, g, b) {
       if (!group || !group.userData) return;
       if (group.userData.hero3d) { HERO3D.setTint(group, r, g, b); return; }
+      if (group.userData.m3d) { MON3D.setTint(group, r, g, b); return; }
       if (group.userData.rig) { rigTint(group, r, g, b); return; }
       const spr = group.userData.sprite;
       if (spr && spr.material && spr.material.color) spr.material.color.setRGB(r, g, b);
@@ -1000,6 +1050,7 @@ export async function buildArt(THREE) {
     setCharOpacity: function (group, o) {
       if (!group || !group.userData) return;
       if (group.userData.hero3d) { HERO3D.setOpacity(group, o); return; }
+      if (group.userData.m3d) { MON3D.setOpacity(group, o); return; }
       if (group.userData.rig) { rigOpacity(group, o); return; }
       const spr = group.userData.sprite;
       if (spr && spr.material) spr.material.opacity = o;
@@ -1007,17 +1058,21 @@ export async function buildArt(THREE) {
     setCharOrder: function (group, base) {
       if (!group || !group.userData) return;
       if (group.userData.hero3d) { HERO3D.setOrder(group, base); return; }
+      if (group.userData.m3d) { MON3D.setOrder(group, base); return; }
       if (group.userData.rig) { rigOrder(group, base); return; }
       const spr = group.userData.sprite;
       if (spr) spr.renderOrder = base;
     },
     setAuraColor: function (group, hex, op) {
       if (group && group.userData && group.userData.hero3d) { HERO3D.setAuraColor(group, hex, op); return; }
+      if (group && group.userData && group.userData.m3d) { MON3D.setAuraColor(group, hex, op); return; }
       rigAuraColor(group, hex, op);
     },
-    rigInfo: function () { return { ready: rigReady(), hero3d: HERO3D.ready() }; },
+    rigInfo: function () { return { ready: rigReady(), hero3d: HERO3D.ready(), mon3d: MON3D.ready(), mon: MON3D.stats() }; },
     /* v0.45 QA: 3D 주인공 상태·고정·스텝·바운딩 */
     hero3d: HERO3D,
+    /* v0.46 QA: 3D 몬스터 상태·고정 */
+    mon3d: MON3D,
     /* QA: 지금까지 먹획을 구운 혼령 기호 목록(예열 검증용) */
     spiritInkShapes: function () { return Object.keys(spiritInkCache); },
     sealUrl: sealUrl, upIconUrl: upIconUrl, itemIconUrl: itemIconUrl, setSpiritShape: setSpiritShape, setStatus: setStatus, setAura: setAura, setTelegraph: setTelegraph,

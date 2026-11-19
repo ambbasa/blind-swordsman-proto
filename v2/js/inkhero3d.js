@@ -163,9 +163,8 @@ void main() {
   gl_FragColor = vec4(max(col, vec3(0.0)), 1.0);
 }`;
 
-function inkMat(opt) {
-  opt = opt || {};
-  const u = {
+function inkUniforms() {
+  return {
     uRamp: { value: gradMap() },
     uKeyDir: { value: new THREE.Vector3(-0.45, 0.78, 0.44).normalize() },
     uKeyCol: { value: new THREE.Color(0.86, 0.83, 0.76).multiplyScalar(LIGHT.key) },
@@ -177,6 +176,10 @@ function inkMat(opt) {
     uWash: { value: LIGHT.wash },
     uGrain: { value: 0.16 }
   };
+}
+function inkMat(opt) {
+  opt = opt || {};
+  const u = inkUniforms();
   const m = new THREE.ShaderMaterial({
     uniforms: u, vertexShader: VERT, fragmentShader: FRAG,
     side: opt.side || THREE.FrontSide
@@ -886,6 +889,17 @@ function applyCloth(H, dt, vxSpeed, vzSpeed, sp) {
   B.tailL.rotation.set(tl, 0, 0.16);
   B.tailR.rotation.set(tr, 0, -0.16);
 }
+
+/* ---------------------------------------------------------------- v0.46 공용 먹 도구
+   몬스터 3D 뼈대(v2/js/inkmonsters3d.js)가 주인공과 **같은** 계조·광원·먹선 규칙을 쓰도록
+   셰이더 문자열과 형상 도구를 그대로 내보낸다. 톤이 갈라지지 않게 하는 것이 이 export 의 목적이다. */
+export const INK3D = {
+  LIGHT: LIGHT, FRAG: FRAG, OUTLINE_T: OUTLINE_T,
+  gradMap: gradMap, inkUniforms: inkUniforms, inkMat: inkMat, outlineMat: outlineMat,
+  bindLights: bindLights, syncLights: syncLights,
+  lathe: lathe, limbGeo: limbGeo, ballGeo: ballGeo, ringGeo: ringGeo, ribbonGeo: ribbonGeo,
+  bladeGeo: bladeGeo, mergeParts: mergeParts, hullGeo: hullGeo, mat4: mat4, P: P, shadowTex: shadowTex
+};
 
 /* ---------------------------------------------------------------- 외부 훅 */
 export function kick(group, k) {
