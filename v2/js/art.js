@@ -5,12 +5,13 @@ import { buildStage3D } from './inkprops3d.js';
 import { drawInkBossSheet } from './inkboss.js';
 import { drawHeroSheets, drawZombieSheets, drawZombieVariantSheets, drawSpiritSheet } from './inkchars.js';
 import { drawRattle, drawItem, drawSeal, drawUpgrade } from './inkicons.js';
+import { loadPixelPack, PIXEL_LOOK } from './pixellook.js';
 import { buildFigure, tickFigure, kick as rigKick, setOpacity as rigOpacity, setTint as rigTint,
   setAuraColor as rigAuraColor, setOrder as rigOrder, setCamera as rigSetCamera, ready as rigReady } from './inkchars3d.js';
 
 const BASE = '../assets/v2/';
 let QA_NORIG = false;
-try { QA_NORIG = new URLSearchParams(location.search).has('norig'); } catch (e) {}
+try { QA_NORIG = new URLSearchParams(location.search).has('norig') || PIXEL_LOOK; } catch (e) {}
 const ITEM_KEY = {
   ice: 'elem-ice', fire: 'elem-fire', poison: 'elem-poison', bell: 'one-bell',
   'elem-ice': 'elem-ice', 'elem-fire': 'elem-fire', 'elem-poison': 'elem-poison', 'one-bell': 'one-bell',
@@ -52,6 +53,8 @@ function hexColor(s, fb) {
 
 export async function buildArt(THREE) {
   const atlas = await loadAtlas();
+  /* 픽셀 룩 미리보기(?look=pixel): ink-studio 로 구운 시트. 없으면 코드 드로잉 시트를 그대로 쓴다. */
+  const pixelPack = await loadPixelPack(BASE);
   const pal = atlas.palette || {};
   const cache = new Map();
   const sharedUrls = [];
@@ -520,7 +523,14 @@ export async function buildArt(THREE) {
   let inkCharPack = null;
   function inkChars() {
     if (inkCharPack) return inkCharPack;
-    function bake(r) {
+    function bake(r, pixelKey) {
+      const px = pixelPack && pixelKey && pixelPack[pixelKey];
+      if (px && px.frames === r.sheet.count && px.cell === r.sheet.frame[0]) {
+        r.sheet.tex = px.tex;
+        r.sheet.anchor = px.anchor.slice();
+        r.sheet.pixel = true;
+        return r.sheet;
+      }
       const t = new THREE.CanvasTexture(r.canvas);
       t.colorSpace = THREE.SRGBColorSpace;
       r.sheet.tex = t;
@@ -528,11 +538,11 @@ export async function buildArt(THREE) {
     }
     const h = drawHeroSheets(), z = drawZombieSheets(), v = drawZombieVariantSheets();
     inkCharPack = {
-      hero: { actions: { idle: bake(h.idle), dash: bake(h.dash) }, afterimage: bake(h.afterimage) },
+      hero: { actions: { idle: bake(h.idle, 'hero-idle'), dash: bake(h.dash, 'hero-dash') }, afterimage: bake(h.afterimage, 'hero-after') },
       zombie: { actions: { walk: bake(z.walk), frozen: bake(z.frozen), burning: bake(z.burning), poisoned: bake(z.poisoned) } },
       brute: { actions: { walk: bake(v.brute) } },
       stone: { actions: { walk: bake(v.stone) } },
-      spirit: bake(drawSpiritSheet())
+      spirit: bake(drawSpiritSheet(), 'spirit-idle')
     };
     return inkCharPack;
   }

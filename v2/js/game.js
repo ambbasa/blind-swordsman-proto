@@ -34,6 +34,7 @@ import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/ink
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
 import { createInkWashPass } from './inkwash.js';
+import { PIXEL_LOOK, createPixelLookPass } from './pixellook.js';
 import { createCinematicPass } from './inkcinematic.js';
 import { createSlashArc } from './inkslash3d.js';
 import { StageAtmosphere } from './inkatmos.js';
@@ -1501,6 +1502,11 @@ async function makeWorld() {
       quality: fxQ,
       depth: true,
       post: function () {
+        if (PIXEL_LOOK) {
+          const px = createPixelLookPass();
+          px.setPixelRatio(renderer.getPixelRatio());
+          return [createCinematicPass(), px];
+        }
         const wash = createInkWashPass();
         wash.enableDepth(camera.near, camera.far);
         return [wash, createCinematicPass()];

@@ -1,0 +1,38 @@
+{
+ "cell": 256,
+ "anchor": [
+  128,
+  236
+ ],
+ "artPx": 4,
+ "sheets": {
+  "hero-idle": {
+   "file": "hero-idle.png",
+   "frames": 10,
+   "fps": 8,
+   "loop": true,
+   "worldH": 2.45
+  },
+  "hero-dash": {
+   "file": "hero-dash.png",
+   "frames": 8,
+   "fps": 18,
+   "loop": true,
+   "worldH": 2.45
+  },
+  "hero-after": {
+   "file": "hero-after.png",
+   "frames": 3,
+   "fps": 0,
+   "loop": false,
+   "worldH": 2.45
+  },
+  "spirit-idle": {
+   "file": "spirit-idle.png",
+   "frames": 10,
+   "fps": 10,
+   "loop": true,
+   "worldH": 2.16
+  }
+ }
+}
