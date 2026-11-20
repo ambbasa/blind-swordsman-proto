@@ -68,6 +68,76 @@ const BANNER_STYLE = {
   seal:   { tag: '봉인',     accent: '#ffd872', bg: 'rgba(44,30,10,0.92)',  border: 'rgba(255,222,120,0.98)', hint: '별(★)을 그려 마무리!' }
 };
 
+/* v0.53: 직선 피자 조각 대신 손붓으로 쓸어낸 동양 수묵 초승달 횡참 3D 바닥 텍스처 생성 */
+function makeSweepBrushTex(THREE) {
+  if (typeof document === 'undefined') return null;
+  const sz = 512, c = document.createElement('canvas');
+  c.width = sz; c.height = sz;
+  const ctx = c.getContext('2d');
+  const cx = sz * 0.5, cy = sz * 0.5, R = sz * 0.45;
+  const half = 1.05; /* ~120도 호, +X 방향 중심 */
+
+  /* 1) 바깥쪽 칼날 호로 갈수록 짙어지고 안쪽은 투명하게 번지는 수묵·주홍 워시 (직선 모서리 없음!) */
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, -half, half, false);
+  ctx.arc(cx, cy, R * 0.28, half, -half, true);
+  ctx.closePath();
+  const rg = ctx.createRadialGradient(cx, cy, R * 0.25, cx, cy, R);
+  rg.addColorStop(0.0, 'rgba(180,34,24,0.0)');
+  rg.addColorStop(0.45, 'rgba(176,34,26,0.14)');
+  rg.addColorStop(0.82, 'rgba(196,42,30,0.34)');
+  rg.addColorStop(0.95, 'rgba(232,68,44,0.58)');
+  rg.addColorStop(1.0, 'rgba(232,68,44,0.0)');
+  ctx.fillStyle = rg;
+  ctx.fill();
+
+  /* 2) 갈필(건필) 먹붓 호선 6겹 — 자연스럽게 양 끝이 가늘어지는 동양 수묵 초승달 */
+  const steps = 48;
+  for (let b = 0; b < 6; b++) {
+    const rFrac = 0.54 + b * 0.082;
+    const isInk = b % 2 === 0;
+    for (let i = 0; i < steps; i++) {
+      const t0 = i / steps, t1 = (i + 1) / steps;
+      const a0 = -half * 0.96 + t0 * half * 1.92;
+      const a1 = -half * 0.96 + t1 * half * 1.92;
+      const env = Math.sin(((t0 + t1) * 0.5) * Math.PI); /* 양 끝 테이퍼 */
+      const jitter = Math.sin(i * 1.9 + b * 2.7) * 5;
+      const rad0 = R * rFrac + jitter;
+      const rad1 = R * rFrac + Math.sin((i + 1) * 1.9 + b * 2.7) * 5;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a0) * rad0, cy + Math.sin(a0) * rad0);
+      ctx.lineTo(cx + Math.cos(a1) * rad1, cy + Math.sin(a1) * rad1);
+      ctx.lineCap = 'round';
+      ctx.lineWidth = (isInk ? 9 : 5.5) * (0.25 + 0.95 * env);
+      ctx.strokeStyle = isInk
+        ? ('rgba(22,12,12,' + (0.48 * env).toFixed(3) + ')')
+        : ('rgba(246,88,56,' + (0.68 * env).toFixed(3) + ')');
+      ctx.stroke();
+    }
+  }
+
+  /* 3) 외곽 날카로운 주홍·먹 초승달 날(끝단으로 갈수록 자연 소멸) */
+  for (let i = 0; i < steps; i++) {
+    const t0 = i / steps, t1 = (i + 1) / steps;
+    const a0 = -half + t0 * half * 2;
+    const a1 = -half + t1 * half * 2;
+    const env = Math.sin(((t0 + t1) * 0.5) * Math.PI);
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(a0) * R * 0.96, cy + Math.sin(a0) * R * 0.96);
+    ctx.lineTo(cx + Math.cos(a1) * R * 0.96, cy + Math.sin(a1) * R * 0.96);
+    ctx.lineWidth = 11 * env + 1;
+    ctx.strokeStyle = 'rgba(255,152,96,' + (0.72 * env).toFixed(3) + ')';
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  const tx = new THREE.CanvasTexture(c);
+  if ('colorSpace' in tx && THREE.SRGBColorSpace) tx.colorSpace = THREE.SRGBColorSpace;
+  tx.needsUpdate = true;
+  return tx;
+}
+
 export class BossFx {
   constructor() {
     this.events = [];
@@ -96,6 +166,7 @@ export class BossFx {
     geo.rotateX(-Math.PI / 2);
     const mandalaTex = loadTex('assets/boss-fx/boss-mandala.webp');
     const impactTex = loadTex('assets/boss-fx/boss-impact.webp');
+    const sweepTex = makeSweepBrushTex(THREE);
 
     const makePlane = function (tex, y) {
       const mat = new THREE.MeshBasicMaterial({
@@ -112,12 +183,13 @@ export class BossFx {
     };
 
     const bossMandala = makePlane(mandalaTex, 0.056);
+    const sweepMesh = makePlane(sweepTex, 0.054);
     const hazardPool = [];
     for (let i = 0; i < 6; i++) hazardPool.push(makePlane(mandalaTex, 0.052));
     const impactPool = [];
     for (let i = 0; i < 6; i++) impactPool.push({ mesh: makePlane(impactTex, 0.060), active: false, x: 0, z: 0, r: 3, t: 0, dur: 1.2, seed: 0 });
 
-    this.ground3d = { bossMandala, hazardPool, impactPool };
+    this.ground3d = { bossMandala, sweepMesh, hazardPool, impactPool };
   }
 
   spawnImpact3D(x, z, r, dur) {
@@ -137,8 +209,9 @@ export class BossFx {
   syncGround3D(boss, hazards, t, dt, slamR) {
     const g = this.ground3d;
     if (!g) return;
-    /* 1) 보스 메인 마법진 (내려찍기·영창·기모으기) — 바닥에 깔려 주인공/보스를 절대 가리지 않음 */
+    /* 1) 보스 메인 마법진 (내려찍기·영창·기모으기·부적 난사) — 바닥에 깔려 주인공/보스를 절대 가리지 않음 */
     const bm = g.bossMandala;
+    const sw = g.sweepMesh;
     if (boss && boss.alive && !boss.hidden) {
       let show = false, bx = boss.x, bz = boss.z, R = 2.6, rot = (t || 0) * 0.65, op = 0.72;
       if (boss.state === 'slamTele' && boss.slam) {
@@ -152,6 +225,10 @@ export class BossFx {
         const u = clamp((boss.stateT || 0) / Math.max(0.01, boss.kiai.t), 0, 1);
         show = true; bx = boss.x; bz = boss.z;
         R = 3.2 - 0.8 * u; rot = -(t || 0) * 1.15; op = 0.55 + 0.35 * u;
+      } else if (boss.state === 'volleyTele') {
+        const u = clamp((boss.stateT || 0) / Math.max(0.01, boss.volleyTele || 0.8), 0, 1);
+        show = true; bx = boss.x; bz = boss.z;
+        R = 2.35 + 0.35 * u; rot = (t || 0) * 1.1; op = 0.45 + 0.42 * u;
       }
       bm.visible = show;
       if (show) {
@@ -160,8 +237,24 @@ export class BossFx {
         bm.rotation.y = rot;
         bm.material.opacity = op;
       }
+      /* 1.5) v0.53 언월 횡참 수묵 초승달 3D 바닥 데칼 (주인공/보스 아래) */
+      if (sw) {
+        if (boss.state === 'sweepTele' && boss.sweep) {
+          const u = clamp((boss.stateT || 0) / Math.max(0.01, boss.sweep.tele), 0, 1);
+          const sr = (boss.sweep.range || 6.0) * 1.08;
+          sw.visible = true;
+          sw.position.set(boss.x, 0.054, boss.z);
+          sw.scale.set(sr, 1, sr);
+          /* PlaneGeometry rotateX(-PI/2)는 캔버스 +X가 월드 +X, 캔버스 +Y가 월드 +Z -> rotation.y = -aimA */
+          sw.rotation.y = -(boss.sweep.aimA || 0);
+          sw.material.opacity = 0.50 + 0.46 * u;
+        } else {
+          sw.visible = false;
+        }
+      }
     } else {
       bm.visible = false;
+      if (sw) sw.visible = false;
     }
 
     /* 2) 다중 장판 마법진 풀 */
@@ -198,6 +291,7 @@ export class BossFx {
     this.dmgNums.length = 0;
     if (this.ground3d) {
       this.ground3d.bossMandala.visible = false;
+      if (this.ground3d.sweepMesh) this.ground3d.sweepMesh.visible = false;
       this.ground3d.hazardPool.forEach(function (m) { m.visible = false; });
       this.ground3d.impactPool.forEach(function (s) { s.active = false; s.mesh.visible = false; });
     }
@@ -429,56 +523,52 @@ export class BossFx {
     ctx.restore();
   }
 
-  /* v0.52 신규 스킬 — 언월 횡참(sweepTele): 120도 부채꼴 수묵 경고 + 수렴 백금 호 */
+  /* v0.53: 언월 횡참(sweepTele) — 직선 피자 조각 제거!
+     3D 바닥의 수묵 초승달 붓결(sweepMesh) 위에, 수렴하는 가느다란 백금 초승달 칼날 호선만 그려낸다. */
   drawSweepTele(ctx, project, bx, bz, aimA, arcSpan, range, f, t) {
     const u = clamp(f, 0, 1);
     const urgent = u >= 0.78;
     const half = (arcSpan || 2.1) * 0.5;
-    const R = range || 5.8;
-    const segs = 22;
-    const c = project(bx, bz, 0.05);
+    const R = range || 6.0;
+    const segs = 26;
 
     ctx.save();
-    /* 고정 부채꼴 위험 영역 */
-    ctx.beginPath();
-    ctx.moveTo(c.x, c.y);
-    for (let i = 0; i <= segs; i++) {
-      const a = aimA - half + (i / segs) * half * 2;
-      const p = project(bx + Math.cos(a) * R, bz + Math.sin(a) * R, 0.05);
-      ctx.lineTo(p.x, p.y);
+    ctx.lineCap = 'round';
+    /* 1) 바깥쪽 칼날 끝 경계 — 양 끝이 자연스럽게 가늘어지는 초승달 붓선 (직선 옆면 없음!) */
+    for (let i = 0; i < segs; i++) {
+      const k0 = i / segs, k1 = (i + 1) / segs;
+      const a0 = aimA - half + k0 * half * 2;
+      const a1 = aimA - half + k1 * half * 2;
+      const env = Math.sin(((k0 + k1) * 0.5) * Math.PI);
+      const p0 = project(bx + Math.cos(a0) * R, bz + Math.sin(a0) * R, 0.06);
+      const p1 = project(bx + Math.cos(a1) * R, bz + Math.sin(a1) * R, 0.06);
+      ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y);
+      ctx.strokeStyle = 'rgba(18,10,10,' + (0.62 * env).toFixed(3) + ')';
+      ctx.lineWidth = 6.5 * env + 0.8;
+      ctx.stroke();
+      ctx.strokeStyle = urgent
+        ? ('rgba(255,244,196,' + (0.98 * env).toFixed(3) + ')')
+        : ('rgba(244,86,58,' + (0.86 * env).toFixed(3) + ')');
+      ctx.lineWidth = (urgent ? 3.8 : 2.6) * env + 0.5;
+      ctx.stroke();
     }
-    ctx.closePath();
-    ctx.fillStyle = urgent ? 'rgba(232,54,36,0.16)' : ('rgba(186,32,24,' + (0.06 + 0.08 * u).toFixed(3) + ')');
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(14,9,9,0.72)';
-    ctx.lineWidth = 4.5;
-    ctx.stroke();
-    ctx.strokeStyle = urgent ? 'rgba(255,244,196,0.98)' : 'rgba(246,84,56,0.88)';
-    ctx.lineWidth = urgent ? 2.8 : 2.1;
-    ctx.stroke();
 
-    /* 안쪽에서 바깥으로 차오르는 타이밍 호 (채움은 투명하게, 백금 호선만 선명히) */
-    const rNow = Math.max(0.4, R * u);
-    ctx.beginPath();
-    ctx.moveTo(c.x, c.y);
-    for (let i = 0; i <= segs; i++) {
-      const a = aimA - half + (i / segs) * half * 2;
-      const p = project(bx + Math.cos(a) * rNow, bz + Math.sin(a) * rNow, 0.06);
-      ctx.lineTo(p.x, p.y);
+    /* 2) 안쪽에서 바깥 칼날로 차오르는 수렴 백금 타이밍 초승달 호 (f → 1.0) */
+    const rNow = R * (0.30 + 0.70 * u);
+    for (let i = 0; i < segs; i++) {
+      const k0 = i / segs, k1 = (i + 1) / segs;
+      const a0 = aimA - half * 0.96 + k0 * half * 1.92;
+      const a1 = aimA - half * 0.96 + k1 * half * 1.92;
+      const env = Math.sin(((k0 + k1) * 0.5) * Math.PI);
+      const p0 = project(bx + Math.cos(a0) * rNow, bz + Math.sin(a0) * rNow, 0.08);
+      const p1 = project(bx + Math.cos(a1) * rNow, bz + Math.sin(a1) * rNow, 0.08);
+      ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y);
+      ctx.strokeStyle = urgent
+        ? ('rgba(255,252,224,' + (0.98 * env).toFixed(3) + ')')
+        : ('rgba(255,214,132,' + (0.88 * env).toFixed(3) + ')');
+      ctx.lineWidth = (urgent ? 4.4 : 2.8) * env + 0.6;
+      ctx.stroke();
     }
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(244,96,60,' + (0.05 + 0.08 * u).toFixed(3) + ')';
-    ctx.fill();
-
-    ctx.beginPath();
-    for (let i = 0; i <= segs; i++) {
-      const a = aimA - half + (i / segs) * half * 2;
-      const p = project(bx + Math.cos(a) * rNow, bz + Math.sin(a) * rNow, 0.07);
-      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
-    }
-    ctx.strokeStyle = urgent ? '#fff8d4' : 'rgba(255,216,136,0.92)';
-    ctx.lineWidth = urgent ? 3.8 : 2.4;
-    ctx.stroke();
     ctx.restore();
   }
 
@@ -532,26 +622,224 @@ export class BossFx {
     ctx.restore();
   }
 
-  /* 부적 탄막 예고: 부채꼴 수묵 광선 + 끝단 타이밍 펄스 구슬 */
-  drawVolleyTele(ctx, project, bx, bz, aimA, n, spread, f, t) {
+  /* v0.53: 부적 탄막 예고 — 딱딱한 직선 레이저 제거!
+     보스 주위에 부유하며 바깥을 조준하는 살부적 편대(boss-talisman.webp) + 짧은 갈필 먹연기 궤적 + 금빛 패링 예고 */
+  drawVolleyTele(ctx, project, bx, bz, aimA, n, spread, f, t, goldMap) {
     const u = clamp(f, 0, 1);
     const urgent = u >= 0.78;
-    const bp = project(bx, bz, 0.75);
+    const img = this.sprites.talisman;
     ctx.save();
     for (let i = 0; i < n; i++) {
       const a = aimA + (n > 1 ? (i / (n - 1) - 0.5) : 0) * spread * 2;
-      const e = project(bx + Math.cos(a) * (3.2 + 7.2 * u), bz + Math.sin(a) * (3.2 + 7.2 * u), 0.45);
-      ctx.beginPath(); ctx.moveTo(bp.x, bp.y); ctx.lineTo(e.x, e.y);
-      ctx.strokeStyle = 'rgba(18,10,10,0.58)';
-      ctx.lineWidth = 5.0;
+      const isGold = !!(goldMap && goldMap[i]);
+      const cosA = Math.cos(a), sinA = Math.sin(a);
+      const nx = -sinA, nz = cosA;
+
+      /* 1) 부적이 날아갈 방향을 암시하는 옅은 갈필 먹연기·주홍 꼬리 (딱딱한 직선 대신 부드러운 곡선 + 점차 소멸) */
+      const startR = 1.35 + 0.35 * u;
+      const endR = startR + 2.4 + 3.4 * u;
+      const midR = (startR + endR) * 0.52;
+      const sway = Math.sin(t * 9 + i * 1.4) * 0.24;
+      const p0 = project(bx + cosA * startR, bz + sinA * startR, 0.72);
+      const pm = project(bx + cosA * midR + nx * sway, bz + sinA * midR + nz * sway, 0.55);
+      const p1 = project(bx + cosA * endR, bz + sinA * endR, 0.28);
+
+      const g = ctx.createLinearGradient(p0.x, p0.y, p1.x, p1.y);
+      if (isGold) {
+        g.addColorStop(0, urgent ? 'rgba(255,244,172,0.92)' : 'rgba(255,216,104,0.78)');
+        g.addColorStop(0.65, 'rgba(232,172,54,0.30)');
+        g.addColorStop(1, 'rgba(232,172,54,0)');
+      } else {
+        g.addColorStop(0, urgent ? 'rgba(255,176,120,0.85)' : 'rgba(220,56,38,0.68)');
+        g.addColorStop(0.6, 'rgba(30,14,12,0.28)');
+        g.addColorStop(1, 'rgba(18,10,10,0)');
+      }
+      ctx.beginPath();
+      ctx.moveTo(p0.x, p0.y);
+      ctx.quadraticCurveTo(pm.x, pm.y, p1.x, p1.y);
+      ctx.strokeStyle = g;
+      ctx.lineWidth = (isGold ? 4.2 : 3.2) * (0.7 + 0.5 * u);
+      ctx.lineCap = 'round';
       ctx.stroke();
-      ctx.strokeStyle = urgent ? 'rgba(255,232,162,0.95)' : ('rgba(236,72,48,' + (0.38 + 0.55 * u).toFixed(3) + ')');
-      ctx.lineWidth = urgent ? 2.6 : 2.0;
-      ctx.stroke();
-      ctx.beginPath(); ctx.arc(e.x, e.y, 2.8 + 2.4 * u, 0, Math.PI * 2);
-      ctx.fillStyle = urgent ? '#fff6cc' : ('rgba(255,204,116,' + (0.65 + 0.35 * Math.sin(t * 18 + i)).toFixed(3) + ')');
-      ctx.fill();
+
+      /* 2) 발사 직전 공중에 정렬되어 떠 있는 살부적 에셋 (보스 주위 반원 편대) */
+      const hoverR = 1.45 + 0.55 * easeOut(u);
+      const hoverY = 0.85 + 0.35 * u + Math.sin(t * 10 + i) * 0.08;
+      const tp = project(bx + cosA * hoverR, bz + sinA * hoverR, hoverY);
+      const tip = project(bx + cosA * (hoverR + 1.0), bz + sinA * (hoverR + 1.0), hoverY);
+      const scrAng = Math.atan2(tip.y - tp.y, tip.x - tp.x);
+
+      if (isGold) {
+        ctx.beginPath();
+        ctx.arc(tp.x, tp.y, 13 + 3 * Math.sin(t * 22 + i), 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,232,126,' + (0.65 + 0.35 * u).toFixed(3) + ')';
+        ctx.lineWidth = 2.4;
+        ctx.stroke();
+      }
+      if (spriteReady(img)) {
+        const sz = (isGold ? 28 : 22) * (0.75 + 0.35 * u);
+        ctx.save();
+        ctx.translate(tp.x, tp.y);
+        ctx.rotate(scrAng + Math.PI * 0.5);
+        ctx.globalAlpha = 0.6 + 0.4 * u;
+        ctx.drawImage(img, -sz * 0.5, -sz * 0.5, sz, sz);
+        ctx.restore();
+      }
     }
+    ctx.restore();
+  }
+
+  /* =====================================================================
+   * v0.53 시선 고정대(주인공 바로 아래 · 엄지 위, 화면 64~70%) 전용 반응 HUD
+   * 1) drawKiaiFocalGauge : 기모으기 대형 타이밍 게이지 + 금빛 스위트스팟
+   * 2) drawGestureFocalDock : 영창(3무늬) · 합 겨루기 · 봉인(★) 대형 제스처 도크
+   * ===================================================================== */
+  drawKiaiFocalGauge(ctx, r, hs, f, g0, open, lock, t) {
+    const u = clamp(f || 0, 0, 1);
+    const pulse = 0.5 + 0.5 * Math.sin((t || 0) * 28);
+    const w = Math.min(256, r.width - 56);
+    const h = 48;
+    const x = (r.width - w) * 0.5;
+    const y = clamp((hs ? hs.y : r.height * 0.5) + 64, r.height * 0.58, r.height * 0.72);
+
+    ctx.save();
+    ctx.fillStyle = open && !lock ? 'rgba(92,64,12,0.94)' : 'rgba(22,16,14,0.88)';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, 10);
+    else ctx.rect(x, y, w, h);
+    ctx.fill();
+
+    ctx.strokeStyle = open && !lock
+      ? ('rgba(255,244,176,' + (0.75 + 0.25 * pulse).toFixed(3) + ')')
+      : 'rgba(232,192,74,0.75)';
+    ctx.lineWidth = open && !lock ? 2.6 : 1.6;
+    ctx.stroke();
+
+    /* 상단 안내 라벨 */
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = open && !lock ? '700 14px "InkSerif", serif' : '700 12.5px "InkSerif", serif';
+    ctx.fillStyle = lock ? '#b2a89e' : (open ? '#fff2aa' : '#f4e6c8');
+    const title = lock ? '기물 뒤로 피하라' : (open ? '★ 지금 화면 탭! (받아치기) ★' : '기합 폭발 — 금빛 칸에서 화면 탭!');
+    ctx.fillText(title, r.width * 0.5, y + 15);
+
+    /* 하단 굵고 선명한 타이밍 바 */
+    const bx = x + 12, by = y + 29, barW = w - 24, barH = 11;
+    ctx.fillStyle = 'rgba(10,8,8,0.82)';
+    ctx.fillRect(bx, by, barW, barH);
+
+    /* 금빛 패링 스위트스팟 영역 */
+    const sx = bx + barW * clamp(g0 || 0.7, 0, 0.95);
+    const sw = barW * (1 - clamp(g0 || 0.7, 0, 0.95));
+    ctx.fillStyle = lock ? 'rgba(120,112,104,0.45)' : (open ? '#ffe47a' : 'rgba(246,204,88,0.58)');
+    ctx.fillRect(sx, by, sw, barH);
+    ctx.strokeStyle = 'rgba(255,246,200,0.85)';
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(sx, by, sw, barH);
+
+    /* 차오르는 게이지 */
+    ctx.fillStyle = lock ? '#8f8780' : (open ? '#ffffff' : '#e0583e');
+    ctx.fillRect(bx, by + 2, barW * u, barH - 4);
+
+    /* 흰색 타이밍 바늘 */
+    const cx = bx + barW * u;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(cx - 2, by - 3, 4, barH + 6);
+    ctx.restore();
+  }
+
+  drawGestureFocalDock(ctx, r, hs, want, t, brushMarkFn) {
+    if (!want || !want.seq || !want.seq.length) return;
+    const n = want.seq.length;
+    const isSeal = want.kind === 'seal';
+    const isClash = want.kind === 'clash';
+    const accent = isSeal ? '#ffd86b' : (isClash ? '#f6d268' : '#5ce8c4');
+    const gap = 64;
+    const dockW = Math.max(206, n * gap + 56);
+    const dockH = 88;
+    const x = (r.width - dockW) * 0.5;
+    const y = clamp((hs ? hs.y : r.height * 0.5) + 56, r.height * 0.56, r.height * 0.69);
+    const pulse = 0.5 + 0.5 * Math.sin((t || 0) * 14);
+
+    ctx.save();
+    /* 반투명 옻칠 한지 도크 배경 (주인공 바로 아래, 엄지 그리기 영역 바로 위) */
+    ctx.fillStyle = 'rgba(14,12,12,0.84)';
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, dockW, dockH, 12);
+    else ctx.rect(x, y, dockW, dockH);
+    ctx.fill();
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+
+    /* 상단 짧은 행동 헤더 */
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '700 12.5px "InkSerif", serif';
+    ctx.fillStyle = '#f6ebd4';
+    ctx.fillText(want.title || '순서대로 그려 끊어라', r.width * 0.5, y + 14);
+
+    /* 제스처 원형 메달 (큼직하고 현재 차례 강조 + 화살표) */
+    const cy = y + 48;
+    const x0 = r.width * 0.5 - (n - 1) * gap * 0.5;
+    for (let i = 0; i < n; i++) {
+      const sh = want.seq[i];
+      const px = x0 + i * gap;
+      const done = i < (want.i || 0);
+      const cur = i === (want.i || 0);
+      const rad = cur ? 23 + 1.5 * pulse : 18;
+
+      /* 다음 순서 화살표 */
+      if (i < n - 1) {
+        ctx.font = '700 14px sans-serif';
+        ctx.fillStyle = done ? 'rgba(130,120,108,0.5)' : 'rgba(244,232,206,0.65)';
+        ctx.fillText('›', px + gap * 0.5, cy);
+      }
+
+      ctx.beginPath();
+      ctx.arc(px, cy, rad, 0, Math.PI * 2);
+      ctx.fillStyle = done ? 'rgba(42,38,34,0.82)' : (cur ? 'rgba(24,38,34,0.95)' : 'rgba(16,14,16,0.78)');
+      ctx.fill();
+      ctx.lineWidth = cur ? 3.2 : 1.5;
+      ctx.strokeStyle = done ? 'rgba(110,100,88,0.65)' : (cur ? accent : 'rgba(220,210,190,0.45)');
+      ctx.stroke();
+
+      /* 현재 그릴 무늬 외곽 맥동 고리 */
+      if (cur) {
+        ctx.beginPath();
+        ctx.arc(px, cy, rad + 4 + 2 * pulse, 0, Math.PI * 2);
+        ctx.strokeStyle = isSeal || isClash
+          ? ('rgba(255,224,118,' + (0.4 + 0.45 * pulse).toFixed(3) + ')')
+          : ('rgba(92,232,196,' + (0.4 + 0.45 * pulse).toFixed(3) + ')');
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = done ? 'rgba(120,110,98,0.8)' : (cur ? '#fff8df' : accent);
+      ctx.strokeStyle = ctx.fillStyle;
+      if (done) {
+        ctx.font = '700 16px sans-serif';
+        ctx.fillText('✓', px, cy + 1);
+      } else if (sh === 'star') {
+        ctx.beginPath();
+        ctx.moveTo(px, cy - 13);
+        ctx.lineTo(px + 8, cy + 11);
+        ctx.lineTo(px - 13, cy - 4);
+        ctx.lineTo(px + 13, cy - 4);
+        ctx.lineTo(px - 8, cy + 11);
+        ctx.closePath();
+        ctx.lineWidth = 2.4;
+        ctx.stroke();
+      } else if (brushMarkFn) {
+        brushMarkFn(ctx, sh, px, cy, cur ? 11.5 : 9);
+      }
+    }
+
+    /* 하단 남은 시간 바 */
+    const frac = clamp(want.frac != null ? want.frac : 1, 0, 1);
+    const bx = x + 14, by = y + dockH - 11, barW = dockW - 28;
+    ctx.fillStyle = 'rgba(10,8,8,0.75)';
+    ctx.fillRect(bx, by, barW, 5);
+    ctx.fillStyle = frac < 0.28 ? '#f05a42' : accent;
+    ctx.fillRect(bx, by, barW * frac, 5);
     ctx.restore();
   }
 

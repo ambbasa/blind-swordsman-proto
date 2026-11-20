@@ -195,7 +195,7 @@ const CFG = {
       clones: '분신 가운데 방울이 우는 것이 진짜입니다. 가짜를 베면 반격당합니다.',
       veil: '귀물이 안개에 숨었습니다 — 방울이 우는 쪽으로 획을 그으세요.',
       volley: '부적 탄막입니다. 사이로 일섬하고, 금빛 부적은 탭으로 되받아치세요.',
-      chant: '영창입니다 — 위에 뜬 무늬를 순서대로 그려 끊으세요.',
+      chant: '영창입니다 — 아래 뜬 무늬를 순서대로 그려 끊으세요.',
       shrink: '결계가 조여 옵니다 — 부적 기둥을 모두 베세요.',
       seal: '귀물이 무릎 꿇었습니다 — 획이 교차하는 한붓별(⛤)을 그려 봉인하세요.',
       /* v0.32 §4.4 막 보스 전용 */
@@ -7116,9 +7116,13 @@ function startBossPattern(z, id) {
   else if (id === 'clones') startClones(z);
   else if (id === 'veil') startVeil(z);
   else if (id === 'volley') {
-    z.state = 'volleyTele';
+    z.state = 'volleyTele'; z._warnTicked = false;
     z.aimA = Math.atan2(S.hero.z - z.z, S.hero.x - z.x);
     z.volleyTele = P.volley.tele * (z.teleMul || 1);
+    /* v0.53: 발사 전에 금빛 패링 부적 위치를 미리 결정해 예고 편대에 금빛으로 표시한다 */
+    const Vo = P.volley, gMap = {};
+    while (Object.keys(gMap).length < Math.min(Vo.gold, Vo.n)) gMap[Math.floor(Math.random() * Vo.n)] = true;
+    z.volleyGold = gMap;
     bossCue(z, 'red', id);
   } else if (id === 'chant') {
     z.state = 'chant'; z.chant = { seq: pickSeq(P.chant.n), i: 0 };
@@ -7459,12 +7463,15 @@ function stepBossPat(z, dt) {
     }
     if (z.stateT > vDur) {
       z._warnTicked = false;
-      const Vo = P.volley, gold = {};
-      while (Object.keys(gold).length < Math.min(Vo.gold, Vo.n)) gold[Math.floor(Math.random() * Vo.n)] = true;
+      const Vo = P.volley, gold = z.volleyGold || {};
+      if (!Object.keys(gold).length) {
+        while (Object.keys(gold).length < Math.min(Vo.gold, Vo.n)) gold[Math.floor(Math.random() * Vo.n)] = true;
+      }
       for (let i = 0; i < Vo.n; i++) {
         const a = z.aimA + (Vo.n > 1 ? (i / (Vo.n - 1) - 0.5) : 0) * Vo.spread * 2;
         spawnBossShot(z, a, !!gold[i]);
       }
+      z.volleyGold = null;
       bossFx.triggerSmokeBurst(z.x, z.z, false);
       if (three && three.lights) three.lights.burst(z.x, 1.4, z.z, { color: 0xe64532, intensity: 4.0, duration: 0.3 });
       if (audio) { if (audio.bossVolley) audio.bossVolley(); else audio.slash(); }
@@ -7929,31 +7936,17 @@ function bossBannerInfo(z) {
   if (st === 'mimicTele' && z.mimic) {
     return { mode: 'dodge', name: '궤적 흉내', hint: '직각으로 일섬 회피', f: clamp((z.mimic.t || 0) / Math.max(0.01, z.mimic.tele), 0, 1), sweetStart: 0.78 };
   }
-  if (st === 'kiai' && z.kiai) {
-    const K = P.kiai, T = z.kiai.t;
-    const g0 = (T - kiaiWin(K)) / Math.max(0.01, T);
-    const open = z.stateT >= T - kiaiWin(K) && !z.kiai.lock;
-    return { mode: 'parry', name: '기합 폭발', hint: z.kiai.lock ? '기물 뒤로 피하라' : '금빛 구간에서 탭!', f: clamp((z.stateT || 0) / Math.max(0.01, T), 0, 1), sweetStart: g0, sweetOpen: open };
-  }
-  if (st === 'chant' && z.chant) {
-    const dur = z.chantT || P.chant.t;
-    return { mode: 'break', name: '원혼 영창', hint: '아래 무늬 순서대로', f: clamp(1 - (z.stateT || 0) / Math.max(0.01, dur), 0, 1), sweetStart: 0.85 };
-  }
   if (st === 'clones') {
     return { mode: 'break', name: '환영 분신', hint: '방울 울리는 본체 베기', f: clamp(1 - (z.stateT || 0) / Math.max(0.01, P.clones.t), 0, 1), sweetStart: 0.85 };
   }
   if (st === 'veil') {
     return { mode: 'break', name: '어둠 은신', hint: '비취 물결 쪽으로 베기', f: clamp(1 - (z.stateT || 0) / Math.max(0.01, P.veil.t), 0, 1), sweetStart: 0.85 };
   }
-  if (st === 'clash' && z.clash) {
-    return { mode: 'break', name: '합 겨루기', hint: '뜬 무늬를 즉시 베기', f: clamp(1 - (z.clash.t || 0) / Math.max(0.01, z.clash.win), 0, 1), sweetStart: 0.8 };
-  }
   if (st === 'shuffle' && z.shuffle) {
     return { mode: 'break', name: '무늬 뒤섞기', hint: z.shuffle.gold > 0 ? '★ 지금 베면 고정!' : '금빛 순간을 노려라', f: clamp(1 - (z.shuffle.t || 0) / Math.max(0.01, z.shuffle.dur), 0, 1), sweetStart: 0.8, sweetOpen: z.shuffle.gold > 0 };
   }
-  if (st === 'seal') {
-    return { mode: 'seal', name: '귀물 봉인', hint: '교차별(★)을 그려라!', f: clamp(1 - (z.stateT || 0) / Math.max(0.01, P.seal.t), 0, 1), sweetStart: 0.0, sweetOpen: true };
-  }
+  /* v0.53: kiai(기합)·chant(영창)·clash(합 겨루기)·seal(봉인)은 상단 대신
+     주인공 바로 아래 시선 고정대(drawKiaiFocalGauge / drawGestureFocalDock)에서 직접 표시해 시선 이동을 최소화한다. */
   return null;
 }
 /* 보스 패턴 그림: 예고 색 고리·문구, 기모으기 게이지, 내려찍기 원, 탄막 부채, 영창 무늬, 은신 방울, 기세, 봉인. */
@@ -8042,11 +8035,11 @@ function drawBossPat(ctx, r, hs) {
       ctx.beginPath(); ctx.ellipse(bp.x, bp.y, rx * (1 + (1 - k) * 0.35), ry * (1 + (1 - k) * 0.35), 0, 0, Math.PI * 2); ctx.stroke();
     }
   }
-  /* 기모으기 게이지: 주인공 둘레의 고리, 끝의 금빛 칸에서 탭 + v0.52 수묵·금빛 기류 소용돌이 + 주인공 링 */
+  /* 기모으기 게이지: v0.53 주인공 바로 아래 시선 고정대 대형 타이밍 게이지 + 소용돌이 */
   if (z.state === 'kiai' && z.kiai) {
     const K = P.kiai, T = z.kiai.t, f = clamp(z.stateT / T, 0, 1), g0 = (T - kiaiWin(K)) / T;
     const open = z.stateT >= T - kiaiWin(K), lock = z.kiai.lock;
-    drawFootGauge(ctx, f, lock ? '#99918a' : open ? '#fff0be' : '#cf5844', 80, 16, g0);
+    bossFx.drawKiaiFocalGauge(ctx, r, hs, f, g0, open, lock, t);
     if (onScr) bossFx.drawKiaiVortex(ctx, projectXZ, z.x, z.z, f, open && !lock, t, S.hero);
   }
   /* 내려찍기 예고: v0.52 커스텀 수묵 만다라 + 수렴 백금 타이밍 링 */
@@ -8054,15 +8047,15 @@ function drawBossPat(ctx, r, hs) {
     const f = clamp(z.stateT / z.slam.tele, 0, 1);
     bossFx.drawSlamTele(ctx, projectXZ, z.slam.x, z.slam.z, P.slam.r, f, t);
   }
-  /* 언월 횡참 예고: v0.52 120도 부채꼴 수묵 경고 + 수렴 백금 호 */
+  /* 언월 횡참 예고: v0.53 3D 바닥 수묵 초승달 붓결 + 수렴 백금 칼날 호선 */
   if (z.state === 'sweepTele' && z.sweep) {
     const f = clamp(z.stateT / Math.max(0.01, z.sweep.tele), 0, 1);
     bossFx.drawSweepTele(ctx, projectXZ, z.x, z.z, z.sweep.aimA, z.sweep.arc, z.sweep.range, f, t);
   }
-  /* 탄막 부채 예고선: v0.50 부채꼴 수묵 광선 */
+  /* 부적 탄막 예고: v0.53 공중 정렬 살부적 편대 + 갈필 먹연기 궤적 */
   if (z.state === 'volleyTele' && onScr) {
     const Vo = P.volley, f = clamp(z.stateT / (z.volleyTele || Vo.tele), 0, 1);
-    bossFx.drawVolleyTele(ctx, projectXZ, z.x, z.z, z.aimA, Vo.n, Vo.spread, f, t);
+    bossFx.drawVolleyTele(ctx, projectXZ, z.x, z.z, z.aimA, Vo.n, Vo.spread, f, t, z.volleyGold);
   }
   /* 영창 중 회전 수묵 만다라 진법 */
   if (z.state === 'chant' && z.chant && onScr) {
@@ -8076,36 +8069,15 @@ function drawBossPat(ctx, r, hs) {
     ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(46,230,166,' + (0.85 * k).toFixed(3) + ')';
     ctx.beginPath(); ctx.arc(hs.x, hs.y, rr * (0.92 + 0.12 * (1 - k)), a - 0.3, a + 0.3); ctx.stroke();
   }
-  /* 영창·봉인: 화면 위쪽에 그릴 무늬와 남은 시간 */
-  const want = z.state === 'chant' && z.chant ? { seq: z.chant.seq, i: z.chant.i, T: (z.chantT || P.chant.t), title: '영창을 끊어라' }
-    : z.state === 'seal' ? { seq: ['star'], i: 0, T: P.seal.t, title: '봉인하라' } : null;
-  if (want) {
-    const n = want.seq.length, gap = 54, x0 = r.width * 0.5 - (n - 1) * gap / 2, y = 178;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    want.seq.forEach(function (sh, i) {
-      const x = x0 + i * gap, done = i < want.i, cur = i === want.i;
-      ctx.beginPath(); ctx.arc(x, y, 21, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(9,8,11,0.78)'; ctx.fill();
-      ctx.lineWidth = cur ? 3 : 1.5; ctx.strokeStyle = done ? 'rgba(90,80,70,0.8)' : 'rgba(46,230,166,' + (cur ? 1 : 0.6) + ')'; ctx.stroke();
-      ctx.font = '700 22px serif';
-      ctx.fillStyle = done ? 'rgba(90,80,70,0.9)' : 'rgba(46,230,166,1)';
-      if (sh === 'star') {
-        ctx.beginPath();
-        ctx.moveTo(x, y - 14);
-        ctx.lineTo(x + 8, y + 11);
-        ctx.lineTo(x - 13, y - 4);
-        ctx.lineTo(x + 13, y - 4);
-        ctx.lineTo(x - 8, y + 11);
-        ctx.closePath();
-        ctx.strokeStyle = ctx.fillStyle;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      } else brushMark(ctx,sh,x,y,10);
-    });
-    const f = 1 - clamp(z.stateT / want.T, 0, 1), bw = Math.max(110, n * gap);
-    ctx.fillStyle = 'rgba(9,8,11,0.6)'; ctx.fillRect(r.width * 0.5 - bw / 2, y + 30, bw, 5);
-    ctx.fillStyle = 'rgba(46,230,166,0.9)'; ctx.fillRect(r.width * 0.5 - bw / 2, y + 30, bw * f, 5);
-  }
+  /* v0.53 영창·봉인·합 겨루기: 주인공 바로 아래(엄지 위) 시선 고정대에 큼직하게 표시 */
+  const want = z.state === 'chant' && z.chant
+    ? { kind: 'chant', seq: z.chant.seq, i: z.chant.i, frac: 1 - clamp(z.stateT / Math.max(0.01, z.chantT || P.chant.t), 0, 1), title: '원혼 영창 — 순서대로 그려 끊어라' }
+    : z.state === 'seal'
+      ? { kind: 'seal', seq: ['star'], i: 0, frac: 1 - clamp(z.stateT / Math.max(0.01, P.seal.t), 0, 1), title: '귀물 봉인 — 교차별(★)을 그려라!' }
+      : z.state === 'clash' && z.clash
+        ? { kind: 'clash', seq: [z.clash.shape], i: 0, frac: 1 - clamp(z.clash.t / Math.max(0.01, z.clash.win), 0, 1), title: '합 겨루기 ' + Math.min(z.clash.i + 1, z.clash.need) + '/' + z.clash.need + ' — 즉시 베어라!' }
+        : null;
+  if (want) bossFx.drawGestureFocalDock(ctx, r, hs, want, t, brushMark);
   /* 결계 수축: 부적 기둥마다 발밑 금빛 고리와 빛기둥 */
   const sk = S.arena && S.arena.shrink;
   if (sk) {
@@ -8127,22 +8099,7 @@ function drawBossPat(ctx, r, hs) {
     ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(232,192,74,' + (0.6 + 0.3 * Math.sin(t * 9)).toFixed(3) + ')';
     ctx.beginPath(); ctx.ellipse(bp.x, bp.y, 2.0 * wpc, 1.1 * wpc, t * 2, 0, Math.PI * 2); ctx.stroke();
   }
-  /* §4.4 8장 합 겨루기: 화면 위에 지금 그릴 무늬와 1.2초 게이지 */
-  if (z.state === 'clash' && z.clash) {
-    const c = z.clash, f = clamp(c.t / c.win, 0, 1);
-    const x = r.width * 0.5, y = 156;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = '700 15px serif'; ctx.fillStyle = 'rgba(244,236,214,0.92)';
-    ctx.fillText('합 겨루기 ' + Math.min(c.i + 1, c.need) + '/' + c.need + ' — 칼이 맞부딪혔다', x, y - 44);
-    ctx.beginPath(); ctx.arc(x, y, 30, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(9,8,11,0.8)'; ctx.fill();
-    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(232,192,74,' + (0.55 + 0.45 * Math.sin(t * 12)).toFixed(3) + ')'; ctx.stroke();
-    ctx.font = '700 30px serif'; ctx.fillStyle = 'rgba(255,236,190,1)';
-    brushMark(ctx,c.shape,x,y,9);
-    /* 남은 시간이 줄어드는 고리 */
-    ctx.beginPath(); ctx.arc(x, y, 38, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - f));
-    ctx.strokeStyle = 'rgba(255,120,90,0.9)'; ctx.lineWidth = 3; ctx.stroke();
-  }
+  /* §4.4 8장 합 겨루기: v0.53 주인공 아래 시선 고정대(drawGestureFocalDock)로 통합 */
   /* §4.4 8장 흉내: v0.50 수묵·주홍 테이퍼 레인 */
   if ((z.state === 'mimicTele' || z.state === 'mimicCharge') && z.mimic) {
     const m = z.mimic;
