@@ -266,9 +266,9 @@ export function build(species, opt) {
 
 /* ---------------------------------------------------------------- 상태 → 동작 */
 /* v0.50 보스 상태별 전용 포즈 매핑: 예비(wind) · 쇄도(charge) · 내리찍기(strike) · 무릎 꿇음(kneel) · 경직(hit) */
-const BOSS_WIND = { telegraph: 1, wind: 1, volleyTele: 1, slamTele: 1, mimicTele: 1, chant: 1, kiai: 1, clash: 1, shuffle: 1 };
+const BOSS_WIND = { telegraph: 1, wind: 1, volleyTele: 1, slamTele: 1, sweepTele: 1, mimicTele: 1, chant: 1, kiai: 1, clash: 1, shuffle: 1 };
 const BOSS_CHARGE = { charge: 1, mimicCharge: 1 };
-const BOSS_STRIKE = { strike: 1, slam: 1 };
+const BOSS_STRIKE = { strike: 1, slam: 1, sweep: 1 };
 const BOSS_KNEEL = { groggy: 1, seal: 1, sealing: 1 };
 const BOSS_HIT = { stun: 1 };
 

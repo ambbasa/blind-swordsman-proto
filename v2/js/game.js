@@ -3638,30 +3638,8 @@ function updateMarks() {
     lastMarkMetrics.bellPx = placed.reduce(function (m, p) { return Math.max(m, p.bellPx || 0); }, 0);
     lastMarkMetrics.bodyPx = placed.reduce(function (m, p) { return Math.max(m, p.bodyPx || 0); }, 0);
   }
-  placed.forEach(function (m) {
-    /* 기호는 혼령 텍스처에 구워져 3D 월드에서 렌더링된다. 2D 레이어에는 보스의 도형 순서만 남긴다. */
-    if (!(m.seq && m.seq.length)) return;
-    const x = m.x, y = m.y;
-    const gsize = m.cssPx || size;
-    ctx.save();
-    const gap = CFG.seqDotGap || 16; /* fixed: dots are 10-14px wide whatever the glyph size */
-    const rowW = (m.seq.length - 1) * gap;
-    const rowX = clamp(x - rowW * 0.5, 10, r.width - 10 - rowW);
-    const rowY = clamp(y - gsize * 0.5 - 10, 90, r.height - 10);
-    m.seq.forEach(function (seqSh, i) {
-      const done = i < m.seqI;
-      const cur = i === m.seqI;
-      const px = rowX + i * gap;
-      ctx.beginPath(); ctx.arc(px, rowY, cur ? 7 : 5, 0, 7);
-      ctx.fillStyle = done ? 'rgba(80,70,60,0.7)' : (cur ? '#E8C04A' : 'rgba(244,232,208,0.85)');
-      ctx.fill();
-      ctx.fillStyle = '#0E0C0A';
-      ctx.font = '700 9px serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      brushMark(ctx,seqSh,px,rowY,cur?6:4.5);
-    });
-    ctx.restore();
-  });
+  /* v0.52: 보스전이 HP 대결 체계로 전환됨에 따라 머리 위 구식 '무늬 순서 배열' 칩은 숨겨
+     플레이어가 "HP를 깎는가 vs 무늬 순서를 지우는가" 혼동하지 않도록 정리한다(현재 약점 혼령은 3D로 선명히 표시). */
   arrows.forEach(function (a) {
     const dx = a.ox - a.x, dy = a.oy - a.y, L = Math.hypot(dx, dy) || 1;
     const ux = dx / L, uy = dy / L;
@@ -3766,7 +3744,7 @@ function drawOverlays(ctx, r, hs) {
     bossFx.drawChargeTele(ctx, projectXZ, b.x, b.z, b.aim.x, b.aim.z, tf, t);
   }
   bossFx.drawHazards(ctx, projectXZ, S.hazards, t);
-  bossFx.drawShots(ctx, projectXZ, S.shots, t);
+  bossFx.drawShots(ctx, projectXZ, S.shots, t, S.hero);
   drawBossPat(ctx, r, hs);
   /* 5) 정예 원귀 바닥 경고 링 */
   S.zombies.forEach(function (z) {
@@ -3982,12 +3960,68 @@ function drawTerrain(ctx,r,hs,t) {
 function drawV31(ctx, r, hs, t) {
   if (!S) return;
   if (S.boss?.alive) {
-    const boss=S.boss, w=Math.min(260,r.width*.55), x=(r.width-w)/2, y=82;
-    ctx.save(); ctx.fillStyle='#241c21';ctx.fillRect(x-1,y-1,w+2,8);
-    ctx.fillStyle='#bf493d';ctx.fillRect(x,y,w*boss.hp/boss.maxHp,6);
-    ctx.font='bold 12px serif';ctx.textAlign='center';ctx.strokeStyle='#241c21';ctx.lineWidth=3;
-    const label=S.stage.bossName+'  '+Math.ceil(boss.hp)+' / '+boss.maxHp;
-    ctx.strokeText(label,r.width/2,y-5);ctx.fillStyle='#f5e6ce';ctx.fillText(label,r.width/2,y-5);ctx.restore();
+    const boss = S.boss;
+    const maxHp = Math.max(1, boss.maxHp || 1);
+    const curHp = Math.max(0, boss.hp || 0);
+    if (boss.hpTrail == null || boss.hpTrail < curHp) boss.hpTrail = curHp;
+    else boss.hpTrail = Math.max(curHp, boss.hpTrail - maxHp * 0.38 * frameDt);
+
+    const w = Math.min(286, r.width * 0.68), x = (r.width - w) * 0.5, y = 78, h = 9;
+    const openLeft = Math.max(0, (boss.openUntil || 0) - (S.elapsed || 0));
+    const isOpen = openLeft > 0 || boss.state === 'groggy';
+    const isSeal = boss.state === 'seal' || boss.state === 'sealing';
+
+    ctx.save();
+    /* 옻칠 먹 프레임 + 금박 외곽 */
+    ctx.fillStyle = 'rgba(20,14,15,0.88)';
+    ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+    ctx.strokeStyle = isOpen ? 'rgba(255,224,118,0.95)' : 'rgba(180,146,88,0.65)';
+    ctx.lineWidth = isOpen ? 1.8 : 1;
+    ctx.strokeRect(x - 2, y - 2, w + 4, h + 4);
+
+    /* 잔상 데미지 트레일 바 */
+    ctx.fillStyle = 'rgba(255,224,152,0.82)';
+    ctx.fillRect(x, y, w * clamp(boss.hpTrail / maxHp, 0, 1), h);
+    /* 주홍 실제 HP 바 */
+    ctx.fillStyle = isOpen ? '#e85b3a' : '#bf4135';
+    ctx.fillRect(x, y, w * clamp(curHp / maxHp, 0, 1), h);
+
+    /* 페이즈 전환 눈금 (2페이즈 50% / 3페이즈 33·66%) */
+    const B = bossCfg();
+    if (B.phase2) {
+      ctx.fillStyle = 'rgba(24,16,14,0.85)';
+      const marks = B.phase3 ? [1 / 3, 2 / 3] : [0.5];
+      marks.forEach(function (mk) { ctx.fillRect(x + w * mk - 1, y, 2, h); });
+    }
+
+    /* 보스 이름 + 수치 + 상태 뱃지 */
+    ctx.font = '700 12.5px "InkSerif", serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.strokeStyle = 'rgba(18,12,12,0.92)'; ctx.lineWidth = 3.5;
+    const label = S.stage.bossName + '  ' + Math.ceil(curHp) + ' / ' + maxHp;
+    ctx.strokeText(label, r.width * 0.5, y - 5);
+    ctx.fillStyle = '#f6ebd4';
+    ctx.fillText(label, r.width * 0.5, y - 5);
+
+    /* 빈틈(×1.3) 또는 봉인 가능 카운트다운 띠 */
+    if (isSeal) {
+      ctx.font = '700 11.5px "InkSerif", serif';
+      ctx.strokeText('★ 별을 그려 봉인하라!', r.width * 0.5, y + h + 13);
+      ctx.fillStyle = '#ffe078';
+      ctx.fillText('★ 별을 그려 봉인하라!', r.width * 0.5, y + h + 13);
+    } else if (isOpen) {
+      const ow = w * 0.72, ox = (r.width - ow) * 0.5, oy = y + h + 4;
+      const frac = boss.state === 'groggy' ? clamp(1 - (boss.stateT || 0) / Math.max(0.1, bossPat().groggyT || 3), 0, 1) : clamp(openLeft / 2.0, 0, 1);
+      ctx.fillStyle = 'rgba(24,18,10,0.82)';
+      ctx.fillRect(ox, oy, ow, 4);
+      ctx.fillStyle = '#ffd86b';
+      ctx.fillRect(ox, oy, ow * frac, 4);
+      ctx.font = '700 10.5px "InkSerif", serif';
+      ctx.strokeText('빈틈 열림 · 피해 ×1.3', r.width * 0.5, oy + 14);
+      ctx.fillStyle = '#ffe484';
+      ctx.fillText('빈틈 열림 · 피해 ×1.3', r.width * 0.5, oy + 14);
+    }
+    ctx.restore();
   }
   const wpp = worldPerCss();
   S.zombies.forEach(function (z) {
@@ -5281,13 +5315,30 @@ function hurtZombie(z, amount, why, rec) {
   if (!z || !z.alive) return;
   if (z.isBoss) {
     if (!z.hp || z.hidden) return;
-    const dealt=Math.min(z.hp,amount*(why==='bang' ? 1 : z.openUntil>S.elapsed ? 1.3 : .7));
-    z.hp-=dealt;
-    const meter=why==='bolt'||why==='ward'?'autoDmg':'manualDmg';
-    S[meter]=(S[meter]||0)+dealt;
-    z.seqI=Math.min(z.seq.length-1,Math.floor((1-z.hp/z.maxHp)*z.seq.length));
-    z.shape=z.seq[z.seqI];
-    if (!z.hp) startSeal(z); else { bossPhaseCheck(z); refreshBossGlyphs(z); }
+    const isWeak = (z.openUntil > S.elapsed) || z.state === 'groggy';
+    const mult = why === 'bang' ? 1 : (isWeak ? 1.3 : 0.7);
+    const dealt = Math.min(z.hp, amount * mult);
+    z.hpTrail = Math.max(z.hpTrail || z.hp, z.hp);
+    z.hp -= dealt;
+    const meter = why === 'bolt' || why === 'ward' ? 'autoDmg' : 'manualDmg';
+    S[meter] = (S[meter] || 0) + dealt;
+    if (rec && rec.hits) rec.hits.push({ id: z.id, dmg: dealt, hp: z.hp, why: why });
+    /* v0.52: 보스 피격 타격감 전면 복구 — 소리·히트스톱·먹파편·피격 섬광·플로팅 데미지 */
+    bossFx.spawnDamageNumber(z.x, z.z, dealt, isWeak);
+    if (why === 'slash' || why === 'bang') {
+      if (rec && !rec.hitstopDone) { rec.hitstopDone = true; addStrokeHitstop(rec, isWeak ? 0.05 : 0.035); }
+      if (audio) audio.hit(isWeak || !!(rec && rec.perfect), S ? (S.combo || 0) : 0);
+      S.shake = Math.max(S.shake || 0, isWeak ? 0.34 : 0.18);
+    }
+    const d = inkDir(rec, z);
+    if (three && three.ink) { three.ink.hit(z.x, z.z, d.x, d.z); fxinkStat.hits++; }
+    if (three && three.paper) three.paper.hit(z.x, 1.5, z.z, { size: isWeak ? 1.7 : 1.25 });
+    z.flinchT = CFG.flinchDur || 0.14;
+    if (z.obj && art.kickChar) art.kickChar(z.obj, 1);
+    z.seqI = Math.min(z.seq.length - 1, Math.floor((1 - z.hp / z.maxHp) * z.seq.length));
+    z.shape = z.seq[z.seqI];
+    if (z.hp <= 0.001) { z.hp = 0; startSeal(z); }
+    else { bossPhaseCheck(z); refreshBossGlyphs(z); }
     return;
   }
   if (z.isClone) { popClone(z, false); return; }
@@ -5606,10 +5657,12 @@ function cutSpirit(s) {
   if (!s || !s.alive) return;
   if (s.kind === 'spirit') return;
   if (s.isBoss && s.hp && !s.hidden && !(s.openUntil>S.elapsed) &&
-      ['telegraph','slamTele','volleyTele','charge','stun','groggy','clones','veil','shuffle'].includes(s.state)) {
+      ['telegraph','slamTele','sweepTele','volleyTele','charge','stun','groggy','clones','veil','shuffle'].includes(s.state)) {
     endBossSide(s);
     s.openUntil=S.elapsed+1.8+(s.chilled ? .4 : 0);
-    s.chilled=false; s.state='stun'; s.stateT=0;
+    s.chilled=false; s.state='stun'; s.stateT=0; s.leapY=0;
+    bossFx.triggerSmokeBurst(s.x, s.z, true);
+    showJudge('빈틈! 피해 ×1.3');
     if(audio) audio.breakCue();
   }
 }
@@ -6390,8 +6443,13 @@ function stepBoss(z, dt) {
     return false;
   }
   if (z.state === 'telegraph') {
-    if (z.stateT > teleT * (z.teleMul || 1)) {
-      z.state = 'charge'; z.stateT = 0; z._trailT = 0;
+    const durT = teleT * (z.teleMul || 1);
+    if (!z._warnTicked && z.stateT >= durT * 0.78) {
+      z._warnTicked = true;
+      if (audio && audio.bell) audio.bell(0, 'vline');
+    }
+    if (z.stateT > durT) {
+      z.state = 'charge'; z.stateT = 0; z._trailT = 0; z._warnTicked = false;
       const dx = (z.aim ? z.aim.x : S.hero.x) - z.x, dz = (z.aim ? z.aim.z : S.hero.z) - z.z;
       const L = Math.hypot(dx, dz) || 1;
       z.chargeDir = { x: dx / L, z: dz / L };
@@ -6431,7 +6489,15 @@ function stepBoss(z, dt) {
       renderHud();
       if (S.hp <= 0) endRun(false, '귀물의 돌진에 닿았습니다.');
     }
-    if (z.stateT > chargeT) { z.state = 'stun'; z.stateT = 0; }
+    if (z.stateT > chargeT) {
+      /* v0.52 다단 패턴: 2페이즈 또는 4장 이상에서는 돌진 끝자락에 언월 검기 파동을 한 번 더 날린다 */
+      if ((z.phase2 || (S.stageNo || 1) >= 4) && z.chargeDir) {
+        const ang = Math.atan2(z.chargeDir.z, z.chargeDir.x);
+        bossFx.triggerSweepBurst(z.x, z.z, ang, 5.2);
+        spawnBossWave(z, ang);
+      }
+      z.state = 'stun'; z.stateT = 0;
+    }
     return true;
   }
   if (z.state === 'stun') {
@@ -6734,7 +6800,7 @@ const CUE_RGB = { red: '200,40,30', gold: '232,192,74', jade: '46,230,166' };
 /* v0.30 §11 색약 팔레트: 붉은→주황, 비취→청록. 모양 아이콘과 함께 쓴다. */
 const CUE_RGB_CB = { red: '255,140,50', gold: '242,206,96', jade: '70,214,236' };
 const CUE_LABEL = { red: '피하라', gold: '받아쳐라', jade: '그려라' };
-const PAT_CUE = { charge: 'red', slam: 'red', volley: 'red', kiai: 'gold', chant: 'jade', clones: 'jade', veil: 'jade', shrink: 'gold', clash: 'jade', mimic: 'red', shuffle: 'jade' };
+const PAT_CUE = { charge: 'red', slam: 'red', sweep: 'red', volley: 'red', kiai: 'gold', chant: 'jade', clones: 'jade', veil: 'jade', shrink: 'gold', clash: 'jade', mimic: 'red', shuffle: 'jade' };
 function cueRgb(c) { return (a11yCb() ? CUE_RGB_CB : CUE_RGB)[c] || CUE_RGB.red; }
 /** §11 대응 아이콘: 피하라 = 바깥 화살표, 받아쳐라 = 칼집, 그려라 = 붓. 색만으로 구분하지 않게. */
 function drawCueIcon(ctx, c, x, y, k, rgb, scale) {
@@ -7046,6 +7112,7 @@ function startBossPattern(z, id) {
     bossCue(z, 'gold', id);
     if (audio && audio.charge) audio.charge(z.kiai.t);
   } else if (id === 'slam') startSlam(z, P.slam.tele * (z.teleMul || 1));
+  else if (id === 'sweep') startSweep(z);
   else if (id === 'clones') startClones(z);
   else if (id === 'veil') startVeil(z);
   else if (id === 'volley') {
@@ -7066,7 +7133,7 @@ function startBossPattern(z, id) {
   else startCharge(z);
 }
 function startCharge(z) {
-  z.state = 'telegraph'; z.stateT = 0; z.pat = 'charge';
+  z.state = 'telegraph'; z.stateT = 0; z.pat = 'charge'; z._warnTicked = false;
   z.reflectUsed = false;
   z.teleMul = teleMul() * (z.teleBoost || 1);
   z.aim = { x: S.hero.x, z: S.hero.z };
@@ -7075,10 +7142,26 @@ function startCharge(z) {
   bossCue(z, 'red', 'charge');
 }
 function startSlam(z, tele) {
-  z.state = 'slamTele'; z.stateT = 0; z.leapY = 0;
+  z.state = 'slamTele'; z.stateT = 0; z.leapY = 0; z._warnTicked = false;
   z.reflectUsed = false;
   z.slam = { fromX: z.x, fromZ: z.z, x: S.hero.x, z: S.hero.z, tele: tele };
   bossCue(z, 'red', 'slam');
+}
+/* v0.52 신규 스킬 — 언월 횡참(sweep): 120도 광역 부채꼴 베기 + 전진 검기 파동 (+ 2페이즈 양옆 부적 2발) */
+function startSweep(z) {
+  const SW = (bossPat().sweep) || { tele: 0.92, range: 6.0, arc: 2.1, dmg: 2, stun: 0.85 };
+  z.state = 'sweepTele'; z.stateT = 0; z.pat = 'sweep'; z._warnTicked = false;
+  z.reflectUsed = false;
+  z.sweep = {
+    aimA: Math.atan2(S.hero.z - z.z, S.hero.x - z.x),
+    tele: SW.tele * (z.teleMul || 1),
+    range: SW.range || 6.0,
+    arc: SW.arc || 2.1,
+    dmg: SW.dmg || 2,
+    stun: SW.stun || 0.85
+  };
+  bossCue(z, 'red', 'sweep');
+  if (audio && audio.drum) audio.drum();
 }
 /* ---------- v0.32 §4.4 막 보스 전용 패턴 ----------
    8장 무명 검귀 — 합 겨루기(1.2초)와 흉내(방금 그은 궤적 추적)
@@ -7244,6 +7327,10 @@ function stepBossPat(z, dt) {
     return true;
   }
   if (st === 'slamTele') {
+    if (!z._warnTicked && z.stateT >= z.slam.tele * 0.78) {
+      z._warnTicked = true;
+      if (audio && audio.bell) audio.bell(0, 'vline');
+    }
     /* v0.50: 순간이동 대신 마지막 0.38초 동안 포물선 도약 후 내려찍기 */
     const leapDur = Math.min(0.38, z.slam.tele * 0.42);
     const leapStart = Math.max(0, z.slam.tele - leapDur);
@@ -7259,7 +7346,7 @@ function stepBossPat(z, dt) {
     }
     if (z.stateT > z.slam.tele) {
       const L = P.slam;
-      z.x = z.slam.x; z.z = z.slam.z; z.leapY = 0;
+      z.x = z.slam.x; z.z = z.slam.z; z.leapY = 0; z._warnTicked = false;
       if (z.hidden) revealBoss(z);
       bossFx.triggerSlamImpact(z.x, z.z, L.r);
       /* 주인공 일섬 동급의 3D 교차 수묵 검기 + 먹파편 + 붉은 광원 폭발 */
@@ -7270,6 +7357,15 @@ function stepBossPat(z, dt) {
       if (art && art.playFx && three) { const fx = art.playFx(three.scene, 'ink-splat', z.x, z.z, L.r); if (fx) three.fx.push(fx); }
       S.shake = Math.max(S.shake || 0, 0.72);
       if (audio) { if (audio.bossSlam) audio.bossSlam(); else audio.explode(); }
+      /* v0.52 다단 패턴: 2페이즈 또는 4장 이상에서는 착지 지점 양옆에 여진 장판 2개 추가 */
+      if (z.phase2 || (S.stageNo || 1) >= 4) {
+        const baseA = Math.atan2(S.hero.z - z.z, S.hero.x - z.x);
+        [-0.75, 0.75].forEach(function (off) {
+          const ha = baseA + off;
+          const hp = clampPointToArena(z.x + Math.cos(ha) * (L.r + 1.4), z.z + Math.sin(ha) * (L.r + 1.4), 1.5);
+          spawnHazard(hp.x, hp.z, 2.1, 0.82);
+        });
+      }
       const d = dist(z, S.hero);
       if (d <= L.r) {
         if (S.dash) bossJustDodge(z);
@@ -7280,6 +7376,49 @@ function stepBossPat(z, dt) {
         }
       }
       if (z.state === 'slamTele') { z.state = 'stun'; z.stateT = 0; z.stunT = L.stun; }
+    }
+    return true;
+  }
+  /* v0.52 신규 스킬 — 언월 횡참(sweepTele): 광역 부채꼴 베기 + 전진 초승달 검기 파동 */
+  if (st === 'sweepTele' && z.sweep) {
+    const sw = z.sweep;
+    if (!z._warnTicked && z.stateT >= sw.tele * 0.78) {
+      z._warnTicked = true;
+      if (audio && audio.bell) audio.bell(0, 'vline');
+    }
+    if (z.stateT >= sw.tele) {
+      z._warnTicked = false;
+      const a = sw.aimA, half = sw.arc * 0.5, R = sw.range;
+      bossFx.triggerSweepBurst(z.x, z.z, a, R);
+      makeBossSlash(
+        { x: z.x + Math.cos(a - half * 0.85) * 2.8, z: z.z + Math.sin(a - half * 0.85) * 2.8 },
+        { x: z.x + Math.cos(a + half * 0.85) * 3.8, z: z.z + Math.sin(a + half * 0.85) * 3.8 },
+        { width: 3.4, height: 1.0 }
+      );
+      if (audio) { if (audio.bossCharge) audio.bossCharge(); else audio.slash(); }
+      S.shake = Math.max(S.shake || 0, 0.52);
+      /* 전진 초승달 검기 파동 발사 (+ 2페이즈/4장 이상에서는 양옆 살부적 2발, 그중 1발은 패링 가능 금빛) */
+      spawnBossWave(z, a);
+      if (z.phase2 || (S.stageNo || 1) >= 4) {
+        spawnBossShot(z, a - 0.42, true);
+        spawnBossShot(z, a + 0.42, false);
+      }
+      /* 근거리 부채꼴 타격 판정 */
+      const dx = S.hero.x - z.x, dz = S.hero.z - z.z, d = Math.hypot(dx, dz);
+      if (d <= R + 0.35) {
+        let da = Math.atan2(dz, dx) - a;
+        while (da > Math.PI) da -= Math.PI * 2;
+        while (da < -Math.PI) da += Math.PI * 2;
+        if (Math.abs(da) <= half) {
+          if (S.dash) bossJustDodge(z);
+          else {
+            heroHurt(sw.dmg, '언월 횡참에 베였습니다.');
+            const k = d > 0.01 ? d : 1;
+            S.hero.x += dx / k * 1.8; S.hero.z += dz / k * 1.8;
+          }
+        }
+      }
+      if (z.state === 'sweepTele') { z.state = 'stun'; z.stateT = 0; z.stunT = sw.stun || 0.85; z.sweep = null; }
     }
     return true;
   }
@@ -7313,7 +7452,13 @@ function stepBossPat(z, dt) {
     return true;
   }
   if (st === 'volleyTele') {
-    if (z.stateT > (z.volleyTele || P.volley.tele)) {
+    const vDur = z.volleyTele || P.volley.tele;
+    if (!z._warnTicked && z.stateT >= vDur * 0.78) {
+      z._warnTicked = true;
+      if (audio && audio.bell) audio.bell(0, 'vline');
+    }
+    if (z.stateT > vDur) {
+      z._warnTicked = false;
       const Vo = P.volley, gold = {};
       while (Object.keys(gold).length < Math.min(Vo.gold, Vo.n)) gold[Math.floor(Math.random() * Vo.n)] = true;
       for (let i = 0; i < Vo.n; i++) {
@@ -7345,12 +7490,16 @@ function stepBossPat(z, dt) {
   }
   if (st === 'seal') {
     if (z.stateT > P.seal.t) {
-      z.seq = z.seq.concat(pickSeq(P.seal.extra));
+      /* v0.52 버그 수정: 봉인 실패 시 HP=0에 고착되지 않도록 최대 HP의 22%를 회복하고 전투 복귀 */
+      const recover = Math.max(4, Math.ceil((z.maxHp || 18) * 0.22));
+      z.hp = recover;
+      z.hpTrail = recover;
       z.state = 'walk'; z.stateT = 0;
-      z.shape = z.seq[z.seqI];
+      z.shape = z.seq[z.seqI] || z.seq[0];
       refreshBossGlyphs(z);
+      bossFx.triggerSmokeBurst(z.x, z.z, false);
       showJudge('봉인 실패');
-      toast('귀물이 다시 일어섭니다 — 무늬 ' + P.seal.extra + '개가 더 생겼습니다');
+      toast('귀물이 기력을 되찾았습니다 (+' + recover + ' HP)');
     }
     return true;
   }
@@ -7549,11 +7698,22 @@ function spawnBossShot(z, a, gold) {
   if (!sh) return null;
   const sp = bossPat().volley.speed;
   sh.vx = Math.cos(a) * sp; sh.vz = Math.sin(a) * sp;
-  if (gold) {
-    sh.gold = true;
-    sh.mesh.material = goldShotMaterial();
-    sh.mesh.scale.setScalar(1.6);
-  }
+  /* v0.52: 커스텀 살부적 2D 에셋(boss-talisman.webp)이 선명히 보이도록 구형 3D 기본 메쉬를 축소/숨김 */
+  if (sh.mesh) sh.mesh.visible = false;
+  if (gold) sh.gold = true;
+  return sh;
+}
+/* v0.52: 언월도 초승달 검기 파동 투사체 (boss-wave.webp) */
+function spawnBossWave(z, a) {
+  const sh = spawnShot({ x: z.x + Math.cos(a) * 1.1, z: z.z + Math.sin(a) * 1.1 });
+  if (!sh) return null;
+  const sp = ((bossPat().sweep && bossPat().sweep.waveSpeed) || 10.5);
+  sh.vx = Math.cos(a) * sp; sh.vz = Math.sin(a) * sp;
+  sh.isWave = true;
+  sh.r = 0.85;
+  sh.dmg = 2;
+  sh.life = 2.1;
+  if (sh.mesh) sh.mesh.visible = false;
   return sh;
 }
 function reflectGoldShots(R) {
@@ -7591,8 +7751,11 @@ function stepReflectedShot(sh, dt) {
   sh.x += dx / L * sp * dt; sh.z += dz / L * sp * dt;
   if (sh.mesh) sh.mesh.position.set(sh.x, 0.75, sh.z);
   if (L < b.r + 0.5) {
-    showJudge('되받아침!');
-    if (b.state !== 'seal') cutBoss(b);
+    showJudge('되받아침! 빈틈');
+    if (b.state !== 'seal') {
+      cutBoss(b);
+      hurtZombie(b, 3.2, 'bang', S.lastDash);
+    }
     return false;
   }
   return sh.t < 3;
@@ -7743,9 +7906,63 @@ function bossPhaseCheck(z) {
     telemetry.event('boss_phase', { stage: S.stageNo, phase: 3, seqI: z.seqI, arena: S.arena ? +S.arena.r.toFixed(1) : null });
   }
 }
+/* v0.52: 보스 스킬명 + 대응 행동(회피/받아치기/파훼/봉인) + 정밀 타이밍 배너 데이터 생성 */
+function bossBannerInfo(z) {
+  if (!z || !z.alive) return null;
+  const P = bossPat();
+  const bt = bossTiming();
+  const st = z.state;
+  if (st === 'telegraph') {
+    const dur = bt.teleT * (z.teleMul || 1);
+    return { mode: 'dodge', name: '언월 쇄도', hint: '옆으로 일섬 회피', f: clamp((z.stateT || 0) / Math.max(0.01, dur), 0, 1), sweetStart: 0.78 };
+  }
+  if (st === 'slamTele' && z.slam) {
+    return { mode: 'dodge', name: '혈월 내려찍기', hint: '원 밖으로 일섬', f: clamp((z.stateT || 0) / Math.max(0.01, z.slam.tele), 0, 1), sweetStart: 0.78 };
+  }
+  if (st === 'sweepTele' && z.sweep) {
+    return { mode: 'dodge', name: '언월 횡참', hint: '등 뒤로 일섬', f: clamp((z.stateT || 0) / Math.max(0.01, z.sweep.tele), 0, 1), sweetStart: 0.78 };
+  }
+  if (st === 'volleyTele') {
+    const dur = z.volleyTele || P.volley.tele;
+    return { mode: 'dodge', name: '살부적 난사', hint: '금빛 부적은 탭 반사!', f: clamp((z.stateT || 0) / Math.max(0.01, dur), 0, 1), sweetStart: 0.78 };
+  }
+  if (st === 'mimicTele' && z.mimic) {
+    return { mode: 'dodge', name: '궤적 흉내', hint: '직각으로 일섬 회피', f: clamp((z.mimic.t || 0) / Math.max(0.01, z.mimic.tele), 0, 1), sweetStart: 0.78 };
+  }
+  if (st === 'kiai' && z.kiai) {
+    const K = P.kiai, T = z.kiai.t;
+    const g0 = (T - kiaiWin(K)) / Math.max(0.01, T);
+    const open = z.stateT >= T - kiaiWin(K) && !z.kiai.lock;
+    return { mode: 'parry', name: '기합 폭발', hint: z.kiai.lock ? '기물 뒤로 피하라' : '금빛 구간에서 탭!', f: clamp((z.stateT || 0) / Math.max(0.01, T), 0, 1), sweetStart: g0, sweetOpen: open };
+  }
+  if (st === 'chant' && z.chant) {
+    const dur = z.chantT || P.chant.t;
+    return { mode: 'break', name: '원혼 영창', hint: '아래 무늬 순서대로', f: clamp(1 - (z.stateT || 0) / Math.max(0.01, dur), 0, 1), sweetStart: 0.85 };
+  }
+  if (st === 'clones') {
+    return { mode: 'break', name: '환영 분신', hint: '방울 울리는 본체 베기', f: clamp(1 - (z.stateT || 0) / Math.max(0.01, P.clones.t), 0, 1), sweetStart: 0.85 };
+  }
+  if (st === 'veil') {
+    return { mode: 'break', name: '어둠 은신', hint: '비취 물결 쪽으로 베기', f: clamp(1 - (z.stateT || 0) / Math.max(0.01, P.veil.t), 0, 1), sweetStart: 0.85 };
+  }
+  if (st === 'clash' && z.clash) {
+    return { mode: 'break', name: '합 겨루기', hint: '뜬 무늬를 즉시 베기', f: clamp(1 - (z.clash.t || 0) / Math.max(0.01, z.clash.win), 0, 1), sweetStart: 0.8 };
+  }
+  if (st === 'shuffle' && z.shuffle) {
+    return { mode: 'break', name: '무늬 뒤섞기', hint: z.shuffle.gold > 0 ? '★ 지금 베면 고정!' : '금빛 순간을 노려라', f: clamp(1 - (z.shuffle.t || 0) / Math.max(0.01, z.shuffle.dur), 0, 1), sweetStart: 0.8, sweetOpen: z.shuffle.gold > 0 };
+  }
+  if (st === 'seal') {
+    return { mode: 'seal', name: '귀물 봉인', hint: '교차별(★)을 그려라!', f: clamp(1 - (z.stateT || 0) / Math.max(0.01, P.seal.t), 0, 1), sweetStart: 0.0, sweetOpen: true };
+  }
+  return null;
+}
 /* 보스 패턴 그림: 예고 색 고리·문구, 기모으기 게이지, 내려찍기 원, 탄막 부채, 영창 무늬, 은신 방울, 기세, 봉인. */
 function drawBossPat(ctx, r, hs) {
   const z = S.boss;
+  if (z && z.alive) {
+    const bInfo = bossBannerInfo(z);
+    if (bInfo) bossFx.drawSkillBanner(ctx, r, bInfo, S.elapsed || 0);
+  }
   if (S.sealFx > 0) {
     const k = clamp(S.sealFx / 0.9, 0, 1);
     ctx.save();
@@ -7795,21 +8012,10 @@ function drawBossPat(ctx, r, hs) {
     /* §11 색약: 색 뿐으로 구분하지 않게 모양 아이콘을 같이 보여 준다. */
     if (a11yCb()) drawCueIcon(ctx, z.cue.c, bp.x - 46, ty, k, rgb);
   }
-  /* §8.2 보스 패턴을 처음 보는 순간: 대응 아이콘을 1.6초 크게 띄운다. */
+  /* §8.2 보스 패턴을 처음 보는 순간: 타이머만 유지(시각 표시는 v0.52 상단 통합 스킬 배너로 일원화) */
   if (S.firstPatIcon) {
     S.firstPatIcon.t -= frameDt;
-    const F = S.firstPatIcon;
-    if (F.t <= 0) S.firstPatIcon = null;
-    else {
-      const k = clamp(F.t / 1.6, 0, 1), rgb = cueRgb(F.c);
-      ctx.save();
-      ctx.globalAlpha = Math.min(1, k * 2);
-      drawCueIcon(ctx, F.c, r.width * 0.5 - 30, 116, 1, rgb, 1.7);
-      ctx.font = '700 17px serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = 'rgba(' + rgb + ',0.95)';
-      ctx.fillText(CUE_LABEL[F.c] + ' — 처음 보는 패턴', r.width * 0.5 - 2, 116);
-      ctx.restore();
-    }
+    if (S.firstPatIcon.t <= 0) S.firstPatIcon = null;
   }
   /* 기세: 보스 발밑 금빛 마름모(남은 칸) */
   if (onScr) {
@@ -7836,17 +8042,22 @@ function drawBossPat(ctx, r, hs) {
       ctx.beginPath(); ctx.ellipse(bp.x, bp.y, rx * (1 + (1 - k) * 0.35), ry * (1 + (1 - k) * 0.35), 0, 0, Math.PI * 2); ctx.stroke();
     }
   }
-  /* 기모으기 게이지: 주인공 둘레의 고리, 끝의 금빛 칸에서 탭 + v0.50 수묵·금빛 기류 소용돌이 */
+  /* 기모으기 게이지: 주인공 둘레의 고리, 끝의 금빛 칸에서 탭 + v0.52 수묵·금빛 기류 소용돌이 + 주인공 링 */
   if (z.state === 'kiai' && z.kiai) {
     const K = P.kiai, T = z.kiai.t, f = clamp(z.stateT / T, 0, 1), g0 = (T - kiaiWin(K)) / T;
     const open = z.stateT >= T - kiaiWin(K), lock = z.kiai.lock;
     drawFootGauge(ctx, f, lock ? '#99918a' : open ? '#fff0be' : '#cf5844', 80, 16, g0);
-    if (onScr) bossFx.drawKiaiVortex(ctx, projectXZ, z.x, z.z, f, open && !lock, t);
+    if (onScr) bossFx.drawKiaiVortex(ctx, projectXZ, z.x, z.z, f, open && !lock, t, S.hero);
   }
-  /* 내려찍기 예고: v0.50 회전 주홍 부적 진법 + 수렴 불씨 */
+  /* 내려찍기 예고: v0.52 커스텀 수묵 만다라 + 수렴 백금 타이밍 링 */
   if (z.state === 'slamTele' && z.slam) {
     const f = clamp(z.stateT / z.slam.tele, 0, 1);
     bossFx.drawSlamTele(ctx, projectXZ, z.slam.x, z.slam.z, P.slam.r, f, t);
+  }
+  /* 언월 횡참 예고: v0.52 120도 부채꼴 수묵 경고 + 수렴 백금 호 */
+  if (z.state === 'sweepTele' && z.sweep) {
+    const f = clamp(z.stateT / Math.max(0.01, z.sweep.tele), 0, 1);
+    bossFx.drawSweepTele(ctx, projectXZ, z.x, z.z, z.sweep.aimA, z.sweep.arc, z.sweep.range, f, t);
   }
   /* 탄막 부채 예고선: v0.50 부채꼴 수묵 광선 */
   if (z.state === 'volleyTele' && onScr) {
@@ -7869,10 +8080,8 @@ function drawBossPat(ctx, r, hs) {
   const want = z.state === 'chant' && z.chant ? { seq: z.chant.seq, i: z.chant.i, T: (z.chantT || P.chant.t), title: '영창을 끊어라' }
     : z.state === 'seal' ? { seq: ['star'], i: 0, T: P.seal.t, title: '봉인하라' } : null;
   if (want) {
-    const n = want.seq.length, gap = 54, x0 = r.width * 0.5 - (n - 1) * gap / 2, y = 150;
+    const n = want.seq.length, gap = 54, x0 = r.width * 0.5 - (n - 1) * gap / 2, y = 178;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = '700 15px serif'; ctx.fillStyle = 'rgba(244,236,214,0.92)';
-    ctx.fillText(want.title, r.width * 0.5, y - 40);
     want.seq.forEach(function (sh, i) {
       const x = x0 + i * gap, done = i < want.i, cur = i === want.i;
       ctx.beginPath(); ctx.arc(x, y, 21, 0, Math.PI * 2);
@@ -8404,6 +8613,7 @@ function step(dt) {
         else if (z.state === 'mimicCharge' && z.mimic && z.mimic.dir) { vx = z.mimic.dir.x; vz = z.mimic.dir.z; }
         else if (z.state === 'telegraph' && z.aim) { vx = z.aim.x - z.x; vz = z.aim.z - z.z; }
         else if (z.state === 'slamTele' && z.slam) { vx = z.slam.x - z.x; vz = z.slam.z - z.z; }
+        else if (z.state === 'sweepTele' && z.sweep) { vx = Math.cos(z.sweep.aimA); vz = Math.sin(z.sweep.aimA); }
       }
       art.tickChar(z.obj, kind, st, Math.min(0.05, dt), vx, vz);
     }
