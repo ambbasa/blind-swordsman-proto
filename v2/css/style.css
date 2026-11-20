@@ -627,6 +627,7 @@ body { font-family: "InkSerif", "Apple SD Gothic Neo", "Noto Sans KR", serif; }
 .btn.quick-card strong { display: block; font: 400 14px/1.15 "InkBrush", serif; color: var(--gold); letter-spacing: .02em; }
 .btn.quick-card .qc-lv { display: inline-block; margin-top: 3px; padding: 0 5px; border-radius: 2px; font: 700 9.5px/1.5 "InkSerif", serif; background: var(--gold); color: #0b0a09; }
 .btn.quick-card.new .qc-lv { background: rgba(200,40,30,.9); color: #fff2e8; }
+.btn.quick-card .qc-effect { display: block; margin-top: 3px; font-size: 11px; line-height: 1.25; color: var(--paper); }
 .btn.quick-card .qc-evo { display: block; margin-top: 2px; font: 700 9px/1.2 "InkSerif", serif; color: #ffd766; }
 .btn.quick-card.evo { border-color: #ffd766; box-shadow: inset 0 0 0 1px rgba(255,215,102,.25), 0 0 10px rgba(255,215,102,.18); }
 .btn.quick-card:active { background: rgba(200,40,30,.28); }

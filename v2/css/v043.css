@@ -80,3 +80,42 @@
 
 /* 하단 스킬 안내 칩도 같은 종이 톤 */
 .skip-chip, .mode-row .btn, .act-tabs .btn, .stage-select .btn { border-radius: 2px; }
+
+/* Chapter paintings tie menus, combat panels and the folding screen together. */
+#app { --chapter-accent: #e1ba82; }
+#app[data-act="2"] { --chapter-accent: #b1cfbf; }
+#app[data-act="3"] { --chapter-accent: #ecac98; }
+.ov {
+  box-sizing: border-box;
+  padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right))
+           max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+  background: linear-gradient(90deg, #151310ed, #211b18c9), var(--chapter-art) center / cover;
+}
+.ov .card {
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid #b99a6970;
+  border-top: 2px solid var(--chapter-accent);
+  background-color: #211e19;
+  background-image: linear-gradient(105deg,#171613fa 5%,#181714e0 50%,#151411b3),
+                    var(--chapter-art);
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 10px 40px #100d0ba8;
+}
+#ov-stage .card, #ov-title .title-card {
+  background-image: linear-gradient(180deg,#12120f80 0%,#151411b3 17%,#191814f5 43%),
+                    var(--chapter-art);
+  background-position: center, center 28%;
+}
+.ov .card h1, .ov .card h2 { color: #fff0d3; text-wrap: balance; }
+.ov .btn.primary { background: #8f3527; color: #fff3dd; border-color: #ca8060; }
+.ov button:focus-visible, #hud button:focus-visible { outline: 2px solid var(--chapter-accent); outline-offset: 2px; }
+.ov button:disabled { cursor: not-allowed; }
+#bossCard, .btn.quick-card {
+  background-color: #221f1b; border-color: #a48a6077; color: #f2e4cb;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ov.show .card, .ov.show .card *, #bossCard { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

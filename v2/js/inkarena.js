@@ -18,6 +18,7 @@
 */
 import * as THREE from 'three';
 import * as TEX from './inktex3d.js';
+import { SKIN_VERT } from './inkbody3d.js';
 import { INK3D } from './inkhero3d.js';
 import { mulberry } from './inkbake.js';
 
@@ -32,27 +33,14 @@ export const ARENA = {
 /* ---------------------------------------------------------------- 셰이더
    주인공 셰이더와 같은 3단 붓 계조·마른 붓 그레인·텍스처 아틀라스. 다른 점은 하나:
    vH(붓 번짐 높이)를 캐릭터 키(2.45m)가 아니라 기물 기준(5.5m)으로 나눈다. */
-const VERT = /* glsl */`
-attribute vec3 color;
-attribute float zone;
-varying vec3 vAlb;
-varying vec3 vN;
-varying vec3 vV;
-varying vec3 vW;
-varying float vH;
-varying vec2 vTuv;
-varying float vZone;
-void main() {
-  vAlb = color;
-  vTuv = uv;
-  vZone = zone;
-  vec4 wp = modelMatrix * vec4(position, 1.0);
-  vW = wp.xyz;
-  vN = normalize(mat3(modelMatrix) * normal);
-  vV = normalize(cameraPosition - wp.xyz);
-  vH = clamp(wp.y / 5.5, 0.0, 1.0);
-  gl_Position = projectionMatrix * viewMatrix * wp;
-}`;
+let joineryAtlas;
+function joineryTexture() {
+  if (!joineryAtlas) {
+    joineryAtlas = new THREE.TextureLoader().load(new URL('../assets/ink-edition/joinery.webp', import.meta.url).href);
+    joineryAtlas.anisotropy = 4;
+  }
+  return joineryAtlas;
+}
 
 function propMat(opt) {
   opt = opt || {};
@@ -64,7 +52,10 @@ function propMat(opt) {
   u.uFillCol.value.setRGB(0.62, 0.68, 0.78).multiplyScalar(0.30);
   /* 큰 면(절벽·기와)은 결을 옅게 — 0.9로 두면 바위 밝은 얼룩이 1.5배로 증폭돼 회색 판때기가 됐다. */
   u.uTexAmt.value = Math.min(u.uTexAmt.value, 0.55);
-  const m = new THREE.ShaderMaterial({ uniforms: u, vertexShader: VERT, fragmentShader: INK3D.FRAG, side: opt.side || THREE.FrontSide });
+  u.uArt.value = joineryTexture();
+  u.uHeight = { value: 5.5 };
+  u.uTexAmt.value = 0.98;
+  const m = new THREE.ShaderMaterial({ uniforms: u, vertexShader: SKIN_VERT, fragmentShader: INK3D.FRAG, side: opt.side || THREE.FrontSide });
   m.userData.inkUniforms = u;
   m.userData.arenaMat = true;
   return m;
@@ -93,7 +84,35 @@ const PAL = {
 const ZONE = { WOOD: TEX.Z.SASH, DARK: TEX.Z.CLOTH, PLASTER: TEX.Z.PAPER, TILE: TEX.Z.IRON, STONE: TEX.Z.ROCK, LEAF: TEX.Z.PAPER, CLOTH: TEX.Z.CLOTH, GOLD: TEX.Z.GOLD };
 
 /* ---------------------------------------------------------------- 합치기 도구 */
-function makeBuilder() {
+function makeBuilder(stageId, palette) {
+  const root = new THREE.Bone();
+  root.name = 'terrain';
+  const bones = [root];
+  let frame = null;
+  function joint(name, parent, x, y, z) {
+    const bone = new THREE.Bone();
+    bone.name = name; bone.position.set(x,y,z); parent.add(bone);
+    bones.push(bone); return bones.length - 1;
+  }
+  function beginStructure(name,x,z) {
+    const base = joint(name + '-foot',root,x,0,z);
+    const upper = joint(name + '-frame',bones[base],0,1,0);
+    const crown = joint(name + '-crown',bones[upper],0,2,0);
+    frame = {base,upper,crown};
+  }
+  function atlasCell(zone,color) {
+    if (zone === 24) return 4;
+    if (color === 0xcdbb98) return 11;
+    if (color === 0x823c38) return 12;
+    if (color === 0x292331) return 13;
+    if (color === palette.bamboo) return 6;
+    if (zone === ZONE.TILE) return stageId === 6 ? 9 : 0;
+    if (color === palette.plaster) return 2;
+    if (color === palette.cloth) return 5;
+    if (zone === ZONE.WOOD) return stageId === 7 ? 7 : 1;
+    if (zone === ZONE.STONE) return stageId === 5 ? 8 : stageId === 11 ? 10 : 3;
+    return -1;
+  }
   const body = [];   /* 수묵 툰 몸통 */
   const glow = [];   /* 스스로 빛나는 창호·등불 */
   const _m = new THREE.Matrix4();
@@ -111,10 +130,12 @@ function makeBuilder() {
     _v.set(tf.x || 0, tf.y || 0, tf.z || 0);
     _s.set(tf.sx == null ? 1 : tf.sx, tf.sy == null ? 1 : tf.sy, tf.sz == null ? 1 : tf.sz);
     _m.compose(_v, _q, _s);
-    list.push({ geo: geo, m: _m.clone(), color: color, zone: zone });
+    const cell = list === body ? atlasCell(zone,color) : -1;
+    const bone = !frame ? 0 : _v.y < 0.8 ? frame.base : _v.y < 3 ? frame.upper : frame.crown;
+    list.push({geo, m:_m.clone(), color, bone, zone:cell < 0 ? zone : cell+8, painted:cell >= 0});
   }
   return {
-    body: body, glow: glow,
+    body, glow, root, bones, beginStructure, endStructure() { frame = null; },
     add: function (geo, color, zone, tf) { put(body, geo, color, zone, tf); },
     lit: function (geo, color, tf) { put(glow, geo, color, 0, tf); }
   };
@@ -132,13 +153,14 @@ function merge(list) {
     const pos = g.getAttribute('position'), nrm = g.getAttribute('normal');
     if (!pos || !nrm) continue;
     const mode = (g.type === 'PlaneGeometry' || g.type === 'BoxGeometry') ? 'plane' : TEX.uvModeFor(g);
-    const uv = TEX.makeUV(g, mode);
-    bufs.push({ pos: pos, nrm: nrm, uv: uv, col: new THREE.Color(list[i].color), zone: list[i].zone || 0 });
+    const uv = list[i].painted && g.attributes.uv ? g.attributes.uv.array : TEX.makeUV(g, mode);
+    bufs.push({ pos: pos, nrm: nrm, uv: uv, bone: list[i].bone, col: new THREE.Color(list[i].color).lerp(new THREE.Color(0xb1a592),list[i].painted ? 0.63 : 0), zone: list[i].zone || 0 });
     total += pos.count;
     g.dispose();
   }
   const P = new Float32Array(total * 3), N = new Float32Array(total * 3), C = new Float32Array(total * 3);
   const U = new Float32Array(total * 2), Z = new Float32Array(total);
+  const joints = new Uint16Array(total*4), weights = new Float32Array(total*4);
   let o = 0;
   for (let i = 0; i < bufs.length; i++) {
     const b = bufs[i], n = b.pos.count;
@@ -150,6 +172,7 @@ function merge(list) {
       C[p3] = b.col.r; C[p3 + 1] = b.col.g; C[p3 + 2] = b.col.b;
       U[(o + k) * 2] = ua[k * 2]; U[(o + k) * 2 + 1] = ua[k * 2 + 1];
       Z[o + k] = b.zone;
+      joints[(o+k)*4] = b.bone; weights[(o+k)*4] = 1;
     }
     o += n;
   }
@@ -158,6 +181,8 @@ function merge(list) {
   geo.setAttribute('normal', new THREE.BufferAttribute(N, 3));
   geo.setAttribute('color', new THREE.BufferAttribute(C, 3));
   geo.setAttribute('uv', new THREE.BufferAttribute(U, 2));
+  geo.setAttribute('skinIndex', new THREE.BufferAttribute(joints,4));
+  geo.setAttribute('skinWeight', new THREE.BufferAttribute(weights,4));
   geo.setAttribute('zone', new THREE.BufferAttribute(Z, 1));
   geo.computeBoundingSphere();
   return geo;
@@ -447,7 +472,7 @@ function bridge(B, x, z, ry, len, c) {
   }
 }
 
-function stall(B, x, z, ry, c) {
+function stall(B, x, z, ry, c, bare = false) {
   const T = function (lx, ly, lz, sx, sy, sz, rx, rz) {
     const cos = Math.cos(ry), sin = Math.sin(ry);
     return { x: x + lx * cos + lz * sin, y: ly, z: z - lx * sin + lz * cos, ry: ry, rx: rx || 0, rz: rz || 0, sx: sx, sy: sy, sz: sz };
@@ -457,6 +482,7 @@ function stall(B, x, z, ry, c) {
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
     B.add(G.box, c.woodDark, ZONE.WOOD, T(sx * 0.82, 0.39, sz * 0.4, 0.09, 0.78, 0.09));
   }
+  if (bare) return;
   /* 기둥 4 + 천막 */
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
     B.add(G.cyl, c.woodDark, ZONE.WOOD, T(sx * 0.95, 1.12, sz * 0.52, 0.1, 2.24, 0.1));
@@ -499,7 +525,7 @@ function gate(B, x, z, ry, c) {
   B.add(G.box, c.tile, ZONE.TILE, T(0, 4.6, 0, 6.2, 0.22, 1.9, 0, 0.14));
   B.add(G.box, c.tile, ZONE.TILE, T(0, 4.6, 0, 6.2, 0.22, 1.9, 0, -0.14));
   /* 문짝 — 먹으로 닫힌 판 */
-  B.add(G.box, c.woodDark, ZONE.WOOD, T(0, 1.55, 0, 3.4, 3.0, 0.12));
+  B.add(G.box, c.woodDark, 24, T(0, 1.55, 0, 3.4, 3.0, 0.12));
   B.add(G.box, c.wood, ZONE.WOOD, T(0, 1.55, 0.07, 3.2, 0.08, 0.06));
   B.add(G.box, c.wood, ZONE.WOOD, T(0, 2.4, 0.07, 3.2, 0.08, 0.06));
 }
@@ -563,153 +589,137 @@ function cliffRing(B, rnd, c) {
 
 /* ---------------------------------------------------------------- 원경 나무 띠
    절벽(25~28m) 뒤 32~40m에 낮은 수묵 실루엣을 세워 원경 파노라마와의 사이에 깊이를 만든다. */
-function farTrees(B, rnd, c) {
-  const N = 16;
-  for (let i = 0; i < N; i++) {
-    const a = (i / N) * Math.PI * 2 + (rnd() - 0.5) * 0.14;
-    const r = 33 + rnd() * 7;
-    const h = 5.5 + rnd() * 3.0;
-    const x = Math.cos(a) * r, z = Math.sin(a) * r;
-    B.add(G.cyl6, c.woodDark, ZONE.WOOD, { x: x, y: h * 0.28, z: z, sx: 0.26, sy: h * 0.6, sz: 0.26, rz: (rnd() - 0.5) * 0.16 });
-    for (let k = 0; k < 3; k++) {
-      const w = (2.0 - k * 0.5) * (0.8 + rnd() * 0.4);
-      B.add(G.sphereLo, c.pine, ZONE.LEAF, {
-        x: x + (rnd() - 0.5) * 0.8, y: h * (0.5 + k * 0.18), z: z + (rnd() - 0.5) * 0.8,
-        sx: w, sy: 0.42, sz: w * 0.9, ry: rnd() * 6.28
-      });
-    }
-  }
-}
 
 /* ---------------------------------------------------------------- 아레나 조립 */
 export function buildArena(opts) {
   opts = opts || {};
   const stageId = opts.stageId || 1;
-  const act = stageId <= 4 ? 1 : (stageId <= 8 ? 2 : 3);
   const c = PAL[stageId] || PAL[1];
   const rnd = mulberry((opts.seed || ARENA.SEED) ^ (stageId * 7919));
-  const B = makeBuilder();
+  const B = makeBuilder(stageId,c);
   const props = [];   /* {x,z,r} — 절차 배치가 겹치지 않게 */
   const spots = [];   /* QA·조명용: 큰 기물 위치 */
 
-  const occupied = function (x, z, r) {
-    for (let i = 0; i < props.length; i++) {
-      const p = props[i];
-      if (Math.hypot(x - p.x, z - p.z) < r + p.r) return true;
-    }
-    return false;
-  };
-  const place = function (x, z, r) { props.push({ x: x, z: z, r: r }); spots.push({ x: x, z: z, r: r }); };
-
-  const ring = function (a0, a1, r0, r1) {
-    for (let k = 0; k < 40; k++) {
-      const a = a0 + rnd() * (a1 - a0);
-      const r = r0 + rnd() * (r1 - r0);
-      const x = Math.cos(a) * r, z = Math.sin(a) * r;
-      return { x: x, z: z, a: a, r: r };
-    }
-    return { x: Math.cos(a0) * r0, z: Math.sin(a0) * r0, a: a0, r: r0 };
-  };
-
-  /* --- 1) 바깥 건축 띠: 카메라 반대쪽(-x,-z)에 누각·정자, 양옆에 성벽/숲 --- */
-  const backA = Math.PI * 1.25;   /* 화면 위쪽 */
-  const houses = stageId % 3 === 2 ? 1 : 2;
-  for (let i = 0; i < houses; i++) {
-    const a = backA + (i - (houses - 1) / 2) * 0.78 + (rnd() - 0.5) * 0.16;
-    const r = ARENA.RIM + 3.4 + rnd() * 1.8;
-    const x = Math.cos(a) * r, z = Math.sin(a) * r;
-    if (occupied(x, z, 4.6)) continue;
-    house(B, x, z, -a + Math.PI / 2, { c: c, w: 5.0 + rnd() * 1.4, d: 3.9 + rnd() * 0.8 });
-    place(x, z, 4.2);
+  // Stage coordinates: lateral offset and depth away from the fixed camera.
+  // Keep tall silhouettes at the back and flanks, outside the gesture lane.
+  function at(side, depth, radius, draw) {
+    const x = (side - depth) * Math.SQRT1_2, z = (-side - depth) * Math.SQRT1_2;
+    B.beginStructure((draw.name || 'landmark') + '-' + spots.length,x,z);
+    draw(x, z, Math.PI / 4);
+    B.endStructure();
+    const spot = { x, z, r: radius };
+    props.push(spot); spots.push(spot);
   }
-  /* 정자 하나 — 화면 왼쪽 언덕 */
-  {
-    const a = backA - 1.25 + rnd() * 0.3, r = ARENA.RIM + 2.8;
-    const x = Math.cos(a) * r, z = Math.sin(a) * r;
-    if (!occupied(x, z, 3.2)) { pavilion(B, x, z, -a + Math.PI / 2, c); place(x, z, 3.0); }
-  }
-  /* 장터 좌판 (1·4막) — 바깥 띠에 두 채 */
-  if (act === 1) {
-    for (let i = 0; i < 2; i++) {
-      const a = backA + (i ? 1 : -1) * (0.95 + rnd() * 0.4), r = ARENA.RIM + 2.0;
-      const x = Math.cos(a) * r, z = Math.sin(a) * r;
-      if (occupied(x, z, 2.6)) continue;
-      stall(B, x, z, -a + Math.PI / 2 + (rnd() - 0.5) * 0.4, c); place(x, z, 2.4);
+  const tree = (x,z) => pine(B,x,z,rnd,c,1.2);
+  const grove = (x,z) => bambooGrove(B,x,z,rnd,c,9);
+  const rubble = (x,z) => rock(B,x,z,rnd,c,1.4);
+  const lamp = (x,z,r) => lantern(B,x,z,r,c);
+  const door = (x,z,r) => gate(B,x,z,r,c);
+  const wall = (x,z,r) => wallRun(B,x,z,r,6,c);
+  const court = (x,z,r) => pavilion(B,x,z,r,c);
+  const roof = (x,z,r) => house(B,x,z,r,{c, w:6, d:4});
+  const market = (x,z,r) => stall(B,x,z,r,c);
+  function pagoda(x,z) {
+    for (let i=0;i<5;i++) {
+      const size = 3.6-i*.55;
+      B.add(G.box,c.stone,ZONE.STONE,{x,z,y:.55+i*1.2,sx:size*.7,sy:1.1,sz:size*.7});
+      B.add(G.cone4,c.tile || c.stone,ZONE.STONE,{x,z,y:1.13+i*1.2,sx:size,sy:.65,sz:size,ry:Math.PI/4});
     }
   }
-  /* 성벽 (2·5·6·8막) */
-  if (stageId === 2 || stageId === 5 || stageId === 6 || stageId === 8) {
-    for (let i = 0; i < 3; i++) {
-      const a = backA + (i - 1) * 0.85, r = ARENA.RIM + 3.0;
-      const x = Math.cos(a) * r, z = Math.sin(a) * r;
-      if (occupied(x, z, 3.4)) continue;
-      wallRun(B, x, z, -a + Math.PI / 2, 5.4 + rnd() * 2.2, c); place(x, z, 3.2);
+  function deadTree(x,z) {
+    B.add(G.cyl6,c.woodDark,ZONE.WOOD,{x,z,y:2,sx:.8,sy:4.2,sz:.9,rz:.12});
+    for(let j=0;j<6;j++) {
+      const a=j*2.4;
+      B.add(G.cyl6,c.wood,ZONE.WOOD,{x:x+Math.cos(a)*.7,z:z+Math.sin(a)*.7,y:2.5+j*.37,sx:.25,sy:2.5,sz:.26,ry:-a,rz:-.65});
     }
-    const a = backA - 0.05, r = ARENA.RIM + 2.4;
-    gate(B, Math.cos(a) * r, Math.sin(a) * r, -a + Math.PI / 2, c);
-    place(Math.cos(a) * r, Math.sin(a) * r, 4.0);
   }
+  function ribs(x,z) {
+    for(let j=0;j<5;j++) {
+      const bone = new THREE.TorusGeometry(1.45-j*.1,.11,5,12,Math.PI*1.35);
+      B.add(bone,0xcdbb98,ZONE.STONE,{x:x+j*.55,z,y:.23,ry:Math.PI/2,rz:-.4});
+    }
+  }
+  function shrine(x,z) {
+    B.add(G.box,c.stone,ZONE.STONE,{x,z,y:.36,sx:4.2,sy:.72,sz:3.8});
+    B.add(G.cone4,0x823c38,ZONE.STONE,{x,z,y:2.4,sx:2.1,sy:3.8,sz:1.6,rz:.12});
+  }
+  function spire(x,z) {
+    const h=3+rnd()*3;
+    B.add(G.cone4,0x292331,ZONE.STONE,{x,z,y:h*.49,sx:1.8,sy:h,sz:1.25,rz:rnd()*.4-.2});
+  }
+  switch(stageId) {
+    case 1: // Market lanes converge at the burned inn.
+      at(0,19,4,roof);
+      at(-15, 2, 2, market);
+      at(14, 12, 2, (x,z,r) => stall(B,x,z,r-0.35,c));
+      at(-13, 13, 2, (x,z,r) => stall(B,x,z,r+0.55,c,true));
+      at(16, 1, 2, rubble);
+      break;
+    case 2:
+      at(-3,15,4,door); at(-11,16,3,wall); at(8,19,3,wall);
+      for(let j=0;j<7;j++) at(10+j%3,2+j*1.8,1.5,rubble);
+      break;
+    case 3:
+      for(let j=0;j<7;j++) for(const side of [-1,1]) at(side*(13+Math.sin(j)*2),-6+j*4,2,grove);
+      break;
+    case 4:
+      at(-8,16,4,court); at(6,15,4,(x,z,r)=>bridge(B,x,z,r,8,c));
+      for(const side of [-1,1]) { at(side*13,4,1,lamp); at(side*16,10,3,tree); }
+      break;
+    case 5:
+      at(0,14,4,pagoda);
+      for(const side of [-1,1]) { at(side*11,12,2,pagoda); at(side*9,7,1,lamp); }
+      break;
+    case 6:
+      at(0,18,4,roof); at(-11,14,3,court);
+      for(const side of [-1,1]) { at(side*14,3,2,tree); at(side*8,12,1,lamp); }
+      break;
+    case 7:
+      for(let j=0;j<13;j++) { const a=j*.47; at(16*Math.cos(a),16*Math.sin(a),2,deadTree); }
+      break;
+    case 8:
+      at(0,15,4,door); at(0,23,4,court);
+      for(const side of [-1,1]) for(let j=0;j<4;j++) at(side*(9-j),3+j*3,1,lamp);
+      break;
+    case 9:
+      at(0,13,3,shrine);
+      for(const side of [-1,1]) { at(side*12,7,3,shrine); at(side*9,14,2,spire); }
+      break;
+    case 10:
+      for(let j=0;j<5;j++) { at(-13+j%2,-5+j*5,2,ribs); at(12+j%3,1+j*4,2,rubble); }
+      break;
+    case 11:
+      at(0,18,4,door);
+      for(const side of [-1,1]) { at(side*7,18,3,wall); at(side*14,17,4,roof); at(side*15,8,3,wall); }
+      break;
+    case 12:
+      for(let j=0;j<16;j++) { const a=j*Math.PI/8; at(17*Math.cos(a),17*Math.sin(a),2,spire); }
+      break;
+  }
+  // Low-profile relief is part of the batched arena mesh: paving, roots and
+  // river gravel have actual silhouettes without creating invisible blockers.
+  const paved = [2,5,6,8,9,11,12].includes(stageId);
+  for (let j=0; j<52; j++) {
+    const a=rnd()*Math.PI*2, r=5+Math.sqrt(rnd())*11;
+    const x=r*Math.cos(a), z=r*Math.sin(a);
+    if (paved) {
+      const circular = stageId === 5 || stageId === 9 || stageId === 12;
+      const angle = circular ? -a : Math.PI/4;
+      B.add(G.box,c.stone,ZONE.STONE,{x,z,y:.025,ry:angle,
+        sx:.45+rnd()*1.0,sy:.06+rnd()*.06,sz:.20+rnd()*.4});
+    } else if (stageId === 7) {
+      B.add(G.cyl6,c.woodDark,ZONE.WOOD,{x,z,y:.045,ry:-a,rz:1.52,
+        sx:.11,sy:.9+rnd(),sz:.14});
+    } else {
+      B.add(G.sphereLo,c.stone,ZONE.STONE,{x,z,y:.045,
+        sx:.13+rnd()*.48,sy:.09+rnd()*.14,sz:.18+rnd()*.4});
+    }
+  }
+  cliffRing(B,rnd,c);
 
-  /* --- 2) 소나무·대나무: 바깥 띠를 따라 --- */
-  const nPine = 6 + (stageId <= 4 ? 1 : 2);
-  for (let i = 0; i < nPine; i++) {
-    const a = backA + Math.PI * 0.62 * ((i / (nPine - 1)) * 2 - 1) + (rnd() - 0.5) * 0.2;
-    const r = ARENA.RIM + 0.4 - rnd() * 3.4;
-    const x = Math.cos(a) * r, z = Math.sin(a) * r;
-    if (occupied(x, z, 2.4)) continue;
-    pine(B, x, z, rnd, c, 0.9 + rnd() * 0.45);
-    place(x, z, 2.0);
-  }
-  const nBam = stageId === 3 || stageId === 7 ? 4 : 2;
-  for (let i = 0; i < nBam; i++) {
-    const side = i % 2 ? 1 : -1;
-    const a = backA + side * (1.35 + rnd() * 0.5);
-    const r = ARENA.RIM - 2.4 - rnd() * 1.6;
-    const x = Math.cos(a) * r, z = Math.sin(a) * r;
-    if (occupied(x, z, 2.6)) continue;
-    bambooGrove(B, x, z, rnd, c, 6 + Math.round(rnd() * 3));
-    place(x, z, 2.2);
-  }
-
-  /* --- 3) 플레이 공간 안쪽: 작은 바위·석등·난간 (시야를 막지 않는 것만) --- */
-  for (let i = 0; i < 11; i++) {
-    const a = rnd() * Math.PI * 2, r = 5.0 + Math.pow(rnd(), 0.7) * (ARENA.R - 2.0);
-    const x = Math.cos(a) * r, z = Math.sin(a) * r;
-    if (occupied(x, z, 1.4)) continue;
-    rock(B, x, z, rnd, c, 0.6 + rnd() * 0.7);
-    place(x, z, 1.1);
-  }
-  for (let i = 0; i < 4; i++) {
-    const a = Math.PI * 2 * (i / 4) + 0.5 + rnd() * 0.2, r = 8.5 + rnd() * 6.5;
-    const x = Math.cos(a) * r, z = Math.sin(a) * r;
-    if (occupied(x, z, 1.6)) continue;
-    lantern(B, x, z, rnd() * 6.28, c); place(x, z, 1.2);
-  }
-  /* 안쪽 큰 바위 3 — 실루엣 기준점 */
-  for (let i = 0; i < 3; i++) {
-    const a = backA + (i - 1) * 0.75 + rnd() * 0.2, r = 15.0 + rnd() * 2.4;
-    const x = Math.cos(a) * r, z = Math.sin(a) * r;
-    if (occupied(x, z, 2.0)) continue;
-    rock(B, x, z, rnd, c, 1.5 + rnd() * 0.8); place(x, z, 1.8);
-  }
-
-  /* --- 4) 경계 띠: 난간 + 다리 — 플레이 반경 바로 밖 --- */
-  {
-    const a0 = backA + 1.05;
-    railing(B, Math.cos(a0) * (ARENA.R + 1.2), Math.sin(a0) * (ARENA.R + 1.2), -a0 + Math.PI / 2, 9.0, c);
-    const a1 = backA - 1.05;
-    railing(B, Math.cos(a1) * (ARENA.R + 1.2), Math.sin(a1) * (ARENA.R + 1.2), -a1 + Math.PI / 2, 8.0, c);
-    const a2 = backA + Math.PI * 0.42;
-    bridge(B, Math.cos(a2) * (ARENA.R + 1.6), Math.sin(a2) * (ARENA.R + 1.6), -a2 + Math.PI / 2, 6.0, c);
-  }
-
-  /* --- 5) 절벽 띠 + 원경 나무 띠: 무대 밖을 그림으로 닫는다 --- */
-  cliffRing(B, rnd, c);
-
-  /* --- 6) 합치기 --- */
   const bodyGeo = merge(B.body);
   const bodyMat = propMat();
-  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  const body = new THREE.SkinnedMesh(bodyGeo, bodyMat);
   body.castShadow = true; body.receiveShadow = false;
   body.frustumCulled = false;
   body.name = 'arena-body';
@@ -718,7 +728,7 @@ export function buildArena(opts) {
   const outT = 0.030;
   const hullMat = INK3D.outlineMat();
   hullMat.side = THREE.BackSide;
-  const hullMesh = new THREE.Mesh(hull(bodyGeo, outT), hullMat);
+  const hullMesh = new THREE.SkinnedMesh(hull(bodyGeo, outT), hullMat);
   hullMesh.frustumCulled = false;
   hullMesh.castShadow = false; hullMesh.receiveShadow = false;
   hullMesh.name = 'arena-ink';
@@ -728,13 +738,19 @@ export function buildArena(opts) {
   if (glowGeo) {
     const gm = new THREE.MeshBasicMaterial({ vertexColors: true, color: 0xffffff, fog: true, side: THREE.DoubleSide });
     gm.userData.cardProfile = 'paper';
-    glowMesh = new THREE.Mesh(glowGeo, gm);
+    glowMesh = new THREE.SkinnedMesh(glowGeo, gm);
     glowMesh.frustumCulled = false;
     glowMesh.name = 'arena-glow';
   }
 
   const group = new THREE.Group();
   group.name = 'arena-' + stageId;
+  group.add(B.root);
+  group.updateMatrixWorld(true);
+  const skeleton = new THREE.Skeleton(B.bones);
+  for (const mesh of [body,hullMesh,glowMesh]) {
+    if (mesh) mesh.bind(skeleton);
+  }
   group.add(body); group.add(hullMesh);
   if (glowMesh) group.add(glowMesh);
 

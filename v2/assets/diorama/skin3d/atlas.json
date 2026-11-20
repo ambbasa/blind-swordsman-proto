@@ -1,0 +1,215 @@
+{
+ "cell": 128,
+ "grid": 4,
+ "zoneBase": 8,
+ "cells": {
+  "heroCloth": {
+   "i": 0,
+   "zone": 8,
+   "kind": "tile",
+   "mean": "#5d5a50",
+   "rect": [
+    -0.12,
+    0.14,
+    0.66,
+    0.92
+   ],
+   "from": "hero"
+  },
+  "heroFace": {
+   "i": 1,
+   "zone": 9,
+   "kind": "decal",
+   "mean": "#9f8c73",
+   "rect": [
+    0.03,
+    0.26,
+    1.96,
+    2.25
+   ],
+   "from": "hero"
+  },
+  "minionCloth": {
+   "i": 2,
+   "zone": 10,
+   "kind": "tile",
+   "mean": "#575144",
+   "rect": [
+    -0.22,
+    0.04,
+    0.74,
+    1.0
+   ],
+   "from": "minion"
+  },
+  "minionFace": {
+   "i": 3,
+   "zone": 11,
+   "kind": "decal",
+   "mean": "#716451",
+   "rect": [
+    0.03,
+    0.33,
+    1.84,
+    2.2
+   ],
+   "from": "minion"
+  },
+  "heavySkin": {
+   "i": 4,
+   "zone": 12,
+   "kind": "tile",
+   "mean": "#caa87e",
+   "rect": [
+    0.46,
+    0.64,
+    1.86,
+    2.08
+   ],
+   "from": "heavy"
+  },
+  "heavyFace": {
+   "i": 5,
+   "zone": 13,
+   "kind": "decal",
+   "mean": "#9f8462",
+   "rect": [
+    -0.07,
+    0.19,
+    2.38,
+    2.7
+   ],
+   "from": "heavy"
+  },
+  "heavyStraw": {
+   "i": 6,
+   "zone": 14,
+   "kind": "tile",
+   "mean": "#a1835b",
+   "rect": [
+    -0.2,
+    0.08,
+    1.02,
+    1.3
+   ],
+   "from": "heavy"
+  },
+  "heavyTorso": {
+   "i": 7,
+   "zone": 15,
+   "kind": "decal",
+   "mean": "#bd9e77",
+   "rect": [
+    -0.24,
+    0.18,
+    1.74,
+    2.34
+   ],
+   "from": "heavy"
+  },
+  "stoneRock": {
+   "i": 8,
+   "zone": 16,
+   "kind": "tile",
+   "mean": "#b0a385",
+   "rect": [
+    0.52,
+    0.86,
+    1.52,
+    1.9
+   ],
+   "from": "stone"
+  },
+  "stoneFace": {
+   "i": 9,
+   "zone": 17,
+   "kind": "decal",
+   "mean": "#9d9173",
+   "rect": [
+    -0.5,
+    -0.04,
+    1.74,
+    2.4
+   ],
+   "from": "stone"
+  },
+  "bossRobe": {
+   "i": 10,
+   "zone": 18,
+   "kind": "tile",
+   "mean": "#612918",
+   "rect": [
+    0.5,
+    0.9,
+    1.35,
+    1.9
+   ],
+   "from": "boss"
+  },
+  "bossMask": {
+   "i": 11,
+   "zone": 19,
+   "kind": "decal",
+   "mean": "#4c3c2e",
+   "rect": [
+    -0.27,
+    0.27,
+    4.42,
+    5.12
+   ],
+   "from": "boss"
+  },
+  "bossTrim": {
+   "i": 12,
+   "zone": 20,
+   "kind": "tile",
+   "mean": "#8e612e",
+   "rect": [
+    0.26,
+    0.44,
+    1.55,
+    1.95
+   ],
+   "from": "boss"
+  },
+  "bossInner": {
+   "i": 13,
+   "zone": 21,
+   "kind": "tile",
+   "mean": "#3b2c1d",
+   "rect": [
+    -0.32,
+    0.04,
+    1.15,
+    1.6
+   ],
+   "from": "boss"
+  },
+  "wood": {
+   "i": 14,
+   "zone": 22,
+   "kind": "tile",
+   "mean": "#776245",
+   "rect": [
+    0.36,
+    0.6,
+    2.62,
+    2.84
+   ],
+   "from": "heavy"
+  },
+  "heavyPants": {
+   "i": 15,
+   "zone": 23,
+   "kind": "tile",
+   "mean": "#423827",
+   "rect": [
+    -0.22,
+    -0.02,
+    0.68,
+    0.88
+   ],
+   "from": "heavy"
+  }
+ }
+}

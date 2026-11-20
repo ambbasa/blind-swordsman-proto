@@ -508,9 +508,23 @@
     if (pts.length < 2) return { type: null, reason: 'short', scores: {}, label: null };
     var L = L0;
     if (L < 36) return { type: null, reason: 'short', scores: {}, label: null };
+    // A pentagram closes after five long legs with same-direction sharp turns.
+    if (opts.seal && dist(pts[0], pts[pts.length - 1]) < L * 0.065) {
+      var tips = resample(pts, 6), winding = 0, valid = true;
+      for (var leg = 0; leg < 5; leg++) {
+        var a = tips[leg], b = tips[(leg + 1) % 5], c = tips[(leg + 2) % 5];
+        var ab = dist(a,b), bc = dist(b,c);
+        var dot = (b.x-a.x)*(c.x-b.x) + (b.y-a.y)*(c.y-b.y);
+        var cross = Math.sign((b.x-a.x)*(c.y-b.y) - (b.y-a.y)*(c.x-b.x));
+        if (ab < L * 0.135 || dot > -0.56 * ab * bc || (leg && cross !== winding)) valid = false;
+        winding = cross;
+      }
+      if (valid) return { type:'star', best:'star', label:'⛤', scores:{star:1}, bestScore:1, q:1 };
+    }
     var rs = resample(pts, 48);
     var bb = bbox(rs);
-    var axis = scoreLineAxis(rs, bb, pathLen(rs));
+    var steady = smoothPts(rs, 3);
+    var axis = scoreLineAxis(rs, bb, pathLen(rs)) || scoreLineAxis(steady, bbox(steady), pathLen(steady));
     var scores = {
       vline: scoreVline(rs, bb, pathLen(rs)),
       hline: scoreHline(rs, bb, pathLen(rs)),
@@ -523,7 +537,7 @@
     /* 기물 제스처는 opts.totem일 때(보스전에 기물이 서 있을 때)만 겨룬다. 평소 인식은 그대로다. */
     if (opts.totem) {
       /* 손 떨림이 꺾임·회전량을 부풀리지 않게 한 번 고른 뒤 잰다. */
-      var sm = smoothPts(rs, 2), sbb = bbox(sm), sL = pathLen(sm);
+      var sm = smoothPts(rs, 4), sbb = bbox(sm), sL = pathLen(sm);
       var tScores = { tri: scoreTri(rs, bb, pathLen(rs)), arc: scoreArc(sm, sbb, sL), spiral: scoreSpiral(sm, sbb, sL) };
       var tk = null, ts = 0;
       TOTEM.forEach(function (k) { scores[k] = tScores[k]; if (tScores[k] > ts) { ts = tScores[k]; tk = k; } });

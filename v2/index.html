@@ -59,10 +59,6 @@
       <p id="bossCardLine" class="bc-line"></p>
     </div>
     <!-- v0.31 §5.2 멈추지 않는 레벨업: 화면 아래 22% 카드 3장 -->
-    <div id="quickCards" class="quick-wrap" hidden>
-      <div id="quickList" class="quick-list" role="group" aria-label="강화 선택"></div>
-      <p id="quickNote" class="quick-note"></p>
-    </div>
 
     <div id="ov-title" class="ov show">
       <div class="card title-card">
@@ -74,9 +70,6 @@
         <div class="act-tabs" id="actTabs" role="tablist" aria-label="막 선택"></div>
         <div class="stage-select" id="titleStages" role="group" aria-label="스테이지 선택"></div>
         <p class="stage-note" id="titleStageNote"></p>
-        <div class="mode-row" id="titleModes" role="group" aria-label="난이도 모드"></div>
-        <p class="mode-note" id="titleModeNote"></p>
-        <div class="challenge-row" id="titleChallenges" role="group" aria-label="도전 모드"></div>
         <button type="button" id="btnStart" class="btn primary">출전</button>
         <div class="title-foot">
           <button type="button" id="btnTrain" class="btn small">수련장</button>
@@ -84,10 +77,13 @@
           <button type="button" id="btnCodex" class="btn small">도감</button>
           <button type="button" id="btnA11y" class="btn small">설정</button>
         </div>
+        <div class="mode-row" id="titleModes" role="group" aria-label="난이도 모드"></div>
+        <p class="mode-note" id="titleModeNote"></p>
+        <div class="challenge-row" id="titleChallenges" role="group" aria-label="도전 모드"></div>
+
         <div class="a11y-row" id="titleA11y" hidden>
           <button type="button" id="btnCb1" class="btn small">색약 팔레트: 끔</button>
           <button type="button" id="btnShake1" class="btn small">화면 흔들림: 켬</button>
-          <button type="button" id="btnLvMode1" class="btn small">레벨업: 멈추지 않음</button>
         </div>
       </div>
     </div>
@@ -140,16 +136,16 @@
         <div class="stage-rule" aria-hidden="true"></div>
         <p class="stage-goal" id="stageGoal"></p>
         <p class="stage-terrain" id="stageTerrain"></p>
+        <p class="stage-tip" id="stageTip"></p>
         <div class="stage-chips" id="stageChips" aria-hidden="true"></div>
         <button type="button" id="btnStageGo" class="btn primary">일섬</button>
-        <p class="stage-tip" id="stageTip"></p>
       </div>
     </div>
     <div id="ov-result" class="ov">
       <div class="card result-card">
         <p class="result-kicker" id="resultKicker"></p>
         <h2 id="resultTitle">생존</h2>
-        <div class="stars" id="resultStars" aria-label="별점"></div>
+        <div class="stars" id="resultStars" role="img" aria-label="별점"></div>
         <p id="resultBody"></p>
         <ul class="result-stats" id="resultStats"></ul>
         <p class="result-next" id="resultNext"></p>
@@ -177,9 +173,6 @@
         <div class="a11y-row">
           <button type="button" id="btnCb" class="btn small">색약 팔레트: 끔</button>
           <button type="button" id="btnShake" class="btn small">화면 흔들림: 켬</button>
-        </div>
-        <div class="a11y-row">
-          <button type="button" id="btnLvMode" class="btn small">레벨업: 멈추지 않음</button>
         </div>
         <div class="rec-row">
           <button type="button" id="btnRec" class="btn small">기록 보내기: 끔</button>

@@ -547,4 +547,3 @@ function rid(rig, key) {
   if (!rig.frameOf) rig.frameOf = {};
   rig.frameOf[key] = 1;
 }
-function vib(rig, key) { return 0; }

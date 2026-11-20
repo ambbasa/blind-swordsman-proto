@@ -4,7 +4,7 @@ import * as Anim from './anim.js';
 import { buildStage3D } from './inkprops3d.js';
 import { drawInkBossSheet } from './inkboss.js';
 import { drawHeroSheets, drawZombieSheets, drawZombieVariantSheets, drawSpiritSheet } from './inkchars.js';
-import { drawRattle, drawItem, drawSeal, drawUpgrade } from './inkicons.js';
+import { SPIRIT_GLYPH_PATHS, drawRattle, drawItem, drawSeal, drawUpgrade } from './inkicons.js';
 import { loadPixelPack, PIXEL_LOOK } from './pixellook.js';
 import { buildFigure, tickFigure, kick as rigKick, slashPose as rigSlash, setOpacity as rigOpacity, setTint as rigTint,
   setAuraColor as rigAuraColor, setOrder as rigOrder, setCamera as rigSetCamera, ready as rigReady,
@@ -138,7 +138,7 @@ export async function buildArt(THREE) {
   const CHAR_OUTLINE = { hero: [1.07, 0.26], zombie: [1.1, 0.85], spirit: [1.12, 0.7] };
   /* 2막부터 주인공이 검은 무사복을 입어, 검은 실루엣 대신 한지빛 테두리를 둔다 — 어두운 바닥에서도 또렷하다. */
   const HERO_RIM = 0xa89a80;
-  const SPIRIT_TINT = [0.45, 1.7, 1.2];
+  const SPIRIT_TINT = [0.65, 1.18, 0.98];
   const SPIRIT_VIEW_SCALE = 1.45;
   /* 0.26: the orb anchor box in world units (~57% of the orb's diameter). game.js measures the
      spirit's screen centre and foot point from it. */
@@ -158,18 +158,8 @@ export async function buildArt(THREE) {
      뾰족한 중심 없이 스며든다.
      ------------------------------------------------------------------ */
   const SPIRIT_ORB = { x: 128, y: 128, r: 58 };
-  const SPIRIT_GLYPH_K = 0.5;   /* 획 외곽 = 구슬 지름의 50% */
-  const SPIRIT_GLYPH_PATHS = {
-    hline: [[[-1, 0.08], [0.05, -0.04], [1, 0.02]]],
-    vline: [[[0.04, -1], [-0.03, 0.1], [0.02, 1]]],
-    vee: [[[-0.95, -0.7], [0, 0.85]], [[0, 0.85], [0.95, -0.8]]],
-    bolt: [[[0.45, -1], [-0.45, -0.05]], [[-0.45, -0.05], [0.45, 0.05]], [[0.45, 0.05], [-0.4, 1]]],
-    square: [[[-0.85, -0.85], [0.85, -0.85], [0.85, 0.85], [-0.85, 0.85], [-0.85, -0.85]]],
-    /* v0.26 기물 전용: 삼각 · 반달 · 소용돌이 */
-    tri: [[[0, -0.95], [0.9, 0.75], [-0.9, 0.75], [0, -0.95]]],
-    arc: [[[-0.95, -0.35], [-0.918, -0.104], [-0.823, 0.125], [-0.672, 0.322], [-0.475, 0.473], [-0.246, 0.568], [-0.0, 0.6], [0.246, 0.568], [0.475, 0.473], [0.672, 0.322], [0.823, 0.125], [0.918, -0.104], [0.95, -0.35]]],
-    spiral: [[[0.12, 0.0], [0.133, 0.046], [0.128, 0.099], [0.1, 0.152], [0.05, 0.197], [-0.018, 0.223], [-0.097, 0.224], [-0.179, 0.196], [-0.251, 0.138], [-0.302, 0.053], [-0.323, -0.051], [-0.308, -0.163], [-0.253, -0.269], [-0.16, -0.355], [-0.039, -0.409], [0.101, -0.419], [0.242, -0.382], [0.369, -0.296], [0.464, -0.167], [0.514, -0.008], [0.509, 0.165], [0.444, 0.334], [0.324, 0.477], [0.158, 0.576], [-0.039, 0.617], [-0.244, 0.59], [-0.436, 0.495], [-0.591, 0.337], [-0.689, 0.131], [-0.715, -0.102], [-0.662, -0.337], [-0.531, -0.548], [-0.334, -0.709], [-0.088, -0.8], [0.18, -0.806], [0.442, -0.722], [0.668, -0.553], [0.83, -0.314], [0.908, -0.029], [0.888, 0.273], [0.769, 0.558]]]
-  };
+  const SPIRIT_GLYPH_K = 0.75;   /* 축소된 구슬에서도 붓획을 읽을 수 있게 한다. */
+
   /* 프레임마다 마른 붓 결이 조금씩 달라지도록 고정 시드 난수를 쓴다. */
   function inkSeed(text) {
     let h = 2166136261;
@@ -263,19 +253,10 @@ export async function buildArt(THREE) {
   function paintSpiritInk(ctx, shape, cx, cy, box, rnd) {
     const G = glyphInkBox(shape, cx, cy, box);
     if (!G) return;
-    const glow = 'rgba(206,246,238,';
     ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.filter = 'blur(' + Math.max(1.2, box * 0.07) + 'px)';
+    ctx.globalCompositeOperation = 'source-atop';
     G.lines.forEach(function (p) {
-      inkBrush(ctx, p, G.width * 1.7, { soft: glow + '0.07)', core: glow + '0.07)', deep: glow + '0.06)' }, rnd);
-    });
-    ctx.restore();
-    ctx.save();
-    ctx.globalCompositeOperation = 'multiply';
-    ctx.filter = 'blur(' + Math.max(0.6, box * 0.018) + 'px)';
-    G.lines.forEach(function (p) {
-      inkBrush(ctx, p, G.width, { soft: 'rgba(110,118,112,0.5)', core: 'rgba(40,46,44,0.8)', deep: 'rgba(24,28,26,0.85)' }, rnd);
+      inkBrush(ctx, p, G.width, { soft: 'rgba(110,118,112,0.5)', core: 'rgba(27,37,32,0.96)', deep: 'rgba(16,23,21,1)' }, rnd);
     });
     ctx.restore();
   }
@@ -836,7 +817,7 @@ export async function buildArt(THREE) {
         group.add(g);
         group.userData.glow = g;
         /* 비취 혼령: HDR 색이라 블룸에 번진다. */
-        if (!isBoss) { g.material.color.setRGB(0.45, 1.7, 1.15); g.material.opacity = 0.5; }
+        if (!isBoss) { g.material.color.setRGB(0.45, 1.25, 0.98); }
         else g.material.color.setRGB(1.7, 0.22, 0.14);
       }
       if (!isBoss && spr.material && spr.material.color) spr.material.color.setRGB(SPIRIT_TINT[0], SPIRIT_TINT[1], SPIRIT_TINT[2]);

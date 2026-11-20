@@ -27,6 +27,8 @@ SHAPES = ['vline', 'hline', 'vee', 'circle', 'square', 'bolt', 'tri', 'arc', 'sp
 
 # §2.1 수용 기준
 THRESHOLDS = {
+    'axisMin': 0.95,
+    'arcMin': 0.88,
     'lineAsBoltMax': 0.01,     # 가로선·세로선 → 번개 1% 이하
     'narrowBoltMin': 0.90,     # 폭 20px 번개 90% 이상 유지
     'circleMin': 0.85,         # 동그라미 인식률 85% 이상 유지
@@ -82,6 +84,7 @@ def metrics(matrix, narrow):
     line_n = tot['vline'] + tot['hline']
     line_bolt = matrix['vline']['bolt'] + matrix['hline']['bolt']
     return {
+        'axisRates': {k: round(rate(k, k), 4) for k in ('hline', 'vline')},
         'vlineAsBolt': round(rate('vline', 'bolt'), 4),
         'hlineAsBolt': round(rate('hline', 'bolt'), 4),
         'lineAsBolt': round(line_bolt / max(1, line_n), 4),
@@ -108,6 +111,11 @@ def compare(base, now):
 
 def check_thresholds(m):
     fails = []
+    for shape, value in m['axisRates'].items():
+        if value < THRESHOLDS['axisMin']:
+            fails.append(f'{shape}: {value:.1%} < {THRESHOLDS["axisMin"]:.0%}')
+    if m['totemRates']['arc'] < THRESHOLDS['arcMin']:
+        fails.append('반달 인식률 미달')
     if m['lineAsBolt'] > THRESHOLDS['lineAsBoltMax']:
         fails.append('가로선·세로선 → 번개 %.1f%% (기준 1%% 이하)' % (m['lineAsBolt'] * 100))
     if m['narrowBoltRate'] < THRESHOLDS['narrowBoltMin']:
@@ -131,7 +139,7 @@ def main():
     out = run_matrix(gj, cj)
     matrix, narrow = aggregate(out)
     m = metrics(matrix, narrow)
-    now = {'version': 'v0.29', 'n': out['n'], 'matrix': matrix, 'narrow': narrow, 'metrics': m}
+    now = {'version': 'market-fork', 'n': out['n'], 'matrix': matrix, 'narrow': narrow, 'metrics': m}
 
     print('획 %d개 (무늬 %d종)' % (out['n'], len(SHAPES)))
     head = '%-7s' % '' + ''.join('%8s' % l for l in LABELS)

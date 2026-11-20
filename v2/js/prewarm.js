@@ -30,25 +30,18 @@ function forEachMaterial(obj, fn) {
 
 function collectTextures(mats, extra) {
   const seen = new Set();
-  const list = [];
   const add = function (t) {
-    if (!t || !t.isTexture || seen.has(t)) return;
-    seen.add(t); list.push(t);
+    if (!t || !t.isTexture) return;
+    seen.add(t);
   };
   mats.forEach(function (mat) {
     if (!mat) return;
     TEX_SLOTS.forEach(function (k) { if (mat[k]) add(mat[k]); });
   });
   (extra || []).forEach(add);
-  return list;
+  return Array.from(seen);
 }
 
-function uploadTextures(renderer, mats, extra) {
-  if (!renderer.initTexture) return 0;
-  let n = 0;
-  collectTextures(mats, extra).forEach(function (t) { try { renderer.initTexture(t); n++; } catch (e) {} });
-  return n;
-}
 
 /**
  * opts: { THREE, renderer, scene, camera, recipes:[{label, make()}], textures:[Texture],
@@ -68,7 +61,6 @@ export function warmScene(opts) {
   /* visible=false 로 두면 renderer.compile 이 traverseVisible 을 쓰는 빌드에서 예열이 통째로 건너뛴다.
      카메라 밖 좌표만으로 충분히 가려지므로 보이는 상태로 둔다. */
   group.visible = true;
-  scene.add(group);
   state.phase = 'building';
   state.total = recipes.length;
 
@@ -88,7 +80,6 @@ export function warmScene(opts) {
       const perFrame = opts.texPerFrame || 3;
       let ti = 0;
       const done = function () {
-        scene.remove(group);
         rig = group;              // 재질 dispose 금지 = 프로그램 유지
         warmed = true;
         state.phase = 'done';
@@ -109,6 +100,7 @@ export function warmScene(opts) {
     };
     const step = function () {
       const t = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+      const batch = new THREE.Group();
       while (state.step < recipes.length) {
         const r = recipes[state.step];
         try {
@@ -118,21 +110,25 @@ export function warmScene(opts) {
             obj = new THREE.Mesh(g, obj);
             obj.frustumCulled = false;
           }
-          if (obj) { group.add(obj); state.labels.push(r.label || '?'); }
+          if (obj) { batch.add(obj); state.labels.push(r.label || '?'); }
         } catch (e) {}
         state.step++;
         if (performance.now() - t > budget) break;
       }
       /* 이번 프레임에 붙은 재질만 실제로 링크된다(이미 링크된 것은 캐시로 통과). */
       try {
-        if (renderer.compile) renderer.compile(scene, camera);
-        else if (renderer.compileAsync) renderer.compileAsync(scene, camera);
+        if (batch.children.length) renderer.compile(batch, camera, scene);
       } catch (e) {}
+      group.add(batch);
       if (state.step < recipes.length) { state.phase = 'compile'; nextFrame(step); return; }
       state.phase = 'textures';
       finish();
     };
-    nextFrame(step);
+    nextFrame(function () {
+      // Compile the stage once; later slices only visit newly built recipes.
+      try { renderer.compile(scene, camera); } catch (e) {}
+      nextFrame(step);
+    });
   });
   return promise;
 }

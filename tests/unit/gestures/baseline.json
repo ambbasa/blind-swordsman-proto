@@ -1,12 +1,12 @@
 {
- "generatedAt": "2026-11-17T08:47:30+00:00",
+ "generatedAt": "2026-11-20T02:06:49+00:00",
  "matrix": {
   "arc": {
-   "arc": 26,
+   "arc": 41,
    "bolt": 0,
    "circle": 0,
    "hline": 0,
-   "none": 19,
+   "none": 4,
    "spiral": 0,
    "square": 0,
    "tap": 0,
@@ -44,8 +44,8 @@
    "arc": 0,
    "bolt": 0,
    "circle": 0,
-   "hline": 29,
-   "none": 16,
+   "hline": 45,
+   "none": 0,
    "spiral": 0,
    "square": 0,
    "tap": 0,
@@ -123,16 +123,20 @@
    "bolt": 0,
    "circle": 0,
    "hline": 0,
-   "none": 12,
+   "none": 0,
    "spiral": 0,
    "square": 0,
    "tap": 0,
    "tri": 0,
    "vee": 0,
-   "vline": 33
+   "vline": 45
   }
  },
  "metrics": {
+  "axisRates": {
+   "hline": 1.0,
+   "vline": 1.0
+  },
   "boltRate": 0.981,
   "circleRate": 0.8667,
   "hlineAsBolt": 0.0,
@@ -141,7 +145,7 @@
   "squareRate": 1.0,
   "tapRate": 1.0,
   "totemRates": {
-   "arc": 0.5778,
+   "arc": 0.9111,
    "spiral": 1.0,
    "tri": 0.7778
   },
@@ -155,9 +159,11 @@
  },
  "seed": 20261129,
  "thresholds": {
+  "arcMin": 0.88,
+  "axisMin": 0.95,
   "circleMin": 0.85,
   "lineAsBoltMax": 0.01,
   "narrowBoltMin": 0.9
  },
- "version": "v0.29"
+ "version": "market-fork"
 }

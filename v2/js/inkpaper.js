@@ -63,15 +63,6 @@ function grain(ctx, w, h, seed, amount) {
 }
 
 /* 왼쪽에서 오는 달빛: 왼쪽 가장자리를 살짝 밝힌다. */
-function moonRim(ctx, path) {
-  ctx.save();
-  ctx.beginPath(); path(ctx); ctx.closePath(); ctx.clip();
-  const g = ctx.createLinearGradient(40, 0, 260, 0);
-  g.addColorStop(0, PAPER + '0.20)');
-  g.addColorStop(0.55, 'rgba(0,0,0,0)');
-  ctx.fillStyle = g; ctx.fillRect(0, 0, 520, 700);
-  ctx.restore();
-}
 
 /* ---------- 소품 그리기 ---------- */
 

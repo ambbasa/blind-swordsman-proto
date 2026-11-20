@@ -17,11 +17,31 @@ export function createAudio() {
     clink: 0.035, reverbSec: 1.4, reverbMix: 0.28 };
   const BELL_PITCH = { hline: 2600, vline: 2950, vee: 3350, bolt: 3800 };
 
+  const samples = new Map();
+  async function loadSample(context, name) {
+    try {
+      const response = await fetch(new URL('../assets/ink-edition/' + name + '.wav', import.meta.url));
+      if (response.ok) samples.set(name, await context.decodeAudioData(await response.arrayBuffer()));
+    } catch { /* The synth voice remains available offline. */ }
+  }
+  function sample(name, dest, time, rate, volume) {
+    const buffer = samples.get(name);
+    if (!buffer) return false;
+    const source = ctx.createBufferSource(), gain = ctx.createGain();
+    source.buffer = buffer;
+    source.playbackRate.value = rate;
+    gain.gain.value = volume;
+    source.connect(gain); gain.connect(dest);
+    source.onended = () => { source.disconnect(); gain.disconnect(); };
+    source.start(time);
+    return true;
+  }
   function ac() {
     if (ctx) return ctx;
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return null;
     ctx = new AC();
+    for (const name of ['silk', 'wood', 'blade']) loadSample(ctx, name);
     /* 버스가 마스터·리미터·방을 모두 들고 있다. master 는 버스의 마스터 게인 별칭. */
     bus = createAudioBus(ctx, { maxVoices: 8, rate: 30, burst: 9, duck: 0.42, room: 0.6, wet: 0.22 });
     busInfo = bus;
@@ -220,6 +240,7 @@ export function createAudio() {
     const V = voice(1.0, 0.14); if (!V) return;
     const k = Math.pow(2, (lenRatio == null ? 1 : clamp01(lenRatio) * 2) / 12);
     /* 샤악 — airy blade */
+    if (sample('blade', V, t0, k, 0.46)) return;
     noise(t0, 0.11, 'highpass', 1800 * k, 0.8, 0.28, V);
     noise(t0, 0.08, 'bandpass', 4200 * k, 2.4, 0.16, V);
     tone(t0, 1400 * k, 0.09, 0.07, 'triangle', V, 420 * k);
@@ -232,7 +253,7 @@ export function createAudio() {
     const c = resume(); if (!c) return;
     const t0 = c.currentTime;
     const V = voice(1.0, 0.2); if (!V) return;
-    tone(t0, 90, 0.16, 0.32, 'sine', V, 45);
+    if (!sample('wood', V, t0, perfect ? 1.12 : 0.94, 0.62)) tone(t0, 90, 0.16, 0.32, 'sine', V, 45);
     tone(t0, 180, 0.1, 0.12, 'triangle', V, 80);
     noise(t0, 0.09, 'lowpass', 900, 0.6, 0.2, V);
     if (perfect) {
@@ -241,6 +262,21 @@ export function createAudio() {
     }
   }
 
+  function deflect() {
+    if (quiet) return;
+    const c = resume(); if (!c) return;
+    const v = voice(0.8, 0.12); if (!v) return;
+    tone(c.currentTime, 1340, 0.09, 0.12, 'triangle', v, 810);
+    noise(c.currentTime, 0.035, 'highpass', 2900, 1, 0.10, v);
+  }
+  function breakCue() {
+    if (quiet) return;
+    const c = resume(); if (!c) return;
+    const v = voice(1, 0.39); if (!v) return;
+    const t = c.currentTime;
+    noise(t, 0.08, 'bandpass', 1150, 0.75, 0.23, v);
+    tone(t + 0.05, 380, 0.30, 0.18, 'sine', v, 245);
+  }
   function explode() {
     if (quiet) return;
     const c = resume(); if (!c) return;
@@ -277,7 +313,7 @@ export function createAudio() {
     const c = resume(); if (!c) return;
     const t0 = c.currentTime;
     const V = voice(0.7, dur); if (!V) return;
-    tone(t0, 90, dur, 0.1, 'sawtooth', V, 360);
+    if (!sample('wood', V, t0, perfect ? 1.12 : 0.94, 0.62)) tone(t0, 90, dur, 0.1, 'sawtooth', V, 360);
     tone(t0, 180, dur, 0.05, 'sine', V, 720);
   }
 
@@ -334,7 +370,7 @@ export function createAudio() {
       const freq = 392 * Math.pow(2, note / 12); /* G4 base, pentatonic steps stored as semitone-ish scale degrees */
       const map = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21];
       const f = 349.23 * Math.pow(2, (map[note] || 0) / 12); /* F4 */
-      daegeum(t0 + 0.02, f, (60 / bpm) * (heavy ? 1.6 : 1.15));
+      if (i % 8 === 0 || !sample('silk', bgmGain, t0 + 0.02, f / 220, 0.45)) daegeum(t0 + 0.02, f, (60 / bpm) * (heavy ? 1.6 : 1.15));
     }
   }
 
@@ -424,6 +460,8 @@ export function createAudio() {
     pickup: pickup,
     slash: slash,
     hit: hit,
+    deflect: deflect,
+    breakCue: breakCue,
     explode: explode,
     parry: parry,
     drum: drum,

@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 
 const BASE = new URL('../assets/diorama/fx/', import.meta.url).href;
+const elementalSheets = new Set(['fire', 'ice', 'bolt', 'poison']);
 const SHEETS = ['slash', 'spark', 'fire', 'ice', 'bolt', 'poison', 'talisman', 'ring', 'dissolve', 'splat'];
 export const tex = {};
 const state = { started: false, ready: false, fail: [], ms: 0 };
@@ -31,7 +32,8 @@ export function preloadFx() {
   state.started = true;
   const t0 = (typeof performance !== 'undefined' ? performance.now() : Date.now());
   p = Promise.all(SHEETS.map(function (k) {
-    return load(BASE + k + '.png').then(function (img) {
+    const url = elementalSheets.has(k) ? new URL('../assets/ink-edition/' + k + '.webp', import.meta.url).href : BASE + k + '.png';
+    return load(url).then(function (img) {
       if (!img) { state.fail.push(k); return; }
       const t = new THREE.Texture(img);
       t.colorSpace = THREE.SRGBColorSpace;

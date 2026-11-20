@@ -320,7 +320,7 @@ export function atlas() {
   if (_tex) return _tex;
   const cv = document.createElement('canvas');
   cv.width = SIZE; cv.height = SIZE;
-  const g = cv.getContext('2d');
+  const g = cv.getContext('2d', { willReadFrequently: true });
   g.fillStyle = '#e9e4db'; g.fillRect(0, 0, SIZE, SIZE);
   const paint = [pCloth, pPaper, pIron, pTalis, pRock, pGold, pBlade, pSash];
   /* 칸 배치: zone 0,1 = 맨 아래 줄 … 6,7 = 맨 윗줄. (텍스처 v축과 canvas y축을 맞춘다) */
@@ -347,10 +347,12 @@ export function atlas() {
     const x = col * CELL_W, y = SIZE - (row + 1) * CELL_H;
     const img = g.getImageData(x, y, CELL_W, CELL_H);
     const d = img.data;
-    const lum = new Float32Array(d.length / 4);
-    for (let k = 0, j = 0; k < d.length; k += 4, j++) lum[j] = (d[k] + d[k + 1] + d[k + 2]) / 765;
-    const sorted = Array.prototype.slice.call(lum).sort(function (a, b) { return a - b; });
-    const med = sorted[sorted.length >> 1];
+    const histogram = new Uint32Array(766);
+    for (let k = 0; k < d.length; k += 4) histogram[d[k] + d[k + 1] + d[k + 2]]++;
+    const middle = (d.length / 4) >> 1;
+    let count = 0, sum = 0;
+    while (count + histogram[sum] <= middle) count += histogram[sum++];
+    const med = Math.fround(sum / 765);
     const off = (0.75 - med) * 255;
     for (let k = 0; k < d.length; k += 4) {
       d[k] = Math.max(0, Math.min(255, d[k] + off));

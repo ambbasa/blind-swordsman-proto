@@ -17,7 +17,10 @@ export function createSlashArc({ from, to, height = 1.55, width = 0.62, elem = n
     const t = i / N;
     const cx = from.x + dx * t, cz = from.z + dz * t;
     const arc = Math.pow(Math.sin(Math.PI * t), 0.85);
-    const h = 0.12 + height * arc * (0.72 + 0.28 * Math.sin(Math.PI * Math.min(1, t * 1.1)));
+    const relief = elem === 'ice' ? Math.abs(Math.sin(4 * Math.PI * t)) * 0.26 :
+      elem === 'lightning' ? Math.sin(8 * Math.PI * t) * 0.19 :
+      elem === 'fire' ? Math.sin(3 * Math.PI * t) * 0.21 : 0;
+    const h = arc * relief + 0.12 + height * arc * (0.72 + 0.28 * Math.sin(Math.PI * Math.min(1, t * 1.1)));
     /* 카메라(+x+z) 쪽으로 살짝 기울여 호가 화면에 넓게 보이게 */
     const lean = arc * 0.35;
     const w = width * (0.22 + 0.95 * Math.sin(Math.PI * Math.min(1, t * 0.92 + 0.05)));

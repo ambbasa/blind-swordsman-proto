@@ -21,11 +21,12 @@
       먹 붓질·칼날 하몬을 곱한다. 색은 그대로 uColor(버텍스)가 내고 텍스처는 '결'만 얹는다.
       ?notex=1 이면 아틀라스를 만들지 않아 v0.46과 픽셀 단위로 같다. */
 import * as THREE from 'three';
+import { HERO } from './inkmodels3d.js';
+import { artTex, bakeBody, makeBones, SKIN_VERT, clothStep } from './inkbody3d.js';
 import * as TEX from './inktex3d.js';
 
 export const HERO_H = 2.45;          /* 기존 주인공(파츠 리그 m=2.45)과 같은 키 — 그림자·HUD 기준이 맞는다 */
 const WALK_SPEED = 1.7;              /* 걷기 위상의 기준 속도(m/s) */
-const WALK_DUR = 0.72;               /* 12키 한 주기(초) */
 const OUTLINE_T = (function () {
   /* ?holo=0.03 — QA에서 먹선 두께를 화면으로 맞출 때만 쓴다. */
   try {
@@ -52,22 +53,6 @@ const LIGHT = (function () {
 /* ---------------------------------------------------------------- 먹의 값
    albedo 는 선형 색이다. 광량(위 LIGHT)과 곱해진 값이 화면에서 '먹'의 계조가 된다.
    흑의(黑衣)는 화면 60~70, 눈 안대는 190~215, 장검 날은 175~195 를 목표로 잡았다. */
-const COL = {
-  coat: 0x4a4a4c,        /* 검은 무사복 상의 */
-  coatLo: 0x3e3e41,      /* 자락 아래 — 먹이 고인 쪽 */
-  pants: 0x434346,
-  hood: 0x36363a,        /* 두건 */
-  belt: 0x4a4238,        /* 허리띠 */
-  band: 0x9c968a,        /* 눈 안대 — 한지 회색 띠 */
-  skin: 0x7a6a5c,        /* 손·아래얼굴 */
-  blade: 0x8f9598,       /* 은빛/강철빛 (녹색 금지) */
-  bladeEdge: 0xb0b6b8,
-  guard: 0x574c3e,
-  grip: 0x3d3830,
-  ink: 0x28282a
-};
-
-/* ---------------------------------------------------------------- 3단 붓 계조 */
 let _grad = null;
 /** 3단 붓 계조: x축 = dotNL(-1..1)을 0..1로 옮긴 값. 마른 붓처럼 칸 경계에 살짝 흔들림. */
 function gradMap() {
@@ -111,37 +96,21 @@ function gradMap() {
 }
 
 /* ---------------------------------------------------------------- 수묵 툰 셰이더 */
-const VERT = /* glsl */`
-attribute vec3 color;
-attribute float zone;
-varying vec3 vAlb;
-varying vec3 vN;
-varying vec3 vV;
-varying vec3 vW;
-varying float vH;
-varying vec2 vTuv;
-varying float vZone;
-void main() {
-  vAlb = color;
-  vTuv = uv;
-  vZone = zone;
-  vec4 wp = modelMatrix * vec4(position, 1.0);
-  vW = wp.xyz;
-  vN = normalize(mat3(modelMatrix) * normal);
-  vV = normalize(cameraPosition - wp.xyz);
-  vH = clamp(wp.y / 2.45, 0.0, 1.0);
-  gl_Position = projectionMatrix * viewMatrix * wp;
-}`;
-
 const FRAG = /* glsl */`
 uniform sampler2D uRamp;
 uniform vec3 uKeyDir, uKeyCol, uFillDir, uFillCol, uAmbCol, uRimCol;
 uniform float uRim, uWash, uGrain;
 uniform sampler2D uTex;
+uniform sampler2D uArt;
 uniform float uTexAmt;
 varying vec2 vTuv;
 varying float vZone;
 vec3 inkTexAtlas() {
+  if (vZone >= 7.5) {
+    float cell = floor(vZone + 0.5) - 8.0;
+    vec2 tile = vec2(mod(cell, 4.0), 3.0 - floor(cell / 4.0));
+    return texture2D(uArt, (tile + clamp(vTuv, 0.004, 0.996)) * 0.25).rgb * 2.0;
+  }
   float col = mod(vZone, 2.0);
   float row = floor(vZone * 0.5);
   vec2 f = vec2(clamp(fract(vTuv.x), 0.008, 0.992), clamp(fract(vTuv.y), 0.012, 0.988));
@@ -201,6 +170,7 @@ function inkUniforms() {
     uWash: { value: LIGHT.wash },
     uGrain: { value: 0.16 },
     /* v0.47 텍스처 아틀라스 — 전 재질이 한 장을 공유한다(샘플러 1개, 드로우콜 그대로). */
+    uArt: { value: artTex() },
     uTex: { value: TEX.atlas() },
     uTexAmt: { value: TEX.amount() }
   };
@@ -209,7 +179,7 @@ function inkMat(opt) {
   opt = opt || {};
   const u = inkUniforms();
   const m = new THREE.ShaderMaterial({
-    uniforms: u, vertexShader: VERT, fragmentShader: FRAG,
+    uniforms: u, vertexShader: SKIN_VERT, fragmentShader: FRAG,
     side: opt.side || THREE.FrontSide
   });
   m.userData.inkUniforms = u;
@@ -223,264 +193,6 @@ function outlineMat() {
 }
 
 /* ---------------------------------------------------------------- 형상 도구 */
-const V2 = THREE.Vector2;
-/** 프로필 [[r,y],...] 을 돌려 곡면을 만든다(아래 → 위). scale/pos 로 타원 단면·배치. */
-function lathe(profile, seg, sx, sz, py) {
-  const pts = profile.map(function (p) { return new V2(Math.max(0.0008, p[0]), p[1]); });
-  const geo = new THREE.LatheGeometry(pts, seg || 16);
-  const m = new THREE.Matrix4();
-  m.compose(new THREE.Vector3(0, py || 0, 0), new THREE.Quaternion(), new THREE.Vector3(sx || 1, 1, sz || sx || 1));
-  geo.applyMatrix4(m);
-  return geo;
-}
-/** 마디: 위(y=0)에서 아래(y=-len)로 가늘어지는 곡면. 양 끝은 살짝 둥글게 닫는다. */
-function limbGeo(rTop, rBot, len, seg) {
-  const prof = [
-    [0, -len - 0.012], [rBot * 0.5, -len - 0.007], [rBot, -len + 0.004],
-    [rBot + (rTop - rBot) * 0.34, -len * 0.66],
-    [rBot + (rTop - rBot) * 0.70, -len * 0.33],
-    [rTop, -0.006], [rTop * 0.80, 0.004], [0, 0.009]
-  ];
-  return lathe(prof, seg || 14);
-}
-function ballGeo(r, sx, sy, sz) {
-  const g = new THREE.SphereGeometry(r, 14, 9);
-  const m = new THREE.Matrix4();
-  m.compose(new THREE.Vector3(), new THREE.Quaternion(), new THREE.Vector3(sx || 1, sy || 1, sz || 1));
-  g.applyMatrix4(m);
-  g.computeVertexNormals();
-  return g;
-}
-function ringGeo(r, tube, seg) {
-  return new THREE.TorusGeometry(r, tube, 5, seg || 18);
-}
-/** 도포 자락: 위(0)에서 아래(-h)로 내려오는 천 조각. */
-function ribbonGeo(wTop, wBot, h, rows, bulge, wave) {
-  const g = new THREE.PlaneGeometry(1, 1, 3, rows || 4);
-  const pos = g.getAttribute('position');
-  for (let i = 0; i < pos.count; i++) {
-    const u = pos.getX(i) + 0.5;
-    const v = pos.getY(i) + 0.5;
-    const w = wTop + (wBot - wTop) * (1 - v);
-    const x = (u - 0.5) * w;
-    const y = -h * (1 - v);
-    const z = (bulge || 0) * (1 - v) * (1 - v) + Math.sin(u * Math.PI) * (wave || 0.012) * (1 - v) * (1 - v);
-    pos.setXYZ(i, x, y, z);
-  }
-  g.computeVertexNormals();
-  return g;
-}
-/** 환도(조선 장검) — 살짝 휜 날. x=폭, y=길이, z=두께. */
-function bladeGeo() {
-  const s = new THREE.Shape();
-  const L = 0.90;
-  s.moveTo(-0.004, 0);
-  s.lineTo(0.032, 0.018);
-  s.quadraticCurveTo(0.036, 0.30, 0.028, 0.62);
-  s.quadraticCurveTo(0.021, 0.81, 0.0, L);
-  s.quadraticCurveTo(-0.011, 0.79, -0.013, 0.57);
-  s.quadraticCurveTo(-0.014, 0.30, -0.006, 0.02);
-  s.closePath();
-  const g = new THREE.ExtrudeGeometry(s, { depth: 0.014, bevelEnabled: true, bevelSize: 0.004, bevelThickness: 0.003, bevelSegments: 1, steps: 1 });
-  g.translate(0, 0, -0.007);
-  return g;
-}
-
-function mat4(pos, rot, scale) {
-  const q = new THREE.Quaternion();
-  if (rot) q.setFromEuler(new THREE.Euler(rot[0] || 0, rot[1] || 0, rot[2] || 0, 'XYZ'));
-  const s = scale || [1, 1, 1];
-  return new THREE.Matrix4().compose(
-    new THREE.Vector3(pos ? pos[0] : 0, pos ? pos[1] : 0, pos ? pos[2] : 0), q,
-    new THREE.Vector3(s[0], s[1], s[2])
-  );
-}
-function P(geo, color, opt) {
-  opt = opt || {};
-  return { geo: geo, color: color, m: mat4(opt.pos, opt.rot, opt.scale), zone: opt.zone };
-}
-
-/* v0.47 — 부위 색으로 아틀라스 칸을 고른다: 칼날은 하몬, 안대·살갗은 한지, 나머지는 옷감. */
-const HERO_ZONE = (function () {
-  return function (c) {
-    if (c === 0x8f9598 || c === 0xb0b6b8) return TEX.Z.BLADE;
-    if (c === 0x9c968a || c === 0x7a6a5c) return TEX.Z.PAPER;
-    if (c === 0x574c3e) return TEX.Z.GOLD;
-    return TEX.Z.CLOTH;
-  };
-})();
-
-/* ---------------------------------------------------------------- 병합·외곽선 */
-function mergeParts(list) {
-  let total = 0;
-  const bufs = [];
-  for (let i = 0; i < list.length; i++) {
-    let g = list[i].geo;
-    if (g.index) g = g.toNonIndexed();
-    else g = g.clone();
-    const mode = TEX.uvModeFor(g);
-    if (list[i].m) g.applyMatrix4(list[i].m);
-    if (!g.getAttribute('normal')) g.computeVertexNormals();
-    const pos = g.getAttribute('position'), nrm = g.getAttribute('normal');
-    if (!pos || !nrm) continue;
-    /* v0.47 — 부위마다 결의 방향(plate/cyl)과 밀도를 정한 UV 를 굽는다. */
-    bufs.push({ pos: pos, nrm: nrm, col: new THREE.Color(list[i].color), uv: TEX.makeUV(g, mode),
-      zone: list[i].zone != null ? list[i].zone : HERO_ZONE(list[i].color) });
-    total += pos.count;
-  }
-  const P3 = new Float32Array(total * 3), N3 = new Float32Array(total * 3), C3 = new Float32Array(total * 3);
-  const U2 = new Float32Array(total * 2), Z1 = new Float32Array(total);
-  let o = 0;
-  for (let i = 0; i < bufs.length; i++) {
-    const b = bufs[i], n = b.pos.count;
-    const pa = b.pos.array, na = b.nrm.array, c = b.col, ua = b.uv;
-    for (let k = 0; k < n; k++) {
-      const p3 = (o + k) * 3;
-      P3[p3] = pa[k * 3]; P3[p3 + 1] = pa[k * 3 + 1]; P3[p3 + 2] = pa[k * 3 + 2];
-      N3[p3] = na[k * 3]; N3[p3 + 1] = na[k * 3 + 1]; N3[p3 + 2] = na[k * 3 + 2];
-      C3[p3] = c.r; C3[p3 + 1] = c.g; C3[p3 + 2] = c.b;
-      U2[(o + k) * 2] = ua[k * 2]; U2[(o + k) * 2 + 1] = ua[k * 2 + 1];
-      Z1[o + k] = b.zone;
-    }
-    o += n;
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(P3, 3));
-  geo.setAttribute('normal', new THREE.BufferAttribute(N3, 3));
-  geo.setAttribute('color', new THREE.BufferAttribute(C3, 3));
-  geo.setAttribute('uv', new THREE.BufferAttribute(U2, 2));
-  geo.setAttribute('zone', new THREE.BufferAttribute(Z1, 1));
-  geo.computeBoundingSphere();
-  return geo;
-}
-/** 노멀을 t만큼 밀어 만든 인버티드 헐 — 얇은 먹선. */
-function hullGeo(src, t) {
-  const g = src.clone();
-  const pos = g.getAttribute('position'), nrm = g.getAttribute('normal');
-  const p = pos.array, n = nrm.array;
-  for (let i = 0; i < p.length; i += 3) {
-    p[i] += n[i] * t; p[i + 1] += n[i + 1] * t; p[i + 2] += n[i + 2] * t;
-  }
-  pos.needsUpdate = true;
-  g.deleteAttribute('color');
-  g.computeBoundingSphere();
-  return g;
-}
-/* 부위별 먹선 두께 — 칼날처럼 얇은 메시는 두꺼운 헐이 앞뒤로 뚫고 나와 점선처럼 보인다. */
-const HULL_T = { weapon: 0.005, handL: 0.012, handR: 0.012, forearmL: 0.018, forearmR: 0.018, head: 0.022 };
-function hullThick(bone) { return HULL_T[bone] != null ? HULL_T[bone] * (OUTLINE_T / 0.026) : OUTLINE_T; }
-
-/* 먹선(헐)을 두는 뼈 — 실루엣이 배경에 닿는 큰 부위만. 작은 부위는 몸 자체가 어두워 선이 보이지 않는다. */
-const HULL_BONES = {
-  pelvis: 1, spine: 1, chest: 1, head: 1, weapon: 1,
-  upperarmL: 1, upperarmR: 1, forearmL: 1, forearmR: 1,
-  thighL: 1, thighR: 1, shinL: 1, shinR: 1
-};
-/* 달빛 그림자를 드리울 뼈 — 몸통·머리·다리만으로 실루엣이 충분하다(드로우콜 절약). */
-const SHADOW_BONES = { chest: 1, head: 1, pelvis: 1, thighL: 1, thighR: 1, shinL: 1, shinR: 1 };
-
-/* ---------------------------------------------------------------- 뼈대 정의 */
-/* [이름, 부모, 로컬 위치] — 모델은 +Z 를 바라본다. 오른팔은 -X 쪽(칼을 든 손). */
-const BONES = [
-  ['pelvis', null, [0, 1.30, 0]],
-  ['spine', 'pelvis', [0, 0.18, 0]],
-  ['chest', 'spine', [0, 0.34, 0]],
-  ['neck', 'chest', [0, 0.22, 0]],
-  ['head', 'neck', [0, 0.09, 0]],
-  ['shoulderL', 'chest', [0.135, 0.155, 0]],
-  ['upperarmL', 'shoulderL', [0.06, -0.005, 0]],
-  ['forearmL', 'upperarmL', [0, -0.335, 0]],
-  ['handL', 'forearmL', [0, -0.305, 0]],
-  ['shoulderR', 'chest', [-0.135, 0.155, 0]],
-  ['upperarmR', 'shoulderR', [-0.06, -0.005, 0]],
-  ['forearmR', 'upperarmR', [0, -0.335, 0]],
-  ['handR', 'forearmR', [0, -0.305, 0]],
-  ['weapon', 'handR', [0, -0.055, 0]],
-  ['thighL', 'pelvis', [0.105, -0.045, 0]],
-  ['shinL', 'thighL', [0, -0.60, 0]],
-  ['footL', 'shinL', [0, -0.57, 0]],
-  ['thighR', 'pelvis', [-0.105, -0.045, 0]],
-  ['shinR', 'thighR', [0, -0.60, 0]],
-  ['footR', 'shinR', [0, -0.57, 0]],
-  ['sashF', 'pelvis', [0, -0.02, 0.095]],
-  ['sashF2', 'sashF', [0, -0.30, 0.010]],
-  ['sashB', 'pelvis', [0, -0.02, -0.105]],
-  ['sashB2', 'sashB', [0, -0.32, -0.012]],
-  ['sashL', 'pelvis', [0.128, -0.01, 0.005]],
-  ['sashR', 'pelvis', [-0.128, -0.01, 0.005]],
-  ['tailL', 'head', [0.05, 0.185, -0.105]],
-  ['tailR', 'head', [-0.05, 0.185, -0.105]]
-];
-const BONE_NAMES = BONES.map(function (b) { return b[0]; });
-const CLOTH_BONES = { sashF: 1, sashF2: 1, sashB: 1, sashB2: 1, sashL: 1, sashR: 1, tailL: 1, tailR: 1 };
-
-/* ---------------------------------------------------------------- 부위 형상 */
-function buildParts() {
-  const out = {};
-  const add = function (bone, p) { (out[bone] || (out[bone] = [])).push(p); };
-
-  /* 골반·허리·가슴 — 매끄러운 곡면(라세) 세 마디로 이어 붙인 상체 */
-  add('pelvis', P(lathe([[0, -0.155], [0.088, -0.142], [0.124, -0.088], [0.138, -0.018], [0.134, 0.058], [0.114, 0.108], [0, 0.128]], 16, 1.0, 0.82), COL.coat));
-  add('pelvis', P(ringGeo(0.146, 0.019, 18), COL.belt, { pos: [0, 0.042, 0], rot: [Math.PI / 2, 0, 0], scale: [1, 1, 0.84] }));
-  add('pelvis', P(new THREE.SphereGeometry(0.030, 10, 7), COL.belt, { pos: [0.032, 0.028, 0.122], scale: [1, 0.9, 0.7] }));
-  add('spine', P(lathe([[0, -0.215], [0.098, -0.198], [0.124, -0.12], [0.132, -0.005], [0.141, 0.098], [0.15, 0.176], [0, 0.198]], 16, 1.0, 0.80), COL.coat));
-  add('chest', P(lathe([[0, -0.235], [0.110, -0.216], [0.146, -0.14], [0.166, -0.028], [0.178, 0.072], [0.156, 0.14], [0.110, 0.192], [0.066, 0.226], [0, 0.24]], 18, 1.06, 0.80), COL.coat));
-  add('chest', P(ringGeo(0.060, 0.018, 14), COL.hood, { pos: [0, 0.210, 0], rot: [Math.PI / 2, 0, 0], scale: [1, 1, 0.86] }));
-  /* 한지빛 목안감 — 검은 옷더미 속에 밝은 선이 하나 있어야 사람으로 읽힌다(참고 그림의 안깗과 같은 역할). */
-  add('chest', P(ringGeo(0.050, 0.012, 14), COL.band, { pos: [0, 0.212, 0.006], rot: [Math.PI / 2, 0, 0], scale: [1, 1, 0.84] }));
-  /* 깃(옷깃) — 가슴을 가로지르는 한 줄. 검은 옷에 결을 준다. */
-  add('chest', P(new THREE.BoxGeometry(0.016, 0.28, 0.012), COL.band, { pos: [0.040, 0.050, 0.128], rot: [0.06, 0, 0.22] }));
-
-  /* 머리 — 두건·눈 안대·아래얼굴 (몸에 비해 조금 크게: 작은 화면에서 표정 대신 실루엣이 먼저 읽힌다) */
-  const HS = [1.07, 1.07, 1.07];
-  add('head', P(lathe([[0, -0.048], [0.032, -0.030], [0.058, 0.0], [0.080, 0.048], [0.096, 0.100], [0.105, 0.148], [0.103, 0.200], [0.086, 0.250], [0.052, 0.286], [0, 0.302]], 16, 1.0, 0.94), COL.skin, { scale: HS }));
-  add('head', P(lathe([[0.108, 0.190], [0.107, 0.230], [0.095, 0.266], [0.070, 0.294], [0.038, 0.312], [0, 0.318]], 16, 1.0, 0.96), COL.hood, { scale: HS }));
-  add('head', P(new THREE.CylinderGeometry(0.109, 0.111, 0.044, 16, 1, true), COL.band, { pos: [0, 0.145, 0], scale: [HS[0], HS[1], HS[2] * 0.95] }));
-  add('head', P(new THREE.SphereGeometry(0.022, 8, 6), COL.band, { pos: [0, 0.145, -0.102], scale: [1.07, 1.07, 0.86] }));
-  add('head', P(new THREE.SphereGeometry(0.021, 8, 6), COL.hood, { pos: [0, 0.222, -0.098], scale: [1.07, 1.07, 0.86] }));
-  add('head', P(new THREE.ConeGeometry(0.015, 0.045, 8), COL.skin, { pos: [0, 0.080, 0.108], rot: [Math.PI / 2, 0, 0], scale: HS }));
-  add('head', P(new THREE.BoxGeometry(0.038, 0.007, 0.009), COL.hood, { pos: [0, 0.026, 0.100], scale: [1.07, 1, 1] }));
-
-  /* 팔 — 어깨·팔꿈치 구, 소매 단면이 손목으로 좁아진다 */
-  ['L', 'R'].forEach(function (s) {
-    add('upperarm' + s, P(ballGeo(0.062, 1, 0.94, 0.94), COL.coat, { pos: [0, -0.010, 0] }));
-    add('upperarm' + s, P(limbGeo(0.072, 0.058, 0.325), COL.coat));
-    add('upperarm' + s, P(ringGeo(0.059, 0.009, 12), COL.coatLo, { pos: [0, -0.316, 0], rot: [Math.PI / 2, 0, 0] }));
-    add('forearm' + s, P(ballGeo(0.050, 1, 0.96, 0.96), COL.coat, { pos: [0, -0.004, 0] }));
-    add('forearm' + s, P(limbGeo(0.058, 0.042, 0.29), COL.coat));
-    /* 주먹과 소매 끝 — 손목 뼈는 남기되(장검 부모) 형상은 아래팔에 합쳤다(작은 화면에선 손목 회전이 보이지 않는다). */
-    add('forearm' + s, P(new THREE.CylinderGeometry(0.038, 0.038, 0.028, 10, 1, true), COL.coatLo, { pos: [0, -0.298, 0] }));
-    add('forearm' + s, P(ballGeo(0.044, 1.0, 1.16, 0.92), COL.skin, { pos: [0, -0.344, 0.004] }));
-    /* 다리 */
-    add('thigh' + s, P(ballGeo(0.092, 1, 0.96, 1), COL.pants, { pos: [0, -0.005, 0] }));
-    add('thigh' + s, P(limbGeo(0.100, 0.075, 0.585), COL.pants));
-    add('shin' + s, P(ballGeo(0.068, 1, 0.98, 1), COL.pants, { pos: [0, -0.004, 0] }));
-    add('shin' + s, P(limbGeo(0.076, 0.054, 0.50), COL.pants));
-    add('shin' + s, P(new THREE.CylinderGeometry(0.060, 0.056, 0.115, 12, 1, true), COL.hood, { pos: [0, -0.505, 0] }));
-    /* 장화 */
-    add('foot' + s, P(ballGeo(0.060, 1.02, 0.66, 1.9), COL.hood, { pos: [0, -0.050, 0.045] }));
-    add('foot' + s, P(ballGeo(0.053, 1.0, 0.22, 2.0), COL.ink, { pos: [0, -0.074, 0.05] }));
-  });
-
-  /* 장검 — 은빛 환도. 손(handR) 축에서 뽑힌다. 날의 결은 외곽선(헐)과 툰 계조가 맡는다. */
-  add('weapon', P(bladeGeo(), COL.blade, { pos: [0, 0.012, 0] }));
-  add('weapon', P(ringGeo(0.040, 0.008, 14), COL.guard, { pos: [0, 0.0, 0], rot: [Math.PI / 2, 0, 0], scale: [1, 1, 0.5] }));
-  add('weapon', P(new THREE.CylinderGeometry(0.016, 0.018, 0.19, 10), COL.grip, { pos: [0, -0.104, 0] }));
-  add('weapon', P(new THREE.SphereGeometry(0.021, 8, 6), COL.guard, { pos: [0, -0.20, 0], scale: [1, 0.7, 1] }));
-
-  /* 도포 자락 — 앞·뒤는 두 마디, 옆은 한 마디 */
-  add('sashF', P(ribbonGeo(0.27, 0.29, 0.31, 4, 0.016, 0.014), COL.coat, { pos: [0, 0, 0.088] }));
-  add('sashF2', P(ribbonGeo(0.29, 0.30, 0.27, 4, 0.016, 0.016), COL.coatLo, { pos: [0, 0, 0.010] }));
-  add('sashB', P(ribbonGeo(0.29, 0.31, 0.32, 4, -0.018, 0.012), COL.coat, { pos: [0, 0, -0.090] }));
-  add('sashB2', P(ribbonGeo(0.31, 0.32, 0.28, 4, -0.018, 0.014), COL.coatLo, { pos: [0, 0, -0.012] }));
-  add('sashL', P(ribbonGeo(0.13, 0.17, 0.44, 4, 0.008, 0.010), COL.coat, { pos: [0, 0, 0], rot: [0, Math.PI / 2, 0.05] }));
-  add('sashR', P(ribbonGeo(0.13, 0.17, 0.44, 4, -0.008, 0.010), COL.coat, { pos: [0, 0, 0], rot: [0, Math.PI / 2, -0.05] }));
-  add('tailL', P(ribbonGeo(0.034, 0.044, 0.11, 3, 0.006, 0.006), COL.band, { pos: [0, 0, 0] }));
-  add('tailR', P(ribbonGeo(0.034, 0.044, 0.11, 3, -0.006, 0.006), COL.band, { pos: [0, 0, 0] }));
-  return out;
-}
-
-/* ---------------------------------------------------------------- 접지 그림자 */
 let _shadowTex = null;
 function shadowTex() {
   if (_shadowTex) return _shadowTex;
@@ -502,197 +214,35 @@ function shadowTex() {
 }
 
 /* ---------------------------------------------------------------- 동작(클립) */
-const DEFAULT = {
-  pelvis: [0, 0, 0], spine: [0.03, 0, 0], chest: [0.03, 0, 0], neck: [0.03, 0, 0], head: [-0.05, 0, 0],
-  shoulderL: [0, 0, 0.05], shoulderR: [0, 0, -0.05],
-  upperarmL: [0.04, 0, 0.12], upperarmR: [0.02, 0, -0.14],
-  forearmL: [-0.18, 0, 0.03], forearmR: [-0.22, 0, -0.03],
-  handL: [0, 0, 0], handR: [0.10, 0, 0], weapon: [2.62, 0, 0.16],
-  thighL: [-0.02, 0, 0.02], thighR: [-0.02, 0, -0.02],
-  shinL: [0.05, 0, 0], shinR: [0.05, 0, 0],
-  footL: [-0.02, 0, 0], footR: [-0.02, 0, 0]
-};
-const REST_PELVIS = [0, 1.30, 0];
-const _e = new THREE.Euler();
-const _q = new THREE.Quaternion();
-function poseOf(over) {
-  const p = {};
-  for (let i = 0; i < BONE_NAMES.length; i++) {
-    const n = BONE_NAMES[i];
-    if (CLOTH_BONES[n]) continue;
-    p[n] = (over && over[n]) || DEFAULT[n] || [0, 0, 0];
-  }
-  return p;
-}
-function makeClip(name, dur, keys) {
-  const names = Object.keys(DEFAULT);
-  const tracks = [];
-  const times = keys.map(function (k) { return k.t; });
-  names.forEach(function (bn) {
-    const vals = [];
-    keys.forEach(function (k) {
-      const e = (k.pose && k.pose[bn]) || DEFAULT[bn];
-      _q.setFromEuler(_e.set(e[0], e[1], e[2], 'XYZ'));
-      vals.push(_q.x, _q.y, _q.z, _q.w);
-    });
-    tracks.push(new THREE.QuaternionKeyframeTrack('h3d_' + bn + '.quaternion', times, vals));
-  });
-  const pos = [];
-  keys.forEach(function (k) {
-    const p = (k.pelvis) || REST_PELVIS;
-    pos.push(p[0], p[1], p[2]);
-  });
-  tracks.push(new THREE.VectorKeyframeTrack('h3d_pelvis.position', times, pos));
-  return new THREE.AnimationClip(name, dur, tracks);
-}
+let heroBody, heroClips;
 
-/** idle — 무사의 호흡, 검을 비스듬히 내린 자세, 미세한 중심 이동. 4초 주기. */
-function idleClip() {
-  const K = [];
-  const mk = function (t, o, py) {
-    K.push({ t: t, pose: poseOf(o), pelvis: [0, 1.30 + (py || 0), 0] });
-  };
-  mk(0.00, { chest: [0.030, 0.010, 0], head: [-0.050, -0.05, 0], upperarmR: [0.02, 0, -0.140], forearmR: [-0.22, 0, -0.03] }, 0);
-  mk(1.10, { chest: [0.055, -0.006, 0.006], spine: [0.038, 0, 0.004], head: [-0.020, 0.01, 0.004], upperarmR: [0.01, 0, -0.155], forearmR: [-0.26, 0, -0.04], upperarmL: [0.03, 0, 0.135], weapon: [2.60, 0.02, 0.17] }, 0.006);
-  mk(2.20, { chest: [0.026, 0.012, -0.004], head: [-0.060, 0.05, -0.004], upperarmR: [0.03, 0, -0.130], forearmR: [-0.20, 0, -0.02], weapon: [2.64, -0.01, 0.15] }, -0.002);
-  mk(3.20, { chest: [0.050, -0.008, 0.004], head: [-0.030, -0.02, 0], upperarmR: [0.01, 0, -0.148], forearmR: [-0.25, 0, -0.04] }, 0.005);
-  mk(4.00, { chest: [0.030, 0.010, 0], head: [-0.050, -0.05, 0], upperarmR: [0.02, 0, -0.140], forearmR: [-0.22, 0, -0.03] }, 0);
-  return makeClip('idle', 4.0, K);
-}
-
-/** walk — 12키 한 주기. 상체 전경·팔다리 교차·골반 바운스·발 디딤. */
-function walkClip() {
-  const N = 12, K = [];
-  for (let i = 0; i <= N; i++) {
-    const p = (i / N) * Math.PI * 2;
-    const c = Math.cos(p), s = Math.sin(p);
-    const kneeL = 0.10 + 0.62 * Math.max(0, Math.sin(p - 0.15));
-    const kneeR = 0.10 + 0.62 * Math.max(0, Math.sin(p + Math.PI - 0.15));
-    K.push({
-      t: (i / N) * WALK_DUR,
-      pelvis: [0.012 * s, 1.30 + 0.026 * Math.abs(s) - 0.014, 0],
-      pose: {
-        pelvis: [0.02, 0.10 * s, 0.03 * s],
-        spine: [0.06, -0.05 * s, 0],
-        chest: [0.10, -0.10 * s, -0.02 * s],
-        neck: [0.02, 0.03 * s, 0], head: [-0.08, 0.05 * s, 0],
-        shoulderL: [0, 0, 0.05], shoulderR: [0, 0, -0.05],
-        upperarmL: [0.40 * c, 0, 0.12 + 0.03 * s], upperarmR: [-0.20 * c, 0, -0.14],
-        forearmL: [-0.22 - 0.20 * Math.max(0, c), 0, 0.03],
-        forearmR: [-0.24 - 0.10 * Math.max(0, -c), 0, -0.03],
-        handL: [0, 0, 0], handR: [0.10, 0, 0], weapon: [2.58 + 0.06 * s, 0, 0.16],
-        thighL: [-0.44 * c, 0, 0.02], thighR: [0.44 * c, 0, -0.02],
-        shinL: [kneeL, 0, 0], shinR: [kneeR, 0, 0],
-        footL: [-0.02 - 0.16 * Math.max(0, s), 0, 0], footR: [-0.02 - 0.16 * Math.max(0, -s), 0, 0]
-      }
-    });
-  }
-  return makeClip('walk', WALK_DUR, K);
-}
-
-/** slash — 일섬. 허리 비틀기 → 어깨·팔꿈치·손목 스냅 → 잔심. 0.30초. */
-function slashClip() {
-  const K = [];
-  const mk = function (t, o, pz) { K.push({ t: t, pose: poseOf(o), pelvis: [0, 1.30, pz || 0] }); };
-  mk(0.000, {
-    pelvis: [0.02, -0.26, 0], spine: [-0.02, -0.20, 0], chest: [-0.04, -0.34, 0.03], neck: [0, 0.10, 0], head: [-0.02, -0.20, 0],
-    upperarmR: [-0.70, 0.10, -0.62], forearmR: [-1.35, 0, -0.05], handR: [0.10, 0, -0.20], weapon: [2.95, 0.30, 0.25],
-    upperarmL: [-0.25, 0, 0.26], forearmL: [-0.55, 0, 0.05],
-    thighL: [-0.10, 0, 0.05], thighR: [0.06, 0, -0.06], shinL: [0.30, 0, 0], shinR: [0.22, 0, 0]
-  }, -0.04);
-  mk(0.060, {
-    pelvis: [0.03, -0.40, 0], spine: [-0.03, -0.31, 0], chest: [-0.05, -0.52, 0.05], neck: [0, 0.16, 0], head: [-0.03, -0.30, 0],
-    upperarmR: [-0.86, 0.12, -0.72], forearmR: [-1.50, 0, -0.05], handR: [0.10, 0, -0.24], weapon: [3.05, 0.34, 0.28],
-    upperarmL: [-0.30, 0, 0.30], forearmL: [-0.62, 0, 0.05],
-    thighL: [-0.12, 0, 0.06], thighR: [0.08, 0, -0.07], shinL: [0.34, 0, 0], shinR: [0.24, 0, 0]
-  }, -0.05);
-  mk(0.130, {
-    pelvis: [0.04, 0.16, -0.02], spine: [0.08, 0.22, 0], chest: [0.13, 0.40, -0.05], neck: [0.02, 0.12, 0], head: [-0.04, 0.22, 0],
-    upperarmR: [-1.62, -0.16, -0.05], forearmR: [-0.28, 0, 0], handR: [0.10, 0, 0.06], weapon: [3.45, -0.14, 0.02],
-    upperarmL: [-0.10, 0, 0.18], forearmL: [-0.40, 0, 0.04],
-    thighL: [-0.06, 0, 0.05], thighR: [0.02, 0, -0.05], shinL: [0.22, 0, 0], shinR: [0.16, 0, 0]
-  }, 0.02);
-  mk(0.185, {
-    pelvis: [0.05, 0.30, -0.04], spine: [0.12, 0.32, 0], chest: [0.19, 0.64, -0.07], neck: [0.03, 0.14, 0], head: [-0.02, 0.36, 0],
-    upperarmR: [-1.52, -0.20, 0.26], forearmR: [-0.18, 0, 0], handR: [0.10, 0, 0.10], weapon: [3.02, -0.26, -0.10],
-    upperarmL: [0.18, 0, 0.30], forearmL: [-0.30, 0, 0.04],
-    thighL: [-0.18, 0, 0.06], thighR: [0.12, 0, -0.06], shinL: [0.26, 0, 0], shinR: [0.18, 0, 0]
-  }, 0.05);
-  mk(0.235, {
-    pelvis: [0.04, 0.34, -0.03], spine: [0.10, 0.34, 0], chest: [0.15, 0.70, -0.06], neck: [0.03, 0.16, 0], head: [0.00, 0.40, 0],
-    upperarmR: [-1.28, -0.16, 0.50], forearmR: [-0.34, 0, 0], handR: [0.10, 0, 0.12], weapon: [2.95, -0.30, -0.14],
-    upperarmL: [0.22, 0, 0.34], forearmL: [-0.36, 0, 0.04],
-    thighL: [-0.16, 0, 0.06], thighR: [0.10, 0, -0.06], shinL: [0.24, 0, 0], shinR: [0.16, 0, 0]
-  }, 0.04);
-  mk(0.300, {
-    pelvis: [0.02, 0.14, -0.01], spine: [0.06, 0.14, 0], chest: [0.08, 0.28, -0.02], neck: [0.03, 0.06, 0], head: [-0.03, 0.16, 0],
-    upperarmR: [-0.82, -0.05, 0.18], forearmR: [-0.48, 0, -0.01], handR: [0.10, 0, 0.04], weapon: [2.72, -0.12, -0.04],
-    upperarmL: [0.10, 0, 0.20], forearmL: [-0.30, 0, 0.03],
-    thighL: [-0.10, 0, 0.04], thighR: [0.06, 0, -0.04], shinL: [0.18, 0, 0], shinR: [0.14, 0, 0]
-  }, 0.02);
-  return makeClip('slash', 0.30, K);
-}
-
-/** hit — 상체 젖혀짐 + 방어 자세 반동 후 빠른 복귀. 0.26초. */
-function hitClip() {
-  const K = [];
-  const mk = function (t, o, pz) { K.push({ t: t, pose: poseOf(o), pelvis: [0, 1.30, pz || 0] }); };
-  mk(0.000, {}, 0);
-  mk(0.050, {
-    pelvis: [-0.06, 0.05, 0.03], spine: [-0.18, 0.06, 0.05], chest: [-0.26, 0.10, 0.07], neck: [-0.10, 0, 0], head: [-0.30, 0.08, 0.04],
-    upperarmR: [0.34, 0, -0.42], forearmR: [-0.62, 0, -0.05], handR: [0.20, 0, -0.10], weapon: [2.80, 0, 0.24],
-    upperarmL: [0.30, 0, 0.40], forearmL: [-0.52, 0, 0.06],
-    thighL: [0.10, 0, 0.03], thighR: [0.12, 0, -0.03], shinL: [0.22, 0, 0], shinR: [0.26, 0, 0]
-  }, 0.055);
-  mk(0.130, {
-    pelvis: [-0.02, 0.02, 0.01], spine: [-0.06, 0.02, 0.02], chest: [-0.08, 0.04, 0.02], head: [-0.14, 0.02, 0.01],
-    upperarmR: [0.16, 0, -0.24], forearmR: [-0.40, 0, -0.04], weapon: [2.72, 0, 0.20],
-    upperarmL: [0.14, 0, 0.20], forearmL: [-0.34, 0, 0.04],
-    thighL: [0.04, 0, 0.02], thighR: [0.04, 0, -0.02]
-  }, 0.02);
-  mk(0.260, {}, 0);
-  return makeClip('hit', 0.26, K);
-}
-
-/* ---------------------------------------------------------------- 조립 */
 export function build(opt) {
   opt = opt || {};
   const root = new THREE.Group();
   root.name = 'hero3d-root';
-  const bones = {};
-  for (let i = 0; i < BONES.length; i++) {
-    const spec = BONES[i];
-    const b = new THREE.Bone();
-    b.name = 'h3d_' + spec[0];
-    b.position.set(spec[2][0], spec[2][1], spec[2][2]);
-    bones[spec[0]] = b;
-    if (spec[1]) bones[spec[1]].add(b);
-    else root.add(b);
-  }
-
-  const bodyMat = inkMat();
-  const clothMat = inkMat({ side: THREE.DoubleSide });
+  const rig = makeBones(HERO.defs, 'h3d_');
+  const bones = rig.bones;
+  root.add(rig.root);
+  root.updateMatrixWorld(true);
+  const skeleton = new THREE.Skeleton(rig.list);
+  const baked = heroBody || (heroBody = bakeBody(HERO, 0));
+  const bodyMat = inkMat({ side: THREE.DoubleSide });
+  bodyMat.uniforms.uHeight = { value: HERO.h };
   const outMat = outlineMat();
-  const parts = buildParts();
-  const meshes = [];
-  Object.keys(parts).forEach(function (bn) {
-    const bone = bones[bn];
-    if (!bone) return;
-    const geo = mergeParts(parts[bn]);
-    const cloth = !!CLOTH_BONES[bn];
-    const mesh = new THREE.Mesh(geo, cloth ? clothMat : bodyMat);
-    mesh.castShadow = !!SHADOW_BONES[bn];
-    mesh.frustumCulled = false;
-    mesh.userData.hero3dBody = true;
-    bone.add(mesh);
-    meshes.push(mesh);
-    if (!cloth && OUTLINE_T > 0 && HULL_BONES[bn]) {
-      const hull = new THREE.Mesh(hullGeo(geo, hullThick(bn)), outMat);
-      hull.frustumCulled = false;
-      hull.userData.hero3dHull = true;
-      bone.add(hull);
-    }
-  });
+  const body = new THREE.SkinnedMesh(baked.geo, bodyMat);
+  root.add(body);
+  body.bind(skeleton);
+  body.castShadow = true;
+  body.frustumCulled = false;
+  body.userData.hero3dBody = true;
+  const meshes = [body];
+  if (OUTLINE_T > 0) {
+    const hull = new THREE.SkinnedMesh(baked.hull, outMat);
+    root.add(hull);
+    hull.bind(skeleton);
+    hull.frustumCulled = false;
+    hull.userData.hero3dHull = true;
+  }
 
   /* 접지 그림자 — 달빛 그림자와 별개로 발밑에 먹 그림자를 깐다. */
   let shadow = null;
@@ -706,7 +256,7 @@ export function build(opt) {
   }
 
   const mixer = new THREE.AnimationMixer(root);
-  const clips = { idle: idleClip(), walk: walkClip(), slash: slashClip(), hit: hitClip() };
+  const clips = heroClips || (heroClips = HERO.clips(HERO, 'h3d_'));
   const actions = {};
   Object.keys(clips).forEach(function (k) {
     const a = mixer.clipAction(clips[k]);
@@ -720,9 +270,9 @@ export function build(opt) {
     kind: 'hero3d', root: root, bones: bones, mixer: mixer, actions: actions, clips: clips,
     base: 'idle', burst: null, speed: 0, yaw: 0, yawTarget: 0,
     px: 0, pz: 0, first: true, lean: 0, t: Math.random() * 4,
-    cloth: {}, freeze: false, meshes: meshes, mats: [bodyMat, clothMat, outMat],
+    cloth: {}, freeze: false, meshes: meshes, mats: [bodyMat, outMat],
     shadow: shadow, opacity: 1, tint: [1, 1, 1], phase: 'idle', lights: null,
-    uniforms: [bodyMat.userData.inkUniforms, clothMat.userData.inkUniforms]
+    uniforms: [bodyMat.userData.inkUniforms]
   };
 
   const finished = function (e) {
@@ -745,21 +295,25 @@ export function build(opt) {
 /* ---------------------------------------------------------------- 잔상(대시) */
 export function buildGhost(src) {
   if (!src || !src.userData || !src.userData.hero3d) return null;
-  /* Object3D.clone 은 userData 를 JSON 으로 직렬화한다 — mixer·뼈대가 든 hero3d 는 순환 참조라
-     복제하는 동안만 잠시 빼 둔다. */
-  const saved = src.userData;
-  let g = null;
-  src.userData = {};
-  try { g = src.clone(true); } finally { src.userData = saved; }
-  if (!g) return null;
+  const H = src.userData.hero3d;
+  const sourceBody = H.meshes[0];
+  const rig = makeBones(HERO.defs, 'h3d_');
+  for (const name in rig.bones) {
+    const bone = rig.bones[name], original = H.bones[name];
+    bone.position.copy(original.position);
+    bone.quaternion.copy(original.quaternion);
+    bone.scale.copy(original.scale);
+  }
+  const g = new THREE.Group();
+  g.position.copy(src.position);
+  g.quaternion.copy(src.quaternion);
+  g.scale.copy(src.scale);
   const mat = new THREE.MeshBasicMaterial({ color: 0x14161a, transparent: true, opacity: 0.24, depthWrite: false, side: THREE.DoubleSide });
-  g.traverse(function (o) {
-    if (o.isSprite) { o.visible = false; return; }
-    if (o.userData && o.userData.hero3dHull) { o.visible = false; return; }
-    if (o.isMesh) o.material = mat;
-  });
-  g.userData = { sharedGeom: true, rig: { kind: 'ghost' }, hero3d: src.userData.hero3d, sprite: null, worldH: HERO_H };
-  g.traverse(function (o) { if (o.isMesh && !g.userData.sprite) g.userData.sprite = o; });
+  const mesh = new THREE.SkinnedMesh(sourceBody.geometry, mat);
+  mesh.frustumCulled = false;
+  mesh.bind(new THREE.Skeleton(rig.list, sourceBody.skeleton.boneInverses), sourceBody.bindMatrix);
+  g.add(rig.root, mesh);
+  g.userData = { sharedGeom: true, rig: { kind: 'ghost' }, hero3d: H, sprite: mesh, worldH: HERO_H };
   return g;
 }
 
@@ -928,49 +482,15 @@ export function tick(group, kind, state, dt, vx, vz) {
 }
 
 /* 도포 자락·두건 끈: 2차 지연 스프링(프레임률 무관). */
-function spring(st, key, target, dt, k, damp) {
-  const s = st[key] || (st[key] = { v: 0, x: target });
-  s.v += ((target - s.x) * k - s.v * damp) * dt;
-  s.x += s.v * dt;
-  return s.x;
-}
 function applyCloth(H, dt, vxSpeed, vzSpeed, sp) {
-  if (!H.bones.sashF) return;
-  const B = H.bones;
-  const breath = Math.sin(H.t * 1.6) * 0.02;
-  const blow = Math.min(0.55, sp * 0.05);
-  const front = -(0.055 + blow * 0.8 + breath);
-  const back = 0.06 + blow * 1.0 + breath;
-  const aF = spring(H.cloth, 'f', front, dt, 42, 9.5);
-  const aB = spring(H.cloth, 'b', back, dt, 38, 9.0);
-  const aF2 = spring(H.cloth, 'f2', aF * 0.9 - 0.03, dt, 30, 8.0);
-  const aB2 = spring(H.cloth, 'b2', aB * 0.95 + 0.05, dt, 28, 7.6);
-  B.sashF.rotation.set(aF, 0, Math.sin(H.t * 1.9) * 0.02);
-  B.sashF2.rotation.set(aF2, 0, Math.sin(H.t * 1.9 + 0.5) * 0.03);
-  B.sashB.rotation.set(aB, 0, Math.sin(H.t * 1.6 + 0.8) * 0.025);
-  B.sashB2.rotation.set(aB2, 0, Math.sin(H.t * 1.6 + 1.2) * 0.035);
-  const sL = spring(H.cloth, 'l', 0.05 + blow * 0.55, dt, 32, 8.4);
-  const sR = spring(H.cloth, 'r', 0.05 + blow * 0.55, dt, 32, 8.4);
-  B.sashL.rotation.set(sL, 0, 0.10 + Math.sin(H.t * 1.7) * 0.04);
-  B.sashR.rotation.set(sR, 0, -0.10 - Math.sin(H.t * 1.7 + 0.9) * 0.04);
-  const tl = spring(H.cloth, 'tl', 0.16 * blow + Math.sin(H.t * 2.3) * 0.05 + 0.10, dt, 30, 7.0);
-  const tr = spring(H.cloth, 'tr', 0.16 * blow + Math.sin(H.t * 2.3 + 1.1) * 0.05 + 0.10, dt, 30, 7.0);
-  B.tailL.rotation.set(tl, 0, 0.16);
-  B.tailR.rotation.set(tr, 0, -0.16);
+  clothStep(H, HERO.cloth, dt, vxSpeed, vzSpeed);
 }
 
 /* ---------------------------------------------------------------- v0.46 공용 먹 도구
    몬스터 3D 뼈대(v2/js/inkmonsters3d.js)가 주인공과 **같은** 계조·광원·먹선 규칙을 쓰도록
    셰이더 문자열과 형상 도구를 그대로 내보낸다. 톤이 갈라지지 않게 하는 것이 이 export 의 목적이다. */
-export const INK3D = {
-  LIGHT: LIGHT, FRAG: FRAG, OUTLINE_T: OUTLINE_T,
-  gradMap: gradMap, inkUniforms: inkUniforms, inkMat: inkMat, outlineMat: outlineMat,
-  bindLights: bindLights, syncLights: syncLights,
-  lathe: lathe, limbGeo: limbGeo, ballGeo: ballGeo, ringGeo: ringGeo, ribbonGeo: ribbonGeo,
-  bladeGeo: bladeGeo, mergeParts: mergeParts, hullGeo: hullGeo, mat4: mat4, P: P, shadowTex: shadowTex
-};
+export const INK3D = { LIGHT, FRAG, inkUniforms, outlineMat };
 
-/* ---------------------------------------------------------------- 외부 훅 */
 export function kick(group, k) {
   const H = group && group.userData && group.userData.hero3d;
   if (!H) return;
@@ -986,7 +506,7 @@ export function setOpacity(group, o) {
   if (!H) return;
   H.opacity = o;
   if (group.userData.rig && group.userData.rig.kind === 'ghost') {
-    group.traverse(function (m) { if (m.isMesh && m.material) m.material.opacity = o; });
+    group.userData.sprite.material.opacity = o;
     return;
   }
   for (let i = 0; i < H.meshes.length; i++) {
@@ -1017,7 +537,7 @@ export function info(group) {
     w[k] = { w: +a.getEffectiveWeight().toFixed(3), t: +a.time.toFixed(3), run: a.isRunning(), on: a.enabled };
   });
   return {
-    mode: '3d', bones: BONE_NAMES.length, meshes: H.meshes.length,
+    mode: '3d', bones: Object.keys(H.bones).length, meshes: H.meshes.length,
     clips: Object.keys(H.clips), base: H.base, burst: H.burst,
     yawDeg: +(H.yaw * 180 / Math.PI).toFixed(1), speed: +H.speed.toFixed(2),
     mixerTime: +H.mixer.time.toFixed(2), actions: w,

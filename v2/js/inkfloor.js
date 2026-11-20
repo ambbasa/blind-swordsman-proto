@@ -95,12 +95,6 @@ function h2(i, j, s) {
   return ((h ^ (h >>> 15)) >>> 0) / 4294967296;
 }
 /* 부드러운 1D 값 노이즈 — 물길·길 곡선을 자연스럽게 흔든다(청크 경계에서도 이어진다). */
-function n1(x, s) {
-  const i = Math.floor(x), f = x - i;
-  const a = h2(i, 0, s), b = h2(i + 1, 0, s);
-  const t = f * f * (3 - 2 * f);
-  return a * (1 - t) + b * t;
-}
 function knob(k, d) {
   try {
     const v = parseFloat(new URLSearchParams(location.search).get(k));

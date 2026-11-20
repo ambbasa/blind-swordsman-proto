@@ -358,12 +358,13 @@ export function buildChunkData(cx, cz, stageId) {
 
   if (theme === 1) {
     /* 장터: 좌판 두 채 + 헛간 + 살림 */
-    const stalls = 2 + (rnd() < 0.4 ? 1 : 0);
+    const stalls = 1 + (rnd() < 0.65 ? 1 : 0);
     for (let i = 0; i < stalls; i++) {
       const p = spot(rnd, clearR + 2.0, occupied);
       if (!p) continue;
       const ry = rnd() * TAU;
-      marketStall(B, W(p.x), Z(p.z), ry, rnd, rnd() < 0.16);
+      if (i === 1) burntStall(B, W(p.x), Z(p.z), ry, rnd);
+      else marketStall(B, W(p.x), Z(p.z), ry, rnd, rnd() < 0.16);
       addOcc(p.x, p.z, 2.6);
     }
     if (rnd() < 0.62) {
@@ -951,7 +952,8 @@ function createChunkWindow(opts) {
   let screenMesh = null;
   const SCREEN = { N: 10, R: 21, H: 11, arc: Math.PI * 170 / 180, mid: Math.PI * 1.25, pleat: 0.85, x: null, z: null, tex: null };
   function buildScreenRing(srcTex) {
-    const tex = srcTex.clone();
+    const tex = new THREE.TextureLoader().load(new URL('../assets/ink-edition/stage-' + stageId + '.webp', import.meta.url).href);
+    tex.image = srcTex.image;
     tex.needsUpdate = true;
     tex.wrapS = THREE.MirroredRepeatWrapping;
     tex.wrapT = THREE.ClampToEdgeWrapping;
@@ -963,7 +965,7 @@ function createChunkWindow(opts) {
     const arc = SCREEN.arc, a0 = SCREEN.mid - arc / 2;
     const chord = 2 * R * Math.sin(arc / (2 * N));
     /* 텍스처 한 조각이 정사각(2048×512 의 1/4)이 되도록 u 폭을 판 비율에 맞춘다. */
-    const uw = 0.25 * (chord / H);
+    const uw = chord / H;
     const pos = [], uv = [], col = [], idx = [];
     for (let i = 0; i < N; i++) {
       const t0a = a0 + (i / N) * arc, t1a = a0 + ((i + 1) / N) * arc;
@@ -996,14 +998,7 @@ function createChunkWindow(opts) {
     group.add(mesh);
     return mesh;
   }
-  function followScreen(hx, hz, dt) {
-    if (SCREEN.x == null) { SCREEN.x = hx; SCREEN.z = hz; }
-    /* 시차를 조금 남기는 완만한 추적(초당 1.5배) — 배경이 판에 붙어 있는 느낌을 피한다. */
-    const k = Math.min(1, Math.max(0.02, (dt || 0.016) * 1.5));
-    SCREEN.x += (hx - SCREEN.x) * k;
-    SCREEN.z += (hz - SCREEN.z) * k;
-    screenMesh.position.set(SCREEN.x, 0, SCREEN.z);
-  }
+
   try {
     /* v0.43: 막별 원경 파노라마(먼 산·처마·배·안개)를 먼저 쓰고, 없으면 옛 병풍으로. */
     const act = stageId <= 4 ? 1 : (stageId <= 8 ? 2 : 3);
@@ -1279,7 +1274,7 @@ function createChunkWindow(opts) {
     if (groundMat && groundMat.color) groundMat.color.copy(groundBase).multiplyScalar(0.94 + 0.035 * pulse);
     heroLight.position.set(hx || 0, 3.5, (hz || 0) + 1.8);
     heroLight.intensity = 30 + 4 * pulse;
-    if (screenMesh) followScreen(hx || 0, hz || 0, dt);
+
     rimLight.position.set((hx || 0) + 3.4, 5.6, (hz || 0) - 3.2);
   };
 
@@ -1312,7 +1307,7 @@ function createChunkWindow(opts) {
   };
 
   world.screenInfo = function () {
-    return screenMesh ? { panels: SCREEN.N, r: SCREEN.R, h: SCREEN.H, x: Math.round(SCREEN.x * 10) / 10, z: Math.round(SCREEN.z * 10) / 10, png: true } : null;
+    return screenMesh ? { panels: SCREEN.N, r: SCREEN.R, h: SCREEN.H, x: 0, z: 0, png: true } : null;
   };
 
   world.jarsOnPath = function (ax, az, bx, bz, r) {
@@ -1397,37 +1392,66 @@ function createArenaWorld(opts) {
   const group = new THREE.Group();
   group.name = 'arenaWorld-' + mapId + '-' + stageId;
 
-  const gStyle = GROUND_STYLE[stageId] || GROUND_STYLE[1];
-  const gs = groundSet(gStyle);
-  const v41Floor = floorReady();
-  /* v0.43 의 따뜻한 한지 알베도 규칙 그대로. 한 장의 큰 판을 깔고 무늬를 반복한다. */
-  const gMap = (v41Floor ? soilTexture() : texOf('floor')) || gs.map;
-  const map = gMap.clone();
-  map.needsUpdate = true;
-  map.wrapS = map.wrapT = THREE.RepeatWrapping;
-  map.repeat.set(v41Floor ? 10 : 20, v41Floor ? 10 : 20);
-  map.userData = map.userData || {};
-  const groundBase = v41Floor ? new THREE.Color(1.02, 0.955, 0.855).multiplyScalar(FLOOR_MUL) : new THREE.Color(0.82, 0.78, 0.70).multiplyScalar(FLOOR_MUL);
+  // Map the whole painted court to the playable diameter, not to a repeating tile.
+  const url = new URL('../assets/ink-edition/terrain-' + stageId + '.webp', import.meta.url);
+  const map = new THREE.TextureLoader().load(url.href);
+  map.colorSpace = THREE.SRGBColorSpace;
+  map.anisotropy = 2;
+  map.wrapS = map.wrapT = THREE.MirroredRepeatWrapping;
+  const coverage = ARENA.GROUND / (ARENA.R + 2);
+  map.repeat.setScalar(coverage);
+  map.center.set(0.5, 0.5);
+  map.rotation = Math.PI / 4;
+  const groundBase = new THREE.Color(1, 0.96, 0.90).multiplyScalar(FLOOR_MUL * 2.3);
+  const softGround = [1,3,6,7,10].includes(stageId);
+  const detail = new THREE.TextureLoader().load(new URL('../assets/ink-edition/' +
+    (softGround ? 'earth' : 'stone') + '-relief.webp', import.meta.url).href);
+  detail.wrapS = detail.wrapT = THREE.RepeatWrapping;
+  detail.repeat.set(32,32);
+  detail.anisotropy = 4;
   const groundMat = new THREE.MeshStandardMaterial({
-    map: map, color: groundBase.clone(), roughness: 0.95, metalness: 0.0
+    map, bumpMap: detail, bumpScale: softGround ? 0.12 : 0.21, color: groundBase.clone(), roughness: 0.95, metalness: 0.0
   });
   groundMat.userData.inkGround = true;
   groundMat.userData.cardProfile = 'ground';
-  const groundGeo = new THREE.PlaneGeometry(ARENA.GROUND * 2, ARENA.GROUND * 2, 1, 1);
+  const groundGeo = new THREE.PlaneGeometry(ARENA.GROUND * 2, ARENA.GROUND * 2, 96, 96);
   groundGeo.rotateX(-Math.PI / 2);
+  // Keep the combat plane level. The surrounding banks have real silhouettes
+  // and catch light instead of stretching the playfield image to the horizon.
+  const points = groundGeo.attributes.position;
+  for (let i=0; i<points.count; i++) {
+    const x=points.getX(i), z=points.getZ(i);
+    const bank=THREE.MathUtils.smoothstep(Math.hypot(x,z), ARENA.R+1, ARENA.CLIFF+2);
+    const ridge=0.9 + 0.52*Math.sin(x*.39+stageId) + 0.38*Math.cos(z*.51-x*.23);
+    points.setY(i, bank * ridge * (softGround ? 1.0 : 1.65));
+  }
+  if (stageId === 4) {
+    // A broken wash of reflected moonlight at the rear, outside the gesture lane.
+    const colors = new Float32Array(points.count * 3);
+    for (let i = 0; i < points.count; i++) {
+      const x = points.getX(i), z = points.getZ(i);
+      const depth = -(x + z) * Math.SQRT1_2, side = (x - z) * Math.SQRT1_2;
+      const distance = Math.hypot((side + 7) / 7, (depth - 12) / 8);
+      const wash = (1 - THREE.MathUtils.smoothstep(distance, 0.45, 1)) * (0.8 + 0.2 * Math.cos(z * 1.8));
+      colors.set([1, 1 - 0.57 * wash, 1 - 0.62 * wash], i * 3);
+    }
+    groundGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    groundMat.vertexColors = true;
+    groundMat.bumpScale *= 0.55;
+    const moon = new THREE.Mesh(new THREE.CircleGeometry(3.5, 48),
+      new THREE.MeshBasicMaterial({ color: 0xac5045, fog: true }));
+    moon.name = 'vermilionMoon';
+    moon.position.set(-20, 8, -12);
+    moon.rotation.y = Math.PI / 4;
+    group.add(moon);
+  }
+  groundGeo.computeVertexNormals();
   const ground = new THREE.Mesh(groundGeo, groundMat);
   ground.receiveShadow = true;
   ground.name = 'arenaGround';
   group.add(ground);
 
   /* 판석·물길·다진 길·풀잎 — 고정 사각형 한 번. */
-  const floorLayer = v41Floor ? createFloorLayer({ stageId: stageId, style: gStyle }) : null;
-  if (floorLayer) {
-    group.add(floorLayer.group);
-    floorLayer.layout(-ARENA.GROUND * 0.5, -ARENA.GROUND * 0.5, ARENA.GROUND * 0.5, ARENA.GROUND * 0.5);
-  }
-
-  /* 3D 수묵 기물 — 이 무대의 본체. */
   let arena = null;
   try { arena = buildArena({ stageId: stageId, seed: 20261120 + stageId * 31 }); } catch (e) {
     arena = null;
@@ -1490,7 +1514,8 @@ function createArenaWorld(opts) {
   let screenMesh = null;
   const SCREEN = { N: 12, R: 31, H: 15, arc: Math.PI * 170 / 180, mid: Math.PI * 1.25, pleat: 0.9, x: null, z: null, tex: null };
   function buildScreenRing(srcTex) {
-    const tex = srcTex.clone();
+    const tex = new THREE.TextureLoader().load(new URL('../assets/ink-edition/stage-' + stageId + '.webp', import.meta.url).href);
+    tex.image = srcTex.image;
     tex.needsUpdate = true;
     tex.wrapS = THREE.MirroredRepeatWrapping;
     tex.wrapT = THREE.ClampToEdgeWrapping;
@@ -1501,7 +1526,7 @@ function createArenaWorld(opts) {
     const N = SCREEN.N, R = SCREEN.R, H = SCREEN.H, pl = SCREEN.pleat;
     const arc = SCREEN.arc, a0 = SCREEN.mid - arc / 2;
     const chord = 2 * R * Math.sin(arc / (2 * N));
-    const uw = 0.25 * (chord / H);
+    const uw = chord / H;
     const pos = [], uv = [], col = [], idx = [];
     for (let i = 0; i < N; i++) {
       const t0a = a0 + (i / N) * arc, t1a = a0 + ((i + 1) / N) * arc;
@@ -1560,11 +1585,7 @@ function createArenaWorld(opts) {
     heroLight.position.set(hx || 0, 3.5, (hz || 0) + 1.8);
     heroLight.intensity = 30 + 4 * pulse;
     rimLight.position.set((hx || 0) + 3.4, 5.6, (hz || 0) - 3.2);
-    if (screenMesh) {
-      /* 정지 무대 + 고정 카메라 방위 → 병풍은 초점을 그대로 따라간다(시차로 흔들리지 않게 즉시). */
-      SCREEN.x = hx || 0; SCREEN.z = hz || 0;
-      screenMesh.position.set(SCREEN.x, 0, SCREEN.z);
-    }
+
   };
 
   world.reset = function (hx, hz) {
@@ -1602,7 +1623,6 @@ function createArenaWorld(opts) {
   world.materials = (function () {
     const list = [groundMat, jarMat, sealMat];
     if (arena && arena.materials) arena.materials.forEach(function (m) { if (m) list.push(m); });
-    if (floorLayer) floorLayer.materials.forEach(function (m) { if (m) list.push(m); });
     return list;
   })();
 
@@ -1615,8 +1635,8 @@ function createArenaWorld(opts) {
     jarMat.dispose(); sealMat.dispose();
     if (screenMesh) { if (screenMesh.parent) screenMesh.parent.remove(screenMesh); screenMesh.geometry.dispose(); screenMesh.material.dispose(); }
     if (SCREEN.tex) { try { SCREEN.tex.dispose(); } catch (e) {} }
-    groundGeo.dispose(); groundMat.dispose();
-    if (floorLayer) floorLayer.dispose();
+    groundGeo.dispose(); groundMat.dispose(); detail.dispose();
+    if (arena) { arena.body.skeleton.dispose(); arena.materials.forEach(m => m.dispose()); }
     if (map && map.userData && map.userData.shared !== true) { try { map.dispose(); } catch (e) {} }
     group.removeFromParent();
   };
