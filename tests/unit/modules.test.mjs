@@ -31,6 +31,7 @@ assert.equal(cfg.hpStep, 2);
 assert.equal(cfg.atkStep, 0.06);
 assert.equal(cfg.iframeMs, 850);
 assert.equal(cfg.dashDur, 0.24);
+assert.equal(cfg.bossSpeed, 1.85);
 assert.equal(cfg.coinPerKill, 4);
 assert.equal(cfg.bossCoin, 80);
 assert.equal(cfg.coinStep, 0.18);

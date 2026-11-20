@@ -422,12 +422,9 @@ export function tick(group, kind, state, dt, vx, vz) {
   if (H.freeze) return true;
 
   const plan = planFor(H, st);
-  /* v0.47 — 창현님 지적 "몬스터들이 걷는 모션이 없네 다리가 가만히 있네".
-     느린 원귀는 실측 속도가 0.45m/s 아래로 떨어지는 순간(공격 예비 0.22배·지형 감속·무리 밀집)이
-     잦아 idle 로 떨어졌다. 게임이 걷기 상태를 넘기면 **속도와 무관하게** 걷는다 — 얼음(frozen)·
-     경직(hit)·공격(attack) 같은 '몸이 멈춘' 상태만 예외다. */
-  const walkingState = (st === 'walk' || st === 'burning' || st === 'poisoned' || st === 'chase');
-  const wantBase = plan.base || ((walkingState || H.speed > 0.45) ? 'walk' : 'idle');
+  /* v0.47 + v0.51 — 보스 상태 문자열('boss:walk')도 걷기 상태로 인식해 다리가 멈추지 않도록 보장. */
+  const walkingState = (st === 'walk' || st === 'boss:walk' || st === 'burning' || st === 'poisoned' || st === 'chase');
+  const wantBase = plan.base || ((walkingState || H.speed > 0.35) ? 'walk' : 'idle');
   if (!H.burst && !H.held && wantBase !== H.base && H.actions[wantBase]) {
     crossFade(H, H.base, wantBase, 0.18);
     H.base = wantBase;
@@ -461,7 +458,12 @@ export function tick(group, kind, state, dt, vx, vz) {
     H.mixer.update(use);
     applyCloth(H, use);
   }
-  if (H.actions.walk) H.actions.walk.setEffectiveTimeScale(Math.max(0.55, Math.min(1.9, 0.75 + H.speed * 0.35)));
+  if (H.actions.walk) {
+    const ts = H.species === 'boss'
+      ? Math.max(1.05, Math.min(1.95, 0.95 + H.speed * 0.32))
+      : Math.max(0.55, Math.min(1.9, 0.75 + H.speed * 0.35));
+    H.actions.walk.setEffectiveTimeScale(ts);
+  }
 
   /* v0.48/v0.50 무게감 — 일반 몬스터는 보행 흔들림을, 보스는 전투 동작 중 어색한 흔들림을 차단하고
      보행 시에만 묵직하고 위엄 있는 보폭과 호흡을 얹는다. */
