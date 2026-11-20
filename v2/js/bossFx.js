@@ -73,6 +73,7 @@ export class BossFx {
     this.events = [];
     this.chargeTrail = [];
     this.dmgNums = [];
+    this.ground3d = null;
     this.sprites = {
       mandala:  loadSprite('assets/boss-fx/boss-mandala.webp'),
       impact:   loadSprite('assets/boss-fx/boss-impact.webp'),
@@ -81,10 +82,125 @@ export class BossFx {
     };
   }
 
+  /* v0.52.1: 보스 마법진·균열 크레이터를 Three.js 실제 바닥(y=0.055, depthTest=true)에 배치해
+     주인공·보스 3D 모델이 항상 마법진 위로 선명히 렌더링되도록(절대 가리지 않도록) 보장한다. */
+  attachScene(THREE, scene) {
+    if (!THREE || !scene || this.ground3d) return;
+    const loader = new THREE.TextureLoader();
+    const loadTex = function (url) {
+      const tx = loader.load(url);
+      if ('colorSpace' in tx && THREE.SRGBColorSpace) tx.colorSpace = THREE.SRGBColorSpace;
+      return tx;
+    };
+    const geo = new THREE.PlaneGeometry(2, 2);
+    geo.rotateX(-Math.PI / 2);
+    const mandalaTex = loadTex('assets/boss-fx/boss-mandala.webp');
+    const impactTex = loadTex('assets/boss-fx/boss-impact.webp');
+
+    const makePlane = function (tex, y) {
+      const mat = new THREE.MeshBasicMaterial({
+        map: tex, transparent: true, opacity: 0,
+        depthWrite: false, depthTest: true, side: THREE.DoubleSide
+      });
+      const m = new THREE.Mesh(geo, mat);
+      m.position.y = y;
+      m.visible = false;
+      m.frustumCulled = false;
+      m.renderOrder = 2;
+      scene.add(m);
+      return m;
+    };
+
+    const bossMandala = makePlane(mandalaTex, 0.056);
+    const hazardPool = [];
+    for (let i = 0; i < 6; i++) hazardPool.push(makePlane(mandalaTex, 0.052));
+    const impactPool = [];
+    for (let i = 0; i < 6; i++) impactPool.push({ mesh: makePlane(impactTex, 0.060), active: false, x: 0, z: 0, r: 3, t: 0, dur: 1.2, seed: 0 });
+
+    this.ground3d = { bossMandala, hazardPool, impactPool };
+  }
+
+  spawnImpact3D(x, z, r, dur) {
+    const g = this.ground3d;
+    if (!g) return;
+    let slot = g.impactPool.find(function (s) { return !s.active; });
+    if (!slot) slot = g.impactPool.reduce(function (a, b) { return a.t > b.t ? a : b; });
+    slot.active = true;
+    slot.x = x; slot.z = z; slot.r = r || 3.0;
+    slot.t = 0; slot.dur = dur || 1.25;
+    slot.seed = Math.random() * 6.28;
+    slot.mesh.visible = true;
+    slot.mesh.position.set(x, 0.060, z);
+    slot.mesh.rotation.y = slot.seed;
+  }
+
+  syncGround3D(boss, hazards, t, dt, slamR) {
+    const g = this.ground3d;
+    if (!g) return;
+    /* 1) 보스 메인 마법진 (내려찍기·영창·기모으기) — 바닥에 깔려 주인공/보스를 절대 가리지 않음 */
+    const bm = g.bossMandala;
+    if (boss && boss.alive && !boss.hidden) {
+      let show = false, bx = boss.x, bz = boss.z, R = 2.6, rot = (t || 0) * 0.65, op = 0.72;
+      if (boss.state === 'slamTele' && boss.slam) {
+        const u = clamp((boss.stateT || 0) / Math.max(0.01, boss.slam.tele), 0, 1);
+        show = true; bx = boss.slam.x; bz = boss.slam.z;
+        R = (slamR || 3.2) * 1.04; rot = (t || 0) * 0.85; op = 0.48 + 0.44 * u;
+      } else if (boss.state === 'chant' && boss.chant) {
+        show = true; bx = boss.x; bz = boss.z;
+        R = 2.7 + 0.25 * Math.sin((t || 0) * 4); rot = (t || 0) * 0.55; op = 0.78;
+      } else if (boss.state === 'kiai' && boss.kiai) {
+        const u = clamp((boss.stateT || 0) / Math.max(0.01, boss.kiai.t), 0, 1);
+        show = true; bx = boss.x; bz = boss.z;
+        R = 3.2 - 0.8 * u; rot = -(t || 0) * 1.15; op = 0.55 + 0.35 * u;
+      }
+      bm.visible = show;
+      if (show) {
+        bm.position.set(bx, 0.056, bz);
+        bm.scale.set(R, 1, R);
+        bm.rotation.y = rot;
+        bm.material.opacity = op;
+      }
+    } else {
+      bm.visible = false;
+    }
+
+    /* 2) 다중 장판 마법진 풀 */
+    const activeH = (hazards || []).filter(function (h) { return h && !h.done && !h.dead; });
+    for (let i = 0; i < g.hazardPool.length; i++) {
+      const m = g.hazardPool[i];
+      const h = activeH[i];
+      if (!h) { m.visible = false; continue; }
+      const u = clamp(h.t / Math.max(0.01, h.delay), 0, 1);
+      m.visible = true;
+      m.position.set(h.x, 0.052, h.z);
+      m.scale.set(h.r * 1.02, 1, h.r * 1.02);
+      m.rotation.y = (t || 0) * 0.8 + i;
+      m.material.opacity = 0.42 + 0.46 * u;
+    }
+
+    /* 3) 지면 균열 크레이터 풀 */
+    for (let i = 0; i < g.impactPool.length; i++) {
+      const s = g.impactPool[i];
+      if (!s.active) { s.mesh.visible = false; continue; }
+      s.t += dt || 0;
+      const k = clamp(s.t / s.dur, 0, 1);
+      if (k >= 1) { s.active = false; s.mesh.visible = false; continue; }
+      const u = easeOut(Math.min(1, k * 1.4));
+      const sc = s.r * (0.85 + 0.35 * u);
+      s.mesh.scale.set(sc, 1, sc);
+      s.mesh.material.opacity = (1 - k) * 0.92;
+    }
+  }
+
   clear() {
     this.events.length = 0;
     this.chargeTrail.length = 0;
     this.dmgNums.length = 0;
+    if (this.ground3d) {
+      this.ground3d.bossMandala.visible = false;
+      this.ground3d.hazardPool.forEach(function (m) { m.visible = false; });
+      this.ground3d.impactPool.forEach(function (s) { s.active = false; s.mesh.visible = false; });
+    }
   }
 
   pushChargePoint(x, z, color) {
@@ -108,7 +224,8 @@ export class BossFx {
   }
 
   triggerSlamImpact(x, z, r) {
-    this.events.push({ kind: 'slam', x, z, r: r || 3.0, t: 0, dur: 1.35, seed: Math.random() * 6.28 });
+    this.spawnImpact3D(x, z, r || 3.0, 1.35);
+    this.events.push({ kind: 'slam', x, z, r: r || 3.0, t: 0, dur: 1.05, seed: Math.random() * 6.28 });
     this.events.push({ kind: 'kanji', text: '轟', x, z, y: 1.6, color: [236, 78, 54], rim: [255, 218, 136], t: 0, dur: 0.78 });
   }
 
@@ -132,7 +249,8 @@ export class BossFx {
   }
 
   triggerHazardBlast(x, z, r) {
-    this.events.push({ kind: 'slam', x, z, r: r || 2.5, t: 0, dur: 0.95, seed: Math.random() * 6.28, minor: true });
+    this.spawnImpact3D(x, z, r || 2.5, 0.95);
+    this.events.push({ kind: 'slam', x, z, r: r || 2.5, t: 0, dur: 0.85, seed: Math.random() * 6.28, minor: true });
   }
 
   triggerGroggyBreak(x, z) {
@@ -228,43 +346,31 @@ export class BossFx {
     ctx.restore();
   }
 
-  /* 내려찍기 예고: 커스텀 수묵 만다라 + 고정 외곽 위험선 + 수렴 백금 타이밍 링 */
+  /* 내려찍기 예고: 3D 바닥 마법진(주인공 아래) + 2D는 얇은 경계선·수렴 백금 타이밍 링만 그려 캐릭터 가림 0% */
   drawSlamTele(ctx, project, x, z, R, f, t) {
     const u = clamp(f, 0, 1);
     const urgent = u >= 0.78;
     ctx.save();
-    /* 1) 커스텀 수묵 진법 에셋 회전 투영 */
-    drawGroundSprite(ctx, project, this.sprites.mandala, x, z, R * 1.06, t * 0.7, 0.45 + 0.5 * u, 'source-over');
-
-    /* 2) 내부 채워지는 주홍 워시 */
+    /* 1) 아주 옅은 내부 경고 워시 (캐릭터 시인성 유지) */
     groundPoly(ctx, project, x, z, Math.max(0.25, R * u), 36, t * 0.5);
     ctx.fillStyle = urgent
-      ? 'rgba(232,58,38,' + (0.28 + 0.20 * Math.sin(t * 36)).toFixed(3) + ')'
-      : 'rgba(186,34,24,' + (0.12 + 0.20 * u).toFixed(3) + ')';
+      ? 'rgba(232,58,38,' + (0.11 + 0.08 * Math.sin(t * 36)).toFixed(3) + ')'
+      : 'rgba(186,34,24,' + (0.04 + 0.06 * u).toFixed(3) + ')';
     ctx.fill();
 
-    /* 3) 고정 외곽 위험 경계선 (정확한 피격 반경) */
+    /* 2) 고정 외곽 위험 경계선 */
     groundPoly(ctx, project, x, z, R, 42, 0);
-    ctx.strokeStyle = 'rgba(14,9,9,0.78)';
-    ctx.lineWidth = 6;
+    ctx.strokeStyle = 'rgba(14,9,9,0.72)';
+    ctx.lineWidth = 5;
     ctx.stroke();
     ctx.strokeStyle = urgent ? 'rgba(255,238,180,0.98)' : ('rgba(246,84,56,' + (0.72 + 0.28 * u).toFixed(3) + ')');
-    ctx.lineWidth = urgent ? 3.2 : 2.5;
+    ctx.lineWidth = urgent ? 3.0 : 2.3;
     ctx.stroke();
 
-    /* 4) 안쪽에서 바깥 경계로 정확히 맞닿는 백금 타이밍 링 (f → 1.0) */
+    /* 3) 수렴 백금 타이밍 링 (f → 1.0) */
     groundPoly(ctx, project, x, z, Math.max(0.18, R * u), 38, -t * 0.4);
     ctx.strokeStyle = urgent ? 'rgba(255,252,232,0.98)' : 'rgba(255,214,132,0.88)';
-    ctx.lineWidth = urgent ? 3.0 : 2.0;
-    ctx.stroke();
-
-    /* 5) 중앙 낙하 표적 십자 + 직전 경고 텍스트 */
-    const c = project(x, z, 0.08);
-    ctx.strokeStyle = urgent ? 'rgba(255,244,196,0.95)' : 'rgba(246,96,68,0.8)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(c.x - 8, c.y); ctx.lineTo(c.x + 8, c.y);
-    ctx.moveTo(c.x, c.y - 5); ctx.lineTo(c.x, c.y + 5);
+    ctx.lineWidth = urgent ? 2.8 : 2.0;
     ctx.stroke();
     ctx.restore();
   }
@@ -284,9 +390,9 @@ export class BossFx {
     const c3 = project(bx + ux * len + nx * hw * 1.05, bz + uz * len + nz * hw * 1.05, 0.05);
 
     ctx.save();
-    /* 고정 위험 레인 외곽 */
+    /* 고정 위험 레인 외곽 (바닥 틴트는 옅게 유지해 주인공 실루엣을 가리지 않음) */
     ctx.beginPath(); ctx.moveTo(c0.x, c0.y); ctx.lineTo(c1.x, c1.y); ctx.lineTo(c2.x, c2.y); ctx.lineTo(c3.x, c3.y); ctx.closePath();
-    ctx.fillStyle = urgent ? 'rgba(220,44,30,0.34)' : ('rgba(186,30,22,' + (0.14 + 0.18 * u).toFixed(3) + ')');
+    ctx.fillStyle = urgent ? 'rgba(220,44,30,0.16)' : ('rgba(186,30,22,' + (0.06 + 0.08 * u).toFixed(3) + ')');
     ctx.fill();
     ctx.strokeStyle = 'rgba(16,10,10,0.72)';
     ctx.lineWidth = 4.5;
@@ -342,16 +448,16 @@ export class BossFx {
       ctx.lineTo(p.x, p.y);
     }
     ctx.closePath();
-    ctx.fillStyle = urgent ? 'rgba(232,54,36,0.34)' : ('rgba(186,32,24,' + (0.14 + 0.18 * u).toFixed(3) + ')');
+    ctx.fillStyle = urgent ? 'rgba(232,54,36,0.16)' : ('rgba(186,32,24,' + (0.06 + 0.08 * u).toFixed(3) + ')');
     ctx.fill();
-    ctx.strokeStyle = 'rgba(14,9,9,0.76)';
-    ctx.lineWidth = 5;
+    ctx.strokeStyle = 'rgba(14,9,9,0.72)';
+    ctx.lineWidth = 4.5;
     ctx.stroke();
     ctx.strokeStyle = urgent ? 'rgba(255,244,196,0.98)' : 'rgba(246,84,56,0.88)';
-    ctx.lineWidth = urgent ? 3 : 2.2;
+    ctx.lineWidth = urgent ? 2.8 : 2.1;
     ctx.stroke();
 
-    /* 안쪽에서 바깥으로 차오르는 타이밍 호 */
+    /* 안쪽에서 바깥으로 차오르는 타이밍 호 (채움은 투명하게, 백금 호선만 선명히) */
     const rNow = Math.max(0.4, R * u);
     ctx.beginPath();
     ctx.moveTo(c.x, c.y);
@@ -361,7 +467,7 @@ export class BossFx {
       ctx.lineTo(p.x, p.y);
     }
     ctx.closePath();
-    ctx.fillStyle = 'rgba(244,96,60,' + (0.14 + 0.22 * u).toFixed(3) + ')';
+    ctx.fillStyle = 'rgba(244,96,60,' + (0.05 + 0.08 * u).toFixed(3) + ')';
     ctx.fill();
 
     ctx.beginPath();
@@ -376,12 +482,11 @@ export class BossFx {
     ctx.restore();
   }
 
-  /* 기모으기(kiai): 커스텀 만다라 + 12갈래 소용돌이 + 수렴 패링 고리 + '지금 탭!' 주인공 링 */
+  /* 기모으기(kiai): 3D 바닥 만다라(주인공 아래) + 2D 12갈래 소용돌이 + 수렴 패링 고리 + '지금 탭!' 주인공 링 */
   drawKiaiVortex(ctx, project, bx, bz, f, open, t, heroPos) {
     const u = clamp(f, 0, 1);
     const center = project(bx, bz, 1.0);
     ctx.save();
-    drawGroundSprite(ctx, project, this.sprites.mandala, bx, bz, 3.2 - 0.8 * u, -t * 1.1, open ? 0.92 : 0.55, 'source-over');
 
     for (let i = 0; i < 12; i++) {
       const a0 = (i / 12) * Math.PI * 2 + t * 2.8;
@@ -450,29 +555,22 @@ export class BossFx {
     ctx.restore();
   }
 
-  /* 영창(chant): 커스텀 수묵 만다라 + 비취·금빛 8각 진법 */
+  /* 영창(chant): 3D 바닥 만다라(주인공 아래) + 2D 얇은 비취 외곽 링만 유지 */
   drawChantMandala(ctx, project, bx, bz, f, t) {
     const u = clamp(f, 0, 1);
-    const R = 2.55 + 0.35 * Math.sin(t * 4);
+    const R = 2.55 + 0.25 * Math.sin(t * 4);
     ctx.save();
-    drawGroundSprite(ctx, project, this.sprites.mandala, bx, bz, R * 1.15, t * 0.55, 0.72, 'source-over');
     groundPoly(ctx, project, bx, bz, R, 40, t * 0.5);
-    ctx.strokeStyle = 'rgba(16,12,12,0.6)';
-    ctx.lineWidth = 4.2;
+    ctx.strokeStyle = 'rgba(16,12,12,0.52)';
+    ctx.lineWidth = 3.5;
     ctx.stroke();
-    ctx.strokeStyle = 'rgba(92,232,196,' + (0.6 + 0.35 * u).toFixed(3) + ')';
-    ctx.lineWidth = 2.2;
+    ctx.strokeStyle = 'rgba(92,232,196,' + (0.62 + 0.32 * u).toFixed(3) + ')';
+    ctx.lineWidth = 2.0;
     ctx.stroke();
-    for (let s = 0; s < 2; s++) {
-      groundPoly(ctx, project, bx, bz, R * 0.82, 4, t * (s ? -0.9 : 0.9) + s * (Math.PI / 4));
-      ctx.strokeStyle = s ? 'rgba(232,192,74,0.68)' : 'rgba(236,84,58,0.68)';
-      ctx.lineWidth = 1.6;
-      ctx.stroke();
-    }
     ctx.restore();
   }
 
-  /* 다중 장판: 커스텀 만다라 + 수렴 백금 타이밍 링 */
+  /* 다중 장판: 3D 바닥 만다라(주인공 아래) + 2D 외곽 위험선·수렴 백금 타이밍 링 */
   drawHazards(ctx, project, hazards, t) {
     if (!hazards || !hazards.length) return;
     ctx.save();
@@ -481,20 +579,18 @@ export class BossFx {
       if (!h || h.done || h.dead) continue;
       const u = clamp(h.t / Math.max(0.01, h.delay), 0, 1);
       const urgent = u >= 0.78;
-      drawGroundSprite(ctx, project, this.sprites.mandala, h.x, h.z, h.r * 1.04, t * 0.8 + i, 0.42 + 0.5 * u, 'source-over');
       groundPoly(ctx, project, h.x, h.z, h.r, 32, 0);
-      ctx.strokeStyle = 'rgba(16,10,10,0.68)';
-      ctx.lineWidth = 4.2;
+      ctx.strokeStyle = 'rgba(16,10,10,0.62)';
+      ctx.lineWidth = 3.8;
       ctx.stroke();
       ctx.strokeStyle = urgent ? 'rgba(255,240,186,0.96)' : ('rgba(244,82,54,' + (0.6 + 0.38 * u).toFixed(3) + ')');
-      ctx.lineWidth = urgent ? 2.8 : 2.1;
+      ctx.lineWidth = urgent ? 2.6 : 2.0;
       ctx.stroke();
 
-      /* 수렴 타이밍 채움 + 백금 선 */
       groundPoly(ctx, project, h.x, h.z, Math.max(0.2, h.r * u), 28, t * 0.9 + i);
-      ctx.fillStyle = urgent ? 'rgba(232,54,36,0.30)' : ('rgba(204,40,28,' + (0.10 + 0.16 * u).toFixed(3) + ')');
+      ctx.fillStyle = urgent ? 'rgba(232,54,36,0.12)' : ('rgba(204,40,28,' + (0.04 + 0.06 * u).toFixed(3) + ')');
       ctx.fill();
-      ctx.strokeStyle = urgent ? '#fff8d4' : 'rgba(255,208,126,0.82)';
+      ctx.strokeStyle = urgent ? '#fff8d4' : 'rgba(255,208,126,0.85)';
       ctx.lineWidth = urgent ? 2.4 : 1.5;
       ctx.stroke();
     }
@@ -606,31 +702,13 @@ export class BossFx {
       ctx.save();
       if (e.kind === 'slam') {
         const u = easeOut(Math.min(1, k * 1.4)), fade = 1 - k;
-        /* 커스텀 수묵 지면 균열 크레이터 데칼 */
-        drawGroundSprite(ctx, project, this.sprites.impact, e.x, e.z, e.r * (0.88 + 0.36 * u), e.seed, fade * 0.96, 'source-over');
-        /* 지면 방사 균열 붓선 */
-        const branches = e.minor ? 6 : 8;
-        for (let b = 0; b < branches; b++) {
-          const a = e.seed + (b / branches) * Math.PI * 2;
-          const midA = a + ((b % 2) ? 0.16 : -0.16);
-          const p0 = project(e.x, e.z, 0.05);
-          const pm = project(e.x + Math.cos(midA) * e.r * 0.52 * u, e.z + Math.sin(midA) * e.r * 0.52 * u, 0.05);
-          const p1 = project(e.x + Math.cos(a) * e.r * 1.15 * u, e.z + Math.sin(a) * e.r * 1.15 * u, 0.05);
-          ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(pm.x, pm.y); ctx.lineTo(p1.x, p1.y);
-          ctx.strokeStyle = 'rgba(16,10,10,' + (0.85 * fade).toFixed(3) + ')';
-          ctx.lineWidth = (e.minor ? 4 : 6) * fade + 1;
-          ctx.stroke();
-          ctx.strokeStyle = 'rgba(246,92,58,' + (0.85 * fade).toFixed(3) + ')';
-          ctx.lineWidth = (e.minor ? 1.8 : 2.6) * fade;
-          ctx.stroke();
-        }
-        /* 이중 수묵 충격파 */
+        /* 지면 균열 크레이터는 3D 바닥(spawnImpact3D)에 깔리고, 2D는 얇은 외곽 충격파만 표시 */
         groundPoly(ctx, project, e.x, e.z, Math.max(0.3, e.r * (0.35 + 1.05 * u)), 40, e.seed);
-        ctx.strokeStyle = 'rgba(16,10,10,' + (0.72 * fade).toFixed(3) + ')';
-        ctx.lineWidth = 8 * fade + 1;
+        ctx.strokeStyle = 'rgba(16,10,10,' + (0.62 * fade).toFixed(3) + ')';
+        ctx.lineWidth = 6 * fade + 1;
         ctx.stroke();
-        ctx.strokeStyle = 'rgba(255,176,92,' + (0.9 * fade).toFixed(3) + ')';
-        ctx.lineWidth = 3.2 * fade + 0.8;
+        ctx.strokeStyle = 'rgba(255,176,92,' + (0.85 * fade).toFixed(3) + ')';
+        ctx.lineWidth = 2.6 * fade + 0.8;
         ctx.stroke();
       } else if (e.kind === 'sweep') {
         const u = easeOut(k), fade = 1 - k;

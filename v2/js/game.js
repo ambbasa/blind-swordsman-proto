@@ -6703,10 +6703,10 @@ function stepShots(dt) {
     sh.z += sh.vz * dt;
     if (sh.mesh) { sh.mesh.position.set(sh.x, 0.75, sh.z); sh.mesh.rotation.y += dt * 6; }
     /* One reach for hit and vanish. A dashing hero cuts the charm out of the air instead. */
-    const reached = Math.hypot(S.hero.x - sh.x, S.hero.z - sh.z) <= (CFG.shotR || 0.42) + 0.55;
+    const reached = Math.hypot(S.hero.x - sh.x, S.hero.z - sh.z) <= (sh.r || CFG.shotR || 0.42) + 0.55;
     if (reached) {
       if (S.dash) inkFx.burst(sh.x, sh.z, FX_COLORS.poison, { r1: 30, n: 6, dur: 0.35 });
-      else if ((S.iframe || 0) <= 0) heroHurt(CFG.shotDmg || 1, '부적에 맞았습니다.');
+      else if ((S.iframe || 0) <= 0) heroHurt(sh.dmg || CFG.shotDmg || 1, sh.isWave ? '언월 검기에 베였습니다.' : '부적에 맞았습니다.');
     }
     const dead = sh.t >= sh.life || reached;
     if (dead && sh.mesh) { releaseShotMesh(sh.mesh); sh.mesh = null; }
@@ -10040,6 +10040,7 @@ function loop(ts) {
       }
     }
     syncGroundEffects();
+    bossFx.syncGround3D(S && S.boss, S && S.hazards, (S && S.elapsed) || 0, dt, ((CFG.bossPat || {}).slam || {}).r || 3.2);
     fitShadowFrustum();
     if (three.bloom && three.bloom.render) three.bloom.render(dt);
     else three.renderer.render(three.scene, three.camera);
@@ -10202,6 +10203,7 @@ async function boot() {
   await probeAssets();
   art = await buildArt(THREE);
   three = await makeWorld();
+  bossFx.attachScene(THREE, three.scene);
   try { art.setCamera(three.camera); } catch (e) {}
   setupChunkWorld((three.map && three.map.stageId) || 1, (three.map && three.map.id) || 'map1');
   applyFxinkAtmo((three.map && three.map.id) || 'map1');
