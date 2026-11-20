@@ -2579,34 +2579,35 @@ function makeArenaGroup(r) {
   if (_arenaCache) { _arenaCache.a.group.traverse(function (o) { if (o.geometry) o.geometry.dispose(); }); }
   const group = new THREE.Group();
   group.name = 'boss-arena';
-  const ringGeo = new THREE.RingGeometry(r - 0.42, r, 128, 1);
+  /* v0.54: 인위적인 흰/주황 기하학 결계 테두리 선(ring/inner) 제거 — 먹안개와 기물이 자연스럽게 결계 범위를 이룬다. */
+  const ringGeo = new THREE.RingGeometry(r - 0.42, r, 64, 1);
   ringGeo.rotateX(-Math.PI / 2);
   const ringMat = new THREE.MeshBasicMaterial({
-    color: 0xff6a3a, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending,
+    color: 0x3b1f1a, transparent: true, opacity: 0,
     depthWrite: false, side: THREE.DoubleSide, fog: false
   });
   const ring = new THREE.Mesh(ringGeo, ringMat);
   ring.position.y = 0.06;
-  ring.renderOrder = 4;
+  ring.visible = false;
   group.add(ring);
-  const innerGeo = new THREE.RingGeometry(r * 0.94, r * 0.955, 96, 1);
+  const innerGeo = new THREE.RingGeometry(r * 0.94, r * 0.955, 64, 1);
   innerGeo.rotateX(-Math.PI / 2);
   const innerMat = new THREE.MeshBasicMaterial({
-    color: 0xffd7a0, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending,
+    color: 0x3b1f1a, transparent: true, opacity: 0,
     depthWrite: false, side: THREE.DoubleSide, fog: false
   });
   const inner = new THREE.Mesh(innerGeo, innerMat);
   inner.position.y = 0.07;
-  inner.renderOrder = 4;
+  inner.visible = false;
   group.add(inner);
-  /* 결계 벽: 바닥에서 솟은 먹빛 원기둥(은은한 발광) */
-  const wallGeo = new THREE.CylinderGeometry(r, r, 2.8, 96, 1, true);
+  /* 결계 외곽은 아주 은은한 먹·홍기 장막만 남겨 시야를 해치지 않는다 */
+  const wallGeo = new THREE.CylinderGeometry(r, r, 2.4, 72, 1, true);
   const wallMat = new THREE.MeshBasicMaterial({
-    color: 0xff7040, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending,
+    color: 0x421d16, transparent: true, opacity: 0.06,
     depthWrite: false, side: THREE.DoubleSide, fog: false
   });
   const wall = new THREE.Mesh(wallGeo, wallMat);
-  wall.position.y = 1.4;
+  wall.position.y = 1.2;
   wall.renderOrder = 4;
   group.add(wall);
   const out = { group: group, ring: ring, inner: inner, wall: wall, ringMat: ringMat, innerMat: innerMat, wallMat: wallMat, t: 0, r: r };
@@ -2773,13 +2774,10 @@ function stepArena(dt) {
   const a = three && three.arena;
   if (!a) return;
   a.t += dt || 0;
-  const p = 0.55 + 0.45 * Math.sin(a.t * 2.7);
-  a.ringMat.opacity = 0.30 + 0.16 * p;
-  a.innerMat.opacity = 0.3 + 0.3 * p;
-  a.wallMat.opacity = 0.08 + 0.08 * p;
-  const s = 1 + 0.006 * Math.sin(a.t * 3.3);
-  a.ring.scale.set(s, 1, s);
-  a.inner.scale.set(2 - s, 1, 2 - s);
+  const p = 0.55 + 0.45 * Math.sin(a.t * 2.4);
+  a.ringMat.opacity = 0;
+  a.innerMat.opacity = 0;
+  a.wallMat.opacity = 0.04 + 0.04 * p;
 }
 function spawnZombie(opts) {
   opts = opts || {};
@@ -3959,67 +3957,85 @@ function drawTerrain(ctx,r,hs,t) {
 }
 function drawV31(ctx, r, hs, t) {
   if (!S) return;
-  if (S.boss?.alive) {
+  if (S.boss?.alive && !S.boss.hidden && S.boss.state !== 'clones') {
     const boss = S.boss;
     const maxHp = Math.max(1, boss.maxHp || 1);
     const curHp = Math.max(0, boss.hp || 0);
     if (boss.hpTrail == null || boss.hpTrail < curHp) boss.hpTrail = curHp;
     else boss.hpTrail = Math.max(curHp, boss.hpTrail - maxHp * 0.38 * frameDt);
 
-    const w = Math.min(286, r.width * 0.68), x = (r.width - w) * 0.5, y = 78, h = 9;
+    /* v0.54: 보스 HP 바를 화면 꼭대기가 아닌 보스 발밑(시선 추적 위치)에 배치해 전투 중 눈이 바로 읽도록 개선 */
+    const bp = projectXZ(boss.x, boss.z, 0.04);
+    const w = 116, h = 8;
+    const cx = clamp(bp.x, w * 0.5 + 14, r.width - w * 0.5 - 14);
+    const y = clamp(bp.y + 18, 92, r.height - 96);
+    const x = cx - w * 0.5;
     const openLeft = Math.max(0, (boss.openUntil || 0) - (S.elapsed || 0));
     const isOpen = openLeft > 0 || boss.state === 'groggy';
     const isSeal = boss.state === 'seal' || boss.state === 'sealing';
 
     ctx.save();
     /* 옻칠 먹 프레임 + 금박 외곽 */
-    ctx.fillStyle = 'rgba(20,14,15,0.88)';
+    ctx.fillStyle = 'rgba(18,12,12,0.88)';
     ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
-    ctx.strokeStyle = isOpen ? 'rgba(255,224,118,0.95)' : 'rgba(180,146,88,0.65)';
+    ctx.strokeStyle = isOpen ? 'rgba(255,224,118,0.96)' : 'rgba(180,146,88,0.68)';
     ctx.lineWidth = isOpen ? 1.8 : 1;
     ctx.strokeRect(x - 2, y - 2, w + 4, h + 4);
 
     /* 잔상 데미지 트레일 바 */
-    ctx.fillStyle = 'rgba(255,224,152,0.82)';
+    ctx.fillStyle = 'rgba(255,224,152,0.85)';
     ctx.fillRect(x, y, w * clamp(boss.hpTrail / maxHp, 0, 1), h);
     /* 주홍 실제 HP 바 */
-    ctx.fillStyle = isOpen ? '#e85b3a' : '#bf4135';
+    ctx.fillStyle = isOpen ? '#ee5e3a' : '#c44034';
     ctx.fillRect(x, y, w * clamp(curHp / maxHp, 0, 1), h);
 
-    /* 페이즈 전환 눈금 (2페이즈 50% / 3페이즈 33·66%) */
+    /* 페이즈 전환 눈금 */
     const B = bossCfg();
     if (B.phase2) {
-      ctx.fillStyle = 'rgba(24,16,14,0.85)';
+      ctx.fillStyle = 'rgba(20,14,12,0.85)';
       const marks = B.phase3 ? [1 / 3, 2 / 3] : [0.5];
       marks.forEach(function (mk) { ctx.fillRect(x + w * mk - 1, y, 2, h); });
     }
 
-    /* 보스 이름 + 수치 + 상태 뱃지 */
-    ctx.font = '700 12.5px "InkSerif", serif';
+    /* 보스 이름 + 수치 (HP 바 바로 위, 작고 또렷하게) */
+    ctx.font = '700 11px "InkSerif", serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-    ctx.strokeStyle = 'rgba(18,12,12,0.92)'; ctx.lineWidth = 3.5;
-    const label = S.stage.bossName + '  ' + Math.ceil(curHp) + ' / ' + maxHp;
-    ctx.strokeText(label, r.width * 0.5, y - 5);
+    ctx.strokeStyle = 'rgba(16,11,10,0.94)'; ctx.lineWidth = 3.2;
+    const label = S.stage.bossName + ' ' + Math.ceil(curHp) + '/' + maxHp;
+    ctx.strokeText(label, cx, y - 4);
     ctx.fillStyle = '#f6ebd4';
-    ctx.fillText(label, r.width * 0.5, y - 5);
+    ctx.fillText(label, cx, y - 4);
 
-    /* 빈틈(×1.3) 또는 봉인 가능 카운트다운 띠 */
+    /* 기세(poise) 금빛 마름모 — HP 바 바로 아래 통합 */
+    const P = bossPat();
+    if (P && P.poise) {
+      const pn = P.poise, left = boss.poise == null ? pn : boss.poise;
+      const py = y + h + 9;
+      for (let i = 0; i < pn; i++) {
+        const px = cx + (i - (pn - 1) / 2) * 12;
+        ctx.beginPath(); ctx.moveTo(px, py - 4); ctx.lineTo(px + 4, py); ctx.lineTo(px, py + 4); ctx.lineTo(px - 4, py); ctx.closePath();
+        ctx.fillStyle = i < left ? 'rgba(242,202,86,0.96)' : 'rgba(54,46,40,0.68)';
+        ctx.fill();
+      }
+    }
+
+    /* 빈틈(×1.3) 또는 봉인 가능 뱃지 */
     if (isSeal) {
-      ctx.font = '700 11.5px "InkSerif", serif';
-      ctx.strokeText('★ 별을 그려 봉인하라!', r.width * 0.5, y + h + 13);
+      ctx.font = '700 11px "InkSerif", serif';
+      ctx.strokeText('★ 봉인 가능', cx, y + h + 23);
       ctx.fillStyle = '#ffe078';
-      ctx.fillText('★ 별을 그려 봉인하라!', r.width * 0.5, y + h + 13);
+      ctx.fillText('★ 봉인 가능', cx, y + h + 23);
     } else if (isOpen) {
-      const ow = w * 0.72, ox = (r.width - ow) * 0.5, oy = y + h + 4;
-      const frac = boss.state === 'groggy' ? clamp(1 - (boss.stateT || 0) / Math.max(0.1, bossPat().groggyT || 3), 0, 1) : clamp(openLeft / 2.0, 0, 1);
-      ctx.fillStyle = 'rgba(24,18,10,0.82)';
+      const ow = w * 0.88, ox = cx - ow * 0.5, oy = y + h + 16;
+      const frac = boss.state === 'groggy' ? clamp(1 - (boss.stateT || 0) / Math.max(0.1, P.groggyT || 3), 0, 1) : clamp(openLeft / 2.0, 0, 1);
+      ctx.fillStyle = 'rgba(24,18,10,0.85)';
       ctx.fillRect(ox, oy, ow, 4);
       ctx.fillStyle = '#ffd86b';
       ctx.fillRect(ox, oy, ow * frac, 4);
       ctx.font = '700 10.5px "InkSerif", serif';
-      ctx.strokeText('빈틈 열림 · 피해 ×1.3', r.width * 0.5, oy + 14);
+      ctx.strokeText('빈틈 ×1.3', cx, oy + 13);
       ctx.fillStyle = '#ffe484';
-      ctx.fillText('빈틈 열림 · 피해 ×1.3', r.width * 0.5, oy + 14);
+      ctx.fillText('빈틈 ×1.3', cx, oy + 13);
     }
     ctx.restore();
   }
@@ -4192,97 +4208,9 @@ function drawElementMote(ctx, el, x, y, u, color) {
   }
   ctx.fill();
 }
-/* v0.49: 심안의 원 붓경계 + 주인공 발밑 심안 비콘.
-   원 안의 한지 수묵화와 원 밖 먹안개의 경계를 살아 있는 붓원으로 각인하고,
-   난전 중 다수 원귀가 겹쳐도 주인공 위치와 참(斬) 준비 상태가 즉시 읽히도록 한다. */
-function drawHeroBeaconAndSightRing(ctx, r, hs, t) {
-  if (!S || !S.hero || !S.playing) return;
-  const hx = S.hero.x, hz = S.hero.z;
-  const chargeReady = (S.charge || 0) >= (CFG.cleaveCharge || 100);
-  const wave = clamp(S.sightWave || 0, 0, 1);
-
-  /* 1) 심안의 원(Mind's-Eye Calligraphic Ring): 보스 결계가 없을 때 바닥에 투영 */
-  if (!arenaActive()) {
-    const R = ringR();
-    const N = 48;
-    const breath = 1 + Math.sin(t * 2.1) * 0.008 + wave * 0.03;
-    const rr = R * breath;
-    ctx.save();
-    ctx.beginPath();
-    for (let i = 0; i <= N; i++) {
-      const a = (i / N) * Math.PI * 2;
-      const p = projectXZ(hx + Math.cos(a) * rr, hz + Math.sin(a) * rr, 0.03);
-      if (i === 0) ctx.moveTo(p.x, p.y);
-      else ctx.lineTo(p.x, p.y);
-    }
-    ctx.closePath();
-    /* 바깥 먹 테두리 */
-    ctx.strokeStyle = 'rgba(18,14,11,' + (0.42 + wave * 0.2).toFixed(3) + ')';
-    ctx.lineWidth = 3.2;
-    ctx.stroke();
-    /* 안쪽 비취/금빛 심안 선 */
-    ctx.strokeStyle = chargeReady
-      ? 'rgba(232,192,74,' + (0.58 + 0.22 * Math.sin(t * 5.2)).toFixed(3) + ')'
-      : 'rgba(120,236,204,' + (0.36 + wave * 0.34).toFixed(3) + ')';
-    ctx.lineWidth = chargeReady ? 2.1 : 1.5;
-    ctx.stroke();
-
-    /* 동서남북 4방 미세 먹 방위 눈금 */
-    ctx.strokeStyle = chargeReady ? 'rgba(232,192,74,0.62)' : 'rgba(244,236,214,0.42)';
-    ctx.lineWidth = 1.6;
-    for (let k = 0; k < 4; k++) {
-      const a = k * (Math.PI * 0.5) + t * 0.06;
-      const p0 = projectXZ(hx + Math.cos(a) * (rr * 0.96), hz + Math.sin(a) * (rr * 0.96), 0.03);
-      const p1 = projectXZ(hx + Math.cos(a) * (rr * 1.03), hz + Math.sin(a) * (rr * 1.03), 0.03);
-      ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
-    }
-    ctx.restore();
-  }
-
-  /* 2) 주인공 발밑 심안 비콘: 근접 적이 몰릴수록 또렷하게 주인공 중심을 각인 */
-  let nearCount = 0;
-  if (S.zombies) {
-    for (let i = 0; i < S.zombies.length; i++) {
-      const z = S.zombies[i];
-      if (z && z.alive && dist(z, S.hero) < 2.6) nearCount++;
-    }
-  }
-  const crowdBoost = clamp(nearCount / 4, 0, 1);
-  const foot = projectXZ(hx, hz, 0.04);
-  const edgeX = projectXZ(hx + 0.86, hz, 0.04);
-  const rx = clamp(Math.hypot(edgeX.x - foot.x, edgeX.y - foot.y), 17, 34);
-  const ry = rx * 0.56;
-  const pulse = 0.5 + 0.5 * Math.sin(t * (chargeReady ? 6.0 : 3.2));
-
-  ctx.save();
-  /* 은은한 먹 대비 테(밝은 한지 위에서도 주인공 고리가 묻히지 않되 장화를 덮지 않게) */
-  ctx.beginPath();
-  ctx.ellipse(foot.x, foot.y, rx + 1.4, ry + 1.0, 0, 0, Math.PI * 2);
-  ctx.strokeStyle = 'rgba(14,11,9,' + (0.28 + crowdBoost * 0.22).toFixed(3) + ')';
-  ctx.lineWidth = 2.2;
-  ctx.stroke();
-
-  /* 한지·옥빛/금빛 이중 주인공 고리 */
-  ctx.beginPath();
-  ctx.ellipse(foot.x, foot.y, rx, ry, 0, 0, Math.PI * 2);
-  ctx.strokeStyle = chargeReady
-    ? 'rgba(246,210,104,' + (0.70 + pulse * 0.22).toFixed(3) + ')'
-    : 'rgba(246,240,224,' + (0.56 + crowdBoost * 0.28).toFixed(3) + ')';
-  ctx.lineWidth = 1.6 + crowdBoost * 0.7;
-  ctx.stroke();
-
-  /* 안쪽 회전 붓점선 옥빛 기운 */
-  ctx.setLineDash([6, 5]);
-  ctx.lineDashOffset = -t * 14;
-  ctx.beginPath();
-  ctx.ellipse(foot.x, foot.y, rx * 0.76, ry * 0.76, 0, 0, Math.PI * 2);
-  ctx.strokeStyle = chargeReady
-    ? 'rgba(255,236,164,0.52)'
-    : 'rgba(116,238,202,' + (0.36 + crowdBoost * 0.34).toFixed(3) + ')';
-  ctx.lineWidth = 1.25;
-  ctx.stroke();
-  ctx.restore();
-}
+/* v0.54: 주인공·심안 경계의 인위적 2D 원형 테두리 선을 제거해 한지 수묵화 몰입감을 높인다.
+   (원 안/밖 대비는 3D 월드 먹안개가 자연스럽게 담당한다.) */
+function drawHeroBeaconAndSightRing() {}
 function drawHeroElement(ctx, t) {
   const el = curElem();
   if (!el || !S.hero) return;
@@ -7990,50 +7918,10 @@ function drawBossPat(ctx, r, hs) {
   /* 분신 중에는 진짜에게만 붙는 표시(예고 고리·문구·기세)를 숨긴다 — 진짜는 방울로만 가린다. */
   const onScr = !z.hidden && z.state !== 'clones' && bp.x > -40 && bp.y > -40 && bp.x < r.width + 40 && bp.y < r.height + 40;
   ctx.save();
-  /* 예고 색 고리와 대응 문구 */
-  if (z.cue && z.cue.t < 1.4 && onScr && !z.hidden) {
-    const k = 1 - z.cue.t / 1.4, rgb = cueRgb(z.cue.c);
-    ctx.strokeStyle = 'rgba(' + rgb + ',' + (0.9 * k).toFixed(3) + ')';
-    ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.ellipse(bp.x, bp.y, 2.2 * wpc * (1.2 - 0.2 * k), 1.2 * wpc * (1.2 - 0.2 * k), 0, 0, Math.PI * 2); ctx.stroke();
-    ctx.font = '700 18px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(8,7,9,' + (0.85 * k).toFixed(3) + ')';
-    const ty = clamp(bp.y + 1.2 * wpc + 34, 100, r.height - 40);
-    ctx.strokeText(CUE_LABEL[z.cue.c], bp.x, ty);
-    ctx.fillStyle = 'rgba(' + rgb + ',' + k.toFixed(3) + ')';
-    ctx.fillText(CUE_LABEL[z.cue.c], bp.x, ty);
-    /* §11 색약: 색 뿐으로 구분하지 않게 모양 아이콘을 같이 보여 준다. */
-    if (a11yCb()) drawCueIcon(ctx, z.cue.c, bp.x - 46, ty, k, rgb);
-  }
-  /* §8.2 보스 패턴을 처음 보는 순간: 타이머만 유지(시각 표시는 v0.52 상단 통합 스킬 배너로 일원화) */
+  /* v0.54: 보스 발밑의 구식 2D 붉은/흰/금 타원 테두리 선 제거 — 3D 바닥 진법과 보스 발밑 HP 바·기세로 일원화 */
   if (S.firstPatIcon) {
     S.firstPatIcon.t -= frameDt;
     if (S.firstPatIcon.t <= 0) S.firstPatIcon = null;
-  }
-  /* 기세: 보스 발밑 금빛 마름모(남은 칸) */
-  if (onScr) {
-    const n = P.poise, left = z.poise == null ? n : z.poise;
-    const y = clamp(bp.y + 1.2 * wpc + 14, 96, r.height - 30);
-    for (let i = 0; i < n; i++) {
-      const x = bp.x + (i - (n - 1) / 2) * 14;
-      ctx.beginPath(); ctx.moveTo(x, y - 5); ctx.lineTo(x + 5, y); ctx.lineTo(x, y + 5); ctx.lineTo(x - 5, y); ctx.closePath();
-      ctx.fillStyle = i < left ? 'rgba(232,192,74,0.95)' : 'rgba(60,52,44,0.7)';
-      ctx.fill();
-    }
-  }
-  /* §4.2 빈틈 고리: 걷는 동안 1.6초에 걸쳐 차오르고, 다 차면 하얗게 번진다(방울 소리와 함께). */
-  if (onScr && z.state === 'walk' && !z.firstWalk) {
-    const g = gapInfo(z), rx = 2.6 * wpc, ry = rx * 0.55;
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = 'rgba(244,236,214,0.22)';
-    ctx.beginPath(); ctx.ellipse(bp.x, bp.y, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
-    ctx.strokeStyle = g.open ? 'rgba(255,255,250,0.95)' : 'rgba(226,212,180,0.8)';
-    ctx.beginPath(); ctx.ellipse(bp.x, bp.y, rx, ry, 0, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * g.progress); ctx.stroke();
-    if (z.gapFlashT > 0) {
-      const k = z.gapFlashT / (CFG.gapFlash || 0.5);
-      ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(255,255,255,' + (0.75 * k).toFixed(3) + ')';
-      ctx.beginPath(); ctx.ellipse(bp.x, bp.y, rx * (1 + (1 - k) * 0.35), ry * (1 + (1 - k) * 0.35), 0, 0, Math.PI * 2); ctx.stroke();
-    }
   }
   /* 기모으기 게이지: v0.53 주인공 바로 아래 시선 고정대 대형 타이밍 게이지 + 소용돌이 */
   if (z.state === 'kiai' && z.kiai) {
@@ -8094,11 +7982,7 @@ function drawBossPat(ctx, r, hs) {
       ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(top.x, top.y); ctx.stroke();
     });
   }
-  /* 기세 붕괴: 보스 발밑에 흔들리는 금빛 고리 */
-  if (z.state === 'groggy' && onScr) {
-    ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(232,192,74,' + (0.6 + 0.3 * Math.sin(t * 9)).toFixed(3) + ')';
-    ctx.beginPath(); ctx.ellipse(bp.x, bp.y, 2.0 * wpc, 1.1 * wpc, t * 2, 0, Math.PI * 2); ctx.stroke();
-  }
+  /* 기세 붕괴: 보스 무릎 꿇기 모션 + 발밑 HP 바 금빛 '빈틈 ×1.3'으로 표시 */
   /* §4.4 8장 합 겨루기: v0.53 주인공 아래 시선 고정대(drawGestureFocalDock)로 통합 */
   /* §4.4 8장 흉내: v0.50 수묵·주홍 테이퍼 레인 */
   if ((z.state === 'mimicTele' || z.state === 'mimicCharge') && z.mimic) {

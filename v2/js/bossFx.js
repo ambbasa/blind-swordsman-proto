@@ -371,7 +371,7 @@ export class BossFx {
     const w = Math.min(312, r.width - 28);
     const h = 42;
     const x = (r.width - w) * 0.5;
-    const y = 104;
+    const y = 76;
 
     ctx.save();
     /* 배경 패널 (한지 먹프레임 + 반응 순간 밝은 금/주홍 맥동) */
@@ -843,20 +843,8 @@ export class BossFx {
     ctx.restore();
   }
 
-  /* 영창(chant): 3D 바닥 만다라(주인공 아래) + 2D 얇은 비취 외곽 링만 유지 */
-  drawChantMandala(ctx, project, bx, bz, f, t) {
-    const u = clamp(f, 0, 1);
-    const R = 2.55 + 0.25 * Math.sin(t * 4);
-    ctx.save();
-    groundPoly(ctx, project, bx, bz, R, 40, t * 0.5);
-    ctx.strokeStyle = 'rgba(16,12,12,0.52)';
-    ctx.lineWidth = 3.5;
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(92,232,196,' + (0.62 + 0.32 * u).toFixed(3) + ')';
-    ctx.lineWidth = 2.0;
-    ctx.stroke();
-    ctx.restore();
-  }
+  /* 영창(chant): 3D 바닥 만다라(boss-mandala.webp)만 사용해 보스 주위 인위적 2D 원형 테두리 제거 */
+  drawChantMandala() {}
 
   /* 다중 장판: 3D 바닥 만다라(주인공 아래) + 2D 외곽 위험선·수렴 백금 타이밍 링 */
   drawHazards(ctx, project, hazards, t) {

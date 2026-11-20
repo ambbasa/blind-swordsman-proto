@@ -48,7 +48,7 @@ body.drawing-active #btnSkip {
   font-family: "InkSerif", serif;
   letter-spacing: .01em;
 }
-#guide { border-radius: 4px; top: calc(154px + env(safe-area-inset-top, 0px)); }
+#guide { border-radius: 4px; top: calc(126px + env(safe-area-inset-top, 0px)); }
 #guide b { color: #8e2a17; }
 #toast { border-radius: 4px; font-weight: 700; top: auto; bottom: calc(74px + env(safe-area-inset-bottom, 0px)); max-width: 86%; }
 #toast b { color: #8e2a17; }
