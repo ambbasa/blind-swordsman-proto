@@ -5,11 +5,14 @@
 import { createAudioBus } from './audiobus.js';
 export function createAudio() {
   let ctx = null, master = null, bgmGain = null, sfxGain = null, bus = null;
-  let bgmOn = false, timer = 0, nextBeat = 0, beatI = 0, melodyI = 0;
+  let bgmOn = false, bossMode = false, timer = 0, nextBeat = 0, beatI = 0, melodyI = 0;
   let muted = true, quiet = true;
   let busInfo = null;
 
-  const PENTA = [262, 294, 330, 392, 440, 523, 587, 659]; /* C D E G A, daegeum-ish range later shifted */
+  /* 한국 전통 계면조/평조 5음계 (D4 E4 F4 G4 A4 C5 D5 E5 F5 G5 A5) */
+  const PENTA = [293.66, 329.63, 349.23, 392.00, 440.00, 523.25, 587.33, 659.25];
+  const JING_PARTIALS = [1, 1.49, 2.02, 2.67, 3.18, 4.11, 5.24];
+  const JING_GAINS = [0.22, 0.12, 0.09, 0.06, 0.045, 0.03, 0.02];
   /* Shaman's rattle (무당방울): a few shakes, each a cluster of tiny brass bells clinking a few ms apart.
      The cluster's centre pitch differs per shape so the ear can tell them apart. */
   const BELL = { shakes: [0, 0.15, 0.31], shakeGain: [1, 0.72, 0.48], bellsPerShake: 6, spreadSec: 0.045,
@@ -232,145 +235,347 @@ export function createAudio() {
     noise(t0, 0.1, 'lowpass', 420, 0.7, 0.22, V);
   }
 
-  /* 칼날 층: 획이 길수록 음이 조금 높아진다(0~2도). 짧은 획은 낮고 둔탁하게. */
-  function slash(lenRatio) {
+  /* 칼날 층: 발도 쇳소리 + 칼바람 + 저음 풍압 (획 길이·연타 콤보에 맞춰 음높이 미세 상승). */
+  function slash(lenRatio, combo) {
     if (quiet) return;
     const c = resume(); if (!c) return;
     const t0 = c.currentTime;
-    const V = voice(1.0, 0.14); if (!V) return;
-    const k = Math.pow(2, (lenRatio == null ? 1 : clamp01(lenRatio) * 2) / 12);
-    /* 샤악 — airy blade */
-    if (sample('blade', V, t0, k, 0.46)) return;
-    noise(t0, 0.11, 'highpass', 1800 * k, 0.8, 0.28, V);
-    noise(t0, 0.08, 'bandpass', 4200 * k, 2.4, 0.16, V);
-    tone(t0, 1400 * k, 0.09, 0.07, 'triangle', V, 420 * k);
+    const V = voice(1.0, 0.18); if (!V) return;
+    const cShift = Math.min(8, Math.max(0, combo || 0)) * 0.25;
+    const k = Math.pow(2, ((lenRatio == null ? 1 : clamp01(lenRatio) * 2) + cShift) / 12);
+    const hasBlade = sample('blade', V, t0, k, 0.42);
+    /* 맑은 발도 쇠울림 레이어 */
+    tone(t0, 1780 * k, 0.075, 0.055, 'triangle', V, 1120 * k);
+    tone(t0 + 0.005, 3120 * k, 0.055, 0.032, 'sine', V, 2340 * k);
+    /* 저음 칼바람 풍압 */
+    tone(t0, 210 * k, 0.11, 0.09, 'sine', V, 95);
+    if (!hasBlade) {
+      noise(t0, 0.11, 'highpass', 1800 * k, 0.8, 0.26, V);
+      noise(t0, 0.08, 'bandpass', 4200 * k, 2.4, 0.15, V);
+    } else {
+      noise(t0 + 0.01, 0.07, 'bandpass', 3600 * k, 1.8, 0.09, V);
+    }
   }
   function clamp01(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
 
-  /* 살 층: 일반 명중. perfect=true면 '정확한 획' 한 겹을 더 얹는다. */
-  function hit(perfect) {
+  /* 살 층: 묵직한 타격 + 대나무 스냅 + 콤보 연동 5음계 편경(옥종) 공명음. */
+  function hit(perfect, combo) {
     if (quiet) return;
     const c = resume(); if (!c) return;
     const t0 = c.currentTime;
-    const V = voice(1.0, 0.2); if (!V) return;
-    if (!sample('wood', V, t0, perfect ? 1.12 : 0.94, 0.62)) tone(t0, 90, 0.16, 0.32, 'sine', V, 45);
-    tone(t0, 180, 0.1, 0.12, 'triangle', V, 80);
-    noise(t0, 0.09, 'lowpass', 900, 0.6, 0.2, V);
+    const V = voice(1.0, 0.24); if (!V) return;
+    if (!sample('wood', V, t0, perfect ? 1.14 : 0.96, 0.58)) tone(t0, 92, 0.16, 0.32, 'sine', V, 44);
+    tone(t0, 168, 0.11, 0.14, 'triangle', V, 74);
+    noise(t0, 0.085, 'lowpass', 950, 0.65, 0.20, V);
+    /* 연타 콤보가 쌓이면 맑은 동양 편경(옥종) 5음계가 단계별로 울림 */
+    const step = Math.max(0, Math.min(PENTA.length - 1, (combo || 0) % PENTA.length));
+    if (perfect || (combo && combo >= 2)) {
+      const f = PENTA[step] * 2;
+      tone(t0 + 0.004, f, 0.14, perfect ? 0.065 : 0.04, 'sine', V, f * 0.995);
+      tone(t0 + 0.006, f * 2.74, 0.08, perfect ? 0.028 : 0.016, 'sine', V);
+    }
     if (perfect) {
-      tone(t0, 1560, 0.08, 0.06, 'sine', V, 1180);
-      noise(t0, 0.05, 'bandpass', 3200, 2, 0.07, V);
+      noise(t0, 0.05, 'bandpass', 3400, 2.0, 0.08, V);
     }
   }
 
   function deflect() {
     if (quiet) return;
     const c = resume(); if (!c) return;
-    const v = voice(0.8, 0.12); if (!v) return;
-    tone(c.currentTime, 1340, 0.09, 0.12, 'triangle', v, 810);
-    noise(c.currentTime, 0.035, 'highpass', 2900, 1, 0.10, v);
+    const v = voice(0.85, 0.18); if (!v) return;
+    const t = c.currentTime;
+    tone(t, 1420, 0.12, 0.12, 'triangle', v, 860);
+    tone(t, 2680, 0.10, 0.06, 'sine', v, 2120);
+    noise(t, 0.04, 'highpass', 3000, 1.1, 0.11, v);
   }
   function breakCue() {
     if (quiet) return;
     const c = resume(); if (!c) return;
-    const v = voice(1, 0.39); if (!v) return;
+    const v = voice(1.0, 0.45); if (!v) return;
     const t = c.currentTime;
-    noise(t, 0.08, 'bandpass', 1150, 0.75, 0.23, v);
-    tone(t + 0.05, 380, 0.30, 0.18, 'sine', v, 245);
+    tone(t, 118, 0.20, 0.24, 'sine', v, 52);
+    noise(t, 0.09, 'bandpass', 1250, 0.75, 0.24, v);
+    tone(t + 0.03, 587, 0.28, 0.12, 'triangle', v, 392);
+    tone(t + 0.06, 880, 0.26, 0.08, 'sine', v, 659);
   }
   function explode() {
     if (quiet) return;
     const c = resume(); if (!c) return;
     const t0 = c.currentTime;
-    const V = voice(1.0, 0.36); if (!V) return;
-    tone(t0, 70, 0.32, 0.38, 'sine', V, 32);
-    tone(t0, 140, 0.22, 0.16, 'square', V, 50);
-    noise(t0, 0.28, 'lowpass', 700, 0.5, 0.28, V);
-    noise(t0 + 0.02, 0.18, 'bandpass', 1400, 1.2, 0.12, V);
+    const V = voice(1.0, 0.44); if (!V) return;
+    tone(t0, 68, 0.36, 0.40, 'sine', V, 28);
+    tone(t0, 136, 0.24, 0.16, 'triangle', V, 46);
+    noise(t0, 0.30, 'lowpass', 720, 0.55, 0.28, V);
+    noise(t0 + 0.02, 0.20, 'bandpass', 1500, 1.2, 0.13, V);
   }
 
+  /* 칼집 패링: 6배음 쇠 맞부딪힘 + 묵직한 타격 + 맑은 공명 */
   function parry() {
     if (quiet) return;
     const c = resume(); if (!c) return;
     const t0 = c.currentTime;
-    const V = voice(0.95, 0.16); if (!V) return;
-    tone(t0, 720, 0.12, 0.16, 'triangle', V, 240);
-    noise(t0, 0.06, 'highpass', 2500, 1, 0.18, V);
+    const V = voice(1.0, 0.34); if (!V) return;
+    tone(t0, 115, 0.10, 0.20, 'sine', V, 58);
+    [980, 1520, 2240, 3190, 4420].forEach(function (f, i) {
+      tone(t0, f, 0.24 - i * 0.03, 0.095 / (i * 0.55 + 1), i < 2 ? 'triangle' : 'sine', V, f * 0.96);
+    });
+    noise(t0, 0.055, 'highpass', 2800, 1.1, 0.18, V);
     bell();
   }
 
-  /* v0.26 보스 패턴: 징(금빛 예고·패링 창이 열리는 순간)과 기모으기의 차오르는 소리. */
+  /* 한국 징(Jing): 7개 비정수 금속 배음 + 느린 맥놀이 + 장엄한 잔향 */
   function gong() {
     if (quiet) return;
     const c = resume(); if (!c) return;
     const t0 = c.currentTime;
-    const V = voice(0.95, 1.4); if (!V) return;
-    tone(t0, 196, 1.3, 0.24, 'sine', V, 186);
-    tone(t0, 398, 0.9, 0.08, 'triangle', V, 390);
-    noise(t0, 0.05, 'bandpass', 900, 1.5, 0.12, V);
+    const V = voice(1.0, 1.85); if (!V) return;
+    const f0 = 146.83; /* D3 — 깊고 웅장한 대징 */
+    for (let i = 0; i < JING_PARTIALS.length; i++) {
+      const dur = 1.75 - i * 0.18;
+      tone(t0, f0 * JING_PARTIALS[i], dur, JING_GAINS[i], i % 2 ? 'triangle' : 'sine', V, f0 * JING_PARTIALS[i] * 0.985);
+    }
+    /* 징 특유의 느린 맥놀이(약간 어긋난 쌍배음) */
+    tone(t0 + 0.01, f0 * 1.012, 1.65, 0.14, 'sine', V, f0 * 0.995);
+    noise(t0, 0.06, 'bandpass', 880, 1.4, 0.15, V);
   }
+
+  /* v0.50: ReferenceError(perfect) 수정 + 아쟁 상승 글리산도 + 심장박동 대북 기모으기 */
   function charge(dur) {
     if (quiet) return;
     const c = resume(); if (!c) return;
+    const d = Math.max(0.25, Math.min(3.5, dur || 1.2));
     const t0 = c.currentTime;
-    const V = voice(0.7, dur); if (!V) return;
-    if (!sample('wood', V, t0, perfect ? 1.12 : 0.94, 0.62)) tone(t0, 90, dur, 0.1, 'sawtooth', V, 360);
-    tone(t0, 180, dur, 0.05, 'sine', V, 720);
+    const V = voice(0.8, d + 0.15); if (!V) return;
+    tone(t0, 82, d, 0.12, 'sawtooth', V, 220);
+    tone(t0, 164, d, 0.07, 'triangle', V, 440);
+    noise(t0, d * 0.85, 'bandpass', 720, 1.8, 0.06, V);
+    /* 차오르는 대북 심장박동 */
+    const beats = Math.max(2, Math.min(5, Math.floor(d / 0.42)));
+    for (let i = 0; i < beats; i++) {
+      const tb = t0 + (i / beats) * d * 0.85;
+      tone(tb, 76 + i * 10, 0.16, 0.14 + i * 0.03, 'sine', V, 38);
+    }
   }
 
+  /* v0.50 보스 전용 국악 사운드 5종 */
+  function kkwaeng(t0, vol, dest) {
+    const out = dest || bgmGain;
+    if (!out) return;
+    const k = vol == null ? 1 : vol;
+    [880, 1340, 2120, 3190].forEach(function (f, i) {
+      tone(t0, f, 0.18 - i * 0.025, (0.045 * k) / (i * 0.5 + 1), i === 0 ? 'triangle' : 'sine', out, f * 0.97);
+    });
+    noise(t0, 0.04, 'bandpass', 3600, 1.6, 0.05 * k, out);
+  }
+
+  function bossSpawn() {
+    if (quiet) return;
+    const c = resume(); if (!c) return;
+    const t0 = c.currentTime;
+    const V = voice(1.0, 1.9); if (!V) return;
+    gong();
+    /* 장엄한 대북 3연타 + 낮은 아쟁 포효 */
+    tone(t0, 62, 0.45, 0.38, 'sine', V, 30);
+    tone(t0 + 0.22, 68, 0.35, 0.28, 'sine', V, 34);
+    tone(t0 + 0.42, 58, 0.65, 0.42, 'sine', V, 26);
+    tone(t0 + 0.05, 110, 1.2, 0.11, 'sawtooth', V, 82);
+  }
+
+  function bossSlam() {
+    if (quiet) return;
+    const c = resume(); if (!c) return;
+    const t0 = c.currentTime;
+    const V = voice(1.0, 0.62); if (!V) return;
+    tone(t0, 64, 0.48, 0.46, 'sine', V, 24);
+    tone(t0, 138, 0.26, 0.20, 'triangle', V, 44);
+    noise(t0, 0.34, 'lowpass', 620, 0.55, 0.32, V);
+    noise(t0 + 0.015, 0.14, 'bandpass', 1900, 1.3, 0.15, V);
+    kkwaeng(t0, 0.9, V);
+  }
+
+  function bossCharge() {
+    if (quiet) return;
+    const c = resume(); if (!c) return;
+    const t0 = c.currentTime;
+    const V = voice(0.95, 0.42); if (!V) return;
+    kkwaeng(t0, 1.1, V);
+    noise(t0 + 0.02, 0.32, 'bandpass', 1450, 0.9, 0.22, V);
+    tone(t0, 280, 0.28, 0.14, 'sawtooth', V, 92);
+  }
+
+  function bossVolley() {
+    if (quiet) return;
+    const c = resume(); if (!c) return;
+    const t0 = c.currentTime;
+    const V = voice(0.9, 0.36); if (!V) return;
+    for (let i = 0; i < 4; i++) {
+      const tb = t0 + i * 0.045;
+      noise(tb, 0.07, 'highpass', 2400 + i * 350, 1.2, 0.12, V);
+      tone(tb, 980 + i * 180, 0.08, 0.055, 'triangle', V, 520);
+    }
+  }
+
+  function bossBreak() {
+    if (quiet) return;
+    const c = resume(); if (!c) return;
+    const t0 = c.currentTime;
+    const V = voice(1.0, 1.1); if (!V) return;
+    gong();
+    [1174.66, 880, 659.25, 587.33].forEach(function (f, i) {
+      tone(t0 + i * 0.065, f, 0.36, 0.09, 'sine', V, f * 0.99);
+    });
+  }
+
+  /* ---------- 풍성한 한국 전통 BGM 편성 (대북·장구·꽹과리·가야금·대금·아쟁 드론) ---------- */
   function buk(t0, heavy) {
     if (!bgmGain) return;
-    tone(t0, heavy ? 72 : 96, heavy ? 0.18 : 0.1, heavy ? 0.28 : 0.12, 'sine', bgmGain, heavy ? 38 : 60);
-    noise(t0, heavy ? 0.08 : 0.05, 'lowpass', heavy ? 400 : 700, 0.7, heavy ? 0.16 : 0.07, bgmGain);
+    tone(t0, heavy ? 68 : 92, heavy ? 0.24 : 0.12, heavy ? 0.30 : 0.14, 'sine', bgmGain, heavy ? 34 : 56);
+    noise(t0, heavy ? 0.09 : 0.05, 'lowpass', heavy ? 380 : 680, 0.7, heavy ? 0.16 : 0.07, bgmGain);
   }
 
-  function janggu(t0) {
-    noise(t0, 0.04, 'bandpass', 1800, 2.2, 0.07, bgmGain);
-    tone(t0, 220, 0.05, 0.05, 'triangle', bgmGain, 140);
+  function janggu(t0, accent) {
+    if (!bgmGain) return;
+    const k = accent ? 1.35 : 1.0;
+    noise(t0, 0.045, 'bandpass', accent ? 2200 : 1750, 2.2, 0.075 * k, bgmGain);
+    tone(t0, accent ? 260 : 215, 0.055, 0.055 * k, 'triangle', bgmGain, 135);
+  }
+
+  /* 가야금 산조 뜯기: 명주실 현 배음 + 미세 농현(vibrato) */
+  function gayageum(t0, freq, dur, vol) {
+    if (!bgmGain) return;
+    const c = ac(); if (!c) return;
+    const v = vol == null ? 0.095 : vol;
+    const o1 = c.createOscillator(), o2 = c.createOscillator();
+    const g = c.createGain(), f = c.createBiquadFilter();
+    o1.type = 'triangle'; o2.type = 'sine';
+    o1.frequency.setValueAtTime(freq, t0);
+    o2.frequency.setValueAtTime(freq * 2.005, t0);
+    /* 농현: 음이 울린 직후 자연스럽게 떨림 */
+    const lfo = c.createOscillator(), lg = c.createGain();
+    lfo.frequency.value = 4.6;
+    lg.gain.setValueAtTime(0.0001, t0);
+    lg.gain.linearRampToValueAtTime(freq * 0.011, t0 + Math.min(0.28, dur * 0.45));
+    lfo.connect(lg); lg.connect(o1.frequency);
+    f.type = 'lowpass';
+    f.frequency.setValueAtTime(Math.min(4800, freq * 6.5), t0);
+    f.frequency.exponentialRampToValueAtTime(Math.max(320, freq * 1.4), t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(v, t0 + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o1.connect(f); o2.connect(f); f.connect(g); g.connect(bgmGain);
+    o1.start(t0); o1.stop(t0 + dur + 0.03);
+    o2.start(t0); o2.stop(t0 + dur + 0.03);
+    lfo.start(t0); lfo.stop(t0 + dur + 0.03);
+  }
+
+  /* 아쟁/거문고 저음 드론: 밤의 폐허와 보스전의 묵직한 바닥 울림 */
+  function ajaengDrone(t0, freq, dur, vol) {
+    if (!bgmGain) return;
+    const c = ac(); if (!c) return;
+    const o = c.createOscillator(), f = c.createBiquadFilter(), g = c.createGain();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(freq, t0);
+    f.type = 'lowpass';
+    f.frequency.setValueAtTime(freq * 2.4, t0);
+    f.frequency.linearRampToValueAtTime(freq * 3.8, t0 + dur * 0.5);
+    f.frequency.linearRampToValueAtTime(freq * 2.0, t0 + dur);
+    f.Q.value = 1.6;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(vol || 0.065, t0 + 0.25);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    o.connect(f); f.connect(g); g.connect(bgmGain);
+    o.start(t0); o.stop(t0 + dur + 0.04);
   }
 
   function daegeum(t0, freq, dur) {
     if (!bgmGain) return;
-    const c = ac();
-    const o = c.createOscillator();
-    const g = c.createGain();
-    const f = c.createBiquadFilter();
-    o.type = 'sine';
+    const c = ac(); if (!c) return;
+    const o = c.createOscillator(), o2 = c.createOscillator();
+    const g = c.createGain(), g2 = c.createGain(), f = c.createBiquadFilter();
+    o.type = 'sine'; o2.type = 'triangle';
     o.frequency.setValueAtTime(freq, t0);
-    /* gentle vibrato */
-    const lfo = c.createOscillator();
-    const lg = c.createGain();
-    lfo.frequency.value = 5.2;
-    lg.gain.value = freq * 0.008;
+    o2.frequency.setValueAtTime(freq * 2, t0);
+    const lfo = c.createOscillator(), lg = c.createGain();
+    lfo.frequency.value = 5.4;
+    lg.gain.value = freq * 0.010;
     lfo.connect(lg); lg.connect(o.frequency);
     f.type = 'bandpass';
-    f.frequency.value = freq * 1.4;
-    f.Q.value = 2.5;
+    f.frequency.value = freq * 1.45;
+    f.Q.value = 2.1;
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(0.11, t0 + 0.06);
+    g.gain.exponentialRampToValueAtTime(0.115, t0 + 0.07);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    o.connect(f); f.connect(g); g.connect(bgmGain);
-    /* breath */
-    noise(t0, dur * 0.9, 'bandpass', freq * 2.2, 1.1, 0.025, bgmGain);
-    o.start(t0); o.stop(t0 + dur + 0.02);
-    lfo.start(t0); lfo.stop(t0 + dur + 0.02);
+    g2.gain.value = 0.22;
+    o.connect(f); o2.connect(g2); g2.connect(f); f.connect(g); g.connect(bgmGain);
+    /* 대금 숨결(청 울림) */
+    noise(t0, Math.min(0.12, dur * 0.25), 'bandpass', freq * 3.1, 1.8, 0.032, bgmGain);
+    noise(t0, dur * 0.9, 'bandpass', freq * 2.2, 1.1, 0.024, bgmGain);
+    o.start(t0); o.stop(t0 + dur + 0.03);
+    o2.start(t0); o2.stop(t0 + dur + 0.03);
+    lfo.start(t0); lfo.stop(t0 + dur + 0.03);
   }
 
-  const PHRASE = [4, 5, 7, 5, 4, 2, 0, 2, 4, 4, 5, 7, 9, 7, 5, 4];
+  /* A/B 2악절 32스텝 계면조(D-F-G-A-C) 선율 + 가야금 반주 */
+  const GY_SCALE = [0, 3, 5, 7, 10, 12, 15, 17, 19, 22]; /* D 계면조 반음 */
+  const PHRASE_A = [3, 4, 5, 4, 3, 2, 0, 2, 3, 5, 6, 5, 4, 3, 2, 0];
+  const PHRASE_B = [5, 6, 7, 6, 5, 4, 3, 4, 5, 3, 2, 3, 4, 2, 0, 0];
+  const BOSS_ARP = [0, 3, 4, 5, 4, 3, 1, 0];
+  function gyFreq(deg, oct) {
+    const semi = GY_SCALE[((deg | 0) + GY_SCALE.length * 4) % GY_SCALE.length] + (oct || 0) * 12;
+    return 293.66 * Math.pow(2, semi / 12); /* D4 기준 */
+  }
+
+  function setBossMode(on) {
+    bossMode = !!on;
+  }
 
   function scheduleBeat(t0, i, bpm) {
-    const heavy = (i % 4) === 0 || (i % 4) === 2;
+    const per = 60 / (bpm || 100);
+    const barBeat = i % 8;
+    const isHeavy = (i % 4) === 0 || (i % 4) === 2;
+
+    /* 1) 저음 아쟁/거문고 드론 (8박마다 깊은 호흡) */
+    if (barBeat === 0) {
+      const root = bossMode && ((i >> 3) % 2 === 1) ? 77.78 : 73.42; /* D2 ↔ Eb2 긴장감 */
+      ajaengDrone(t0, root, per * 7.8, bossMode ? 0.085 : 0.055);
+      ajaengDrone(t0 + 0.03, root * 1.5, per * 7.2, bossMode ? 0.045 : 0.03);
+    }
+
+    /* 2) 타악: 일반전 중모리·굿거리 ↔ 보스전 자진모리·꽹과리 */
     buk(t0, (i % 4) === 0);
-    if ((i % 4) === 2) buk(t0 + 0.02, false);
-    if (!heavy) janggu(t0);
-    /* light 8th on the 'and' of 2 and 4 */
-    if ((i % 4) === 1 || (i % 4) === 3) janggu(t0 + (60 / bpm) * 0.5 * 0.15);
+    if (bossMode) {
+      if ((i % 2) === 1) buk(t0 + per * 0.5, false);
+      janggu(t0 + per * 0.25, (i % 4) === 1);
+      janggu(t0 + per * 0.75, (i % 4) === 3);
+      if ((i % 4) === 0 || (i % 8) === 6) kkwaeng(t0, (i % 8) === 0 ? 0.85 : 0.55, bgmGain);
+    } else {
+      if ((i % 4) === 2) buk(t0 + 0.02, false);
+      if (!isHeavy) janggu(t0, false);
+      if ((i % 4) === 1 || (i % 4) === 3) janggu(t0 + per * 0.5, (i % 4) === 3);
+    }
+
+    /* 3) 가야금 산조 반주 (매 박 부드러운 뜯기, 보스전엔 긴박한 8분음표 아르페지오) */
+    if (bossMode) {
+      const a0 = BOSS_ARP[i % BOSS_ARP.length];
+      const a1 = BOSS_ARP[(i + 2) % BOSS_ARP.length];
+      gayageum(t0, gyFreq(a0, 0), per * 0.85, 0.095);
+      gayageum(t0 + per * 0.5, gyFreq(a1, 1), per * 0.65, 0.07);
+    } else if (i % 2 === 0 || i % 4 === 3) {
+      const phrase = ((i >> 4) % 2 === 0) ? PHRASE_A : PHRASE_B;
+      const deg = phrase[(i >> 1) % phrase.length];
+      gayageum(t0 + 0.01, gyFreq(deg, -1), per * 1.7, 0.085);
+      if (i % 4 === 0) gayageum(t0 + per * 0.35, gyFreq(deg + 2, 0), per * 1.1, 0.055);
+    }
+
+    /* 4) 대금 선율 (2박마다 A/B 32스텝 서정/비장 선율) */
     if (i % 2 === 0) {
-      const note = PHRASE[melodyI % PHRASE.length];
+      const phrase = ((melodyI >> 4) % 2 === 0) ? PHRASE_A : PHRASE_B;
+      const deg = phrase[melodyI % phrase.length];
       melodyI++;
-      const freq = 392 * Math.pow(2, note / 12); /* G4 base, pentatonic steps stored as semitone-ish scale degrees */
-      const map = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21];
-      const f = 349.23 * Math.pow(2, (map[note] || 0) / 12); /* F4 */
-      if (i % 8 === 0 || !sample('silk', bgmGain, t0 + 0.02, f / 220, 0.45)) daegeum(t0 + 0.02, f, (60 / bpm) * (heavy ? 1.6 : 1.15));
+      const f = gyFreq(deg, bossMode ? 1 : 0);
+      if (i % 8 === 0 || !sample('silk', bgmGain, t0 + 0.02, f / 220, 0.36)) {
+        daegeum(t0 + 0.02, f, per * (isHeavy ? 1.75 : 1.2));
+      }
     }
   }
 
@@ -389,7 +594,7 @@ export function createAudio() {
   function tick(bpm) {
     if (!bgmOn || quiet) return;
     const c = ac(); if (!c) return;
-    bpm = bpm || 100;
+    bpm = (bpm || 100) * (bossMode ? 1.18 : 1.0);
     const per = 60 / bpm;
     const t = c.currentTime;
     /* schedule a little ahead */
@@ -466,6 +671,12 @@ export function createAudio() {
     parry: parry,
     drum: drum,
     gong: gong,
+    bossSpawn: bossSpawn,
+    bossSlam: bossSlam,
+    bossCharge: bossCharge,
+    bossVolley: bossVolley,
+    bossBreak: bossBreak,
+    setBossMode: setBossMode,
     paperFold: paperFold,
     paperTear: paperTear,
     paperCrush: paperCrush,
@@ -479,8 +690,9 @@ export function createAudio() {
       const b = busInfo ? busInfo.snapshot() : null;
       return {
         synth: true,
-        bpm: 100,
-        kinds: ['slash', 'hit', 'explode', 'bell', 'bellCut', 'whiff', 'pickup', 'drum', 'paperFold', 'paperTear', 'paperCrush', 'bgm-daegeum-buk'],
+        bpm: bossMode ? 118 : 100,
+        bossMode: bossMode,
+        kinds: ['slash', 'hit', 'explode', 'bell', 'bellCut', 'whiff', 'pickup', 'drum', 'gong', 'bossSpawn', 'bossSlam', 'bossCharge', 'bossVolley', 'bossBreak', 'paperFold', 'paperTear', 'paperCrush', 'bgm-gayageum-daegeum-ajaeng-janggu'],
         muted: muted,
         bgmOn: bgmOn,
         source: 'original-webaudio',

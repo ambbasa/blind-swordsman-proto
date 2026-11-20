@@ -679,12 +679,12 @@ export const STONE = {
    바닥까지 끌리는 붉은 겉옷(금박 단)과 검은 속옷, 종처럼 벌어진 소매, 뿔 달린 귀면 가면과 높은 관,
    등 뒤로 늘어진 긴 머리, 고리 달린 긴 지팡이. 지팡이를 세워 짚고 미끄러지듯 걷는다. */
 const BOSS_VAR = [
-  { robe: 0x612918, trim: 0x8e612e, inner: 0x3b2c1d },       /* 원화 그대로 — 주홍 */
-  { robe: 0x27364a, trim: 0x8f8a78, inner: 0x23262c },       /* 쪽빛·은 */
-  { robe: 0x2f4030, trim: 0x8a6a36, inner: 0x262a22 },       /* 청록·청동 */
-  { robe: 0x45264a, trim: 0x9a7a40, inner: 0x2a2230 }        /* 자주·금 */
+  { robe: 0x6b2216, trim: 0xb68238, inner: 0x261d17, accent: 0xc92f22 },       /* 1막/기본 — 주홍·금박 */
+  { robe: 0x21324a, trim: 0xa4a08c, inner: 0x1b1e24, accent: 0x52c8b0 },       /* 2막 — 쪽빛·은·비취 */
+  { robe: 0x263c2b, trim: 0xa8823c, inner: 0x1c221b, accent: 0xd8a244 },       /* 대숲/산사 — 청록·청동 */
+  { robe: 0x421c44, trim: 0xc29848, inner: 0x211828, accent: 0xe04838 }        /* 3막 — 자주·혈월·금 */
 ];
-const BOSS_COL = { mask: 0x4c3c2e, skin: 0x3d3022, hat: 0x4a3420, hair: 0x2a1812, staff: 0x6d4d21, iron: 0x3a3229, shoe: 0x2a2018, gold: 0x9a6831, horn: 0x2c241c, gem: 0x9c6b2a };
+const BOSS_COL = { mask: 0x44362a, skin: 0x3b2d20, hat: 0x33241a, hair: 0x1e120e, staff: 0x5a3e1c, iron: 0x2d2722, shoe: 0x221a14, gold: 0xb88438, horn: 0x241d17, gem: 0xd43828 };
 export const BOSS = {
   key: 'boss', h: 6.2, pelvisY: 2.90, hullT: 0.050,
   defs: [
@@ -743,8 +743,26 @@ export const BOSS = {
     [[0.07 * PI, 0.17 * PI], [-0.17 * PI, -0.07 * PI]].forEach(function (a) {
       out.push(tube(OR.map(function (r) { return [r[0], r[1] + 0.012, r[2] + 0.012, r[3] + 0.012]; }), { chain: torso, seg: 2, arc: a, color: V.trim, zone: AZ.bossTrim, tile: 0.5, nh: 1 }));
     });
-    /* 허리 장식 띠 */
-    out.push(tube([[3.22, 0.445, 0.330, 0.310], [3.32, 0.452, 0.336, 0.316], [3.42, 0.445, 0.330, 0.310]], { chain: [['pelvis', 0], ['spine', 3.40]], seg: 16, arc: [-0.2 * PI, 0.2 * PI], color: V.trim, zone: AZ.bossTrim, nh: 1 }));
+    /* 허리 장식 띠 + 앞 드리움 전대(갑주 위엄 강화) */
+    out.push(tube([[3.18, 0.465, 0.345, 0.325], [3.32, 0.480, 0.355, 0.335], [3.46, 0.465, 0.345, 0.325]], { chain: [['pelvis', 0], ['spine', 3.40]], seg: 16, color: V.trim, zone: AZ.bossTrim, nh: 1 }));
+    /* v0.50: 흉배(금박 문양 판) + 어깨 갑주(귀면 견갑) + 등 뒤 수묵 원광(후광 고리) */
+    out.push(rigid('chest', new THREE.BoxGeometry(0.46, 0.44, 0.08), V.trim, { pos: [0, 0.10, 0.32], zone: Z.GOLD, ht: 0.5 }));
+    out.push(rigid('chest', new THREE.BoxGeometry(0.32, 0.30, 0.09), V.accent || C.gem, { pos: [0, 0.10, 0.33], zone: AZ.bossRobe, nh: 1 }));
+    /* 등 뒤 부유 원광 고리 + 3방 주홍 부적 패 — 귀물 보스의 압도적 실루엣 */
+    out.push(rigid('chest', new THREE.TorusGeometry(0.92, 0.036, 6, 28), V.trim, { pos: [0, 0.62, -0.44], zone: Z.GOLD, ht: 0.7 }));
+    out.push(rigid('chest', new THREE.TorusGeometry(0.76, 0.018, 5, 24), V.accent || C.gem, { pos: [0, 0.62, -0.46], zone: Z.IRON, nh: 1 }));
+    [-0.96, 0, 0.96].forEach(function (ang) {
+      const rx = Math.sin(ang) * 0.92, ry = 0.62 + Math.cos(ang) * 0.92;
+      out.push(rigid('chest', new THREE.BoxGeometry(0.16, 0.34, 0.03), V.accent || C.gem, { pos: [rx, ry, -0.45], rot: [0, 0, -ang], zone: AZ.bossRobe, ht: 0.5 }));
+      out.push(rigid('chest', new THREE.BoxGeometry(0.10, 0.24, 0.04), V.trim, { pos: [rx, ry, -0.45], rot: [0, 0, -ang], zone: Z.GOLD, nh: 1 }));
+    });
+    ['L', 'R'].forEach(function (s) {
+      const sd = s === 'L' ? 1 : -1;
+      /* 층층이 겹친 귀면 어깨 견갑(상체 볼륨·위압감 대폭 강화) */
+      out.push(rigid('shoulder' + s, new THREE.CylinderGeometry(0.16, 0.34, 0.34, 7, 1, false, 0, Math.PI * 1.4), C.iron, { pos: [sd * 0.14, 0.14, 0.02], rot: [0.10, sd > 0 ? -0.35 : Math.PI + 0.35, -sd * 0.52], zone: Z.IRON, ht: 0.75 }));
+      out.push(rigid('shoulder' + s, new THREE.BoxGeometry(0.42, 0.08, 0.36), V.trim, { pos: [sd * 0.18, 0.24, 0.02], rot: [0.06, 0, -sd * 0.38], zone: Z.GOLD, ht: 0.6 }));
+      out.push(rigid('shoulder' + s, new THREE.ConeGeometry(0.085, 0.38, 5), V.accent || C.gem, { pos: [sd * 0.34, 0.34, 0.0], rot: [0, 0, -sd * 0.72], zone: AZ.bossRobe, ht: 0.6 }));
+    });
     /* 속옷 자락(통) + 겉옷 자락(앞이 벌어진 큰 종) + 금박 밑단 */
     // Split riding coat: the knees, shins and the negative space between them stay visible.
     const hemWeights = skirtWeights(3.3,1.95,{leg:.65,clothK:.3});
@@ -772,9 +790,12 @@ export const BOSS = {
       { chain: [['head', 0]], seg: 14, capA: true, capB: true, cz: 0.02, color: C.mask, zone: Z.IRON }));
     out.push(faceDecal('head', [[4.43, 0.082, 0.112, 0.02], [4.50, 0.158, 0.188, 0.02], [4.62, 0.213, 0.228, 0.02], [4.78, 0.246, 0.248, 0.02], [4.94, 0.256, 0.250, 0.02], [5.06, 0.240, 0.232, 0.02], [5.12, 0.200, 0.194, 0.02]],
       0.248, 4.42, 5.12, AZ.bossMask, C.mask));
-    /* 뿔 */
+    /* 뿔 (크고 웅장한 쌍곡선 귀면 뿔 + 붉은 안광) */
     [1, -1].forEach(function (sd) {
-      out.push(rigid('head', new THREE.ConeGeometry(0.060, 0.42, 6), C.horn, { pos: [sd * 0.20, 0.50, 0.10], rot: [0.10, 0, -sd * 0.42], ht: 0.6 }));
+      out.push(rigid('head', new THREE.ConeGeometry(0.085, 0.66, 7), C.horn, { pos: [sd * 0.23, 0.58, 0.10], rot: [0.16, 0, -sd * 0.48], ht: 0.7 }));
+      out.push(rigid('head', new THREE.ConeGeometry(0.042, 0.32, 6), V.trim, { pos: [sd * 0.34, 0.80, 0.14], rot: [0.22, 0, -sd * 0.22], zone: Z.GOLD, ht: 0.5 }));
+      /* 가면의 빛나는 주홍 안광 */
+      out.push(rigid('head', ball(0.042, 1.3, 0.65, 0.7), V.accent || C.gem, { pos: [sd * 0.095, 0.24, 0.245], nh: 1 }));
     });
     /* 높은 관 + 금 띠 + 양옆 드림 */
     out.push(tube([[5.10, 0.190, 0.160, 0.170], [5.30, 0.200, 0.170, 0.180], [5.52, 0.212, 0.180, 0.190], [5.58, 0.150, 0.130, 0.140]],
@@ -788,18 +809,20 @@ export const BOSS = {
     /* 긴 머리 — 뒤통수에서 등 가운데까지 늘어진다(스프링 뼈). */
     out.push(tube([[5.10, 0.230, 0.200, 0.250], [4.80, 0.265, 0.200, 0.275], [4.40, 0.300, 0.180, 0.300], [3.90, 0.330, 0.170, 0.330, 0, 0, 0.03], [3.45, 0.300, 0.160, 0.340, 0, 0, 0.05, 0.30]],
       { chain: [['head', 5.10], ['hair', 4.50]], blend: 0.22, seg: 14, pleats: 11, arc: [0.50 * PI, 1.50 * PI], cz: 0.02, color: C.hair, zone: Z.CLOTH }));
-    /* 지팡이 — 긴 자루, 꼭대기의 큰 고리와 구슬, 양끝 창날, 고리에 달린 드림. 뼈 +Y 가 위. */
-    const pole = loft([{ y: -3.30, rx: 0.012, rzF: 0.012, rzB: 0.012 }, { y: -3.05, rx: 0.060, rzF: 0.060, rzB: 0.060 }, { y: -2.90, rx: 0.042, rzF: 0.042, rzB: 0.042 },
-      { y: 1.30, rx: 0.045, rzF: 0.045, rzB: 0.045 }, { y: 1.42, rx: 0.075, rzF: 0.075, rzB: 0.075 }, { y: 1.52, rx: 0.045, rzF: 0.045, rzB: 0.045 }],
-      { seg: 6, capA: true, capB: true, tile: 0.6 });
-    out.push(rigid('weapon', pole.geo, C.staff, { zone: AZ.wood, uvKeep: true, ht: 0.6 }));
-    out.push(rigid('weapon', new THREE.TorusGeometry(0.36, 0.034, 5, 20), C.iron, { pos: [0, 1.92, 0], zone: Z.IRON, ht: 0.6 }));
-    out.push(rigid('weapon', ball(0.13, 1, 1, 1), C.gem, { pos: [0, 1.92, 0], zone: Z.GOLD, ht: 0.6 }));
-    out.push(rigid('weapon', new THREE.ConeGeometry(0.055, 0.50, 6), C.iron, { pos: [0, 2.54, 0], zone: Z.IRON, ht: 0.5 }));
+    /* 지팡이 — 월아 석장(굵은 흑단 자루 + 거대한 초승달 창날 + 붉은 보주 + 금고리·드림). 뼈 +Y 가 위. */
+    const pole = loft([{ y: -3.30, rx: 0.016, rzF: 0.016, rzB: 0.016 }, { y: -3.02, rx: 0.075, rzF: 0.075, rzB: 0.075 }, { y: -2.86, rx: 0.052, rzF: 0.052, rzB: 0.052 },
+      { y: 1.34, rx: 0.056, rzF: 0.056, rzB: 0.056 }, { y: 1.48, rx: 0.095, rzF: 0.095, rzB: 0.095 }, { y: 1.60, rx: 0.056, rzF: 0.056, rzB: 0.056 }],
+      { seg: 8, capA: true, capB: true, tile: 0.6 });
+    out.push(rigid('weapon', pole.geo, C.staff, { zone: AZ.wood, uvKeep: true, ht: 0.7 }));
+    /* 초승달 월아날(상단 개방 토러스 + 금빛 내륜 + 중앙 주홍 영혼구) */
+    out.push(rigid('weapon', new THREE.TorusGeometry(0.46, 0.055, 6, 22, Math.PI * 1.48), C.iron, { pos: [0, 2.02, 0], rot: [0, 0, Math.PI * 0.76], zone: Z.IRON, ht: 0.75 }));
+    out.push(rigid('weapon', new THREE.TorusGeometry(0.36, 0.028, 5, 20), V.trim, { pos: [0, 1.98, 0], zone: Z.GOLD, ht: 0.6 }));
+    out.push(rigid('weapon', ball(0.17, 1, 1, 1), V.accent || C.gem, { pos: [0, 1.98, 0], zone: Z.GOLD, ht: 0.7 }));
+    out.push(rigid('weapon', new THREE.ConeGeometry(0.075, 0.66, 6), C.iron, { pos: [0, 2.72, 0], zone: Z.IRON, ht: 0.6 }));
     [1, -1].forEach(function (sd) {
-      out.push(rigid('weapon', new THREE.ConeGeometry(0.030, 0.18, 5), C.iron, { pos: [sd * 0.10, 2.36, 0], rot: [0, 0, -sd * 0.7], zone: Z.IRON, nh: 1 }));
-      out.push(rigid('weapon', new THREE.CylinderGeometry(0.010, 0.010, 0.34, 5), C.gold, { pos: [sd * 0.36, 1.66, 0], zone: Z.GOLD, nh: 1 }));
-      out.push(rigid('weapon', ball(0.036, 1, 2.2, 1), V.robe, { pos: [sd * 0.36, 1.42, 0], nh: 1 }));
+      out.push(rigid('weapon', new THREE.ConeGeometry(0.045, 0.28, 5), V.trim, { pos: [sd * 0.14, 2.48, 0], rot: [0, 0, -sd * 0.72], zone: Z.GOLD, nh: 1 }));
+      out.push(rigid('weapon', new THREE.CylinderGeometry(0.014, 0.014, 0.44, 5), C.gold, { pos: [sd * 0.42, 1.66, 0], zone: Z.GOLD, nh: 1 }));
+      out.push(rigid('weapon', ball(0.052, 1, 2.4, 1), V.accent || V.robe, { pos: [sd * 0.42, 1.38, 0], nh: 1 }));
     });
     return out;
   },
@@ -849,7 +872,32 @@ export const BOSS = {
       K(0.28, { spine: [0.08, 0.03, 0.02], chest: [0.12, 0.05, 0.02], head: [-0.06, 0.04, 0.02] }, { pz: -0.03, py: -0.04 }),
       K(0.64, {})
     ]);
-    return { idle: idle, walk: walk, wind: wind, strike: strike, hit: hit };
+    /* v0.50 charge — 낮게 숙여 월아창을 비스듬히 겨눈 채 맹렬히 쇄도하는 포식자 자세 */
+    const chargePose = {
+      pelvis: [0.22, -0.20, 0], spine: [0.24, -0.16, 0], chest: [0.28, -0.24, 0.04], head: [-0.26, 0.22, 0],
+      upperarmR: [0.42, 0.18, -0.54], forearmR: [-0.55, 0, 0], weapon: [2.15, 0.15, 0.10],
+      upperarmL: [-0.95, 0.25, 0.35], forearmL: [-0.65, -0.25, 0],
+      thighL: [-0.55, 0, 0.04], shinL: [0.70, 0, 0], thighR: [0.35, 0, -0.04], shinR: [0.32, 0, 0]
+    };
+    const charge = clipFromKeys(S, prefix, 'charge', [
+      K(0.00, chargePose, { py: -0.34, pz: 0.18 }),
+      K(0.20, Object.assign({}, chargePose, { chest: [0.32, -0.28, 0.05], weapon: [2.22, 0.18, 0.10] }), { py: -0.38, pz: 0.24 }),
+      K(0.40, chargePose, { py: -0.34, pz: 0.18 })
+    ]);
+    /* v0.50 kneel — 기세 붕괴(groggy)·봉인(seal) 시 한쪽 무릎을 꿇고 고개를 떨군 자세 */
+    const kneelPose = {
+      pelvis: [0.18, 0.04, 0], spine: [0.24, 0, 0], chest: [0.32, 0.05, 0], neck: [0.22, 0, 0], head: [0.36, 0, 0],
+      upperarmL: [-0.25, -0.15, 0.24], forearmL: [-0.60, -0.40, 0],
+      upperarmR: [-0.65, 0.08, -0.30], forearmR: [-0.45, 0, 0], weapon: [1.18, 0, 0.25],
+      thighL: [-1.18, 0, 0.05], shinL: [1.45, 0, 0], footL: [-0.24, 0, 0],
+      thighR: [-0.36, 0, -0.05], shinR: [1.52, 0, 0], footR: [0.32, 0, 0]
+    };
+    const kneel = clipFromKeys(S, prefix, 'kneel', [
+      K(0.00, {}),
+      K(0.24, kneelPose, { py: -0.92, pz: 0.08, e: 'out' }),
+      K(1.20, Object.assign({}, kneelPose, { chest: [0.36, 0.05, 0], head: [0.42, 0.05, 0] }), { py: -0.95, pz: 0.08 })
+    ]);
+    return { idle: idle, walk: walk, wind: wind, strike: strike, hit: hit, charge: charge, kneel: kneel };
   }
 };
 

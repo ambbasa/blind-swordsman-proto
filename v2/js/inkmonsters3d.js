@@ -190,7 +190,7 @@ export function build(species, opt) {
   const actions = {};
   Object.keys(C.clips).forEach(function (k) {
     const a = mixer.clipAction(C.clips[k]);
-    if (k !== 'idle' && k !== 'walk') { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
+    if (k !== 'idle' && k !== 'walk' && k !== 'charge') { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
     actions[k] = a;
   });
   actions.idle.play();
@@ -227,50 +227,58 @@ export function build(species, opt) {
   mesh.center = new THREE.Vector2(0.5, 0.5);
 
   const finished = function (e) {
-    /* wind(예비 동작)는 끝까지 재생한 자세로 **굳어 있어야** 한다 — 보스가 칼을 든 채 버티는
-       그 순간이 예고다. 나머지 일회 동작은 끝나면 기본 자세로 돌아간다. */
+    /* wind(예비)·kneel(무릎 꿇음)은 상태가 바뀔 때까지 끝 자세로 굳어 있어야 한다. */
     if (e.action === actions.wind) { H.burst = null; H.held = 'wind'; return; }
+    if (actions.kneel && e.action === actions.kneel) { H.burst = null; H.held = 'kneel'; return; }
     if (!H.burst || e.action !== actions[H.burst]) return;
     backToBase(H, 0.16);
   };
   mixer.addEventListener('finished', finished);
-  if(species==='boss'){
-    buildPaintedBoss().then(model=>{
-      const painted=model.body;
+  /* v0.50: 주인공·몬스터와 완벽히 통일된 3단 수묵 툰 셰이더+먹선 헐 보스(SPECS.boss)를 기본 사용.
+     실험용 종이 래핑 보스(paintedboss.js)는 ?boss=painted 명시 시에만 활성화. */
+  let usePaintedBoss = false;
+  try { usePaintedBoss = new URLSearchParams(location.search).get('boss') === 'painted'; } catch (e) {}
+  if (species === 'boss' && usePaintedBoss) {
+    buildPaintedBoss().then(model => {
+      const painted = model.body;
       painted.scale.setScalar(C.h / 1.976);
       root.add(painted);
-      painted.traverse(part=>{
-        if(!part.isMesh)return;
-        part.castShadow=mesh.castShadow;
-        part.material.opacity=H.opacity;
-        part.material.transparent=H.opacity<.999;
+      painted.traverse(part => {
+        if (!part.isMesh) return;
+        part.castShadow = mesh.castShadow;
+        part.material.opacity = H.opacity;
+        part.material.transparent = H.opacity < .999;
         H.mats.push(part.material);
-        part.onBeforeRender=()=>{
+        part.onBeforeRender = () => {
           part.material.color.setRGB(...H.tint);
-          part.material.emissive.copy(H.rimCol).multiplyScalar(Math.max(0,H.rimOp-.20)*.28);
+          part.material.emissive.copy(H.rimCol).multiplyScalar(Math.max(0, H.rimOp - .20) * .28);
         };
       });
-      mesh.visible=false;
-      if(hull)hull.visible=false;
-      H.painted=model;
-      group.userData.poseSource='paintedBoss';
-    }).catch(error=>console.warn('[??] ?? ?? ?? ?? ??',error));
+      mesh.visible = false;
+      if (hull) hull.visible = false;
+      H.painted = model;
+      group.userData.poseSource = 'paintedBoss';
+    }).catch(error => console.warn('[심안] paintedBoss 로드 실패 — 3D 수묵 보스 유지', error));
   }
   LIVE++;
   return group;
 }
 
 /* ---------------------------------------------------------------- 상태 → 동작 */
-/* 보스 상태는 게임이 'boss:<상태>' 로 넘긴다. 예비(굳는 자세)와 내려베기를 나눠 받는다. */
-const BOSS_WIND = { telegraph: 1, wind: 1, volleyTele: 1, slamTele: 1, mimicTele: 1, chant: 1, seal: 1, sealing: 1, kiai: 1, clash: 1, shuffle: 1 };
-const BOSS_STRIKE = { charge: 1, strike: 1, slam: 1, mimicCharge: 1, clones: 0, veil: 0 };
-const BOSS_HIT = { stun: 1, groggy: 1 };
+/* v0.50 보스 상태별 전용 포즈 매핑: 예비(wind) · 쇄도(charge) · 내리찍기(strike) · 무릎 꿇음(kneel) · 경직(hit) */
+const BOSS_WIND = { telegraph: 1, wind: 1, volleyTele: 1, slamTele: 1, mimicTele: 1, chant: 1, kiai: 1, clash: 1, shuffle: 1 };
+const BOSS_CHARGE = { charge: 1, mimicCharge: 1 };
+const BOSS_STRIKE = { strike: 1, slam: 1 };
+const BOSS_KNEEL = { groggy: 1, seal: 1, sealing: 1 };
+const BOSS_HIT = { stun: 1 };
 
 function planFor(H, st) {
   if (H.species === 'boss') {
     const bs = st.indexOf('boss:') === 0 ? st.slice(5) : st;
+    if (BOSS_KNEEL[bs]) return { base: 'idle', burst: H.actions.kneel ? 'kneel' : 'hit' };
+    if (BOSS_CHARGE[bs]) return { base: 'idle', burst: H.actions.charge ? 'charge' : 'strike' };
+    if (BOSS_STRIKE[bs]) return { base: 'idle', burst: 'strike' };
     if (BOSS_HIT[bs]) return { base: 'idle', burst: 'hit' };
-    if (BOSS_STRIKE[bs]) return { base: 'walk', burst: 'strike' };
     if (BOSS_WIND[bs]) return { base: 'idle', burst: 'wind' };
     return { base: null, burst: null };
   }
@@ -424,10 +432,11 @@ export function tick(group, kind, state, dt, vx, vz) {
     crossFade(H, H.base, wantBase, 0.18);
     H.base = wantBase;
   }
-  /* 같은 상태가 여러 프레임 이어져도 일회 동작은 한 번만 — 상태가 새로 들어올 때만 시작한다. */
+  /* 같은 상태가 여러 프레임 이어져도 일회 동작은 한 번만 — 상태가 새로 들어올 때만 시작한다.
+     루프형 burst(charge)는 상태가 끝나면 부드럽게 기본 자세로 복귀시킨다. */
   if (plan.burst) {
     if (plan.burst !== H.prevBurst && H.held !== plan.burst) startBurst(H, plan.burst, plan.burst === 'hit' ? 0.05 : 0.09);
-  } else if (H.held) {
+  } else if (H.held || H.burst === 'charge') {
     backToBase(H, 0.22);
   }
   H.prevBurst = plan.burst;
@@ -454,21 +463,25 @@ export function tick(group, kind, state, dt, vx, vz) {
   }
   if (H.actions.walk) H.actions.walk.setEffectiveTimeScale(Math.max(0.55, Math.min(1.9, 0.75 + H.speed * 0.35)));
 
-  /* v0.48 무게감 — 클립 위에 절차적으로 얹는 '살아 있는' 층:
-     ① 걷기 위상에 맞춘 골반·가슴 좌우 흔들림과 어깨 반동(상체가 통째로 고정된 판처럼 보이지 않게),
-     ② 공격 예비에서 상체를 젖혔다가 타격에 실리는 오버슈트(완급),
-     ③ 추적 중 머리의 미세한 끄덕임. */
-  H.walkT = (H.walkT || 0) + dt * (H.base === 'walk' ? (0.85 + H.speed * 0.4) : 0.35);
-  const wAmp = H.base === 'walk' ? Math.min(1.15, 0.4 + H.speed * 0.5) : 0.15;
-  const ph = H.walkT * 2.5;
-  const sway = Math.sin(ph) * 0.06 * wAmp;
-  const bob = Math.cos(ph * 2) * 0.032 * wAmp;
-  if (H.bones.pelvis) H.bones.pelvis.rotateZ(sway * 0.9);
-  if (H.bones.spine) H.bones.spine.rotateZ(sway * 0.4);
-  if (H.bones.chest) { H.bones.chest.rotateZ(-sway * 0.85); H.bones.chest.rotateX(bob); }
-  if (H.bones.head) { H.bones.head.rotateZ(sway * 0.55); H.bones.head.rotateX(-bob * 0.6); }
-  if (H.bones.upperarmL) H.bones.upperarmL.rotateX(sway * 1.25);
-  if (H.bones.upperarmR) H.bones.upperarmR.rotateX(-sway * 1.25);
+  /* v0.48/v0.50 무게감 — 일반 몬스터는 보행 흔들림을, 보스는 전투 동작 중 어색한 흔들림을 차단하고
+     보행 시에만 묵직하고 위엄 있는 보폭과 호흡을 얹는다. */
+  const bossCombatPose = H.species === 'boss' && (H.burst || H.held);
+  if (!bossCombatPose) {
+    const bossWalkScale = H.species === 'boss' ? 0.42 : 1.0;
+    H.walkT = (H.walkT || 0) + dt * (H.base === 'walk' ? (0.85 + H.speed * 0.4) * bossWalkScale : 0.35);
+    const wAmp = (H.base === 'walk' ? Math.min(1.15, 0.4 + H.speed * 0.5) : 0.15) * (H.species === 'boss' ? 0.45 : 1.0);
+    const ph = H.walkT * 2.5;
+    const sway = Math.sin(ph) * 0.06 * wAmp;
+    const bob = Math.cos(ph * 2) * 0.032 * wAmp;
+    if (H.bones.pelvis) H.bones.pelvis.rotateZ(sway * 0.9);
+    if (H.bones.spine) H.bones.spine.rotateZ(sway * 0.4);
+    if (H.bones.chest) { H.bones.chest.rotateZ(-sway * 0.85); H.bones.chest.rotateX(bob); }
+    if (H.bones.head) { H.bones.head.rotateZ(sway * 0.55); H.bones.head.rotateX(-bob * 0.6); }
+    if (H.species !== 'boss') {
+      if (H.bones.upperarmL) H.bones.upperarmL.rotateX(sway * 1.25);
+      if (H.bones.upperarmR) H.bones.upperarmR.rotateX(-sway * 1.25);
+    }
+  }
   /* 공격 완급: 예비(젖힘) → 타격(몸이 실림) — 클립의 키 위에 작게 겹쳐 맛을 낸다. */
   if (H.burst === 'attack') {
     const a = H.actions.attack;
