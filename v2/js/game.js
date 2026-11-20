@@ -2579,35 +2579,36 @@ function makeArenaGroup(r) {
   if (_arenaCache) { _arenaCache.a.group.traverse(function (o) { if (o.geometry) o.geometry.dispose(); }); }
   const group = new THREE.Group();
   group.name = 'boss-arena';
-  /* v0.54: 인위적인 흰/주황 기하학 결계 테두리 선(ring/inner) 제거 — 먹안개와 기물이 자연스럽게 결계 범위를 이룬다. */
-  const ringGeo = new THREE.RingGeometry(r - 0.42, r, 64, 1);
+  /* v0.54.1: 보스 결계(붉은 장막 벽 wall + 바닥 홍기 띠 ring)는 그대로 살리고,
+     거슬리던 안쪽 흰색 얇은 테두리 선(inner)만 제거한다. */
+  const ringGeo = new THREE.RingGeometry(r - 0.55, r, 128, 1);
   ringGeo.rotateX(-Math.PI / 2);
   const ringMat = new THREE.MeshBasicMaterial({
-    color: 0x3b1f1a, transparent: true, opacity: 0,
+    color: 0xe0522c, transparent: true, opacity: 0.42, blending: THREE.AdditiveBlending,
     depthWrite: false, side: THREE.DoubleSide, fog: false
   });
   const ring = new THREE.Mesh(ringGeo, ringMat);
   ring.position.y = 0.06;
-  ring.visible = false;
+  ring.renderOrder = 4;
   group.add(ring);
   const innerGeo = new THREE.RingGeometry(r * 0.94, r * 0.955, 64, 1);
   innerGeo.rotateX(-Math.PI / 2);
   const innerMat = new THREE.MeshBasicMaterial({
-    color: 0x3b1f1a, transparent: true, opacity: 0,
+    color: 0xffd7a0, transparent: true, opacity: 0,
     depthWrite: false, side: THREE.DoubleSide, fog: false
   });
   const inner = new THREE.Mesh(innerGeo, innerMat);
   inner.position.y = 0.07;
   inner.visible = false;
   group.add(inner);
-  /* 결계 외곽은 아주 은은한 먹·홍기 장막만 남겨 시야를 해치지 않는다 */
-  const wallGeo = new THREE.CylinderGeometry(r, r, 2.4, 72, 1, true);
+  /* 결계 벽: 바닥에서 솟아오르는 반투명 붉은 결계 장막 */
+  const wallGeo = new THREE.CylinderGeometry(r, r, 2.8, 96, 1, true);
   const wallMat = new THREE.MeshBasicMaterial({
-    color: 0x421d16, transparent: true, opacity: 0.06,
+    color: 0xe85a34, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending,
     depthWrite: false, side: THREE.DoubleSide, fog: false
   });
   const wall = new THREE.Mesh(wallGeo, wallMat);
-  wall.position.y = 1.2;
+  wall.position.y = 1.4;
   wall.renderOrder = 4;
   group.add(wall);
   const out = { group: group, ring: ring, inner: inner, wall: wall, ringMat: ringMat, innerMat: innerMat, wallMat: wallMat, t: 0, r: r };
@@ -2774,10 +2775,12 @@ function stepArena(dt) {
   const a = three && three.arena;
   if (!a) return;
   a.t += dt || 0;
-  const p = 0.55 + 0.45 * Math.sin(a.t * 2.4);
-  a.ringMat.opacity = 0;
+  const p = 0.55 + 0.45 * Math.sin(a.t * 2.6);
+  a.ringMat.opacity = 0.30 + 0.16 * p;
   a.innerMat.opacity = 0;
-  a.wallMat.opacity = 0.04 + 0.04 * p;
+  a.wallMat.opacity = 0.14 + 0.09 * p;
+  const s = 1 + 0.005 * Math.sin(a.t * 3.1);
+  a.ring.scale.set(s, 1, s);
 }
 function spawnZombie(opts) {
   opts = opts || {};
@@ -3964,11 +3967,16 @@ function drawV31(ctx, r, hs, t) {
     if (boss.hpTrail == null || boss.hpTrail < curHp) boss.hpTrail = curHp;
     else boss.hpTrail = Math.max(curHp, boss.hpTrail - maxHp * 0.38 * frameDt);
 
-    /* v0.54: 보스 HP 바를 화면 꼭대기가 아닌 보스 발밑(시선 추적 위치)에 배치해 전투 중 눈이 바로 읽도록 개선 */
-    const bp = projectXZ(boss.x, boss.z, 0.04);
-    const w = 116, h = 8;
-    const cx = clamp(bp.x, w * 0.5 + 14, r.width - w * 0.5 - 14);
-    const y = clamp(bp.y + 18, 92, r.height - 96);
+    /* v0.54.1: 보스 HP 바를 보스 발밑(주인공 가림) 대신 보스 머리 위 약점 혼령 바로 위로 배치!
+       주인공·보스 몸체·약점 혼령 어느 것도 가리지 않고 전투 시선에서 바로 읽힌다. */
+    const ud = (boss.obj && boss.obj.userData) || {};
+    const zh = ud.worldH || 5.8;
+    const eye = (ud.bellLocal && ud.bellLocal.y) || zh * 0.55;
+    const orbY = eye + Math.max(0.75, Math.min(1.5, zh * 0.16));
+    const topP = projectXZ(boss.x, boss.z, orbY + 1.55);
+    const w = 108, h = 7;
+    const cx = clamp(topP.x, w * 0.5 + 14, r.width - w * 0.5 - 14);
+    const y = clamp(topP.y - 26, 128, r.height - 140);
     const x = cx - w * 0.5;
     const openLeft = Math.max(0, (boss.openUntil || 0) - (S.elapsed || 0));
     const isOpen = openLeft > 0 || boss.state === 'groggy';
