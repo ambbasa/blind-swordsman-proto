@@ -68,6 +68,7 @@ import { computeAtkBonus, computeComboMul, computeDashDmg, computeMaxHp } from '
 import { STAGES, ACT_NAMES, HANJI_TONE, actOf, stageOf, applyHanjiToneToStages } from './modules/stages.js';
 import { MODES, MODE_ORDER, MODE_NOTE, modeOf, CHALLENGES, challengeOf, RUN_UPGRADES, EVO_RECIPES } from './modules/upgrades.js';
 import { PAT_CODE } from './modules/bossCatalog.js';
+import { createInputQueue, createDashLatencyTracker } from './modules/inputQueue.js';
 /* v0.39 1단계: 팔레트 토큰을 CSS 변수로 내린다(빌드 없이 단일 소스). */
 installCssVars();
 const inkFx = new InkFx();
@@ -1060,7 +1061,11 @@ function quitRun() {
   const had = !!S;
   $('toast').hidden = true;
   toastT = 0;
-  if (S) { S.playing = false; S.paused = null; S.dash = null; S.dashQueue = []; }
+  if (S) {
+    S.playing = false; S.paused = null; S.dash = null; S.dashQueue = [];
+    if (S.inputQueue) S.inputQueue.clear();
+    S.inputBuf = null;
+  }
   closeQuickCards();
   const sk = $('btnSkip');
   if (sk) sk.hidden = true;
@@ -1837,7 +1842,7 @@ function startRun(opts) {
     /* v0.15~v0.17: 참 게이지·패링·선입력·웨이브·자석·진화 */
     charge: 0, chargeLv: 0, magnetR: CFG.magnetR || 2.2,
     parryCd: 0, parryFlash: 0, parryHits: [], cleaveFx: 0, cleaveCount: 0,
-    inputBuf: null, comboGrace: 0,
+    inputBuf: null, inputQueue: createInputQueue({ maxSize: 2 }), dashLatency: createDashLatencyTracker(60), comboGrace: 0,
     waveDone: {}, waveIds: [], wavesFired: [], fogPulse: 0, noMarkT: 0,
     evo: {}, evolved: [], preview: null, lastAxis: 'vline',
     /* v0.22: 무한 청크·묵항아리·보스 결계·진화 레벨 */
@@ -4601,17 +4606,34 @@ function dashEndPoint(from, tgt) {
   const land = safeLand(from, raw);
   return { x: land.x, z: land.z, raw: raw };
 }
+/* v0.49.2 2칸 FIFO 선입력 버퍼: 연타 시 앞선 예약을 덮어쓰지 않고 순서대로 이어 붙인다. */
+function enqueueInputBuf(entry) {
+  if (!S) return { queued: false, size: 0, overwritten: false };
+  if (!S.inputQueue) S.inputQueue = createInputQueue({ maxSize: 2 });
+  const tNow = (entry && entry.t0 != null) ? entry.t0 : now();
+  const res = S.inputQueue.push(entry, tNow);
+  S.inputBuf = S.inputQueue.peek();
+  /* 후속 획이 대기 중이면 남은 히트스톱을 45ms로 정리해 연속 일섬 반응성을 끌어올린다. */
+  if (res.queued && S.hitstop > 0.045) S.hitstop = 0.045;
+  return res;
+}
 /* 선입력 버퍼 소비: 착지 0프레임에 예약된 획을 이어 붙인다. */
 function consumeInputBuf() {
-  if (!S || !S.inputBuf) return false;
-  const b = S.inputBuf;
-  S.inputBuf = null;
-  /* 돌진 중에 예약된 획은 착지 직후(ttl 200ms + 여유) 소비된다. */
-  if (now() - b.t0 > (b.ttl || 200) + 300) return false;
+  if (!S) return false;
+  let b = null;
+  if (S.inputQueue) {
+    b = S.inputQueue.shiftValid(now());
+    S.inputBuf = S.inputQueue.peek();
+  } else if (S.inputBuf) {
+    b = S.inputBuf;
+    S.inputBuf = null;
+    if (now() - b.t0 > (b.ttl || 450) + 350) b = null;
+  }
+  if (!b) return false;
   if (!S.playing || S.paused) return false;
   if (b.type === 'circle') return false;
-  S.comboGrace = Math.max(S.comboGrace || 0, 0.1);
-  beginDash(b.type, { dir: b.dir, quality: b.quality });
+  S.comboGrace = Math.max(S.comboGrace || 0, 0.12);
+  beginDash(b.type, { dir: b.dir, quality: b.quality, tInput: b.t0, chained: true });
   return true;
 }
 function beginDash(shape, opts) {
@@ -4620,7 +4642,7 @@ function beginDash(shape, opts) {
   /* §6.1 뿌리: 착지 직후 0.4초는 몸이 묶인다 — 획은 예약으로 남는다. */
   if (terrainDashingBlocked()) {
     showJudge('뿌리에 묶였다');
-    S.inputBuf = { type: shape, dir: (('dir' in opts) ? opts.dir : (S.lastStrokeDir || null)), t0: now(), ttl: 400, quality: opts.quality };
+    enqueueInputBuf({ type: shape, dir: (('dir' in opts) ? opts.dir : (S.lastStrokeDir || null)), t0: opts.tInput || now(), ttl: 550, quality: opts.quality });
     return { type: shape, targets: [], hits: [], items: [], bound: true };
   }
   const n = S.dashCount;
@@ -4635,7 +4657,12 @@ function beginDash(shape, opts) {
   S.dashQuality = (opts.quality != null) ? opts.quality : 0;
   /* §5.4 두 원소 교대: 일섬마다 실리는 원소를 바꾼다. */
   if ((S.elemSlots || []).length >= 2) S.elemIdx = ((S.elemIdx || 0) + 1) % 2;
-  const rec = { type: shape, targets: targets.map(function (t) { return t.id; }), hits: [], items: [], t0: now(), segs: [], elem: curElem(), cinematic: false, quality: S.dashQuality };
+  const tStart = now();
+  const rec = {
+    type: shape, targets: targets.map(function (t) { return t.id; }), hits: [], items: [],
+    t0: tStart, tInput: opts.tInput || tStart, chained: !!opts.chained, hitstopMs: 0,
+    segs: [], elem: curElem(), cinematic: false, quality: S.dashQuality
+  };
   S.dashSeq = (S.dashSeq || 0) + 1;
   S.lastDash = rec;
   S.dashQueue = targets.slice();
@@ -4741,6 +4768,22 @@ function landDash(d) {
   }
   /* §6.1 착지 지형: 잔해(비틀) · 눈밭(미끄러짐) · 뿌리(묶임 + 충격 2배) */
   onLand(d.to, d);
+  /* v0.49.2 P0 계측: 단타·연타·다수 처치별 입력→돌진→착지 지연 기록 */
+  if (S && S.dashLatency && S.lastDash && !(S.dashQueue && S.dashQueue.length)) {
+    const rec = S.lastDash;
+    const entry = S.dashLatency.record({
+      shape: rec.type,
+      chained: !!rec.chained,
+      hits: (rec.hits && rec.hits.length) || 0,
+      tInput: rec.tInput || rec.t0,
+      tStart: rec.t0,
+      tLand: now(),
+      hitstopMs: rec.hitstopMs || 0,
+      frameDtMs: frameDt * 1000,
+      tailCanceled: !!d.tailCanceled
+    });
+    telemetry.event('dash_latency', entry);
+  }
 }
 function landingShock(at) {
   if (!S) return;
@@ -5539,8 +5582,12 @@ function destroySpirit(s) {
 }
 function addHitstop(sec) {
   if (!S) return;
-  const cap = CFG.hitstopKillMax || 0.12;
-  S.hitstop = Math.min(cap, (S.hitstop || 0) + (sec || 0));
+  const queued = !!(S.inputQueue && S.inputQueue.size() > 0);
+  const cap = queued ? 0.045 : (CFG.hitstopKillMax || 0.12);
+  const prev = S.hitstop || 0;
+  S.hitstop = Math.min(cap, prev + (sec || 0));
+  const added = Math.max(0, S.hitstop - prev);
+  if (added > 0 && S.lastDash) S.lastDash.hitstopMs = (S.lastDash.hitstopMs || 0) + added * 1000;
 }
 /* §3.1 한 획의 정지 예산: 명중·처치가 몇 번 들어가든 0.06초를 넘기지 않는다. */
 function addStrokeHitstop(rec, sec) {
@@ -8047,10 +8094,14 @@ function step(dt) {
   }
   if (S.fogPulse > 0) S.fogPulse = Math.max(0, S.fogPulse - dt / 0.6);
   if (S.comboGrace > 0) S.comboGrace = Math.max(0, S.comboGrace - dt);
-  if (S.inputBuf) {
+  if (S.inputQueue) {
+    const busy = !!S.dash || (S.dashQueue && S.dashQueue.length) || !!(S.terrain && S.terrain.stumbleT > 0);
+    S.inputQueue.prune(now(), busy);
+    S.inputBuf = S.inputQueue.peek();
+  } else if (S.inputBuf) {
     const busy = !!S.dash || (S.dashQueue && S.dashQueue.length);
     const age = now() - S.inputBuf.t0;
-    if ((!busy && age > (S.inputBuf.ttl || 200) + 300) || age > 1200) S.inputBuf = null;
+    if ((!busy && age > (S.inputBuf.ttl || 450) + 350) || age > 1400) S.inputBuf = null;
   }
   if (S.landRipple && S.landRipple.t > 0) {
     S.landRipple.t -= dt / (S.landRipple.dur || 0.45);
@@ -8400,7 +8451,16 @@ function stepDash(dt) {
   S.hero.z = d.from.z + (d.to.z - d.from.z) * k;
   if (three && three.heroSpr) placeGroup(three.heroSpr, S.hero.x, S.hero.z);
   if (u >= 0.85) resolveDash(d);
-  if (u >= 1) { landDash(d); S.dash = null; startSeg(); }
+  /* v0.49.2 테일 캔슬: 판정이 끝난 뒤(u>=0.88) 예약된 후속 획이 대기 중이면 잔여 프레임을 생략하고 즉시 다음 일섬으로 연결 */
+  const tailCancel = u >= 0.88 && d.judged && !(S.dashQueue && S.dashQueue.length) && S.inputQueue && S.inputQueue.size() > 0;
+  if (u >= 1 || tailCancel) {
+    if (tailCancel) {
+      d.tailCanceled = true;
+      S.hero.x = d.to.x; S.hero.z = d.to.z;
+      if (three && three.heroSpr) placeGroup(three.heroSpr, S.hero.x, S.hero.z);
+    }
+    landDash(d); S.dash = null; startSeg();
+  }
 }
 
 /* v0.48 부드러운 카메라 — 프레임 독립 지수 감속(exp)으로 두 단계(따라가기·시선)를 나눠 굴린다.
@@ -8766,19 +8826,25 @@ function finishStroke(pts, opts) {
   rec.combo = S.combo;
   /* 칼날 소리의 높이: 화면에서 그린 획 길이를 0~1로 옮긴다(80px~280px). */
   S.strokeLenRatio = clamp((G.pathLen(pts) - 80) / 200, 0, 1);
-  /* 선입력 버퍼: 돌진·비틀거림 중에 들어온 획은 버리지 않고 예약한다. */
+  /* 선입력 버퍼: 돌진·비틀거림 중에 들어온 획은 버리지 않고 2칸 FIFO 큐에 예약한다. */
+  const tInput = now();
   const stumbling = !!(S.terrain && S.terrain.stumbleT > 0);
   if (S.dash || (S.dashQueue && S.dashQueue.length) || stumbling) {
-    S.inputBuf = { type: rec.type, dir: dir, t0: now(), ttl: stumbling ? 400 : (CFG.inputBufMs || 200), quality: (rec.q != null ? rec.q : rec.bestScore) };
+    const qres = enqueueInputBuf({
+      type: rec.type, dir: dir, t0: tInput,
+      ttl: stumbling ? 550 : Math.max(450, CFG.inputBufMs || 200),
+      quality: (rec.q != null ? rec.q : rec.bestScore)
+    });
     inkFade = 0.20;
-    showJudge(stumbling ? '비틀 — 다음 획' : '예약');
+    showJudge(stumbling ? '비틀 — 다음 획' : (qres.size >= 2 ? '연속 예약' : '예약'));
     rec.buffered = true;
+    rec.queueSize = qres.size;
     rec.targets = [];
     return rec;
   }
   /* §4.2 빈틈 선입력: 걷는 보스의 빈틈이 0.5초 안에 열리면, 튕길 획을 버리지 않고 그 순간 자동으로 낸다. */
   if (bufferGapStroke(rec, dir)) { rec.gapBuffered = true; return rec; }
-  const dash = beginDash(rec.type, { dir: dir, quality: (rec.q != null ? rec.q : rec.bestScore) });
+  const dash = beginDash(rec.type, { dir: dir, quality: (rec.q != null ? rec.q : rec.bestScore), tInput: tInput });
   rec.targets = dash && dash.targets;
   rec.dash = dash;
   /* §8.1 튜토리얼 첫 성공: 0.05초 히트스톱 + 칼소리 + "일섬!" */
@@ -9884,6 +9950,13 @@ const GPv2 = {
   warmNow: function () { return warmShaders(); },
   perfLog: function () { return PERF_LOG.slice(); },
   perfClear: function () { PERF_LOG.length = 0; return true; },
+  dashLatencyReport: function () {
+    return {
+      latency: S && S.dashLatency ? S.dashLatency.summary() : null,
+      queue: S && S.inputQueue ? S.inputQueue.stats() : null,
+      fps: fpsReport()
+    };
+  },
   warmInfo: function () { return warmInfo(); },
   /* QA: 지금까지 먹획을 구운 혼령 기호 */
   bakedShapes: function () { return art.spiritInkShapes ? art.spiritInkShapes() : null; },

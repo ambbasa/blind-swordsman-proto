@@ -16,6 +16,7 @@ import {
 import { STAGES, ACT_NAMES, HANJI_TONE, actOf, stageOf } from '../../v2/js/modules/stages.js';
 import { MODES, MODE_ORDER, CHALLENGES, RUN_UPGRADES, EVO_RECIPES, modeOf, challengeOf } from '../../v2/js/modules/upgrades.js';
 import { PAT_CODE, getPatternMeta } from '../../v2/js/modules/bossCatalog.js';
+import { createInputQueue, createDashLatencyTracker } from '../../v2/js/modules/inputQueue.js';
 
 /* 1. v0.49 밸런스 병합 검증 */
 const cfg = {
@@ -107,4 +108,37 @@ assert.match(getPatternMeta('charge').guides[0], /비켜서세요/);
 assert.match(getPatternMeta('volley').desc, /부적을/);
 assert.match(getPatternMeta('clash').guides[1], /받아내면/);
 
-console.log('ALL SIMAN v0.49 PHASE-2 MODULE TESTS PASSED (6/6 suites)');
+/* 7. 연속 일섬 2칸 FIFO 선입력 버퍼 검증 */
+const q = createInputQueue({ maxSize: 2, dedupMs: 45, graceMs: 350 });
+assert.equal(q.push({ type: 'hline', ttl: 450 }, 1000).size, 1);
+// 45ms 이내 동일 획은 중복 입력 방지
+assert.equal(q.push({ type: 'hline', ttl: 450 }, 1020).deduped, true);
+assert.equal(q.size(), 1);
+// 두 번째 획은 첫 번째를 덮어쓰지 않고 2번째 슬롯에 FIFO 저장
+const p2 = q.push({ type: 'vline', ttl: 450 }, 1100);
+assert.equal(p2.size, 2);
+assert.equal(p2.overwritten, false);
+// 3번째 획은 1번째 예약은 보존하고 2번째 슬롯만 최신 의도로 교체
+const p3 = q.push({ type: 'vee', ttl: 450 }, 1200);
+assert.equal(p3.size, 2);
+assert.equal(p3.overwritten, true);
+assert.equal(q.shiftValid(1300).type, 'hline');
+assert.equal(q.shiftValid(1400).type, 'vee');
+assert.equal(q.shiftValid(1450), null);
+assert.equal(q.stats().consumed, 2);
+assert.equal(q.stats().overwritten, 1);
+
+/* 8. 일섬 지연(단타·연타·다수 처치) 계측기 검증 */
+const lat = createDashLatencyTracker(10);
+lat.record({ shape: 'hline', chained: false, hits: 1, tInput: 100, tStart: 104, tLand: 384, hitstopMs: 35, frameDtMs: 16.6 });
+lat.record({ shape: 'vline', chained: true, hits: 3, tInput: 260, tStart: 384, tLand: 630, hitstopMs: 45, frameDtMs: 16.7, tailCanceled: true });
+const rep = lat.summary();
+assert.equal(rep.count, 2);
+assert.equal(rep.single.count, 1);
+assert.equal(rep.single.avgInputToStartMs, 4);
+assert.equal(rep.chained.count, 1);
+assert.equal(rep.chained.avgInputToStartMs, 124);
+assert.equal(rep.multiKill.count, 1);
+assert.equal(rep.last.tailCanceled, true);
+
+console.log('ALL SIMAN v0.49.2 MODULE TESTS PASSED (8/8 suites)');

@@ -3,8 +3,7 @@
    여기에는 규칙만 남긴다 — 토큰을 다시 정의하지 않는다(이중 정의 금지). */
 
 body.drawing-active #hud,
-body.drawing-active #btnSkip,
-body.drawing-active #quickCards {
+body.drawing-active #btnSkip {
   pointer-events: none !important;
   transition: opacity 0.12s ease;
   opacity: 0.72;
