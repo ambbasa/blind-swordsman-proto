@@ -173,3 +173,6 @@ $RECYCLE.BIN/
 # the project root. Anchored so a reports/ folder elsewhere stays tracked.
 /reports/
 /test-results/
+
+# === QA evidence (screenshots/audio proof, not runtime) ===
+production/qa/evidence/
