@@ -119,3 +119,124 @@
 @media (prefers-reduced-motion: reduce) {
   .ov.show .card, .ov.show .card *, #bossCard { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ===== v0.49 상용 UX/UI 마감 (3막 12장 수묵·한지 아트 유지 + 모바일 터치·가독성 보강) ===== */
+
+/* 1) 타이틀 하단 보조 메뉴 4버튼을 1줄 균등 그리드로 정렬 ('설정' 단독 줄바꿈 제거 + 360x640 공간 절약) */
+.title-foot {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.title-foot .btn,
+.title-foot .btn.small {
+  padding: 0 4px;
+  font-size: 13px;
+  min-height: 42px;
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+
+/* 2) 수련장(#ov-train) 모양 버튼 겹침·가로 스크롤 버그 수정 (40px 도장 칩을 6열 그리드에 깔끔히 수용) */
+.ov .card {
+  overflow-x: hidden;
+}
+#trainCanvas {
+  box-sizing: border-box;
+  max-width: 100%;
+}
+.train-shapes {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+  justify-items: center;
+  align-items: center;
+  margin: 0 0 10px;
+}
+.train-shapes button {
+  width: 44px;
+  height: 44px;
+  padding: 2px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: transform .12s ease, border-color .15s ease, background-color .15s ease;
+}
+.train-shapes button .hanji-chip {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  margin: 0;
+}
+.train-shapes button .hanji-chip img {
+  width: 36px;
+  height: 36px;
+  display: block;
+  object-fit: contain;
+}
+.train-shapes button.on {
+  background: rgba(232, 192, 74, .22);
+  border-color: #e8c04a;
+  box-shadow: 0 0 0 1px rgba(232, 192, 74, .7), 0 4px 12px rgba(0, 0, 0, .4);
+  transform: translateY(-1px);
+}
+
+/* 3) 모바일 전투 HUD 터치 안전 영역(46x46px + 10px 간격) 및 오버레이 시 HUD 숨김 보장 */
+#app:has(.ov.show) #hud {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+#hudBtns {
+  gap: 10px;
+  right: max(12px, env(safe-area-inset-right, 12px));
+  bottom: max(12px, env(safe-area-inset-bottom, 12px));
+}
+#hudBtns button {
+  width: 46px;
+  height: 46px;
+  line-height: 46px;
+  font-size: 17px;
+  touch-action: manipulation;
+}
+@media (max-width: 380px) {
+  #hudBtns button {
+    width: 44px;
+    height: 44px;
+    line-height: 44px;
+    font-size: 16px;
+  }
+}
+
+/* 4) 참(斬) 필살기 게이지 시인성 강화 (한지 배경에서도 또렷한 먹틀 + 옥→금 발광) */
+#chargeWrap {
+  flex: 0 0 60px;
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(14, 11, 9, .82);
+  box-shadow: inset 0 0 0 1px rgba(239, 228, 204, .28);
+  -webkit-mask-image: none;
+  mask-image: none;
+  overflow: hidden;
+}
+#chargeWrap.full {
+  box-shadow: inset 0 0 0 1px rgba(232, 192, 74, .9), 0 0 12px rgba(232, 192, 74, .65);
+}
+
+/* 5) 패배 화면 깨진 낙관 인장 스타일 (빈 별 ★★★ 오인 방지) */
+#resultStars.defeat-seal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 16px;
+  margin: 6px auto 10px;
+  border: 1.5px solid rgba(200, 40, 30, .75);
+  border-radius: 3px;
+  background: rgba(143, 29, 20, .2);
+  color: #f6b39e;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: .16em;
+}

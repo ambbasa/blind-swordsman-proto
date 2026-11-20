@@ -17,7 +17,7 @@ import * as THREE from 'three';
 export const WF = {
   uWfHero: { value: new THREE.Vector3(0, 0, 0) },
   uWfRange: { value: new THREE.Vector4(5.4, 7.3, 15.6, 0) }, // inner, outer, far, pulse
-  uWfAmt: { value: new THREE.Vector4(0.72, 0.92, 0, 1) },    // 링 안쪽 양, 먼 곳 최대 양, 미사용, 사용 스위치
+  uWfAmt: { value: new THREE.Vector4(0.82, 0.96, 0, 1) },    // v0.49: 원 안은 선명한 한지, 원 밖은 짙은 먹안개 대비
   /* v0.43: 한지 톤 — 어둠이 아니라 '따뜻한 먹물'로 멀어진다(바탕이 밝아졌으므로). */
   uWfColor: { value: new THREE.Color(0.01, 0.009, 0.009) },
   /* 화면 위쪽(멀어지는) 방향 xz 와 앞뒤 압축 계수. 원근 카메라에서는 월드 원이 화면 타원보다
@@ -38,7 +38,8 @@ export const PROFILE = {
   paper:    { fade: 0.92, h: 4.0, tone: 0.075, trans: 0.26, hFloor: 0.86 },
   /* 원경 병풍은 '안개 너머로 읽히던 배경'이라 잠금을 덜 한다(예전 상단 안개 걷기와 같은 몫). */
   backdrop: { fade: 0.42, h: 14.0, tone: 0.030, trans: 0.14, hFloor: 1.00 },
-  figure:   { fade: 0.00, h: 1.0, tone: 0.035, trans: 0.12 },  // 원귀·보스 파츠(그림이므로 얕게만)
+  /* v0.49: 주인공(거리 0)과 원 안 적은 100% 선명, 원 밖 적은 먹안개 실루엣으로 잠김 */
+  figure:   { fade: 0.62, h: 1.4, tone: 0.035, trans: 0.12, hFloor: 0.68 },
   spirit:   { fade: 0.00, h: 1.0, tone: 0.020, trans: 0.09 },  // 혼령 — 조준 표적이므로 안개 면제
   item:     { fade: 0.35, h: 1.3, tone: 0.030, trans: 0.10, hFloor: 0.80 }
 };

@@ -62,6 +62,9 @@ import { InkLightPool, createWorldInkUniforms, attachGroundInkShader } from './i
 import { initOverlayShell } from './ui/overlayShell.js';
 import { installCssVars, color as palColor, hex as palHex } from './palette.js';
 import { WF, paint as paintCard, updateFade as updateWorldFade, stats as cardStats } from './cardstock.js';
+import { applyBalanceV049 } from './modules/balance.js';
+import { getShopTabNote, statUpgradeCost, computeIdleCoins, purchaseStatUpgrade, getIdleNotice } from './modules/economy.js';
+import { computeAtkBonus, computeComboMul, computeDashDmg, computeMaxHp } from './modules/combat.js';
 /* v0.39 1단계: 팔레트 토큰을 CSS 변수로 내린다(빌드 없이 단일 소스). */
 installCssVars();
 const inkFx = new InkFx();
@@ -265,6 +268,7 @@ const CFG = {
   xpScale: 0.2,
   autoCap: 0.25
 };
+applyBalanceV049(CFG);
 /* v0.30 §7.2 난이도 모드: 예고 ×, 받는 피해 ×(최소 1), 원귀 속도 ×, 보스 무늬 ±, 별 상한, 엽전 ×.
    고수는 12장을 클리어해야 열린다(§17 추천안: 수련 모드 별 상한 2개 유지). */
 const MODES = {
@@ -581,11 +585,11 @@ function actOf(n) { return Math.max(1, Math.min(3, Math.ceil((n | 0) / 4))); }
    장 고유의 기운(달빛·안개·혈월)은 남기되, 바탕(clear)·안개·조도를 한지 쪽으로 당긴다.
    여기 한 곳만 고치면 12장이 같이 따라온다(값은 위 atmo 원본에서 파생). */
 const HANJI_TONE = {
-  /* fog = '멀어진 곳이 잠기는 색'(장면 안 색) — 밝은 종이색을 넣으면 원경이 하얗게 날아간다.
-     따뜻한 먹물(연갈색 안료가 섞인 검정)로 잠겨야 한지 톤이 유지된다. */
-  1: { mix: 0.70, paper: 0xdcc9a4, fog: [78, 64, 46], dens: 0.0090, light: 1.45 },
-  2: { mix: 0.66, paper: 0xcfd2c8, fog: [80, 88, 90], dens: 0.0125, light: 1.35 },
-  3: { mix: 0.62, paper: 0xd6b49a, fog: [74, 40, 32], dens: 0.0110, light: 1.40 }
+  /* fog = '멀어진 곳이 잠기는 색'(장면 안 색) — v0.49: 심안 원 안쪽은 따뜻한 한지를 100% 유지하면서
+     원 바깥쪽은 깊은 조선 먹안개로 잠기도록 명암 대비를 강화한다(혼령은 안개 면제로 또렷이 발광). */
+  1: { mix: 0.70, paper: 0xdcc9a4, fog: [32, 26, 20], dens: 0.0095, light: 1.45 },
+  2: { mix: 0.66, paper: 0xcfd2c8, fog: [24, 34, 36], dens: 0.0130, light: 1.35 },
+  3: { mix: 0.62, paper: 0xd6b49a, fog: [42, 16, 14], dens: 0.0115, light: 1.40 }
 };
 const _hc = new THREE.Color();
 const _hp = new THREE.Color();
@@ -1137,10 +1141,10 @@ const pointers = { down: false, id: null, pts: [] };
 const fps = { samples: [], last: 0 };
 let lastStroke = null, inkFade = 0;
 
-function costOf(lv) { return CFG.upgradeBase * (lv + 1); }
-function atkBonus() { return Math.min(CFG.maxLv, save.atkLv) * CFG.atkStep; }
+function costOf(lv) { return statUpgradeCost(lv, CFG); }
+function atkBonus() { return computeAtkBonus(save.atkLv, CFG); }
 function maxHp() {
-  return Math.max(1, CFG.hpBase + save.hpLv * CFG.hpStep + (S && S.runHp || 0) - (relicOn(save, 'beads') ? 4 : 0));
+  return computeMaxHp({ hpLv: save.hpLv, runHp: (S && S.runHp) || 0, beadsRelicOn: relicOn(save, 'beads'), cfg: CFG });
 }
 /* 엽전 배율 = 상점 × 지형 · 유물(안개 바늘) · 도감 보너스(§9.3) */
 function coinMult() {
@@ -1149,14 +1153,17 @@ function coinMult() {
 }
 /* Dash damage = (base + upgrades) x combo x meta attack x 혈월 부적. */
 function dashDmg() {
-  const base = (S && S.dashDmg) || CFG.dashDmg;
-  const blood = (relicOn(save, 'blood') && S && S.hp < maxHp() * 0.5) ? 1.25 : 1;
-  return base * comboMul() * (1 + atkBonus()) * blood;
+  return computeDashDmg({
+    baseDashDmg: (S && S.dashDmg) || CFG.dashDmg,
+    combo: (S && S.combo) || 0,
+    atkLv: save.atkLv,
+    bloodRelicActive: !!(relicOn(save, 'blood') && S && S.hp < maxHp() * 0.5),
+    cfg: CFG
+  });
 }
 /* §3.3: 1 + 0.04c, 15에서 상한 ×1.5. */
 function comboMul() {
-  const c = (S && S.combo) || 0;
-  return Math.min(CFG.comboMulMax || 1.5, 1 + (CFG.comboMulStep || 0.04) * Math.min(CFG.comboMulCap || 15, c));
+  return computeComboMul((S && S.combo) || 0, CFG);
 }
 function pathR() {
   let r = (S && S.pathR) || CFG.pathRadius;
@@ -1630,7 +1637,7 @@ async function makeWorld() {
 }
 
 /* 후처리 fade 소스: cardstock 의 공유 uniform 을 그대로 읽고, 화면 좌표만 여기서 더한다. */
-const WF_POST = { uWfHero: WF.uWfHero, uWfRange: WF.uWfRange, uWfAmt: WF.uWfAmt, uWfColor: WF.uWfColor, uWfDirK: WF.uWfDirK, heroScreen: new THREE.Vector2(0.5, 0.5), post: 0.40 };
+const WF_POST = { uWfHero: WF.uWfHero, uWfRange: WF.uWfRange, uWfAmt: WF.uWfAmt, uWfColor: WF.uWfColor, uWfDirK: WF.uWfDirK, heroScreen: new THREE.Vector2(0.5, 0.5), post: 0.50 };
 /* 품질 변경으로 포스트 체인이 다시 만들어져도 안개 소스를 다시 묶는다(새 패스는 소스가 없다). */
 function wireFadeSource() {
   try {
@@ -4111,6 +4118,8 @@ function drawOverlays(ctx, r, hs) {
     ctx.strokeText('斬', cx, cy);
     ctx.restore();
   }
+  /* 7.5) v0.49 집중 개편: 심안의 원 붓경계 + 난전 주인공 발밑 시인성 비콘 */
+  drawHeroBeaconAndSightRing(ctx, r, hs, t);
   /* 8) 지금 일섬에 실린 원소: 주인공 발밑 오라, 바닥 부적은 남은 시간 고리 */
   drawHeroElement(ctx, t);
   /* 9) 체력이 깎인 원귀의 체력 막대 (심안 안이거나 혼령이 붙은 적만) */
@@ -4460,6 +4469,97 @@ function drawElementMote(ctx, el, x, y, u, color) {
     ctx.moveTo(x,y-3); ctx.lineTo(x+1.6,y); ctx.lineTo(x,y+3); ctx.lineTo(x-1.6,y);
   }
   ctx.fill();
+}
+/* v0.49: 심안의 원 붓경계 + 주인공 발밑 심안 비콘.
+   원 안의 한지 수묵화와 원 밖 먹안개의 경계를 살아 있는 붓원으로 각인하고,
+   난전 중 다수 원귀가 겹쳐도 주인공 위치와 참(斬) 준비 상태가 즉시 읽히도록 한다. */
+function drawHeroBeaconAndSightRing(ctx, r, hs, t) {
+  if (!S || !S.hero || !S.playing) return;
+  const hx = S.hero.x, hz = S.hero.z;
+  const chargeReady = (S.charge || 0) >= (CFG.cleaveCharge || 100);
+  const wave = clamp(S.sightWave || 0, 0, 1);
+
+  /* 1) 심안의 원(Mind's-Eye Calligraphic Ring): 보스 결계가 없을 때 바닥에 투영 */
+  if (!arenaActive()) {
+    const R = ringR();
+    const N = 48;
+    const breath = 1 + Math.sin(t * 2.1) * 0.008 + wave * 0.03;
+    const rr = R * breath;
+    ctx.save();
+    ctx.beginPath();
+    for (let i = 0; i <= N; i++) {
+      const a = (i / N) * Math.PI * 2;
+      const p = projectXZ(hx + Math.cos(a) * rr, hz + Math.sin(a) * rr, 0.03);
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    /* 바깥 먹 테두리 */
+    ctx.strokeStyle = 'rgba(18,14,11,' + (0.42 + wave * 0.2).toFixed(3) + ')';
+    ctx.lineWidth = 3.2;
+    ctx.stroke();
+    /* 안쪽 비취/금빛 심안 선 */
+    ctx.strokeStyle = chargeReady
+      ? 'rgba(232,192,74,' + (0.58 + 0.22 * Math.sin(t * 5.2)).toFixed(3) + ')'
+      : 'rgba(120,236,204,' + (0.36 + wave * 0.34).toFixed(3) + ')';
+    ctx.lineWidth = chargeReady ? 2.1 : 1.5;
+    ctx.stroke();
+
+    /* 동서남북 4방 미세 먹 방위 눈금 */
+    ctx.strokeStyle = chargeReady ? 'rgba(232,192,74,0.62)' : 'rgba(244,236,214,0.42)';
+    ctx.lineWidth = 1.6;
+    for (let k = 0; k < 4; k++) {
+      const a = k * (Math.PI * 0.5) + t * 0.06;
+      const p0 = projectXZ(hx + Math.cos(a) * (rr * 0.96), hz + Math.sin(a) * (rr * 0.96), 0.03);
+      const p1 = projectXZ(hx + Math.cos(a) * (rr * 1.03), hz + Math.sin(a) * (rr * 1.03), 0.03);
+      ctx.beginPath(); ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /* 2) 주인공 발밑 심안 비콘: 근접 적이 몰릴수록 또렷하게 주인공 중심을 각인 */
+  let nearCount = 0;
+  if (S.zombies) {
+    for (let i = 0; i < S.zombies.length; i++) {
+      const z = S.zombies[i];
+      if (z && z.alive && dist(z, S.hero) < 2.6) nearCount++;
+    }
+  }
+  const crowdBoost = clamp(nearCount / 4, 0, 1);
+  const foot = projectXZ(hx, hz, 0.04);
+  const edgeX = projectXZ(hx + 0.86, hz, 0.04);
+  const rx = clamp(Math.hypot(edgeX.x - foot.x, edgeX.y - foot.y), 17, 34);
+  const ry = rx * 0.56;
+  const pulse = 0.5 + 0.5 * Math.sin(t * (chargeReady ? 6.0 : 3.2));
+
+  ctx.save();
+  /* 은은한 먹 대비 테(밝은 한지 위에서도 주인공 고리가 묻히지 않되 장화를 덮지 않게) */
+  ctx.beginPath();
+  ctx.ellipse(foot.x, foot.y, rx + 1.4, ry + 1.0, 0, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(14,11,9,' + (0.28 + crowdBoost * 0.22).toFixed(3) + ')';
+  ctx.lineWidth = 2.2;
+  ctx.stroke();
+
+  /* 한지·옥빛/금빛 이중 주인공 고리 */
+  ctx.beginPath();
+  ctx.ellipse(foot.x, foot.y, rx, ry, 0, 0, Math.PI * 2);
+  ctx.strokeStyle = chargeReady
+    ? 'rgba(246,210,104,' + (0.70 + pulse * 0.22).toFixed(3) + ')'
+    : 'rgba(246,240,224,' + (0.56 + crowdBoost * 0.28).toFixed(3) + ')';
+  ctx.lineWidth = 1.6 + crowdBoost * 0.7;
+  ctx.stroke();
+
+  /* 안쪽 회전 붓점선 옥빛 기운 */
+  ctx.setLineDash([6, 5]);
+  ctx.lineDashOffset = -t * 14;
+  ctx.beginPath();
+  ctx.ellipse(foot.x, foot.y, rx * 0.76, ry * 0.76, 0, 0, Math.PI * 2);
+  ctx.strokeStyle = chargeReady
+    ? 'rgba(255,236,164,0.52)'
+    : 'rgba(116,238,202,' + (0.36 + crowdBoost * 0.34).toFixed(3) + ')';
+  ctx.lineWidth = 1.25;
+  ctx.stroke();
+  ctx.restore();
 }
 function drawHeroElement(ctx, t) {
   const el = curElem();
@@ -8161,10 +8261,18 @@ function endRun(win, msg) {
   $('resultKicker').textContent = S.stageNo ? (S.stageNo + '장 · ' + st.name + ' · ' + curMode().name) : '연습';
   $('resultTitle').textContent = win ? '베었다' : '쓰러졌다';
   S.goldStar = !!(win && curMode().gold);
-  $('resultStars').setAttribute('aria-label', '획득 별 ' + stars + '/3' + (S.goldStar ? ' · 금별' : ''));
-  $('resultStars').innerHTML = [0, 1, 2].map(function (i) {
-    return '<i class="' + (i < stars ? 'on' : '') + (i < stars && S.goldStar ? ' gold' : '') + '">★</i>';
-  }).join('') + (S.goldStar ? '<em class="gold-star">금별</em>' : '');
+  const starsEl = $('resultStars');
+  if (win) {
+    starsEl.classList.remove('defeat-seal');
+    starsEl.setAttribute('aria-label', '획득 별 ' + stars + '/3' + (S.goldStar ? ' · 금별' : ''));
+    starsEl.innerHTML = [0, 1, 2].map(function (i) {
+      return '<i aria-hidden="true" class="' + (i < stars ? 'on' : '') + (i < stars && S.goldStar ? ' gold' : '') + '">★</i>';
+    }).join('') + (S.goldStar ? '<em class="gold-star">금별</em>' : '');
+  } else {
+    starsEl.classList.add('defeat-seal');
+    starsEl.setAttribute('aria-label', '전투 패배 · 획득 별 0/3');
+    starsEl.textContent = '敗 · 다시 일어서라';
+  }
   $('resultBody').textContent = win ? (msg || '') : (msg || '') + ' 다시 한 번.';
   const hpPct = Math.round((S.hp / Math.max(1, maxHp())) * 100);
   $('resultStats').innerHTML = [
@@ -9077,15 +9185,15 @@ function strokeType(type, opts) {
 }
 
 function idleCoins(ms) {
-  const cap = CFG.idleMaxHours * 3600 * 1000;
-  const t = Math.min(Math.max(0, ms), cap);
-  return Math.floor((t / 60000) * CFG.idlePerMin * (1 + save.coinLv * CFG.coinStep));
+  return computeIdleCoins(ms, save, CFG);
 }
 function checkIdle() {
   const c = idleCoins(Date.now() - (save.lastSeen || Date.now()));
   if (c <= 0) return 0;
   idlePending = c;
   $('idleBody').textContent = '자리를 비운 동안 엽전 ' + c + '이 쌓였습니다.';
+  const adNote = $('idleAdNote');
+  if (adNote) adNote.textContent = getIdleNotice(CFG);
   showOv('ov-idle');
   return c;
 }
@@ -9110,14 +9218,8 @@ function refreshShop() {
   label($('buyCoin'), '엽전 획득', save.coinLv, '획득량 ×' + (1 + save.coinLv * CFG.coinStep).toFixed(2));
 }
 function buy(stat) {
-  const lv = stat === 'atk' ? save.atkLv : stat === 'hp' ? save.hpLv : save.coinLv;
-  if (lv >= CFG.maxLv) return false;
-  const c = costOf(lv);
-  if (save.coins < c) return false;
-  save.coins -= c;
-  if (stat === 'atk') save.atkLv++;
-  else if (stat === 'hp') save.hpLv++;
-  else save.coinLv++;
+  const res = purchaseStatUpgrade(save, stat, CFG);
+  if (!res.ok) return false;
   persist(); refreshShop(); renderHud();
   return true;
 }
@@ -9306,10 +9408,11 @@ function equipSkin(id, kind) {
   return true;
 }
 function renderShopTab() {
-  const tabs = $('shopTabs'), statList = $('shopStatList'), body = $('shopBody');
+  const tabs = $('shopTabs'), statList = $('shopStatList'), body = $('shopBody'), noteEl = $('shopNote') || document.querySelector('#ov-shop .shop-note');
   if (tabs) Array.prototype.forEach.call(tabs.querySelectorAll('button'), function (b) {
     b.classList.toggle('on', b.getAttribute('data-tab') === shopTab);
   });
+  if (noteEl) noteEl.textContent = getShopTabNote(shopTab);
   if (statList) statList.hidden = shopTab !== 'stat';
   if (!body) return;
   body.hidden = shopTab === 'stat';
@@ -9419,6 +9522,7 @@ const SHAPE_TIP = {
   tri: '세 변을 한 번에. 마지막 변을 짧게 끝내세요.',
   arc: '반달을 옆으로 눕힌 모양. 위로 볼록하게.',
   spiral: '안에서 밖으로 말아 올리며 두 바퀴.',
+  star: '한붓으로 다섯 꼭짓점을 교차해 별(⛤)을 그립니다.',
   tap: '제자리에서 짧게 콕 — 패링입니다.'
 };
 const train = { shape: 'hline', pts: [], drawing: false, raf: 0, result: null, animT: 0, need: 0 };
@@ -9433,11 +9537,14 @@ function renderTrainShapes() {
   if (!box) return;
   box.innerHTML = TRAIN_SHAPES.map(function (sh) {
     const st = trainStatsOf(sh);
-    return '<button type="button" data-shape="' + sh + '" class="' + (sh === train.shape ? 'on' : '') + '" title="' + (st.n ? Math.round(st.rate * 100) + '%' : '—') + '">' + titleChip(sh) + '</button>';
+    const label = (G && G.NAMES && G.NAMES[sh]) || SHAPE_LABEL[sh] || sh;
+    return '<button type="button" data-shape="' + sh + '" class="' + (sh === train.shape ? 'on' : '') + '" aria-label="' + label + ' (' + (SHAPE_LABEL[sh] || sh) + ')" title="' + label + ' · ' + (st.n ? Math.round(st.rate * 100) + '%' : '—') + '">' + titleChip(sh) + '</button>';
   }).join('');
   Array.prototype.forEach.call(box.querySelectorAll('button'), function (b) {
     b.addEventListener('click', function () { train.shape = b.getAttribute('data-shape'); train.pts = []; train.result = null; renderTrainShapes(); });
   });
+  const noteEl = $('trainNote');
+  if (noteEl && SHAPE_TIP[train.shape]) noteEl.textContent = SHAPE_TIP[train.shape];
   const st = trainStatsOf(train.shape);
   const el = $('trainStats');
   if (el) {
@@ -9515,7 +9622,7 @@ function trainPoint(e) {
 }
 function trainFinish() {
   if (!train.pts.length) return;
-  const rec = G.recognize(train.pts, { allowBolt: true, seal: train.shape === 'star', totem: ['tri', 'arc', 'spiral'].includes(train.shape) });
+  const rec = G.recognize(train.pts, { allowBolt: true, seal: train.shape === 'star', totem: ['tri', 'square', 'arc', 'spiral'].includes(train.shape) });
   const ok = rec.type === train.shape;
   save.train = save.train || { stats: {}, seen: 0 };
   save.train.stats[train.shape] = (save.train.stats[train.shape] || []).concat([ok ? 1 : 0]).slice(-20);
@@ -9697,7 +9804,7 @@ function syncWorldFade() {
     if (Math.hypot(fx, fz) < 1e-4) { fx = 0; fz = -1; }
   }
   updateWorldFade(arenaActive()?S.arena:hero, arenaActive()?arenaR()*1.65:R, (S && S.fogPulse) || 0, 12.5, qaFadeColor ? '#00ff00' : fogRgb(), qaFadeMat > 0, fx, fz);
-  WF_POST.post = arenaActive() ? 0 : 0.40 * qaFadePostK;
+  WF_POST.post = arenaActive() ? 0 : 0.50 * qaFadePostK;
   const hs = heroScreen();
   WF_POST.heroScreen.set(hs.x, hs.y);
   return hs;
