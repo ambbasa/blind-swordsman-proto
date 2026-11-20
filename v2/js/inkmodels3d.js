@@ -746,20 +746,19 @@ export const BOSS = {
     /* 허리 장식 띠 */
     out.push(tube([[3.22, 0.445, 0.330, 0.310], [3.32, 0.452, 0.336, 0.316], [3.42, 0.445, 0.330, 0.310]], { chain: [['pelvis', 0], ['spine', 3.40]], seg: 16, arc: [-0.2 * PI, 0.2 * PI], color: V.trim, zone: AZ.bossTrim, nh: 1 }));
     /* 속옷 자락(통) + 겉옷 자락(앞이 벌어진 큰 종) + 금박 밑단 */
-    const sw = skirtWeights(3.30, 0.40, { leg: 0.5, clothK: 0.6 });
-    out.push(tube([[3.32, 0.430, 0.310, 0.300], [2.60, 0.490, 0.380, 0.370, 0, 0, 0.012], [1.60, 0.560, 0.450, 0.440, 0, 0, 0.022], [0.42, 0.620, 0.520, 0.500, 0, 0, 0.030]],
-      { seg: 18, pleats: 9, color: V.inner, zone: AZ.bossInner, tile: 0.9, wfn: sw }));
-    out.push(tube([[3.32, 0.470, 0.350, 0.330], [2.60, 0.580, 0.470, 0.470, 0, 0, 0.014], [1.60, 0.720, 0.590, 0.620, 0, 0, 0.026], [0.72, 0.830, 0.680, 0.740, 0, 0, 0.034]],
-      { seg: 22, pleats: 9, arc: [0.17 * PI, 1.83 * PI], color: V.robe, zone: AZ.bossRobe, tile: 0.9, wfn: sw }));
-    out.push(tube([[0.74, 0.838, 0.688, 0.748, 0, 0, 0.034], [0.42, 0.872, 0.712, 0.782, 0, 0, 0.036]],
-      { seg: 22, pleats: 9, arc: [0.17 * PI, 1.83 * PI], color: V.trim, zone: AZ.bossTrim, tile: 0.5, wfn: sw }));
+    // Split riding coat: the knees, shins and the negative space between them stay visible.
+    const hemWeights = skirtWeights(3.3,1.95,{leg:.65,clothK:.3});
+    for(const arc of [[.22*PI,.85*PI],[1.15*PI,1.78*PI]]) {
+      out.push(tube([[3.34,.46,.34,.34],[2.85,.49,.36,.38],[2.32,.52,.39,.40],[1.95,.50,.38,.39]],
+        {seg:10,arc,color:V.robe,zone:AZ.bossRobe,tile:.8,wfn:hemWeights}));
+    }
     ['L', 'R'].forEach(function (s) {
       const sd = s === 'L' ? 1 : -1;
       const arm = [['upperarm' + s, 4.40], ['forearm' + s, 3.55], ['hand' + s, 2.77]];
       /* 종 모양 소매 — 손목으로 갈수록 넓게 벌어진다. */
-      out.push(limb(sd, 0.54, [[4.53, 0.060], [4.47, 0.190], [4.25, 0.235], [3.85, 0.262], [3.55, 0.275], [3.20, 0.320], [2.92, 0.380], [2.84, 0.396]],
+      out.push(limb(sd, 0.54, [[4.53, 0.060], [4.47, 0.190], [4.25, 0.235], [3.85, 0.262], [3.55, 0.19], [3.20, 0.16], [2.92, 0.13], [2.84, 0.12]],
         arm, { seg: 12, capA: true, color: V.robe, zone: AZ.bossRobe, tile: 0.9, blend: 0.14 }));
-      out.push(limb(sd, 0.54, [[2.86, 0.398], [2.72, 0.424]], arm, { seg: 12, color: V.trim, zone: AZ.bossTrim, tile: 0.5 }));
+      out.push(limb(sd, 0.54, [[2.86, 0.133], [2.72, 0.126]], arm, { seg: 12, color: V.trim, zone: AZ.bossTrim, tile: 0.5 }));
       /* 손 */
       out.push(limb(sd, 0.54, [[2.90, 0.075], [2.78, 0.080, 0.062], [2.64, 0.092, 0.060], [2.52, 0.070, 0.048], [2.46, 0.030, 0.024]], arm, { seg: 8, capB: true, color: C.skin, zone: Z.PAPER }));
       const leg = [['thigh' + s, 2.78], ['shin' + s, 1.48], ['foot' + s, 0.20]];

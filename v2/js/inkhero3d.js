@@ -418,7 +418,7 @@ export function tick(group, kind, state, dt, vx, vz) {
   H.px = gx; H.pz = gz;
   const rawSp = Math.sqrt(dx * dx + dz * dz) / dt;
   const sp = Math.min(rawSp, 26);
-  H.speed += (sp - H.speed) * Math.min(1, dt * 12);
+  H.speed += (sp - H.speed) * (-Math.expm1(-dt * 12));
   H.phase = sp > 0.5 ? 'walk' : 'idle';
 
   /* 방향 — 8방향 어디로 가든 몸이 돌아간다(좌우 반전 없음). */
@@ -456,7 +456,7 @@ export function tick(group, kind, state, dt, vx, vz) {
   if (isDash) H.dashT = (H.dashT || 0) + dt;
   H.crouchV = Math.max(0, (H.crouchV || 0) - dt * 3.2);
   const leanT = (isDash ? 0.30 : 0) + Math.min(0.12, H.speed * 0.014);
-  H.lean += (leanT - H.lean) * Math.min(1, dt * 11);
+  H.lean += (leanT - H.lean) * (-Math.expm1(-dt * 11));
   /* 각속도(rad/s) — 부드럽게 재서 비틀림에 쓴다 */
   H.yawRate = (H.yawRate || 0) * 0.85 + ((H.yawTarget - H.yaw) * 6) * 0.15;
   const twist = Math.max(-0.34, Math.min(0.34, (H.yawRate || 0) * 0.06));
@@ -469,7 +469,7 @@ export function tick(group, kind, state, dt, vx, vz) {
   if (H.crouchV > 0.001 && H.bones.pelvis) H.bones.pelvis.position.y -= H.crouchV * 0.35;
   /* ③ 검 뒤로 — 돌진 중 오른팔을 진행 반대쪽으로 끌고, 칼끝을 아래로 눕힌다(잔상과 겹쳐 궤적이 길어진다). */
   const armTrailT = isDash ? 0.34 : 0;
-  H.armTrail = (H.armTrail || 0) + (armTrailT - (H.armTrail || 0)) * Math.min(1, dt * 12);
+  H.armTrail = (H.armTrail || 0) + (armTrailT - (H.armTrail || 0)) * (-Math.expm1(-dt * 12));
   if (H.armTrail > 0.004 && H.bones.upperarmR) {
     H.bones.upperarmR.rotateX(-H.armTrail * 0.9);
     H.bones.upperarmR.rotateZ(-H.armTrail * 0.35);

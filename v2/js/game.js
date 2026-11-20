@@ -1,3 +1,7 @@
+import {buildSealStake,sealPaper} from './sealstake.js';
+import { SPIRIT_GLYPH_PATHS } from './inkicons.js';
+import { makeGroundLayer, paintFrame } from './groundfx.js';
+import { paintSkill } from './fieldart.js';
 /* 심안(SIMAN) v2 — 2.5D quarter-view, Three.js, camera-follow dashes.
    v0.39 (Papertrails 통합 개편 1~3단계):
      · 1단계 톤 기준선 — js/palette.js 단일 팔레트 토큰(먹·한지·비취·진홍·금·옥) + CSS 변수 주입 + 역톤매핑,
@@ -91,7 +95,7 @@ let fxQ = fxQualityFromUrl();
 const fxinkStat = { slashes: 0, hits: 0, kills: 0 };
 const SHAPE_MARK = { hline: '—', vline: 'ㅣ', vee: 'V', bolt: '⚡', star: '⛤', square: 'ㅁ', tri: '△', arc: '◡', spiral: '@' };
 /* 기물 전용 제스처: 보스 무늬(장의 무늬)와 겹치지 않고, 기물끼리도 하나씩 나눠 가진다. */
-const TOTEM_SHAPES = ['tri', 'arc', 'spiral'];
+const TOTEM_SHAPES = ['tri', 'square', 'spiral'];
 const SHAPE_KEY = { hline: 'H', vline: 'I', vee: 'V', bolt: 'Z' };
 const SHAPE_UNLOCK = ['hline', 'vline', 'vee', 'bolt'];
 const COMBAT = SHAPE_UNLOCK.slice();
@@ -214,7 +218,7 @@ const CFG = {
   /* v0.23 아이템 개편: 자동 흡수·수명 · 원소 각인 · 정확한 획 · 칼집 각성 */
   autoPickR: 1.25, itemLife: 24, tempElemDur: 12, elemLvMax: 3,
   iceDurStep: 0.5, shatterStep: 1, burnDurStep: 0.5, burnDmgStep: 0.3,
-  poisonMaxStep: 1, poisonDmgStep: 0.2, cloudRStep: 0.6,
+  poisonMaxStep: 1, poisonDmgStep: 0.25, cloudRStep: 0.6,
   perfectDmgMul: 1.5, perfectStep: 0.15, perfectThresh: 0.80, perfectThreshStep: 0.05,
   parryAwakenR: 0.45, parryAwakenDmg: 0.4, parryAwakenCharge: 14, parryAwakenStun: 0.12,
   bellMyriadDur: 12,
@@ -222,7 +226,7 @@ const CFG = {
   comboBurstR: [3.2, 4.2, 5.2], comboBurstDmg: [1, 1.5, 2],
   practiceSec: 10, practiceSpawns: 6, comboBurstMs: 220,
   iceDur: 2.5, burnDur: 3, burnPeriod: 0.75, burnDmg: 1,
-  poisonMax: 5, poisonDur: 4, poisonPeriod: 1, poisonDmgPer: 1,
+  poisonMax: 5, poisonDur: 4, poisonPeriod: 1, poisonDmgPer: 0.75,
   shatterDmg: 4, explodeDmg: 3, explodeR: 2.5,
   bellDur: 8, slowDur: 0.45, slowScale: 0.35,
   sightWaveDur: 0.45,
@@ -252,8 +256,8 @@ const CFG = {
   /* v0.31 §5.3 새 카드 */
   ward: { n: 2, r: 2.2, dmg: 0.8, period: 0.35, r2: 2.6, n3: 4, spin: 2.1, manryunR: 1.2, manryunSlow: 0.3 },
   boltCard: { every: 4.5, r: 2.2, dmg: 2.2, tele: 0.6, range: 6, lvStep: 0.4, lvMax: 5, freeze: 1.5 },
-  echoCard: { delay: 0.5, mul: [0.4, 0.55, 0.7] },
-  resonCard: { dmg: [0.5, 0.8, 1.1] },
+  echoCard: { delay: 0.4, mul: [0.4, 0.55, 0.7] },
+  resonCard: { dmg: [0.65, 0.95, 1.25] },
   inkStep: { dur: 2, slow: [0.3, 0.4, 0.5], r: 1.7 },
   /* 자동 피해(호신부·벼락부적)는 총 피해의 25%를 넘지 않는다 — 제스처 정체성 유지(§17-4). */
   /* v0.31 §5.5 판 안 경험치: 곡선(7+4n+0.6n²)이 정해졌으니, 목표 레벨(1장 4~5·12장 8~9)에 맞게
@@ -310,8 +314,8 @@ const RUN_UPGRADES = [
   { id: 'heal', name: '체력 회복', desc: '체력 +5, 이번 판 최대 체력 +2(최대 체력은 3번까지).', maxLv: 99 },
   { id: 'perfect', name: '정확한 획', desc: '획을 깔끔하게 그릴수록(인식 정확도 기준 이상) 일섬이 더 깊이 듭니다.', maxLv: 3 },
   { id: 'parry', name: '칼집 각성', desc: '칼집 패링이 충격파를 내고 참 게이지를 채웁니다.', maxLv: 3 },
-  { id: 'ice', name: '얼음 각인', desc: '얼음 일섬 — 빙결과 파열이 강해집니다.', maxLv: 3 },
-  { id: 'fire', name: '화염 각인', desc: '화염 일섬 — 연소가 길고 아프게 붙습니다.', maxLv: 3 },
+  { id: 'ice', name: '얼음 각인', desc: '얼음 일섬 — 이동과 공격을 멈추고, 화염으로 깨뜨립니다.', maxLv: 3 },
+  { id: 'fire', name: '화염 각인', desc: '화염 일섬 — 명중 즉시 추가 피해를 줍니다.', maxLv: 3 },
   { id: 'poison', name: '독 각인', desc: '독 일섬 — 중첩 상한과 독구름이 커집니다.', maxLv: 3 },
   /* v0.31 §5.3 새 카드 6장: 자동(호신부·벼락부적)·일섬(메아리)·혼령(공명)·패링(반격)·착지(먹 발자국) */
   { id: 'ward', name: '회전 호신부', desc: '부적 2개가 몸 둘레를 돕니다. 접촉 0.8 피해.', maxLv: 3, auto: true },
@@ -1005,7 +1009,8 @@ function onTick(dt) {
       for (let i = 0; i < C.wall.n; i++) {
         const a = (i / C.wall.n) * Math.PI * 2 + Math.random() * 0.5;
         const rr = i === 0 ? 0 : 1.3 + Math.random() * 1.4;
-        spawnHazard(S.hero.x + Math.cos(a) * rr, S.hero.z + Math.sin(a) * rr, C.wall.r, C.wall.tele + i * 0.08);
+        const arrow = spawnHazard(S.hero.x + Math.cos(a) * rr, S.hero.z + Math.sin(a) * rr, C.wall.r, C.wall.tele + i * 0.08);
+        if (arrow) arrow.arrowVolley = true;
       }
       T.volleyOn = true; T.volleyHp = S.hp;
       tFire('wall', { arrows: C.wall.n, tele: C.wall.tele });
@@ -2535,7 +2540,7 @@ function releaseSpirit(s) {
    nearest zombie inside the mind's-eye ring that has no spirit yet, the boss first. */
 function assignSpiritTargets() {
   if (!S) return;
-  const R = ringR();
+  const R = arenaActive() ? arenaR()+dist(S.hero,S.arena)+1 : ringR();
   const capBase = Math.min(CFG.spiritMax || 5, S.spiritCap || CFG.spiritCapStart || 3);
   /* 보스전에는 보스와 소환 잡귀 모두에 혼령이 붙어야 피할 곳이 생긴다. */
   const cap = ((S.boss && S.boss.alive) ? Math.max(capBase, 1 + ((CFG.bossPat || {}).summon || {}).keep || 0) : capBase) +
@@ -2787,6 +2792,8 @@ function spawnBoss(opts) {
     marked: false, isBoss: true, seq: seq, seqI: 0, poise: (CFG.bossPat || {}).poise || 3, firstWalk: true,
     phase: 1, phase2: false, phase3: false
   };
+  e.maxHp=opts.hp ?? [18,23,28,32,37,42,47,52,55,63,71,80][S.stage.id-1] ?? 18;
+  e.hp=e.maxHp; S.autoDmg=0; S.manualDmg=0;
   const vis = e.shape;
   /* §4.5 보스 개성: 장마다 외형 변주(머리 장신구·장기 4종, 무기 3종, 크기 0.9~1.15배) */
   const BV = bossVisualOf(S.stage);
@@ -2795,6 +2802,7 @@ function spawnBoss(opts) {
   applySkin(e.obj);
   placeGroup(e.obj, e.x, e.z);
   S.zombies.push(e);
+  art.tickChar(e.obj,'boss','boss:idle',1/60,S.hero.x-e.x,S.hero.z-e.z);
   S.boss = e; S.bossSpawned = true;
   /* §4.5 보스 등장 순간 1.2초 이름 카드 */
   showBossCard(S.stage);
@@ -3082,7 +3090,7 @@ function spawnZombie(opts) {
   const grow = 1 + (CFG.hpGrowth || 0) * clamp(S.elapsed / runLimit(), 0, 1);
   const e = {
     id: ++S._id, kind: 'zombie', type: type, x: p.x, z: p.z, r: def.r, alive: true,
-    hp: opts.hp != null ? opts.hp : def.hp * grow, maxHp: def.hp * grow,
+    hp: opts.hp != null ? opts.hp : def.hp * grow, maxHp: opts.hp != null ? opts.hp : def.hp * grow,
     frozen: 0, burn: 0, burnTick: 0, poison: 0, poisonT: 0, poisonTick: 0, stun: 0,
     marked: false, shape: null, isBoss: false, elite: type === 'elite'
   };
@@ -3181,7 +3189,7 @@ function firecrackerBurst() {
     if (!z.alive) return;
     if (!isOnScreen(z, 120) && dist(z, S.hero) > R) return;
     if (z.isBoss) {
-      cutBoss(z);
+      hurtZombie(z,z.maxHp*.05,'bang',null);
       z.stun = Math.max(z.stun || 0, 0.8);
       showJudge('화약 폭발!');
       return;
@@ -3656,6 +3664,8 @@ function refreshElemSlots() {
 }
 function elemIceDur() { return (CFG.iceDur || 2.5) + (CFG.iceDurStep || 0.5) * Math.max(0, elemLv('ice') - 1); }
 function elemShatterDmg() { return (CFG.shatterDmg || 4) + (CFG.shatterStep || 1) * Math.max(0, elemLv('ice') - 1); }
+function frostImpact(lv) { return 1 + .5 * Math.max(0,lv-1); }
+function fireImpact(lv) { return 2 + Math.max(0, lv - 1); }
 function elemBurnDur() { return (CFG.burnDur || 3) + (CFG.burnDurStep || 0.5) * Math.max(0, elemLv('fire') - 1); }
 function elemBurnDmg() { return (CFG.burnDmg || 1) + (CFG.burnDmgStep || 0.3) * Math.max(0, elemLv('fire') - 1); }
 function elemPoisonMax() { return Math.round((CFG.poisonMax || 5) + (CFG.poisonMaxStep || 1) * Math.max(0, elemLv('poison') - 1)); }
@@ -3812,6 +3822,21 @@ const INK_OF = {
   tap: palHex('paper'), tri: palHex('violetPale'), arc: palHex('violetPale'), spiral: palHex('violetPale')
 };
 function inkColorFor(type) { return INK_OF[type] || palHex('jadeInk'); }
+// Use the same stroke paths as the marks engraved on the spirit bells.
+function brushMark(ctx,shape,x,y,size) {
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(size,size);
+  ctx.strokeStyle=ctx.fillStyle;
+  ctx.lineJoin='round';ctx.lineCap='round';
+  for(const path of SPIRIT_GLYPH_PATHS[shape] || []) {
+    for(let i=1;i<path.length;i++){
+      ctx.lineWidth=(shape==='spiral' ? .14 : .25)*(.65+.45*Math.sin(Math.PI*i/(path.length+.5)));
+      ctx.beginPath();ctx.moveTo(...path[i-1]);ctx.lineTo(...path[i]);ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
 function updateMarks() {
   const c = $('marks');
   if (!c) return;
@@ -3860,7 +3885,7 @@ function updateMarks() {
   const marks = livingMarks();
   const bossSpirit = (S.boss && S.boss.alive && S.boss.state !== 'clones') ? marks.filter(function (s) { return s.target === S.boss; })[0] : null;
   marks.forEach(function (s) {
-    if (!s.obj) return;
+    if (!s.obj || !s.obj.visible) return;
     const bp = bellScreen(s);
     const ox = bp.x, oy = bp.y;
     const bh = (s.obj.userData && s.obj.userData.bellH) || 0.4;
@@ -3931,7 +3956,7 @@ function updateMarks() {
       ctx.fillStyle = '#0E0C0A';
       ctx.font = '700 9px serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(SHAPE_MARK[seqSh] || '', px, rowY + 0.5);
+      brushMark(ctx,seqSh,px,rowY,cur?6:4.5);
     });
     ctx.restore();
   });
@@ -4159,97 +4184,80 @@ function drawGoal(ctx, r, hs, t) {
     ctx.restore();
   }
 }
-function drawTerrain(ctx, r, hs, t) {
-  if (!S || !S.terrain || !S.stage) return;
-  const T = S.terrain;
-  if (T.kind === 'none') return;
-  const st = S.stage, C = TERRAIN_CFG, hx = S.hero.x, hz = S.hero.z;
-  const R = Math.min(16, Math.max(6, ringR() * 1.5));
-  function ell(gx, gz, rr, stroke, fill, lw, dash) {
-    const a = projectXZ(gx - rr, gz, 0.03), b = projectXZ(gx + rr, gz, 0.03);
-    const c = projectXZ(gx, gz - rr, 0.03), d2 = projectXZ(gx, gz + rr, 0.03);
-    const rx = Math.abs(b.x - a.x) / 2, ry = Math.abs(d2.y - c.y) / 2;
-    if (rx < 2 || ry < 1) return;
-    ctx.beginPath();
-    ctx.ellipse((a.x + b.x) / 2, (c.y + d2.y) / 2, rx, ry, 0, 0, Math.PI * 2);
-    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
-    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1.4; if (dash) ctx.setLineDash(dash); ctx.stroke(); ctx.setLineDash([]); }
-  }
-  function line2(ax, az, bx, bz, col, lw, dash) {
-    const a = projectXZ(ax, az, 0.05), b = projectXZ(bx, bz, 0.05);
-    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
-    ctx.strokeStyle = col; ctx.lineWidth = lw || 2; if (dash) ctx.setLineDash(dash);
-    ctx.stroke(); ctx.setLineDash([]);
-  }
-  ctx.save();
-  if (T.kind === 'rubble') {
-    tPatchesNear(hx, hz, R, 5.0, 11, 0.42, 0.9, 1.9).slice(0, 8).forEach(function (p) {
-      ell(p.x, p.z, p.r, 'rgba(214,204,182,0.26)', 'rgba(82,76,66,0.20)', 1.3, [5, 5]);
-      line2(p.x - p.r * 0.4, p.z - p.r * 0.2, p.x + p.r * 0.35, p.z + p.r * 0.25, 'rgba(214,204,182,0.22)', 1.6);
-    });
-  } else if (T.kind === 'bamboo') {
-    tPatchesNear(hx, hz, R, 6.5, 37, 0.55, 2.0, 3.4).slice(0, 6).forEach(function (p) {
-      ell(p.x, p.z, p.r, 'rgba(130,206,150,0.26)', 'rgba(30,70,40,0.18)', 1.3, [4, 6]);
-      for (let i = 0; i < 5; i++) {
-        const a = i * 1.26 + 0.3;
-        const q = projectXZ(p.x + Math.cos(a) * p.r * 0.7, p.z + Math.sin(a) * p.r * 0.7, 0.05);
-        ctx.beginPath(); ctx.moveTo(q.x, q.y); ctx.lineTo(q.x, q.y - 11);
-        ctx.strokeStyle = 'rgba(170,225,180,0.5)'; ctx.lineWidth = 2; ctx.stroke();
-      }
-    });
-  } else if (T.kind === 'root') {
-    const cell = 7.0;
-    const cx0 = Math.floor((hx - R) / cell), cx1 = Math.floor((hx + R) / cell);
-    const cz0 = Math.floor((hz - R) / cell), cz1 = Math.floor((hz + R) / cell);
-    let n = 0;
-    for (let cx = cx0; cx <= cx1 && n < 7; cx++) {
-      for (let cz = cz0; cz <= cz1 && n < 7; cz++) {
-        if (tHash(cx, cz, 71) >= 0.55) continue;
-        const ax = cx * cell + cell * 0.5 + (tHash(cx, cz, 72) - 0.5) * cell * 0.5;
-        const az = cz * cell + cell * 0.5 + (tHash(cx, cz, 73) - 0.5) * cell * 0.5;
-        const a = tHash(cx, cz, 74) * Math.PI, half = 2.2 + tHash(cx, cz, 75) * 1.6;
-        if (Math.hypot(ax - hx, az - hz) > R + half) continue;
-        line2(ax, az, ax + Math.cos(a) * half, az + Math.sin(a) * half, 'rgba(150,120,80,0.42)', 3.2);
-        n++;
+const PATCH_SPECS = {rubble:[5,11,.42,.9,1.9],bamboo:[6.5,37,.55,2,3.4],bell:[10,83,.4,.5,.5],blood:[8,97,.55,2.4,3.2]};
+function syncGroundEffects() {
+  const layer = three.groundEffects || (three.groundEffects = makeGroundLayer(three.scene));
+  layer.begin();
+  if (!S?.hero || !S.playing) { layer.end(); return; }
+  const hx=S.hero.x, hz=S.hero.z, R=Math.min(16,Math.max(6,ringR()*1.5));
+  const T=S.terrain, kind=T?.kind;
+
+  if (PATCH_SPECS[kind]) {
+    // Cell centres do not move. Re-query only after movement or a sight change.
+    const cached = layer.patches;
+    if (!cached || cached.kind !== kind || cached.radius !== R || Math.hypot(hx-cached.x,hz-cached.z) > .5) {
+      layer.patches = {kind, radius:R, x:hx, z:hz, list:tPatchesNear(hx,hz,R+.5,...PATCH_SPECS[kind])};
+    }
+    for (const p of layer.patches.list) {
+      if (kind==='bamboo') {
+        for(let i=0;i<6;i++) {
+          const a=i*Math.PI/3+p.x*.13;
+          layer.put('loot',12+i%4,p.x+Math.cos(a)*p.r*.8,p.z+Math.sin(a)*p.r*.8,p.r*.83,p.r*.83,a);
+        }
+      } else {
+        const cell=kind==='rubble'?0:kind==='bell'?2:T.stones[p.key]>S.elapsed?4:3;
+        layer.put('terrain',cell,p.x,p.z,p.r*2,p.r*2);
       }
     }
-  } else if (T.kind === 'bell') {
-    tPatchesNear(hx, hz, R, 10.0, 83, 0.4, 0.5, 0.5).slice(0, 5).forEach(function (p) {
-      const hot = (T.bells[p.key] || 0) - (S.elapsed || 0) > C.bell.cd - 1.2;
-      ell(p.x, p.z, 1.3, hot ? 'rgba(232,192,74,0.85)' : 'rgba(200,190,170,0.3)', hot ? 'rgba(232,192,74,0.18)' : null, hot ? 2.4 : 1.3, hot ? null : [4, 5]);
-      const q = projectXZ(p.x, p.z, 1.2);
-      ctx.font = '700 15px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = hot ? 'rgba(255,232,170,0.95)' : 'rgba(220,210,190,0.55)';
-      ctx.fillText('종', q.x, q.y);
-    });
-  } else if (T.kind === 'blood') {
-    tPatchesNear(hx, hz, R, 8.0, 97, 0.55, 2.4, 3.2).slice(0, 6).forEach(function (p) {
-      const off = (T.stones[p.key] || 0) > (S.elapsed || 0);
-      ell(p.x, p.z, p.r, off ? 'rgba(120,40,40,0.3)' : 'rgba(220,60,60,0.42)', off ? 'rgba(60,20,20,0.10)' : 'rgba(150,20,25,0.18)', off ? 1.2 : 2.0, off ? [3, 6] : null);
-      const q = projectXZ(p.x, p.z, 0.35);
-      ctx.beginPath(); ctx.arc(q.x, q.y, off ? 4 : 7 + Math.sin((S.elapsed || 0) * 5) * 1.5, 0, Math.PI * 2);
-      ctx.fillStyle = off ? 'rgba(90,30,30,0.65)' : 'rgba(255,80,70,0.9)';
-      ctx.fill();
-    });
-  } else if (T.kind === 'water') {
-    /* 물길 띠: 영웅 앞뒤로 흐르는 강바닥 */
-    const xs = [];
-    for (let i = 0; i <= 12; i++) xs.push(hx - 14 + i * (28 / 12));
-    [[1, 'rgba(96,150,190,0.30)'], [-1, 'rgba(96,150,190,0.30)']].forEach(function (side) {
-      ctx.beginPath();
-      xs.forEach(function (x, i) {
-        const c = tWaterCenter(x), w = 2.1 + 0.7 * Math.sin(x * 0.13 + 0.6);
-        const p = projectXZ(x, c + side[0] * w, 0.04);
-        if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
-      });
-      ctx.strokeStyle = side[1]; ctx.lineWidth = 1.6; ctx.setLineDash([7, 7]); ctx.stroke(); ctx.setLineDash([]);
-    });
-  } else if (T.kind === 'moon') {
+  } else if(kind==='root'||kind==='snow') {
+    for(let cx=Math.floor((hx-R)/7);cx<=Math.floor((hx+R)/7);cx++) {
+      for(let cz=Math.floor((hz-R)/7);cz<=Math.floor((hz+R)/7);cz++) {
+        if(tHash(cx,cz,71)>=.55)continue;
+        const x=cx*7+3.5+(tHash(cx,cz,72)-.5)*3.5,z=cz*7+3.5+(tHash(cx,cz,73)-.5)*3.5;
+        const a=tHash(cx,cz,74)*Math.PI,len=2.2+tHash(cx,cz,75)*1.6;
+        layer.put('terrain',kind==='root'?1:6,x+Math.cos(a)*len/2,z+Math.sin(a)*len/2,len,kind==='root'?1.1:2,a);
+      }
+    }
+  } else if(kind==='water') {
+    for(let i=Math.floor((hx-R)/3);i<=Math.ceil((hx+R)/3);i++) {
+      const x=i*3,z=tWaterCenter(x),width=2*(2.1+.7*Math.sin(x*.13+.6));
+      layer.put('terrain',5,x,z,3.5,width);
+    }
+  }
+  for(const hazard of S.hazards || []) if(hazard.arrowVolley && hazard.done)
+    layer.put('terrain',7,hazard.x,hazard.z,hazard.r*2,hazard.r*2);
+  for(const p of S.inkSteps || []) {
+    const age=1-clamp(p.t/(CFG.inkStep.dur||2),0,1);
+    layer.put('phases',8+Math.min(3,Math.floor(age*4)),p.x,p.z,p.r*2,p.r*2);
+  }
+  for (const cloud of S.clouds || []) {
+    if (cloud.kind === 'fire') {
+      layer.put('skill',7,cloud.x,cloud.z,cloud.r*2,cloud.r*2);
+      continue;
+    }
+    const drift = S.elapsed * .48 + cloud.x * .71 + cloud.z * .37;
+    const fade = clamp(cloud.t / .45, 0, 1);
+    for (let i = 0; i < 6; i++) {
+      const angle = drift + i * Math.PI * 2 / 5;
+      const offset = i === 5 ? 0 : cloud.r * .48;
+      const size = cloud.r * (1.02 + .16 * Math.sin(drift * 2 + i)) * fade;
+      layer.put('mist',0,cloud.x + Math.cos(angle)*offset,cloud.z + Math.sin(angle)*offset,
+        size*1.14,size,angle,.1 + .12*(1 + Math.sin(angle*2)));
+    }
+  }
+  layer.end();
+}
+function drawTerrain(ctx,r,hs,t) {
+  if(!S?.terrain)return;
+  const T=S.terrain,C=TERRAIN_CFG;
+  ctx.save();
+  if(T.kind==='moon'){
     if (T.moon) {
       ctx.fillStyle = 'rgba(150,24,22,' + (0.10 + 0.03 * Math.sin((S.elapsed || 0) * 3)).toFixed(3) + ')';
       ctx.fillRect(0, 0, r.width, r.height);
       ctx.font = '700 13px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       ctx.fillStyle = 'rgba(255,140,120,0.85)';
+      paintFrame(ctx,'terrain',8,r.width*.5,83,24,24);
       ctx.fillText('붉은 달 — 원귀가 빠르다 · 엽전 두 배 ' + Math.ceil(T.moonT) + '초', r.width * 0.5, 84);
     }
   } else if (T.kind === 'wall') {
@@ -4276,12 +4284,20 @@ function drawTerrain(ctx, r, hs, t) {
 }
 function drawV31(ctx, r, hs, t) {
   if (!S) return;
+  if (S.boss?.alive) {
+    const boss=S.boss, w=Math.min(260,r.width*.55), x=(r.width-w)/2, y=82;
+    ctx.save(); ctx.fillStyle='#241c21';ctx.fillRect(x-1,y-1,w+2,8);
+    ctx.fillStyle='#bf493d';ctx.fillRect(x,y,w*boss.hp/boss.maxHp,6);
+    ctx.font='bold 12px serif';ctx.textAlign='center';ctx.strokeStyle='#241c21';ctx.lineWidth=3;
+    const label=S.stage.bossName+'  '+Math.ceil(boss.hp)+' / '+boss.maxHp;
+    ctx.strokeText(label,r.width/2,y-5);ctx.fillStyle='#f5e6ce';ctx.fillText(label,r.width/2,y-5);ctx.restore();
+  }
   const wpp = worldPerCss();
   S.zombies.forEach(function (z) {
     if (!z.alive || z.isBoss) return;
     const zh = (z.obj && z.obj.userData && z.obj.userData.worldH) || 2.4;
     const p = projectXZ(z.x, z.z, zh * 0.9);
-    if (dist(z, S.hero) > ringR() * 1.35) return;
+    if (z.obj && !z.obj.visible) return;
     /* 갑옷을 두른 장정 */
     if (z.armored && (z.armor || 0) > 0) {
       ctx.save();
@@ -4326,7 +4342,7 @@ function drawV31(ctx, r, hs, t) {
         ctx.stroke();
         ctx.fillStyle = done ? 'rgba(255,214,110,0.5)' : (cur ? 'rgba(255,244,214,1)' : 'rgba(240,232,210,0.4)');
         ctx.font = '700 12px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(SHAPE_MARK[z.seq[i]] || '?', cx, cy + 1);
+        brushMark(ctx,z.seq[i],cx,cy,6);
         if (i < n - 1) {
           ctx.strokeStyle = 'rgba(240,232,210,0.22)'; ctx.lineWidth = 1;
           ctx.beginPath(); ctx.moveTo(cx + 11, cy); ctx.lineTo(cx + gap - 11, cy); ctx.stroke();
@@ -4335,6 +4351,26 @@ function drawV31(ctx, r, hs, t) {
       ctx.restore();
     }
   });
+  for (const fx of S.skillStamps || []) {
+    const age = S.elapsed - fx.start;
+    if (age >= .4) continue;
+    const p = projectXZ(fx.x, fx.z, 1);
+    ctx.save(); ctx.globalAlpha = 1 - age / .4;
+    const size = 36 + age * 48;
+    if (fx.kind === 'reson' || fx.kind === 'echo') {
+      const radius = 4 + age * (fx.kind === 'reson' ? 65 : 90);
+      ctx.strokeStyle = fx.kind === 'reson' ? '#cfab70' : '#a9c7ba';
+      ctx.lineWidth = 2.4 - age*4;
+      for (let i=0;i<2;i++) {
+        ctx.beginPath();
+        ctx.ellipse(p.x,p.y,radius*(1-i*.25),radius*.46*(1-i*.25),-.18,i*.8,5.6+i*.8);
+        ctx.stroke();
+      }
+    } else {
+      paintSkill(ctx, fx.kind, p.x, p.y, size, size);
+    }
+    ctx.restore();
+  }
   /* 회전 호신부: 궤도와 부적 */
   const w = wardInfo();
   if (w) {
@@ -4352,17 +4388,54 @@ function drawV31(ctx, r, hs, t) {
       const a = (S.wardSpin || 0) + i * Math.PI * 2 / w.n;
       const p = projectXZ(S.hero.x + Math.cos(a) * w.r, S.hero.z + Math.sin(a) * w.r, 0.6);
       ctx.save();
-      ctx.beginPath(); ctx.arc(p.x, p.y, 5.5, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,214,110,0.9)'; ctx.fill();
-      ctx.strokeStyle = 'rgba(255,244,214,0.6)'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(.32 * Math.sin(a));
+      paintSkill(ctx, 'ward', 0, 0, 32, 38);
       ctx.restore();
     }
   }
   /* 벼락부적 예고 원 */
   (S.bolts || []).forEach(function (b) {
-    if (b.done) return;
     const c = projectXZ(b.x, b.z, 0.05);
     const rx = b.r * wpp, ry = rx * 0.58;
+    if (b.done) {
+      const age = b.t - b.delay;
+      const pulse = age < .12 || (age > .17 && age < .28) ? 1 : .72;
+      ctx.save();ctx.globalAlpha = clamp(1-(age-.32)/.26,0,1);
+      // Reach the top of the playfield without scaling stroke width with height.
+      const height = Math.max(1,c.y + 2);
+      const width = clamp(height*.075,14,44);
+      const seed = b.x*7.1 + b.z*13.3 + (age < .17 ? 0 : 2);
+      ctx.translate(c.x,c.y);
+      ctx.globalAlpha *= pulse;
+      ctx.lineJoin='bevel';
+      ctx.beginPath();
+      ctx.moveTo(0,0);
+      for (let i=1;i<=22;i++) {
+        const u=i/22;
+        const x=width*Math.min(1,u*5)*(.54*Math.sin(seed+i*.81)+.32*Math.sin(seed+i*2.4)+u*.45);
+        const y=-height*u;
+        ctx.lineTo(x,y);
+        if (i%5===2) {
+          const side=i%2 ? 1 : -1;
+          ctx.moveTo(x+width*side*1.24,y+height*.13);
+          ctx.lineTo(x+width*side*.72,y+height*.055);
+          ctx.lineTo(x+width*side*.76,y+height*.074);
+          ctx.lineTo(x,y);
+        }
+      }
+      ctx.strokeStyle='rgba(230,165,65,.22)'; ctx.lineWidth=7; ctx.stroke();
+      ctx.strokeStyle='#c48c43'; ctx.lineWidth=3.4; ctx.stroke();
+      ctx.strokeStyle='#fff3cc'; ctx.lineWidth=1.45; ctx.stroke();
+      ctx.beginPath();
+      for (let i=0;i<7;i++) {
+        const angle=(i+.35)*Math.PI/7;
+        ctx.moveTo(0,0);
+        ctx.lineTo(Math.cos(angle)*width*.65,-Math.sin(angle)*width*.35);
+      }
+      ctx.stroke();
+      ctx.restore();return;
+    }
     const u = clamp(b.t / Math.max(0.01, b.delay), 0, 1);
     ctx.save();
     ctx.strokeStyle = 'rgba(255,214,110,' + (0.30 + 0.55 * u).toFixed(3) + ')';
@@ -4370,18 +4443,23 @@ function drawV31(ctx, r, hs, t) {
     ctx.beginPath(); ctx.ellipse(c.x, c.y, Math.max(8, rx * (0.55 + 0.45 * u)), Math.max(5, ry * (0.55 + 0.45 * u)), 0, 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
   });
-  /* 먹 발자국 웅덩이 */
-  (S.inkSteps || []).forEach(function (p) {
-    const c = projectXZ(p.x, p.z, 0.03);
-    const k = clamp(p.t / (CFG.inkStep.dur || 2), 0, 1);
-    const rx = Math.max(8, p.r * wpp);
-    ctx.save();
-    ctx.globalAlpha = 0.55 * k;
-    ctx.fillStyle = 'rgba(10,9,12,0.92)';
-    ctx.beginPath(); ctx.ellipse(c.x, c.y, rx, rx * 0.55, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(130,120,108,0.5)'; ctx.lineWidth = 1; ctx.stroke();
-    ctx.restore();
-  });
+
+}
+// Dry vermilion strokes, angular frost, and dilute violet washes.
+function drawElementMote(ctx, el, x, y, u, color) {
+  ctx.globalAlpha = Math.sin(Math.PI * u);
+  ctx.fillStyle = el === 'poison' ? '#bb92cc' : 'rgb(' + color.join(',') + ')';
+  ctx.beginPath();
+  if (el === 'poison') {
+    ctx.globalAlpha *= .24;
+    ctx.ellipse(x,y,4+u*3,2+u*2,-.25,0,Math.PI*2);
+  } else if (el === 'fire') {
+    ctx.moveTo(x-1.5,y+2); ctx.quadraticCurveTo(x-2,y,x+2+u*2,y-6);
+    ctx.quadraticCurveTo(x+2,y+1,x-1.5,y+2);
+  } else {
+    ctx.moveTo(x,y-3); ctx.lineTo(x+1.6,y); ctx.lineTo(x,y+3); ctx.lineTo(x-1.6,y);
+  }
+  ctx.fill();
 }
 function drawHeroElement(ctx, t) {
   const el = curElem();
@@ -4389,57 +4467,68 @@ function drawHeroElement(ctx, t) {
   const c = FX_COLORS[el] || FX_COLORS.jade;
   const R = 0.9;
   ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.beginPath();
-  for (let i = 0; i <= 32; i++) {
-    const a = (i / 32) * Math.PI * 2, w = 1 + 0.08 * Math.sin(a * 5 + t * 6);
-    const p = projectXZ(S.hero.x + Math.cos(a) * R * w, S.hero.z + Math.sin(a) * R * w, 0.05);
-    if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y);
-  }
-  ctx.strokeStyle = 'rgba(' + c.join(',') + ',0.75)'; ctx.lineWidth = 2.5; ctx.stroke();
-  /* rising motes: flames, ice glints or bubbles share one look, coloured by element */
   for (let i = 0; i < 6; i++) {
     const u = ((t * 0.8 + i / 6) % 1), a = i * 1.05 + t * 0.5;
     const p = projectXZ(S.hero.x + Math.cos(a) * R * 0.8, S.hero.z + Math.sin(a) * R * 0.8, 0.1 + u * 1.6);
-    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 5);
-    g.addColorStop(0, 'rgba(' + c.join(',') + ',' + (0.9 * (1 - u)).toFixed(3) + ')'); g.addColorStop(1, 'rgba(' + c.join(',') + ',0)');
-    ctx.fillStyle = g; ctx.fillRect(p.x - 5, p.y - 5, 10, 10);
+    drawElementMote(ctx,el,p.x,p.y,u,c);
   }
   ctx.restore();
   if (S.tempElem && S.tempElem.t > 0) {
     const f = clamp(S.tempElem.t / (CFG.tempElemDur || 12), 0, 1);
-    const hp = projectXZ(S.hero.x, S.hero.z, 2.3);
-    ctx.save();
-    ctx.beginPath(); ctx.arc(hp.x, hp.y, 9, 0, Math.PI * 2); ctx.fillStyle = 'rgba(8,7,9,0.6)'; ctx.fill();
-    ctx.beginPath(); ctx.arc(hp.x, hp.y, 9, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * f);
-    ctx.strokeStyle = 'rgba(' + c.join(',') + ',0.95)'; ctx.lineWidth = 3; ctx.stroke();
-    ctx.restore();
+    drawFootGauge(ctx, f, 'rgb(' + c.join(',') + ')', 38, 7);
   }
 }
+function drawFootGauge(ctx, fraction, color, width, offset, windowStart) {
+  const foot = projectXZ(S.hero.x, S.hero.z, 0);
+  const x = Math.round(foot.x - width / 2), y = Math.round(foot.y + offset);
+  ctx.save();
+  ctx.fillStyle = 'rgba(23,19,18,.88)';
+  ctx.fillRect(x-1,y-1,width+2,7);
+  if (windowStart != null) {
+    ctx.fillStyle = '#aa8744';
+    ctx.fillRect(x+width*windowStart,y,width*(1-windowStart),5);
+  }
+  ctx.fillStyle = color;
+  ctx.fillRect(x,y+1,width*fraction,3);
+  ctx.restore();
+}
 function drawEnemyBars(ctx) {
-  const R = ringR() * 1.05;
+  const R = ringR();
   const t = S.elapsed || 0;
   /* Status motes for kinds without their own status art (brute, stone, elites): flames, frost glints, bubbles. */
   S.zombies.forEach(function (z) {
-    if (!z.alive || z.isBoss || z.type === 'imp') return;
+    if (!z.alive || z.obj?.visible === false || ((z.isBoss || z.type === 'imp') && !(z.frozen > 0))) return;
     const el = z.frozen > 0 ? 'ice' : z.burn > 0 ? 'fire' : z.poison > 0 ? 'poison' : null;
-    if (!el || dist(z, S.hero) > R * 1.2) return;
+    if (!el || dist(z, S.hero) > R) return;
     const c = FX_COLORS[el], zh = (z.obj && z.obj.userData && z.obj.userData.worldH) || 2.4;
+    if (el === 'ice') {
+      const foot = projectXZ(z.x,z.z,0);
+      const head = projectXZ(z.x,z.z,zh);
+      const span = clamp(Math.abs(foot.y-head.y)*.32,8,32);
+      ctx.save();
+      ctx.translate(foot.x,foot.y);
+      ctx.scale(span,span);
+      ctx.beginPath();
+      for (const side of [-1,1]) {
+        ctx.moveTo(side*.42,0); ctx.lineTo(side*.96,-.66);
+        ctx.lineTo(side*.83,-.21); ctx.lineTo(side*1.14,-.32);
+        ctx.lineTo(side*.76,.04); ctx.closePath();
+      }
+      ctx.fillStyle='#a8e6ec'; ctx.strokeStyle='#35566d'; ctx.lineWidth=.095;
+      ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < 5; i++) {
       const u = ((t * (el === 'ice' ? 0.4 : 0.9) + i / 5 + z.id * 0.17) % 1);
       const p = projectXZ(z.x + Math.cos(i * 2.1) * (z.r || 0.6) * 0.8, z.z + Math.sin(i * 2.1) * (z.r || 0.6) * 0.8, zh * (0.15 + 0.5 * u));
-      const rr = el === 'ice' ? 3 : 5;
-      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, rr);
-      g.addColorStop(0, 'rgba(' + c.join(',') + ',' + (0.9 * Math.sin(Math.PI * u)).toFixed(3) + ')'); g.addColorStop(1, 'rgba(' + c.join(',') + ',0)');
-      ctx.fillStyle = g; ctx.fillRect(p.x - rr, p.y - rr, rr * 2, rr * 2);
+      drawElementMote(ctx,el,p.x,p.y,u,c);
     }
     ctx.restore();
   });
   S.zombies.forEach(function (z) {
     if (!z.alive || z.isBoss || !(z.maxHp > 0) || z.hp >= z.maxHp - 0.01) return;
-    const held = livingMarks().some(function (m) { return m.target === z; });
-    if (!held && dist(z, S.hero) > R) return;
+    if (dist(z, S.hero) > R) return;
     const zh = (z.obj && z.obj.userData && z.obj.userData.worldH) || 2.4;
     const p = projectXZ(z.x, z.z, zh * 0.78);
     const w = 26, h = 4, f = clamp(z.hp / z.maxHp, 0, 1);
@@ -4488,12 +4577,18 @@ function showJudge(text) {
 }
 let _audio = null;
 /* A spirit announces itself with one bell from its side of the screen; the pitch tells the shape. */
+function stampSkill(kind, x, z) {
+  const live = (S.skillStamps || []).filter(fx => S.elapsed - fx.start < .4);
+  live.push({kind, x, z, start: S.elapsed});
+  S.skillStamps = live;
+}
 function ringSpiritBell(sp) {
   if (!sp) return;
   /* v0.31 §5.3 방울 공명: 혼령이 붙는 순간 그 원귀에게 피해(보스제외). */
   const rs = upLv('reson');
-  if (rs && sp.target && sp.target.alive && !sp.target.isBoss && !sp.target.isTotem && !sp.target.isClone && !sp.target.isPillar) {
+  if (rs && sp.target && sp.target.alive && !sp.target.isTotem && !sp.target.isClone && !sp.target.isPillar) {
     const d = (CFG.resonCard.dmg || [0.5, 0.8, 1.1])[Math.min(2, rs - 1)];
+    stampSkill('reson', sp.target.x, sp.target.z);
     hurtZombie(sp.target, d, 'reson', S && S.lastDash);
   }
   if (!audio) return;
@@ -4984,6 +5079,7 @@ function preciseParry(prec, rec) {
     hurtZombie(z, dmg, 'parry', rec);
   } else if (prec.kind === 'boss' && prec.z && prec.z.alive) {
     const b = prec.z;
+    b.openUntil=S.elapsed+1.8+(b.chilled ? .4 : 0); b.chilled=false;
     b.state = 'stun'; b.stateT = 0;
     b.pat = b.pat || null;
     bossPoise(b, 1);
@@ -5006,6 +5102,7 @@ function sheathCounter() {
   const shape = spiritShape(s);
   if (!shape) return null;
   S.comboGrace = Math.max(S.comboGrace || 0, 0.1);
+  stampSkill('counter', S.hero.x, S.hero.z);
   showJudge('반격!');
   return beginDash(shape, { dir: null });
 }
@@ -5035,7 +5132,7 @@ function doParry(rec) {
     telemetry.event('reflect', { gold: refl, n: S.goldReflectN });
   }
   S.zombies.forEach(function (z) {
-    if (!z.alive || z.isClone || z.isPillar || z.isTotem) return;
+    if (!z.alive || z.isBoss || z.isClone || z.isPillar || z.isTotem) return;
     const d = dist(z, S.hero);
     if (d > R + (z.r || 0.55)) return;
     hits.push(z.id);
@@ -5103,7 +5200,7 @@ function castCleave(rec) {
     if (!z.alive) return;
     if (dist(z, S.hero) > R + (z.r || 0.5)) return;
     hitIds.push(z.id);
-    if (z.isBoss) { cutSpirit(z); return; }
+    if (z.isBoss) { hurtZombie(z,dmg,'cleave',rec); return; }
     /* 참 피해는 항상 그대로 들어간다. 상태이상은 그 위에 얹히는 보너스다(예전에는 빙결·독 대상이
        4·3 피해로 '대체'되어 진화를 띄울수록 참이 약해졌다). */
     const wasFrozen = z.frozen > 0;
@@ -5236,7 +5333,7 @@ function applyPath(from, to, rec, skip) {
   if (perfect && rec) { rec.perfect = true; showJudge('정확한 획'); }
   const dx = to.x - from.x, dz = to.z - from.z, L2 = dx * dx + dz * dz || 1;
   const hit = S.zombies.filter(function (z) {
-    return z.alive && z !== skip && !z.isBoss && !z.isClone && segDist(z.x, z.z, from.x, from.z, to.x, to.z) <= r + z.r;
+    return z.alive && z !== skip && !z.isClone && segDist(z.x, z.z, from.x, from.z, to.x, to.z) <= r + z.r;
   });
   /* Nearest along the cut takes full damage; each one after it a little less. */
   hit.sort(function (a, b) { return ((a.x - from.x) * dx + (a.z - from.z) * dz) / L2 - ((b.x - from.x) * dx + (b.z - from.z) * dz) / L2; });
@@ -5244,7 +5341,7 @@ function applyPath(from, to, rec, skip) {
   hit.forEach(function (z, k) {
     hurtZombie(z, dmg * Math.pow(CFG.pierceFalloff || 1, k), 'slash', rec);
     /* §9.2 서릿검: 일섬의 첫 원귀를 얼린다. */
-    if (k === 0 && z.alive && swordF.freeze) z.frozen = Math.max(z.frozen || 0, swordF.freeze);
+    if (k === 0 && z.alive && !z.isBoss && swordF.freeze) z.frozen = Math.max(z.frozen || 0, swordF.freeze);
     if (z.alive) applyElement(z, curElem(), rec);
     else spreadElement(z, curElem(), rec);
   });
@@ -5344,11 +5441,9 @@ function breakHit(z, rec, amount) {
   return null;
 }
 /* v0.31 §5.3: 자동 피해(호신부·벼락부적)는 총 피해의 25%를 넘지 않는다. */
-function autoAllowed(d) {
-  if (!S || !d) return false;
-  const a = (S.autoDmg || 0) + d, m = S.manualDmg || 0;
-  const cap = CFG.autoCap || 0.25;
-  return a <= cap * (a + m) + 1e-6;
+function autoBudget() {
+  const cap = CFG.autoCap;
+  return Math.max(0,(S.manualDmg || 0)*cap/(1-cap) - (S.autoDmg || 0));
 }
 function autoShare() {
   const a = (S && S.autoDmg) || 0, m = (S && S.manualDmg) || 0;
@@ -5356,6 +5451,17 @@ function autoShare() {
 }
 function hurtZombie(z, amount, why, rec) {
   if (!z || !z.alive) return;
+  if (z.isBoss) {
+    if (!z.hp || z.hidden) return;
+    const dealt=Math.min(z.hp,amount*(why==='bang' ? 1 : z.openUntil>S.elapsed ? 1.3 : .7));
+    z.hp-=dealt;
+    const meter=why==='bolt'||why==='ward'?'autoDmg':'manualDmg';
+    S[meter]=(S[meter]||0)+dealt;
+    z.seqI=Math.min(z.seq.length-1,Math.floor((1-z.hp/z.maxHp)*z.seq.length));
+    z.shape=z.seq[z.seqI];
+    if (!z.hp) startSeal(z); else { bossPhaseCheck(z); refreshBossGlyphs(z); }
+    return;
+  }
   if (z.isClone) { popClone(z, false); return; }
   /* 방울 정예: 방울이 울린 직후 0.5초는 봉인되어 칼이 미끄러진다. */
   if (z.invuln > 0) { if (!(S.armorJudgeT > 0)) { showJudge('봉인'); S.armorJudgeT = 0.4; } if (audio && audio.whiff) audio.whiff(true); return; }
@@ -5366,10 +5472,11 @@ function hurtZombie(z, amount, why, rec) {
     const rule = breakHit(z, rec, amount);
     if (rule) { amount = rule.dmg; why = rule.why; }
   }
+  const effectiveDamage = Math.min(Math.max(0,z.hp),amount);
   z.hp -= amount;
   if (S) {
-    if (why === 'ward' || why === 'bolt') S.autoDmg = (S.autoDmg || 0) + amount;
-    else S.manualDmg = (S.manualDmg || 0) + amount;
+    if (why === 'ward' || why === 'bolt') S.autoDmg = (S.autoDmg || 0) + effectiveDamage;
+    else S.manualDmg = (S.manualDmg || 0) + effectiveDamage;
   }
   if (rec) rec.hits.push({ id: z.id, dmg: amount, hp: z.hp, why: why });
   tintZombie(z);
@@ -5386,7 +5493,7 @@ function hurtZombie(z, amount, why, rec) {
     /* Stagger: a white flash and a short shove along the cut; the boss and status ticks do not shove. */
     z.flinchT = CFG.flinchDur || 0.14;
     if (z.obj && art.kickChar) art.kickChar(z.obj, 1);
-    if (!z.isBoss && (why === 'slash' || why === 'cleave' || why === 'combo-burst')) {
+    if (!z.isBoss && !(z.frozen > 0) && (why === 'slash' || why === 'cleave' || why === 'combo-burst')) {
       const L = Math.hypot(d.x, d.z) || 1, k = (CFG.hitKnockZ || 0.35) * (z.type === 'stone' ? (CFG.stoneKnockMul || 0.35) : 1);
       z.x += d.x / L * k; z.z += d.z / L * k;
     }
@@ -5400,7 +5507,8 @@ function groundTrace(elem, x, z, r) {
   three.traces.decal(kind, x, z, { size: size, dur: kind === 'scorch' ? 4.6 : kind === 'ice' ? 5.2 : kind === 'bolt' ? 3.4 : 3.0, alpha: 0.85 });
 }
 function applyElement(z, elem, rec) {
-  if (!z.alive || !elem) return;
+  if (!z.alive || !elem || (z.isBoss && !z.hp)) return;
+  if(z.isBoss && elem==='ice'){ z.chilled=true; hurtZombie(z,frostImpact(elemLv('ice')),'ice-impact',rec); return; }
   /* v0.41: 원소 스킬 시트 — 붙은 자리에서 그 원소가 종이 컷으로 터진다. */
   if (three && three.paper) three.paper.elem(elem, z.x, z.z, { size: 1.6, ringR: 1.8 });
   /* v0.43: 같은 순간 바닥에 흔적이 남는다 — 궤적·터짐·흔적이 한 프레임에 맞물린다. */
@@ -5408,14 +5516,21 @@ function applyElement(z, elem, rec) {
   if (elem === 'fire') {
     if (z.frozen > 0) shatterZombie(z, rec);
     else if (z.poison > 0) explodeZombie(z, rec);
-    else applyBurn(z, rec);
+    else {
+      // The burning body and rising embers carry the hit without an icon.
+      hurtZombie(z, fireImpact(elemLv('fire')), 'fire-impact', rec);
+    }
   } else if (elem === 'ice') {
+    if (!(z.frozen > 0)) {
+      hurtZombie(z,frostImpact(elemLv('ice')),'ice-impact',rec);
+      if (!z.alive) return;
+    }
     z.frozen = elemIceDur();
     z.burn = 0;
     if (rec) rec.statuses = (rec.statuses || []).concat([{ id: z.id, ice: true }]);
     tintZombie(z);
   } else if (elem === 'poison') {
-    z.poison = Math.min(elemPoisonMax(), (z.poison || 0) + 1);
+    z.poison = Math.min(z.isBoss ? 3 : elemPoisonMax(), (z.poison || 0) + 1);
     z.poisonT = CFG.poisonDur;
     if (rec) rec.statuses = (rec.statuses || []).concat([{ id: z.id, poison: z.poison }]);
     tintZombie(z);
@@ -5434,7 +5549,7 @@ function spreadElement(z, elem, rec) {
   S.zombies.forEach(function (o) {
     if (!o.alive || o === z || o.isBoss || dist(o, z) > R + o.r) return;
     if (elem === 'fire') applyElement(o, 'fire', rec);
-    else if (elem === 'ice') { o.slowT = CFG.iceSlowDur || 2; tintZombie(o); }
+    else if (elem === 'ice') { o.frozen = Math.max(o.frozen || 0, elemIceDur()); tintZombie(o); }
   });
   /* 얼음 일섬으로 한 번에 베어 넘긴 적도 '얼어붙은 채 죽은 것'으로 본다 — 사방 한기가 발동한다. */
   if (elem === 'ice') frostNovaAt(z, rec);
@@ -5445,6 +5560,7 @@ function applyBurn(z, rec) {
   tintZombie(z);
 }
 function shatterZombie(z, rec) {
+  z.freezeAt = null;
   z.frozen = 0;
   if (rec) rec.shatter = (rec.shatter || []).concat([z.id]);
   if (art.playFx) {
@@ -5465,14 +5581,14 @@ function shatterZombie(z, rec) {
 }
 function explodeZombie(z, rec) {
   const stacks = z.poison || 0;
-  z.poison = 0; z.poisonT = 0;
+  z.poison = 0; z.poisonT = 0; z.poisonTick = 0;
   if (rec) rec.explode = (rec.explode || []).concat([{ id: z.id, stacks: stacks }]);
   if (art.playFx) {
     const fx = art.playFx(three.scene, 'poison-burst', z.x, z.z, 2.6);
     if (fx) three.fx.push(fx);
   }
   S.shake = Math.max(S.shake || 0, 0.2);
-  hurtZombie(z, CFG.explodeDmg, 'explode', rec);
+  hurtZombie(z, Math.max(CFG.explodeDmg,fireImpact(elemLv('fire'))) + .5*Math.max(0,stacks-1), 'explode', rec);
   S.zombies.forEach(function (o) {
     if (o === z || !o.alive) return;
     if (dist(o, z) <= CFG.explodeR + o.r) hurtZombie(o, CFG.explodeDmg, 'explode-aoe', rec);
@@ -5493,12 +5609,16 @@ function tickStatuses(dt) {
     if (c.kind === 'fire') {
       /* 묵염(墨炎) 장판: 0.75초당 1뎀 */
       S.zombies.forEach(function (z) {
-        if (z.alive && !z.isBoss && dist(z, c) <= (c.r || 1.5) + z.r) hurtZombie(z, CFG.burnDmg || 1, 'burn', S.lastDash);
+        if (z.alive && dist(z, c) <= (c.r || 1.5) + z.r) hurtZombie(z, CFG.burnDmg || 1, 'burn', S.lastDash);
       });
       return;
     }
     S.zombies.forEach(function (z) {
-      if (z.alive && !z.isBoss && dist(z, c) <= (c.r || CFG.poisonCloudR || 2) + z.r) applyElement(z, 'poison', null);
+      if (!z.alive || dist(z,c) > (c.r || CFG.poisonCloudR || 2) + z.r) return;
+      // Staying in one cloud refreshes exposure; different clouds can stack.
+      c.exposed ??= new Set();
+      if (c.exposed.has(z.id) && z.poison > 0) z.poisonT = CFG.poisonDur;
+      else { c.exposed.add(z.id); applyElement(z,'poison',null); }
     });
   });
   if (S.clouds) S.clouds = S.clouds.filter(function (c) { return c.t > 0; });
@@ -5523,8 +5643,10 @@ function tickStatuses(dt) {
     if (z.stun > 0) { z.stun -= dt; if (z.stun < 0) z.stun = 0; }
     if (z.rimFlash > 0) z.rimFlash = Math.max(0, z.rimFlash - dt);
     if (z.frozen > 0) {
+      if (z.freezeAt == null) z.freezeAt = S.elapsed;
       z.frozen -= dt;
       if (z.frozen <= 0) {
+        z.freezeAt = null;
         z.frozen = 0;
         /* 빙결이 끝나면 잠깐 둔화가 남아 칼을 다시 챙길 시간을 준다. */
         z.slowT = Math.max(z.slowT || 0, 0.9);
@@ -5540,15 +5662,13 @@ function tickStatuses(dt) {
       if (z.burn <= 0) z.burn = 0;
     }
     if (z.poison > 0) {
+      z.poisonTick = (z.poisonTick || 0) + Math.min(dt,z.poisonT);
       z.poisonT -= dt;
-      if (z.poisonT <= 0) { z.poison = 0; z.poisonT = 0; }
-      else {
-        z.poisonTick = (z.poisonTick || 0) + dt;
-        while (z.alive && z.poisonTick >= CFG.poisonPeriod) {
+        while (z.alive && z.poisonTick + 1e-8 >= CFG.poisonPeriod) {
           z.poisonTick -= CFG.poisonPeriod;
           hurtZombie(z, z.poison * elemPoisonDmg(), 'poison', S.lastDash);
         }
-      }
+      if (z.poisonT <= 1e-8) { z.poison = 0; z.poisonT = 0; z.poisonTick = 0; }
     }
     tintZombie(z);
   });
@@ -5624,81 +5744,15 @@ function gapInfo(s) {
 function cutSpirit(s) {
   if (!s || !s.alive) return;
   if (s.kind === 'spirit') return;
-  if (s.isBoss) {
-    /* 무릎 꿇은 보스는 한붓별 봉인만 받는다. */
-    if (s.state === 'seal' || s.state === 'sealing') return;
-    /* v0.27 P1-2: 걷기·예고·기모으기·영창·탄막 예고 동안은 칼이 튕긴다.
-       패턴을 보고 빈틈(경직·기세 붕괴·돌진 통과·분신 진짜·은신 추적)을 노려야 절단이 들어간다.
-       예외 두 가지: ① 등장 직후 첫 걷기는 완전 무적 — 첫 패턴을 반드시 보게 한다.
-                     ② 그 뒤 걷기에는 한 호흡(1.6초)에 한 번만 '빈틈' 절단이 들어간다. */
-    var vuln = s.state === 'stun' || s.state === 'groggy' || s.state === 'charge' || s.state === 'clones' || s.state === 'veil' || s.state === 'shuffle';
-    if (!vuln) {
-      var gapOk = s.state === 'walk' && !s.firstWalk && gapInfo(s).open;
-      if (!gapOk) {
-        if (!S.bossArmorTip) {
-          S.bossArmorTip = true;
-          toast('예고·걷기 중에는 칼이 튕깁니다 — 한 호흡에 한 번, 빈틈을 노리세요');
-        }
-        if (!(S.armorJudgeT > 0)) { showJudge('튕겨냈다'); S.armorJudgeT = 0.5; }
-        /* §3.1: 튕긴 이유를 소리로 — 짧고 높은 쇳소리 + 0.03초 정지. */
-        if (audio) audio.deflect();
-        addHitstop(CFG.hitstopBounce || 0.03);
-        addCharge(2);
-        /* §8.2 처음 튕기는 순간: 빈틈 고리를 가리키는 화살표를 한 번 띄운다. */
-        if (S && markSeen('bounce')) {
-          S.bounceArrow = 3.0;
-          toast('지금은 튕깁니다 — 발밑 둘레의 빈틈 고리가 다 차면 베세요');
-          telemetry.event('first_moment', { kind: 'bounce', stage: S.stageNo });
-        }
-        return;
-      }
-      s.walkCutAt = S.elapsed || 0;
-      showJudge('빈틈!');
-      /* §9.2 귀문검: 빈틈을 베면 참이 5 더 찬다. */
-      if (swordFx(save).gapCharge) addCharge(swordFx(save).gapCharge);
-    }
-    s.seqI++;
-    /* v0.32 §4.4 무늬 뒤석기: 금빛 테두리 0.4초 안에 베면 무늬가 그 자리에 고정된다. */
-    if (s.state === 'shuffle' && s.shuffle && !s.shuffle.locked && s.shuffle.gold > 0) {
-      s.shuffle.locked = true;
-      S.shuffleLock = (S.shuffleLock || 0) + 1;
-      tcount('shuffle');
-      telemetry.event('boss_pattern', { p: 'shuffle', result: 'lock', n: S.shuffleLock });
-      notePatSeen('shuffle', 'lock');
-      showJudge('무늬 고정!');
-      S.goldEdge = Math.max(S.goldEdge || 0, 0.2);
-      inkFx.ring(2.0, FX_COLORS.gold, 0.5);
-    }
-    /* 돌진 뒤 경직(등 뒤)·기세 붕괴 중에 베면 절단이 두 번 들어간다 — 예고→회피→반격 파훼. */
-    var broke = (s.state === 'stun' || s.state === 'groggy');
-    if (broke) { s.seqI++; showJudge('파훼!'); }
-    /* 분신 속 진짜, 안개 속 귀물을 찾아 벤 일섬은 경직을 연다. */
-    if (s.state === 'clones' || s.state === 'veil') {
-      showJudge(s.state === 'clones' ? '진짜!' : '찾았다!');
-      endBossSide(s);
-      s.state = 'stun'; s.stateT = 0; s.stunT = 0;
-    }
-    addCharge(CFG.cleaveGainBoss || 10);
-    /* §3.1: 파훼는 히트스톱 0.10초 + 보스 혼령 무늬가 금빛으로 깨지는 연출. */
-    if (broke) {
-      addHitstop(CFG.hitstopBreak || 0.10);
-      S.goldEdge = Math.max(S.goldEdge || 0, 0.18);
-      inkFx.burst(s.x, s.z, FX_COLORS.gold, { r1: 46, n: 10, dur: 0.5 });
-      inkFx.ring(2.4, FX_COLORS.gold, 0.4);
-      if (audio) audio.breakCue();
-    } else addHitstop(CFG.hitstopKill || 0.06);
-    if (s.seqI >= s.seq.length) {
-      s.seqI = s.seq.length;
-      if (bossSealOn() && !s.sealed) startSeal(s);
-      else killZombie(s, S && S.lastDash);
-    } else {
-      bossPhaseCheck(s);
-      s.shape = s.seq[s.seqI];
-      refreshBossGlyphs(s);
-    }
-    return;
+  if (s.isBoss && s.hp && !s.hidden && !(s.openUntil>S.elapsed) &&
+      ['telegraph','slamTele','volleyTele','charge','stun','groggy','clones','veil','shuffle'].includes(s.state)) {
+    endBossSide(s);
+    s.openUntil=S.elapsed+1.8+(s.chilled ? .4 : 0);
+    s.chilled=false; s.state='stun'; s.stateT=0;
+    if(audio) audio.breakCue();
   }
 }
+
 function destroySpirit(s) {
   if (!s || s.kind !== 'spirit') return;
   s.alive = false;
@@ -5959,12 +6013,12 @@ function frostLanding(at) {
     if (fx) three.fx.push(fx);
   }
   S.zombies.forEach(function (z) {
-    if (!z.alive || z.isBoss) return;
+    if (!z.alive) return;
     if (dist(z, at) > R + z.r) return;
-    z.frozen = Math.max(z.frozen || 0, elemIceDur());
+    if(z.isBoss) z.chilled=true; else z.frozen = Math.max(z.frozen || 0, elemIceDur());
     z.burn = 0;
     tintZombie(z);
-    hurtZombie(z, CFG.shatterDmg || 4, 'frost', S.lastDash);
+    hurtZombie(z, 3, 'frost', S.lastDash);
   });
   S.shake = Math.max(S.shake || 0, 0.35);
 }
@@ -5977,7 +6031,7 @@ function fireLanding(at) {
     if (fx) three.fx.push(fx);
   }
   S.zombies.forEach(function (z) {
-    if (!z.alive || z.isBoss) return;
+    if (!z.alive) return;
     if (dist(z, at) > R + z.r) return;
     hurtZombie(z, CFG.explodeDmg || 3, 'fire-burst', S.lastDash);
     if (z.alive) { z.burn = CFG.burnDur || 3; tintZombie(z); }
@@ -5994,7 +6048,7 @@ function manpoBurst(z, rec) {
     if (fx) three.fx.push(fx);
   }
   S.zombies.forEach(function (o) {
-    if (o === z || !o.alive || o.isBoss) return;
+    if (o === z || !o.alive) return;
     if (dist(o, z) > R + o.r) return;
     hurtZombie(o, 2 + stacks, 'poison-burst', rec);
     if (o.alive) {
@@ -6015,7 +6069,7 @@ function frostNovaAt(z, rec) {
     if (fx) three.fx.push(fx);
   }
   S.zombies.forEach(function (o) {
-    if (!o.alive || o === z || o.isBoss) return;
+    if (!o.alive || o === z) return;
     if (dist(o, z) <= 3) {
       hurtZombie(o, 4, 'frost', rec);
       if (o.alive) { o.slowT = Math.max(o.slowT || 0, CFG.iceSlowDur || 2); tintZombie(o); }
@@ -6047,10 +6101,11 @@ function stepWard(dt) {
     const a = S.wardSpin + i * Math.PI * 2 / w.n;
     const p = { x: S.hero.x + Math.cos(a) * w.r, z: S.hero.z + Math.sin(a) * w.r };
     S.zombies.forEach(function (z) {
-      if (!z.alive || z.isBoss || z.isClone || z.isPillar || z.isTotem) return;
+      if (!z.alive || z.isClone || z.isPillar || z.isTotem) return;
       if (dist(z, p) > 0.62 + (z.r || 0.5)) return;
-      if (!autoAllowed(w.dmg)) return;
-      hurtZombie(z, w.dmg, 'ward', S.lastDash);
+      const damage = Math.min(w.dmg,autoBudget());
+      if (damage < .001) return;
+      hurtZombie(z, damage, 'ward', S.lastDash);
       if (z.alive && S.evo && S.evo.manryun) { z.slowT = Math.max(z.slowT || 0, CFG.ward.manryunSlow || 0.3); tintZombie(z); }
     });
   }
@@ -6063,10 +6118,10 @@ function boltPeriod() {
 function densestPoint(range) {
   let best = null, bestN = -1;
   (S.zombies || []).forEach(function (z) {
-    if (!z.alive || z.isBoss || z.isClone || z.isPillar || z.isTotem) return;
-    if (dist(z, S.hero) > range) return;
+    if (!z.alive || z.hidden || z.isClone || z.isPillar || z.isTotem) return;
+    if (dist(z, S.hero) > range && !(z.isBoss && arenaActive())) return;
     let n = 0;
-    S.zombies.forEach(function (o) { if (o.alive && !o.isBoss && !o.isClone && !o.isPillar && !o.isTotem && dist(o, z) <= 2.4) n++; });
+    S.zombies.forEach(function (o) { if (o.alive && !o.isBoss && !o.isClone && !o.isPillar && !o.isTotem && dist(o, z) <= CFG.boltCard.r + o.r) n++; });
     if (n > bestN) { bestN = n; best = { x: z.x, z: z.z }; }
   });
   return best;
@@ -6076,9 +6131,9 @@ function stepBolt(dt) {
   if (!lv) return;
   S.boltT = (S.boltT || 0) + dt;
   if (S.boltT < boltPeriod()) return;
-  S.boltT = 0;
-  const at = densestPoint(CFG.boltCard.range || 6);
+  const at = densestPoint(Math.min(ringR(),CFG.boltCard.range || 6));
   if (!at) return;
+  S.boltT = 0;
   S.bolts = S.bolts || [];
   S.bolts.push({ x: at.x, z: at.z, t: 0, delay: CFG.boltCard.tele || 0.6, r: CFG.boltCard.r || 2.2, done: false });
   if (audio && audio.bell) audio.bell(0, 'bolt');
@@ -6090,20 +6145,19 @@ function stepBolts(dt) {
     b.t += dt;
     if (b.done || b.t < b.delay) return;
     b.done = true;
-    if (art && art.playFx && three) { const fx = art.playFx(three.scene, 'ink-splat', b.x, b.z, b.r); if (fx) three.fx.push(fx); }
-    groundTrace('lightning', b.x, b.z, b.r);
     S.shake = Math.max(S.shake || 0, 0.3);
     const dmg = CFG.boltCard.dmg || 2.2;
-    S.zombies.slice().forEach(function (z) {
-      if (!z.alive || z.isBoss || z.isClone || z.isPillar || z.isTotem) return;
-      if (dist(z, b) > b.r + z.r) return;
-      if (!autoAllowed(dmg)) return;
-      hurtZombie(z, dmg, 'bolt', S.lastDash);
+    const targets = S.zombies.filter(z => z.alive && !z.isClone && !z.isPillar && !z.isTotem && dist(z,b) <= b.r + z.r);
+    const perTarget = Math.min(dmg,autoBudget()/Math.max(1,targets.length));
+    if (perTarget < .001) return;
+    targets.forEach(function (z) {
+      if (!z.alive) return;
+      hurtZombie(z, perTarget, 'bolt', S.lastDash);
       S.boltHits = (S.boltHits || 0) + 1;
-      if (z.alive && S.evo && S.evo.noebing) { z.frozen = Math.max(z.frozen || 0, CFG.boltCard.freeze || 1.5); tintZombie(z); }
+      if (z.alive && S.evo && S.evo.noebing) { if(z.isBoss) z.chilled=true; else z.frozen = Math.max(z.frozen || 0, CFG.boltCard.freeze || 1.5); tintZombie(z); }
     });
   });
-  S.bolts = S.bolts.filter(function (b) { return !(b.done && b.t > b.delay + 0.45); });
+  S.bolts = S.bolts.filter(function (b) { return !(b.done && b.t > b.delay + 0.58); });
 }
 /* 메아리 칼: 일섬 0.5초 뒤 같은 경로에 잔영이 지나간다(피해 40/55/70%). */
 function queueEcho(rec) {
@@ -6123,9 +6177,10 @@ function stepEchoes(dt) {
     e.t -= dt;
     if (e.t > 0) { out.push(e); return; }
     if (Math.hypot(e.to.x - S.hero.x, e.to.z - S.hero.z) > ringR() * 2.4) return;
+    stampSkill('echo', e.to.x, e.to.z);
     const r = pathR(), dmg = dashDmg() * e.mul;
     S.zombies.slice().forEach(function (z) {
-      if (!z.alive || z.isBoss || z.isClone || z.isPillar || z.isTotem) return;
+      if (!z.alive || z.isClone || z.isPillar || z.isTotem) return;
       if (segDist(z.x, z.z, e.from.x, e.from.z, e.to.x, e.to.z) > r + z.r) return;
       hurtZombie(z, dmg, 'echo', S.lastDash);
     });
@@ -6184,8 +6239,7 @@ function upDesc(u) {
   }
   if (u.id === 'ice') return '빙결 ' + fmt1(elemScale(CFG.iceDur || 2.5, CFG.iceDurStep || 0.5, next)) + '초 · 파열 '
     + fmt1(elemScale(CFG.shatterDmg || 4, CFG.shatterStep || 1, next)) + ' 피해';
-  if (u.id === 'fire') return '연소 ' + fmt1(elemScale(CFG.burnDur || 3, CFG.burnDurStep || 0.5, next)) + '초 · '
-    + fmt1(elemScale(CFG.burnDmg || 1, CFG.burnDmgStep || 0.3, next)) + ' 피해/틱';
+  if (u.id === 'fire') return '명중 즉시 +' + fireImpact(next) + ' 피해';
   if (u.id === 'poison') return '중첩 ' + Math.round(elemScale(CFG.poisonMax || 5, CFG.poisonMaxStep || 1, next)) + ' · 독구름 '
     + fmt1(elemScale(CFG.poisonCloudR || 2, CFG.cloudRStep || 0.6, next)) + 'm';
   if (u.id === 'perfect') return '정확도 ' + Math.round(((CFG.perfectThresh || 0.8) - (CFG.perfectThreshStep || 0.05) * (next - 1)) * 100)
@@ -6403,7 +6457,7 @@ function applyUpgrade(id, auto) {
   else if (id === 'magnet') S.magnetR = Math.min(CFG.magnetMax || 3.8, (S.magnetR || CFG.magnetR || 2.2) + (CFG.magnetStep || 0.6));
   else if (id === 'charge') S.chargeLv = (S.chargeLv || 0) + 1;
   else if (id === 'ward') { S.wardSpin = S.wardSpin || 0; showJudge('회전 호신부 Lv' + S.upLv.ward); }
-  else if (id === 'bolt') { S.boltT = 0; showJudge('벼락부적 Lv' + S.upLv.bolt); }
+  else if (id === 'bolt') { S.boltT = boltPeriod(); showJudge('벼락부적 Lv' + S.upLv.bolt); }
   else if (id === 'echo') { toast('메아리 칼 Lv' + S.upLv.echo); }
   else if (id === 'reson') { toast('방울 공명 Lv' + S.upLv.reson); }
   else if (id === 'counter') { toast('칼집 반격 Lv' + S.upLv.counter); }
@@ -6434,6 +6488,8 @@ function stepBoss(z, dt) {
   const walkT = bt.walkT, teleT = bt.teleT, chargeSp = bt.chargeSp, chargeT = bt.chargeT, stunT = bt.stunT;
   z.state = z.state || 'walk';
   z.stateT = (z.stateT || 0) + dt;
+  if(z.state==='sealing'){ if(z.stateT>.8) killZombie(z,S.lastDash); return true; }
+  if(!z.hp || z.openUntil>S.elapsed) return true;
   const pats = bossPatList(z);
   if (pats) {
     if (z.cue) z.cue.t += dt;
@@ -6917,7 +6973,7 @@ function bossPat() { return CFG.bossPat || {}; }
 /* §9.4 금실 칼집: 기모으기 금빛 칸 +0.1초 */
 function kiaiWin(K) { return (K && K.win || 0) + (relicOn(save, 'sheath') ? 0.1 : 0); }
 /** Spirits on the clones and on the boss among them stay bound for the whole pattern, wherever the hero dashes. */
-function cloneHeld(s) { const t = s && s.target; return !!(t && (t.isClone || t.isTotem || (t.isBoss && t.state === 'clones'))); }
+function cloneHeld(s) { const t = s && s.target; return !!(t && (t.isClone || t.isTotem || t.isPillar || (t.isBoss && t.state === 'clones'))); }
 function ensureCloneSpirits(z) {
   const held = livingMarks().map(function (m) { return m.target; });
   [z].concat(z.clones || []).forEach(function (c) { if (c.alive && held.indexOf(c) < 0) spawnSpirit({ x: c.x, z: c.z, target: c }); });
@@ -6931,21 +6987,23 @@ function bossMinions() {
 /** Raises one totem in the widest empty direction around the hero, inside the sight ring, so there is always somewhere to dash. */
 function summonDodgeTarget(boss) {
   const M = bossPat().summon;
-  const taken = bossMinions().concat(boss ? [boss] : []).map(function (q) { return Math.atan2(q.z - S.hero.z, q.x - S.hero.x); });
+  const center=S.arena || S.hero;
+  const taken=bossMinions().map(q=>Math.atan2(q.z-center.z,q.x-center.x));
   let best = Math.random() * Math.PI * 2, bestGap = -1;
   for (let i = 0; i < 12; i++) {
     const a = i * Math.PI / 6 + Math.random() * 0.2;
     const gap = taken.reduce(function (m, t) { return Math.min(m, Math.abs(angDiff(a, t))); }, Math.PI);
     if (gap > bestGap) { bestGap = gap; best = a; }
   }
-  const d = ringR() * (M.r[0] + Math.random() * (M.r[1] - M.r[0]));
-  const p = clampPointToArena(S.hero.x + Math.cos(best) * d, S.hero.z + Math.sin(best) * d, 1.5);
+  const d=arenaR()-.35;
+  const p={x:center.x+Math.cos(best)*d,z:center.z+Math.sin(best)*d};
   inkFx.burst(p.x, p.z, FX_COLORS.poison, { r1: 30, n: 6, dur: 0.4 });
   const used = bossMinions().map(function (q) { return q.shape; });
   const shape = TOTEM_SHAPES.filter(function (k) { return used.indexOf(k) < 0; })[0];
   if (!shape) return null;
   const t = { id: ++S._id, kind: 'zombie', type: 'totem', shape: shape, x: p.x, z: p.z, r: 0.6, alive: true, hp: 1, isTotem: true, frozen: 0, burn: 0, poison: 0, stun: 0, marked: false };
-  t.obj = makeTotemObj();
+  t.edgeAngle=best;
+  t.obj = makeTotemObj(shape);
   if (three) three.scene.add(t.obj);
   placeGroup(t.obj, t.x, t.z);
   S.zombies.push(t);
@@ -7046,30 +7104,10 @@ function stepReflects(dt) {
 }
 const TOTEM_POOL_MAX = 6;
 const totemPool = [];
-const totemGeo = {};
-function makeTotemObj() {
-  const g = totemPool.pop();
-  if (g) return g;
-  const grp = new THREE.Group();
-  if (!three) return grp;
-  if (!totemGeo.post) {
-    totemGeo.post = new THREE.BoxGeometry(0.55, 1.9, 0.55);
-    totemGeo.cap = new THREE.BoxGeometry(0.9, 0.18, 0.9);
-    totemGeo.charm = new THREE.BoxGeometry(0.34, 0.8, 0.04);
-    totemGeo.postMat = new THREE.MeshBasicMaterial({ color: 0x4c4456 });
-    totemGeo.capMat = new THREE.MeshBasicMaterial({ color: 0x6f6680 });
-    totemGeo.charmMat = new THREE.MeshBasicMaterial({ color: 0xc9a6ff, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false });
-  }
-  const post = new THREE.Mesh(totemGeo.post, totemGeo.postMat);
-  post.position.y = 0.95;
-  grp.add(post);
-  const cap = new THREE.Mesh(totemGeo.cap, totemGeo.capMat);
-  cap.position.y = 1.98;
-  grp.add(cap);
-  const charm = new THREE.Mesh(totemGeo.charm, totemGeo.charmMat);
-  charm.position.set(0, 1.15, 0.3);
-  grp.add(charm);
-  return grp;
+function makeTotemObj(shape='tri') {
+  const group=totemPool.pop() || buildSealStake();
+  group.userData.paper.material=sealPaper(shape);
+  return group;
 }
 /* 기물이 부서지면 장면에서 빼고 풀로 돌려 둔다(최대 6개). */
 function releaseTotemObj(g) {
@@ -7663,8 +7701,9 @@ function startShrink(z) {
   S.arena.r0 = S.arena.r0 || S.arena.r;
   S.arena.shrink = { from: S.arena.r, to: K.to, t: 0, dur: K.t, pillars: [] };
   for (let i = 0; i < K.n; i++) {
-    const a = Math.random() * 0.6 + i * Math.PI * 2 / K.n, rr = K.to - 1.6;
+    const a = Math.random() * 0.6 + i * Math.PI * 2 / K.n, rr = arenaR()-.35;
     const p = { id: ++S._id, kind: 'zombie', type: 'pillar', x: S.arena.x + Math.cos(a) * rr, z: S.arena.z + Math.sin(a) * rr, r: 0.6, alive: true, hp: 1, isPillar: true, frozen: 0, burn: 0, poison: 0, stun: 0, marked: false };
+    p.edgeAngle=a;
     p.obj = makePillarObj();
     if (three) three.scene.add(p.obj);
     placeGroup(p.obj, p.x, p.z);
@@ -7832,7 +7871,7 @@ function drawBossPat(ctx, r, hs) {
     });
     ctx.restore();
   }
-  if (!z || !z.alive || !bossPatList(z)) return;
+  if (!z || !z.alive || !bossPatList(z) || dist(z, S.hero) > ringR()) return;
   const P = bossPat(), t = S.elapsed || 0;
   const bp = projectXZ(z.x, z.z, 0.05), wpc = worldPerCss();
   /* 분신 중에는 진짜에게만 붙는 표시(예고 고리·문구·기세)를 숨긴다 — 진짜는 방울로만 가린다. */
@@ -7896,19 +7935,8 @@ function drawBossPat(ctx, r, hs) {
   }
   /* 기모으기 게이지: 주인공 둘레의 고리, 끝의 금빛 칸에서 탭 */  if (z.state === 'kiai' && z.kiai) {
     const K = P.kiai, T = z.kiai.t, f = clamp(z.stateT / T, 0, 1), g0 = (T - kiaiWin(K)) / T;
-    const R = 62, a0 = -Math.PI / 2, A = function (u) { return a0 + Math.PI * 2 * u; };
     const open = z.stateT >= T - kiaiWin(K), lock = z.kiai.lock;
-    ctx.lineCap = 'butt';
-    ctx.lineWidth = 9; ctx.strokeStyle = 'rgba(8,7,9,0.7)';
-    ctx.beginPath(); ctx.arc(hs.x, hs.y, R, 0, Math.PI * 2); ctx.stroke();
-    ctx.lineWidth = 11; ctx.strokeStyle = lock ? 'rgba(120,110,100,0.7)' : 'rgba(232,192,74,' + (open ? 0.95 : 0.55) + ')';
-    ctx.beginPath(); ctx.arc(hs.x, hs.y, R, A(g0), A(1)); ctx.stroke();
-    ctx.lineWidth = 6; ctx.strokeStyle = lock ? 'rgba(150,140,130,0.9)' : (open ? 'rgba(255,240,190,1)' : 'rgba(200,40,30,0.95)');
-    ctx.beginPath(); ctx.arc(hs.x, hs.y, R, a0, A(f)); ctx.stroke();
-    if (open && !lock) {
-      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,230,150,' + (0.5 + 0.5 * Math.sin(t * 40)).toFixed(3) + ')';
-      ctx.beginPath(); ctx.arc(hs.x, hs.y, R + 12, 0, Math.PI * 2); ctx.stroke();
-    }
+    drawFootGauge(ctx, f, lock ? '#99918a' : open ? '#fff0be' : '#cf5844', 80, 16, g0);
     if (onScr) {
       ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(232,192,74,' + (0.4 + 0.5 * f).toFixed(3) + ')';
       ctx.beginPath(); ctx.ellipse(bp.x, bp.y, (2.6 - 1.2 * f) * wpc, (1.4 - 0.65 * f) * wpc, 0, 0, Math.PI * 2); ctx.stroke();
@@ -7966,7 +7994,7 @@ function drawBossPat(ctx, r, hs) {
         ctx.strokeStyle = ctx.fillStyle;
         ctx.lineWidth = 2;
         ctx.stroke();
-      } else ctx.fillText(SHAPE_MARK[sh] || '', x, y + 1);
+      } else brushMark(ctx,sh,x,y,10);
     });
     const f = 1 - clamp(z.stateT / want.T, 0, 1), bw = Math.max(110, n * gap);
     ctx.fillStyle = 'rgba(9,8,11,0.6)'; ctx.fillRect(r.width * 0.5 - bw / 2, y + 30, bw, 5);
@@ -8004,7 +8032,7 @@ function drawBossPat(ctx, r, hs) {
     ctx.fillStyle = 'rgba(9,8,11,0.8)'; ctx.fill();
     ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(232,192,74,' + (0.55 + 0.45 * Math.sin(t * 12)).toFixed(3) + ')'; ctx.stroke();
     ctx.font = '700 30px serif'; ctx.fillStyle = 'rgba(255,236,190,1)';
-    ctx.fillText(SHAPE_MARK[c.shape] || '?', x, y + 2);
+    brushMark(ctx,c.shape,x,y,9);
     /* 남은 시간이 줄어드는 고리 */
     ctx.beginPath(); ctx.arc(x, y, 38, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (1 - f));
     ctx.strokeStyle = 'rgba(255,120,90,0.9)'; ctx.lineWidth = 3; ctx.stroke();
@@ -8221,13 +8249,18 @@ function separateCrowd(dt) {
       const d = Math.sqrt(d2) || 0.001;
       const push = (min - d) * k;
       const ux = dx / d, uz = dz / d;
-      a.x += ux * push; a.z += uz * push;
-      b.x -= ux * push; b.z -= uz * push;
+      if (!(a.frozen > 0)) { a.x += ux * push; a.z += uz * push; }
+      if (!(b.frozen > 0)) { b.x -= ux * push; b.z -= uz * push; }
     }
   }
 }
 function step(dt) {
   if (!S || !S.playing || S.paused) return;
+  if (S.boss?.alive && !S.boss.hp) {
+    stepBoss(S.boss,dt);
+    if (S.boss?.alive && art.tickChar) art.tickChar(S.boss.obj,'boss','boss:'+S.boss.state,dt,0,0);
+    return;
+  }
   S.elapsed += dt; S.timeLeft -= dt;
   if (S.iframe > 0) S.iframe -= dt;
   if (S.parryCd > 0) S.parryCd = Math.max(0, S.parryCd - dt);
@@ -8392,6 +8425,7 @@ function step(dt) {
   S.zombies.forEach(function (z) {
     if (!z.alive) return;
     if (z.isClone || z.isPillar || z.isTotem) {
+      if (S.arena && z.edgeAngle!=null) {const r=arenaR()-.35;z.x=S.arena.x+r*Math.cos(z.edgeAngle);z.z=S.arena.z+r*Math.sin(z.edgeAngle);}
       placeGroup(z.obj, z.x, z.z);
       if (z.isClone && art.tickChar) art.tickChar(z.obj, 'boss', 'idle', Math.min(0.05, dt), S.hero.x - z.x, S.hero.z - z.z);
       return;
@@ -8420,7 +8454,7 @@ function step(dt) {
         if (clubAttack) z.clubAim = Math.atan2(S.hero.z - z.z, S.hero.x - z.x);
       }
     }
-    const bossHandled = z.isBoss ? stepBoss(z, dt) : (qa.noMove ? false : stepEnemySpecial(z, dt, d, frozen, zsp));
+    const bossHandled = z.isBoss ? (frozen || stepBoss(z, dt)) : (qa.noMove ? false : stepEnemySpecial(z, dt, d, frozen, zsp));
     if (!qa.noMove && !frozen && !bossHandled && !(z.flinchT > 0 && !z.isBoss)) {
       const kd = CFG.zombieTypes[z.type] || CFG.zombieTypes.imp;
       /* The boss speeds up the farther it is outside the ring, so a dashing hero cannot outrun it. */
@@ -9662,8 +9696,8 @@ function syncWorldFade() {
     fx = -e[8]; fz = -e[10];
     if (Math.hypot(fx, fz) < 1e-4) { fx = 0; fz = -1; }
   }
-  updateWorldFade(hero, R, (S && S.fogPulse) || 0, 12.5, qaFadeColor ? '#00ff00' : fogRgb(), qaFadeMat > 0, fx, fz);
-  WF_POST.post = 0.40 * qaFadePostK;
+  updateWorldFade(arenaActive()?S.arena:hero, arenaActive()?arenaR()*1.65:R, (S && S.fogPulse) || 0, 12.5, qaFadeColor ? '#00ff00' : fogRgb(), qaFadeMat > 0, fx, fz);
+  WF_POST.post = arenaActive() ? 0 : 0.40 * qaFadePostK;
   const hs = heroScreen();
   WF_POST.heroScreen.set(hs.x, hs.y);
   return hs;
@@ -9855,6 +9889,16 @@ function loop(ts) {
     try { tickFolds(dt); } catch (e) {}
     if (three.inkUniforms && S && S.hero) three.inkUniforms.uHeroPos.value.set(S.hero.x, 0, S.hero.z);
     /* v0.39: 그림자 프러스텀을 그 프레임의 카메라 가시 바닥에 맞춘다(텍셀 스냅 포함). */
+    if (S && S.hero && S.playing) {
+      const radius = ringR();
+      for (const enemy of S.zombies) {
+        if (enemy.alive && enemy.obj) enemy.obj.visible = !enemy.hidden && (arenaActive() || dist(enemy, S.hero) <= radius);
+      }
+      for (const spirit of livingMarks()) {
+        if (spirit.obj && spirit.target) spirit.obj.visible = !spirit.target.hidden && (arenaActive() || dist(spirit.target, S.hero) <= radius);
+      }
+    }
+    syncGroundEffects();
     fitShadowFrustum();
     if (three.bloom && three.bloom.render) three.bloom.render(dt);
     else three.renderer.render(three.scene, three.camera);

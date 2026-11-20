@@ -1,0 +1,18 @@
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>심안 · 보스와 봉인목</title><style>*{box-sizing:border-box}body{margin:0;background:#d7ceba;color:#302923;font:16px system-ui}canvas{display:block;width:100vw;height:100dvh;touch-action:none}aside{position:absolute;left:5vw;bottom:5vh}h1{font: bold 26px serif;margin:0 0 8px}button{padding:8px 14px;border:1px solid #655848;background:#eee4cf;color:#322820}</style><aside><h1>보스와 봉인목</h1><button id="attack">공격 재생</button> · 드래그해서 회전</aside><script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script><script type="module">
+import * as T from 'three';
+import * as M from './js/inkmonsters3d.js';
+import {buildSealStake} from './js/sealstake.js';
+const r=new T.WebGLRenderer({antialias:true});document.body.prepend(r.domElement);r.setPixelRatio(Math.min(devicePixelRatio,2));
+const scene=new T.Scene();scene.background=new T.Color(0xd7ceba);
+const camera=new T.PerspectiveCamera(32,1,.1,80);M.setCamera(camera);
+scene.add(new T.HemisphereLight(0xfff1d3,0x8c827c,2));
+const sun=new T.DirectionalLight(0xfff3d9,2);sun.position.set(-3,7,4);scene.add(sun);
+const boss=M.build('boss',{scale:.65,variant:0,shadow:true});boss.position.x=-1;scene.add(boss);
+['tri','spiral','bolt'].forEach((s,i)=>{const stake=buildSealStake(s);stake.position.set(.95+i*.72,0,.25-i*.45);scene.add(stake);});
+let yaw=.16,last=performance.now();const canvas=r.domElement;
+canvas.onpointerdown=e=>canvas.setPointerCapture(e.pointerId);
+canvas.onpointermove=e=>{if(canvas.hasPointerCapture(e.pointerId))yaw-=e.movementX*.009};
+document.querySelector('#attack').onclick=()=>M.slashPose(boss,1);
+function resize(){r.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix()}onresize=resize;resize();
+r.setAnimationLoop(now=>{const distance=Math.max(9,8/camera.aspect);camera.position.set(Math.sin(yaw)*distance,4.2,Math.cos(yaw)*distance);camera.lookAt(0,1.85,0);M.tick(boss,'boss','boss:walk',(now-last)/1000,0,1);last=now;r.render(scene,camera)});
+</script></html>

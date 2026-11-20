@@ -1,3 +1,4 @@
+import {buildPaintedBoss} from './paintedboss.js';
 /* v2/js/inkmonsters3d.js — v0.47 몬스터·보스 전종 **3D 관절 뼈대 + 수묵 툰 셰이더 + 동양 수묵 텍스처**.
 
    v0.45에서 주인공만 3D 관절 뼈대(inkhero3d.js)로 세웠다. v0.46은 원귀(조선 좀비)·거한(장정)·
@@ -233,6 +234,28 @@ export function build(species, opt) {
     backToBase(H, 0.16);
   };
   mixer.addEventListener('finished', finished);
+  if(species==='boss'){
+    buildPaintedBoss().then(model=>{
+      const painted=model.body;
+      painted.scale.setScalar(C.h / 1.976);
+      root.add(painted);
+      painted.traverse(part=>{
+        if(!part.isMesh)return;
+        part.castShadow=mesh.castShadow;
+        part.material.opacity=H.opacity;
+        part.material.transparent=H.opacity<.999;
+        H.mats.push(part.material);
+        part.onBeforeRender=()=>{
+          part.material.color.setRGB(...H.tint);
+          part.material.emissive.copy(H.rimCol).multiplyScalar(Math.max(0,H.rimOp-.20)*.28);
+        };
+      });
+      mesh.visible=false;
+      if(hull)hull.visible=false;
+      H.painted=model;
+      group.userData.poseSource='paintedBoss';
+    }).catch(error=>console.warn('[??] ?? ?? ?? ?? ??',error));
+  }
   LIVE++;
   return group;
 }
@@ -370,7 +393,7 @@ export function tick(group, kind, state, dt, vx, vz) {
   H.px = gx; H.pz = gz;
   const raw = Math.sqrt(dx * dx + dz * dz) / dt;
   const sp = Math.min(raw, 24);
-  H.speed += (sp - H.speed) * Math.min(1, dt * 10);
+  H.speed += (sp - H.speed) * (-Math.expm1(-dt * 10));
 
   /* 8방향 — 몸이 이동·조준 방향으로 돌아간다(좌우 반전 없음). */
   let dirX = 0, dirZ = 0;
@@ -454,6 +477,12 @@ export function tick(group, kind, state, dt, vx, vz) {
     const hit = u >= 0.22 && u < 0.42 ? 1 - (u - 0.22) / 0.20 : 0;
     if (H.bones.chest) H.bones.chest.rotateX(-wind * 0.10 + hit * 0.13);
     if (H.bones.spine) H.bones.spine.rotateX(-wind * 0.06 + hit * 0.08);
+  }
+  if(H.painted){
+    const action=H.actions[H.burst || H.held];
+    const combat=action ? {bones:H.bones,base:SPECS.boss.base,weight:action.getEffectiveWeight()} : null;
+    const walking=H.speed>.12 && !combat;
+    H.painted.update(dt,walking,Math.max(.6,Math.min(2,H.speed/(1.25*H.root.scale.x))),combat);
   }
   H.t += dt;
   return true;

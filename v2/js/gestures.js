@@ -482,7 +482,7 @@
   }
 
   var LABELS = { vline: 'ㅣ', hline: '—', vee: 'V', circle: 'O', bolt: '⚡', tap: '탭', square: 'ㅁ', tri: '△', arc: '◡', spiral: '@' };
-  var TOTEM = ['tri', 'arc', 'spiral'];
+  var TOTEM = ['tri', 'square', 'spiral'];
   var COMBAT = ['vline', 'hline', 'vee', 'circle', 'square', 'tap'];
 
   function recognize(raw, opts) {
@@ -538,7 +538,7 @@
     if (opts.totem) {
       /* 손 떨림이 꺾임·회전량을 부풀리지 않게 한 번 고른 뒤 잰다. */
       var sm = smoothPts(rs, 4), sbb = bbox(sm), sL = pathLen(sm);
-      var tScores = { tri: scoreTri(rs, bb, pathLen(rs)), arc: scoreArc(sm, sbb, sL), spiral: scoreSpiral(sm, sbb, sL) };
+      var tScores = { tri: scoreTri(rs, bb, pathLen(rs)), square: scores.square, spiral: scoreSpiral(sm, sbb, sL) };
       var tk = null, ts = 0;
       TOTEM.forEach(function (k) { scores[k] = tScores[k]; if (tScores[k] > ts) { ts = tScores[k]; tk = k; } });
       var rival = Math.max(scores.vee || 0, scores.circle || 0, scores.square || 0, (opts.allowBolt ? scores.bolt || 0 : 0), axis ? axis.score : 0);

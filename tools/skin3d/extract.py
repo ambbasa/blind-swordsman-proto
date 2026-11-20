@@ -100,6 +100,8 @@ def main():
             cell.paste(cell.crop((0, 0, CELL, CELL // 2)).transpose(Image.FLIP_TOP_BOTTOM), (0, CELL // 2))
         else:
             cell = ratio.resize((CELL, CELL), Image.LANCZOS)
+        if name == "bossRobe":
+            cell = Image.open(os.path.join(OUT, "boss-jacket.png")).convert("RGB")
         atlas.paste(cell, ((i % GRID) * CELL, (i // GRID) * CELL))
         hexc = '#%02x%02x%02x' % tuple(int(round(lin_to_srgb(m))) for m in mean)
         meta['cells'][name] = {'i': i, 'zone': 8 + i, 'kind': kind, 'mean': hexc,

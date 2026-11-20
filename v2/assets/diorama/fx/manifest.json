@@ -12,28 +12,28 @@
   "ch": 128
  },
  "fire": {
-  "f": "fire.png",
+  "f": "../../ink-edition/fire.webp",
   "n": 6,
-  "cw": 128,
-  "ch": 160
+  "cw": 256,
+  "ch": 256
  },
  "ice": {
-  "f": "ice.png",
+  "f": "../../ink-edition/ice.webp",
   "n": 6,
-  "cw": 128,
-  "ch": 160
+  "cw": 256,
+  "ch": 256
  },
  "bolt": {
-  "f": "bolt.png",
+  "f": "../../ink-edition/bolt.webp",
   "n": 6,
-  "cw": 128,
-  "ch": 160
+  "cw": 256,
+  "ch": 256
  },
  "poison": {
-  "f": "poison.png",
+  "f": "../../ink-edition/poison.webp",
   "n": 6,
-  "cw": 128,
-  "ch": 160
+  "cw": 256,
+  "ch": 256
  },
  "talisman": {
   "f": "talisman.png",

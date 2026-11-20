@@ -159,7 +159,7 @@ function frameMat(texImg, nf, opt) {
      칸 폭(1/nf)의 약 1.2%(최소 0.004) — 그림 여백 안에서만 잘리므로 인물은 온전히 남는다. */
   const inset = Math.min(0.02, Math.max(0.004, 0.012 / Math.max(1, nf)));
   const u = {
-    uFx: { value: 0 }, uFs: { value: 1 / Math.max(1, nf) }, uInset: { value: inset },
+    uNext: { value: 0 }, uMix: { value: 0 }, uFx: { value: 0 }, uFs: { value: 1 / Math.max(1, nf) }, uInset: { value: inset },
     uShear: { value: new THREE.Vector2(0, 0) }, uH: { value: opt.h || 1 }
   };
   mat.userData.frameU = u;
@@ -175,12 +175,15 @@ function frameMat(texImg, nf, opt) {
         'transformed.x += uShear.x * inkK * inkK;'
       ].join('\n'));
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uFx;\nuniform float uFs;\nuniform float uInset;')
+      .replace('#include <common>', '#include <common>\nuniform float uNext; uniform float uMix; uniform float uFx;\nuniform float uFs;\nuniform float uInset;')
       .replace('#include <map_fragment>', [
         'float inkX = uFx * uFs + uInset;',
         'float inkW = uFs - uInset * 2.0;',
         'vec4 sampledDiffuseColor = texture2D(map, vec2(inkX + vMapUv.x * inkW, vMapUv.y));',
-        'diffuseColor *= sampledDiffuseColor;'
+        'vec4 nextColor = texture2D(map, vec2(uNext*uFs + uInset + vMapUv.x*inkW,vMapUv.y));',
+        'float alpha = mix(sampledDiffuseColor.a,nextColor.a,uMix);',
+        'vec3 rgb = mix(sampledDiffuseColor.rgb*sampledDiffuseColor.a,nextColor.rgb*nextColor.a,uMix);',
+        'diffuseColor *= vec4(rgb/max(alpha,0.0001),alpha);'
       ].join('\n'));
   };
   mat.customProgramCacheKey = function () { return 'inkpose' + (opt.add ? 'a' : ''); };
@@ -198,10 +201,36 @@ export function setCamera(c) {
 function geomOf(name, fig) {
   if (GEOM[name]) return GEOM[name];
   const pw = fig.cell[0] / fig.ppm, ph = fig.cell[1] / fig.ppm;
-  const geo = new THREE.PlaneGeometry(pw, ph, 1, 1);
+  const geo = new THREE.PlaneGeometry(pw, ph, name === "boss" ? 18 : 1, name === "boss" ? 24 : 1);
   geo.translate(0, ph / 2, 0);          /* 바닥(발)이 원점 */
+  if (name === 'boss') {
+    const positions=geo.attributes.position, indices=[], weights=[];
+    for(let i=0;i<positions.count;i++) {
+      const y=positions.getY(i)/ph, x=positions.getX(i)/pw;
+      const upper=THREE.MathUtils.smoothstep(y,.25,.67);
+      const shoulder=upper*THREE.MathUtils.smoothstep(Math.abs(x),.08,.32)*(1-THREE.MathUtils.smoothstep(y,.7,.92));
+      const head=upper*THREE.MathUtils.smoothstep(y,.72,.91)*(1-shoulder);
+      indices.push(0,1,x<0?2:3,4);
+      weights.push(1-upper,upper-shoulder-head,shoulder,head);
+    }
+    geo.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(indices,4));
+    geo.setAttribute('skinWeight',new THREE.Float32BufferAttribute(weights,4));
+  }
   GEOM[name] = geo;
   return geo;
+}
+
+function poseMesh(geo,material,height) {
+  if (!geo.attributes.skinIndex) return new THREE.Mesh(geo,material);
+  const mesh=new THREE.SkinnedMesh(geo,material);
+  const [base,spine,left,right,head]=Array.from({length:5},()=>new THREE.Bone());
+  mesh.add(base); base.add(spine); spine.add(left,right,head);
+  spine.position.y=.38*height;
+  left.position.set(-.12*height,.27*height,0);
+  right.position.set(.12*height,.27*height,0);
+  head.position.y=.40*height;
+  mesh.bind(new THREE.Skeleton([base,spine,left,right,head]));
+  return mesh;
 }
 
 /**
@@ -239,12 +268,13 @@ export function buildPose(name, opt) {
   rig.t = name === 'hero' ? 0 : Math.random() * 2.6;
 
   for (let i = 0; i < 1; i++) {
-    const mesh = new THREE.Mesh(geo, frameMat(tex[acts[start].f], acts[start].nf, { depthTest: false, h: geoH }));
+    const mesh = poseMesh(geo, frameMat(tex[acts[start].f], acts[start].nf, { depthTest: false, h: geoH }),geoH);
+    if (CAM) mesh.quaternion.copy(CAM.quaternion);
     mesh.frustumCulled = false;
     mesh.renderOrder = base;
     root.add(mesh);
-    const aura = new THREE.Mesh(geo, frameMat(tex[acts[start].a] || tex[acts[start].f], acts[start].nf,
-      { depthTest: false, add: true, h: geoH }));
+    const aura = poseMesh(geo, frameMat(tex[acts[start].a] || tex[acts[start].f], acts[start].nf,
+      { depthTest: false, add: true, h: geoH }),geoH);
     aura.frustumCulled = false;
     aura.renderOrder = base - 0.06;
     aura.material.color.setHex(auraHex);
@@ -265,7 +295,8 @@ export function buildPose(name, opt) {
 
   group.userData.rig = rig;
   group.userData.pose = rig;
-  group.userData.worldH = geoH;
+  if (opt.height) root.scale.setScalar(opt.height / geoH);
+  group.userData.worldH = opt.height || geoH;
   group.userData.sprite = rig.layers[0].mesh;
   group.userData.parts = rig.parts;
   group.userData.poseSource = 'pose';
@@ -296,19 +327,26 @@ function applyFrame(rig, L) {
   if (!L.mesh) return;
   const nf = L.nf;
   const def = ACT[L.act] || ACT.idle;
-  let f;
+  let f, fraction;
   if (def.stride) {
     f = Math.floor(rig.phase) % nf;
+    fraction = rig.phase % 1;
   } else {
     const dur = def.dur || 1;
     const u = def.loop ? ((L.t % dur) / dur) : Math.min(1, L.t / dur);
-    f = frameAt(u, cumFor(L.act, nf), nf);
+    const curve=cumFor(L.act,nf);
+    f=frameAt(u,curve,nf);
+    fraction=curve ? (u-curve[f])/(curve[f+1]-curve[f]) : u*nf-f;
   }
   if (f < 0 || !isFinite(f)) f = 0;
   L.frame = f;
   /* 셰이더는 inkX = uFx * uFs + inset 로 칸을 찾는다 → uFx 는 **정수 프레임 번호**. */
-  L.mesh.material.userData.frameU.uFx.value = f;
-  L.aura.material.userData.frameU.uFx.value = f;
+  const next = def.loop || def.stride ? (f+1)%nf : Math.min(f+1,nf-1);
+  const mix = THREE.MathUtils.smoothstep(fraction,rig.name==='boss' ? .10 : .40,.96);
+  for (const part of rig.parts) {
+    const u=part.material.userData.frameU;
+    u.uFx.value=f; u.uNext.value=next; u.uMix.value=mix;
+  }
   rig.frameOf[L.act] = f;
 }
 
@@ -330,7 +368,7 @@ function begin(rig, action) {
 function burst(rig, action, force) {
   if (!rig || !rig.acts[action]) return;
   const A = rig.layers[0];
-  if (A.act === action && rig.burst === action && !force) { rig.burstT = 0; return; }
+  if (A.act === action && !force) return;
   if (A.act !== action) {
     if (!setLayerAction(A, action, rig.acts)) return;
     rig.cur = action;
@@ -359,14 +397,14 @@ export function tickPose(group, kind, state, dt, vx, vz) {
   const dx = gx - rig.px, dz = gz - rig.pz;
   rig.px = gx; rig.pz = gz;
   const spRaw = Math.sqrt(dx * dx + dz * dz) / dt;
-  rig.speed += (Math.min(spRaw, 16) - rig.speed) * Math.min(1, dt * 10);
+  rig.speed += (Math.min(spRaw, 16) - rig.speed) * (-Math.expm1(-dt * 10));
   /* 히스테리시스: 걷기 시작 0.45 · 멈춤 0.25 — 경계에서 대기/걷기가 깜빡이지 않게 */
   const walking = rig.speed > (rig.walking ? 0.25 : 0.45);
   rig.walking = walking;
 
   /* --- 좌우 반전: 종이 뒤집힘(판 폭이 0을 지나며 반전) --- */
   const fd = (vx || 0) - (vz || 0);
-  if (Math.abs(fd) > 0.05) rig.face = fd < 0 ? -1 : 1;
+  if (Math.abs(fd) > .12*Math.max(1,Math.hypot(vx||0,vz||0))) rig.face = fd < 0 ? -1 : 1;
   group.scale.x = 1;                      /* v0.43.2 핫픽스 — 부모는 절대 뒤집지 않는다 */
   const fT = rig.face;
   /* v0.44: 방향 전환은 '종이 뒤집힘' — 0.12초 동안 폭이 0을 지나며 부드럽게 뒤집힌다(즉시 스냅 금지). */
@@ -442,6 +480,18 @@ export function tickPose(group, kind, state, dt, vx, vz) {
   const actNow = A.act;
   const defA = ACT[actNow] || ACT.idle;
   const progA = defA.dur ? Math.min(1, A.t / defA.dur) : 0;
+  if (A.mesh.isSkinnedMesh) {
+    const drive=actNow==='windup' ? -.12 : actNow==='strike' ? .24 : actNow==='hit' ? -.09 : 0;
+    const smooth=1-Math.exp(-14*dt);
+    for(const layer of [A.mesh,A.aura]){
+      const [,spine,left,right,head]=layer.skeleton.bones;
+      const gait=Math.sin(cyc)*walkK;
+      spine.rotation.z+=(drive+.025*gait-spine.rotation.z)*smooth;
+      left.rotation.x+=(.13*gait-drive-left.rotation.x)*smooth;
+      right.rotation.x+=(-.13*gait+drive*1.6-right.rotation.x)*smooth;
+      head.rotation.z+=(-drive*.48-head.rotation.z)*smooth;
+    }
+  }
   let sqT = -0.050 * contact * walkK;
   if (actNow === 'slash' || actNow === 'attack' || actNow === 'strike') {
     /* 내려치는 순간 살짝 길게 뻗었다가 착지에서 눌린다 */
@@ -453,7 +503,7 @@ export function tickPose(group, kind, state, dt, vx, vz) {
 
   root.position.y = rig.bob;
   const leanT = (walking ? 0.05 * walkK : 0) + ((actNow === 'slash' || actNow === 'attack' || actNow === 'strike') ? 0.06 : 0);
-  rig.lean += (leanT - rig.lean) * Math.min(1, dt * 9);
+  rig.lean += (leanT - rig.lean) * (-Math.expm1(-dt * 9));
   rig.lean = Math.max(-0.09, Math.min(0.13, rig.lean));
   /* 화면 기울기 = +tilt → 앞으로 기울이는 방향은 -lean * (향한 쪽) */
   const tilt = (-rig.lean * (fS < 0 ? -1 : 1) * 0.7) + Math.sin(rig.t * 1.1) * 0.005;

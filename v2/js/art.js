@@ -1,3 +1,4 @@
+import { paintDrop } from './fieldart.js';
 /* Atlas-driven art. Reads ../assets/v2/atlas.json (or window.ART_V2_ATLAS / GP_V2_ATLAS).
  * Never writes into assets/v2. Sizes, anchors, bell centers, flameOffset, palette come from the atlas. */
 import * as Anim from './anim.js';
@@ -545,6 +546,7 @@ export async function buildArt(THREE) {
     if (!inkItemCache[key]) {
       const t = new THREE.CanvasTexture(drawItem(ITEM_DRAW[key] || 'xp'));
       t.colorSpace = THREE.SRGBColorSpace;
+      paintDrop(t, ITEM_DRAW[key] || 'xp');
       inkItemCache[key] = t;
     }
     return inkItemCache[key];
@@ -675,22 +677,14 @@ export async function buildArt(THREE) {
         if (window.console && console.warn) console.warn('[심안] 3D 원귀 생성 실패 — 포즈 카드로 되돌립니다', e);
       }
     }
-    if (kind === 'boss' && !QA_MON2D) {
-      try {
-        const H = bossH * 1.5 * (opt.bossScale || 1);
-        const g = MON3D.build('boss', { scale: H / 6.2, variant: opt.bossVar, shadow: true });
-        if (g) {
-          g.userData.noFlip = true;
-          g.userData.isBoss = true;
-          g.userData.bellLocal = { x: 0, y: H * 0.76 };
-          g.userData.rim = g.userData.mrim;
-          g.userData.rim.material.color.setHex(0xF2E2C0);
-          g.userData.rim.material.opacity = 0.40;
-          g.userData.rimHex = 0xF2E2C0; g.userData.rimOp = 0.40;
-          return g;
-        }
-      } catch (e) {
-        if (window.console && console.warn) console.warn('[심안] 3D 보스 생성 실패 — 포즈 카드로 되돌립니다', e);
+    if(kind==='boss' && !QA_MON2D){
+      const height=HERO3D.HERO_H*1.48*(opt.bossScale||1);
+      const g=MON3D.build('boss',{scale:height/6.2,variant:opt.bossVar,shadow:true});
+      if(g){
+        g.userData.noFlip=true; g.userData.isBoss=true;
+        g.userData.bellLocal={x:0,y:height*.76};
+        g.userData.rim=g.userData.mrim;
+        return g;
       }
     }
     if (!rigReady()) return null;
@@ -727,9 +721,9 @@ export async function buildArt(THREE) {
       return g;
     }
     if (kind === 'boss') {
-      const H = bossH * 1.5 * (opt.bossScale || 1);
+      const H = HERO3D.HERO_H * 1.48 * (opt.bossScale || 1);
       const g = buildFigure('boss', {
-        order: 2, scale: H / 6.2, bossVar: opt.bossVar, auraColor: 0xf0552e, auraOpacity: 0.62
+        order: 2, height: H, scale: H / 6.2, bossVar: opt.bossVar, auraColor: 0xf0552e, auraOpacity: 0.62
       });
       if (!g) return null;
       g.userData.noFlip = true;
@@ -848,7 +842,7 @@ export async function buildArt(THREE) {
       group.userData.markShape = shape || 'circle';
       group.userData.isBoss = isBoss;
     } else {
-      const spr = imgSprite(inkItemTex(itemK || 'xp-orb'), 1.6, 1.6, { cy: 0.5 });
+      const spr = imgSprite(inkItemTex(itemK || 'xp-orb'), 1.05, 1.05, { cy: 0.14 });
       group.add(spr);
       group.userData.sprite = spr;
     }
