@@ -3967,16 +3967,18 @@ function drawV31(ctx, r, hs, t) {
     if (boss.hpTrail == null || boss.hpTrail < curHp) boss.hpTrail = curHp;
     else boss.hpTrail = Math.max(curHp, boss.hpTrail - maxHp * 0.38 * frameDt);
 
-    /* v0.54.1: 보스 HP 바를 보스 발밑(주인공 가림) 대신 보스 머리 위 약점 혼령 바로 위로 배치!
-       주인공·보스 몸체·약점 혼령 어느 것도 가리지 않고 전투 시선에서 바로 읽힌다. */
+    /* v0.54.2: 보스 약점 혼령의 실제 화면 상단 좌표(y - orbR)를 직접 읽어 HP 바·기세 마름모가
+       혼령과 단 1px도 겹치지 않도록 정확히 34px 위(여백 확보)에 고정한다. */
     const ud = (boss.obj && boss.obj.userData) || {};
     const zh = ud.worldH || 5.8;
     const eye = (ud.bellLocal && ud.bellLocal.y) || zh * 0.55;
     const orbY = eye + Math.max(0.75, Math.min(1.5, zh * 0.16));
     const topP = projectXZ(boss.x, boss.z, orbY + 1.55);
+    const bossMark = (lastMarkMetrics && lastMarkMetrics.marks || []).find(function (m) { return m.boss && m.onScreen; });
     const w = 108, h = 7;
-    const cx = clamp(topP.x, w * 0.5 + 14, r.width - w * 0.5 - 14);
-    const y = clamp(topP.y - 26, 128, r.height - 140);
+    const cx = clamp(bossMark ? bossMark.x : topP.x, w * 0.5 + 14, r.width - w * 0.5 - 14);
+    const anchorY = bossMark ? (bossMark.y - (bossMark.orbR || 22) - 34) : (topP.y - 34);
+    const y = clamp(anchorY, 128, r.height - 140);
     const x = cx - w * 0.5;
     const openLeft = Math.max(0, (boss.openUntil || 0) - (S.elapsed || 0));
     const isOpen = openLeft > 0 || boss.state === 'groggy';
