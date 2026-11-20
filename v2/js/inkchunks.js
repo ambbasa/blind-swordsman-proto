@@ -1392,25 +1392,30 @@ function createArenaWorld(opts) {
   const group = new THREE.Group();
   group.name = 'arenaWorld-' + mapId + '-' + stageId;
 
-  // Map the whole painted court to the playable diameter, not to a repeating tile.
+  // v0.49: Map the painted courtyard cleanly across the playable area without mirrored kaleidoscope tiling,
+  // then blend organic multi-octave sumi-ink & hanji vertex washes over the 96x96 ground mesh.
   const url = new URL('../assets/ink-edition/terrain-' + stageId + '.webp', import.meta.url);
   const map = new THREE.TextureLoader().load(url.href);
   map.colorSpace = THREE.SRGBColorSpace;
-  map.anisotropy = 2;
-  map.wrapS = map.wrapT = THREE.MirroredRepeatWrapping;
-  const coverage = ARENA.GROUND / (ARENA.R + 2);
+  map.anisotropy = 4;
+  map.wrapS = map.wrapT = THREE.ClampToEdgeWrapping;
+  const coverage = 1.24;
   map.repeat.setScalar(coverage);
+  map.offset.set((1 - coverage) * 0.5, (1 - coverage) * 0.5);
   map.center.set(0.5, 0.5);
-  map.rotation = Math.PI / 4;
+  map.rotation = Math.PI / 4 + ((stageId * 0.31) % 0.6);
   const groundBase = new THREE.Color(1, 0.96, 0.90).multiplyScalar(FLOOR_MUL * 2.3);
   const softGround = [1,3,6,7,10].includes(stageId);
   const detail = new THREE.TextureLoader().load(new URL('../assets/ink-edition/' +
     (softGround ? 'earth' : 'stone') + '-relief.webp', import.meta.url).href);
   detail.wrapS = detail.wrapT = THREE.RepeatWrapping;
-  detail.repeat.set(32,32);
+  detail.repeat.set(16, 16);
+  detail.center.set(0.5, 0.5);
+  detail.rotation = stageId * 0.47;
   detail.anisotropy = 4;
   const groundMat = new THREE.MeshStandardMaterial({
-    map, bumpMap: detail, bumpScale: softGround ? 0.12 : 0.21, color: groundBase.clone(), roughness: 0.95, metalness: 0.0
+    map, bumpMap: detail, bumpScale: softGround ? 0.08 : 0.12, color: groundBase.clone(), roughness: 0.96, metalness: 0.0,
+    vertexColors: true
   });
   groundMat.userData.inkGround = true;
   groundMat.userData.cardProfile = 'ground';
@@ -1419,24 +1424,38 @@ function createArenaWorld(opts) {
   // Keep the combat plane level. The surrounding banks have real silhouettes
   // and catch light instead of stretching the playfield image to the horizon.
   const points = groundGeo.attributes.position;
-  for (let i=0; i<points.count; i++) {
-    const x=points.getX(i), z=points.getZ(i);
-    const bank=THREE.MathUtils.smoothstep(Math.hypot(x,z), ARENA.R+1, ARENA.CLIFF+2);
-    const ridge=0.9 + 0.52*Math.sin(x*.39+stageId) + 0.38*Math.cos(z*.51-x*.23);
+  const colors = new Float32Array(points.count * 3);
+  const seed = stageId * 1.37;
+  for (let i = 0; i < points.count; i++) {
+    const x = points.getX(i), z = points.getZ(i);
+    const rad = Math.hypot(x, z);
+    const bank = THREE.MathUtils.smoothstep(rad, ARENA.R + 1, ARENA.CLIFF + 2);
+    const ridge = 0.9 + 0.52 * Math.sin(x * 0.39 + stageId) + 0.38 * Math.cos(z * 0.51 - x * 0.23);
     points.setY(i, bank * ridge * (softGround ? 1.0 : 1.65));
-  }
-  if (stageId === 4) {
-    // A broken wash of reflected moonlight at the rear, outside the gesture lane.
-    const colors = new Float32Array(points.count * 3);
-    for (let i = 0; i < points.count; i++) {
-      const x = points.getX(i), z = points.getZ(i);
+
+    // Organic sumi-ink & hanji wash breakup (eliminates repetitive symmetry without extra draw calls)
+    const w1 = Math.sin(x * 0.19 + z * 0.13 + seed) * Math.cos(z * 0.21 - x * 0.11 + seed * 0.7);
+    const w2 = Math.sin(x * 0.43 - z * 0.37 + seed * 1.9) * 0.5;
+    const brush = 0.95 + 0.095 * w1 + 0.045 * w2;
+    const rimShade = 1 - 0.14 * THREE.MathUtils.smoothstep(rad, ARENA.R * 0.75, ARENA.CLIFF);
+    let r = brush * rimShade;
+    let g = (brush - 0.012 * Math.max(0, -w1)) * rimShade;
+    let b = (brush - 0.025 * Math.max(0, -w1)) * rimShade;
+
+    if (stageId === 4) {
+      // A broken wash of reflected moonlight at the rear, outside the gesture lane.
       const depth = -(x + z) * Math.SQRT1_2, side = (x - z) * Math.SQRT1_2;
       const distance = Math.hypot((side + 7) / 7, (depth - 12) / 8);
       const wash = (1 - THREE.MathUtils.smoothstep(distance, 0.45, 1)) * (0.8 + 0.2 * Math.cos(z * 1.8));
-      colors.set([1, 1 - 0.57 * wash, 1 - 0.62 * wash], i * 3);
+      g *= (1 - 0.57 * wash);
+      b *= (1 - 0.62 * wash);
     }
-    groundGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-    groundMat.vertexColors = true;
+    colors[i * 3] = Math.min(1.08, Math.max(0.65, r));
+    colors[i * 3 + 1] = Math.min(1.06, Math.max(0.62, g));
+    colors[i * 3 + 2] = Math.min(1.04, Math.max(0.58, b));
+  }
+  groundGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  if (stageId === 4) {
     groundMat.bumpScale *= 0.55;
     const moon = new THREE.Mesh(new THREE.CircleGeometry(3.5, 48),
       new THREE.MeshBasicMaterial({ color: 0xac5045, fog: true }));

@@ -13,6 +13,9 @@ import {
   computeDashDmg,
   computeMaxHp
 } from '../../v2/js/modules/combat.js';
+import { STAGES, ACT_NAMES, HANJI_TONE, actOf, stageOf } from '../../v2/js/modules/stages.js';
+import { MODES, MODE_ORDER, CHALLENGES, RUN_UPGRADES, EVO_RECIPES, modeOf, challengeOf } from '../../v2/js/modules/upgrades.js';
+import { PAT_CODE, getPatternMeta } from '../../v2/js/modules/bossCatalog.js';
 
 /* 1. v0.49 밸런스 병합 검증 */
 const cfg = {
@@ -63,9 +66,45 @@ assert.equal(computeAtkBonus(10, cfg), 0.6);
 assert.equal(computeComboMul(0, cfg), 1);
 assert.equal(computeComboMul(10, cfg), 1.4);
 assert.equal(computeComboMul(25, cfg), 1.5);
-
 const dmg = computeDashDmg({ baseDashDmg: 2.5, combo: 10, atkLv: 5, bloodRelicActive: true, cfg });
-// 2.5 * 1.4 * 1.3 * 1.25 = 5.6875
 assert.ok(Math.abs(dmg - 5.6875) < 1e-9);
 
-console.log('ALL SIMAN v0.49 PURE MODULE TESTS PASSED');
+/* 4. 3막 12장 스테이지 무결성 검증 */
+assert.equal(STAGES.length, 12);
+assert.deepEqual(Object.keys(ACT_NAMES), ['1', '2', '3']);
+assert.deepEqual(Object.keys(HANJI_TONE), ['1', '2', '3']);
+assert.equal(actOf(1), 1);
+assert.equal(actOf(5), 2);
+assert.equal(actOf(12), 3);
+assert.equal(stageOf(0).id, 1);
+assert.equal(stageOf(99).id, 12);
+STAGES.forEach((st, i) => {
+  assert.equal(st.id, i + 1);
+  assert.equal(st.act, actOf(st.id));
+  assert.ok(Array.isArray(st.shapes) && st.shapes.length >= 1);
+  assert.ok(st.boss && Array.isArray(st.boss.patterns) && st.boss.patterns.length >= 1);
+  assert.ok(st.bossName && st.bossName.length > 0);
+});
+
+/* 5. 모드·도전·강화 17종·진화 10종 무결성 검증 */
+assert.deepEqual(MODE_ORDER, ['train', 'jeongseok', 'gosu']);
+assert.equal(modeOf('unknown').id, 'jeongseok');
+assert.equal(MODES.gosu.gold, true);
+assert.equal(CHALLENGES.length, 3);
+assert.equal(challengeOf('bossrush').unlock, 12);
+assert.equal(RUN_UPGRADES.length, 17);
+assert.equal(EVO_RECIPES.length, 10);
+const upIds = new Set(RUN_UPGRADES.map((u) => u.id));
+EVO_RECIPES.forEach((r) => {
+  r.a.forEach((id) => assert.ok(upIds.has(id), 'unknown evo ingredient a: ' + id));
+  assert.ok(upIds.has(r.b), 'unknown evo ingredient b: ' + r.b);
+});
+
+/* 6. 보스 패턴 도감 12종 및 오탈자 교정 검증 */
+assert.equal(PAT_CODE.length, 12);
+assert.equal(getPatternMeta('shuffle').name, '무늬 뒤섞기(12장)');
+assert.match(getPatternMeta('charge').guides[0], /비켜서세요/);
+assert.match(getPatternMeta('volley').desc, /부적을/);
+assert.match(getPatternMeta('clash').guides[1], /받아내면/);
+
+console.log('ALL SIMAN v0.49 PHASE-2 MODULE TESTS PASSED (6/6 suites)');
