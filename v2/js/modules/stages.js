@@ -80,7 +80,7 @@ export const STAGES = [
   },
   {
     id: 4, act: 1, name: '붉은 달', sub: '모든 획이 열린 밤', map: 'map1', tag: '번개 획',
-    goal: '번개 획(⚡)까지 열렸습니다. 여섯 번의 절단으로 끝내세요.',
+    goal: '번개 획(Z)까지 열렸습니다. 여섯 번의 절단으로 끝내세요.',
     tip: '보스가 돌진한 뒤 경직될 때 베면 절단이 두 번 들어갑니다.',
     time: 180, eliteAt: 85, bossAt: 135, bossShapes: 6,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 2,
