@@ -39,7 +39,7 @@ h1, h2, h3, #timer, #titleName, #bossCardName, #resultTitle { font-family: var(-
 .ov .card::after { content: ""; position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; background: var(--svg-corner) center / contain no-repeat; transform: scaleX(-1); pointer-events: none; display: block !important; }
 .ov .card h2 { color: var(--ivory) !important; font-size: 26px !important; padding-bottom: 14px; margin-bottom: 10px; border-bottom: none !important; background: var(--svg-div) bottom center / min(260px, 86%) 12px no-repeat; }
 .ov .card p, .ov .card .sub, .ov .card .stage-note, .ov .card .mode-note, .ov .card .shop-note, .ov .card .pause-note, .ov .card .ad-note { color: var(--ivory-dim) !important; }
-.title-card .seal { width: 52px !important; height: 52px !important; margin: 0 auto 6px !important; background: var(--svg-seal) center / contain no-repeat !important; border: none !important; font-size: 0 !important; color: transparent !important; box-shadow: 0 8px 20px rgba(181,36,27,0.42) !important; }
+.title-card .seal { width: 52px !important; height: 52px !important; margin: 0 auto 6px !important; background: transparent !important; display: grid !important; place-items: center !important; border: none !important; font-size: 0 !important; box-shadow: 0 8px 20px rgba(181,36,27,0.42) !important; }
 .ov .btn, .ov .act-tab, .ov .stage-chip, .ov .mode-btn, .ov .shop-tabs button, .ov .train-shapes button, #levelChoices .choice {
   min-height: 42px; border-radius: 2px !important; border: 1px solid rgba(217,185,126,0.34) !important;
   background: linear-gradient(180deg, rgba(38,31,24,0.82), rgba(20,16,13,0.9)) !important; color: var(--ivory) !important;
@@ -59,9 +59,9 @@ h1, h2, h3, #timer, #titleName, #bossCardName, #resultTitle { font-family: var(-
 #resultStars.defeat-seal { font-family: var(--font-display) !important; color: var(--seal-bright) !important; font-size: 16px !important; letter-spacing: 0.14em; border: 1.5px solid rgba(255,110,90,0.52); background: rgba(181,36,27,0.14); display: inline-block; padding: 6px 18px; border-radius: 2px; }
 #app:has(.ov.show) #hud, #app.overlay-open #hud { opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
 #hudBtns { display: flex !important; gap: 12px !important; right: max(12px, env(safe-area-inset-right, 12px)) !important; bottom: max(14px, env(safe-area-inset-bottom, 14px)) !important; }
-#hudBtns button { width: 48px !important; height: 48px !important; border-radius: 50% !important; background-color: rgba(18,14,11,0.92) !important; border: 1.5px solid rgba(217,185,126,0.45) !important; font-size: 0 !important; color: transparent !important; background-position: center !important; background-repeat: no-repeat !important; background-size: 24px 24px !important; }
-#btnMute { background-image: var(--svg-bell-on) !important; }
-#btnMute.off, #btnMute[data-sound="off"] { background-image: var(--svg-bell-off) !important; }
-#btnPause { background-image: var(--svg-pause) !important; }
+#hudBtns button { width: 48px !important; height: 48px !important; border-radius: 50% !important; background: rgba(18,14,11,0.92) !important; color: #f4ecdc !important; border: 1.5px solid rgba(217,185,126,0.45) !important; display: grid !important; place-items: center !important; padding: 0 !important; }
+#btnMute.off .ico-on, #btnMute[data-sound="off"] .ico-on { display: none !important; }
+#btnMute:not(.off):not([data-sound="off"]) .ico-off { display: none !important; }
+#btnMute:not(.off):not([data-sound="off"]) { color: #84f2d6 !important; border-color: #84f2d6 !important; box-shadow: 0 0 12px rgba(91,232,196,0.3); }
 .title-foot { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px !important; }
 @media (max-height: 680px), (max-width: 390px) { .title-card { padding: 12px 14px !important; gap: 6px !important; } .title-card .seal { width: 40px !important; height: 40px !important; } .title-card h1#titleName { font-size: 42px !important; } }
