@@ -159,7 +159,7 @@ export const STAGES = [
   {
     id: 8, act: 2, name: '무명 산문', sub: '이름 없는 절의 마지막 문', map: 'map8', tag: '산문 앞',
     goal: '산문을 지키는 원혼이 길고 긴 도형을 듭니다. 아홉 번의 절단.',
-    tip: '보스가 부르는 잔몹은 참(斬)으로 한꺼번에 쓸어 담으세요.',
+    tip: '보스가 부르는 잔몹은 참으로 한꺼번에 쓸어 담으세요.',
     time: 220, eliteAt: 110, bossAt: 162, bossShapes: 9,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 3,
     terrain: { kind: 'bell', name: '종루', line: '일섬으로 종을 치면 원 밖 원귀가 2초 드러납니다' },
