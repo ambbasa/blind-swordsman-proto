@@ -100,7 +100,8 @@ function gradMap() {
 const FRAG = /* glsl */`
 uniform sampler2D uRamp;
 uniform vec3 uKeyDir, uKeyCol, uFillDir, uFillCol, uAmbCol, uRimCol, uMistCol;
-uniform float uRim, uWash, uGrain, uMistAmt, uSpecAmt;
+uniform float uRim, uWash, uGrain;
+uniform float uMistAmt, uSpecAmt;
 uniform sampler2D uTex;
 uniform sampler2D uArt;
 uniform float uTexAmt;
