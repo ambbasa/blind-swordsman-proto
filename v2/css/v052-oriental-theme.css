@@ -72,6 +72,10 @@ h1, h2, h3, #timer, #titleName, #bossCardName, #resultTitle { font-family: var(-
   word-break: keep-all !important; overflow-wrap: break-word !important; line-height: 1.42 !important; z-index: 18 !important;
 }
 #toast { top: calc(134px + env(safe-area-inset-top, 0px)) !important; z-index: 19 !important; }
+/* v0.60: 밝은 산수화 하늘 위에서도 상단 HUD 가독성을 지키는 은은한 먹빛 스크림 */
+#hud {
+  background: linear-gradient(180deg, rgba(16, 13, 11, 0.56) 0%, rgba(16, 13, 11, 0.24) 72%, rgba(16, 13, 11, 0) 100%) !important;
+}
 /* v0.59.1: 보스전 중 상단 고정 보스 HP·강인도 바(y=64..120) 아래로 안내문·토스트 자동 이동 */
 #app.boss-active #guide { top: calc(130px + env(safe-area-inset-top, 0px)) !important; }
 #app.boss-active #toast { top: calc(176px + env(safe-area-inset-top, 0px)) !important; }

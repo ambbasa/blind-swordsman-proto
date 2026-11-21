@@ -40,7 +40,7 @@ const OUTLINE_T = (function () {
 })();
 /* 광량(선형). 3단 계조와 함께 먹의 자리를 정한다 — ?inkk= 로 QA 조정. */
 const LIGHT = (function () {
-  const L = { amb: 0.20, key: 1.05, fill: 0.30, rim: 0.18, wash: 0.16 };
+  const L = { amb: 0.28, key: 1.12, fill: 0.38, rim: 0.30, wash: 0.15 };
   try {
     const q = new URLSearchParams(location.search);
     ['amb', 'key', 'fill', 'rim', 'wash'].forEach(function (k) {
@@ -255,13 +255,14 @@ export function build(opt) {
     hull.userData.hero3dHull = true;
   }
 
-  /* 접지 그림자 — 달빛 그림자와 별개로 발밑에 먹 그림자를 깐다. */
+  /* 접지 그림자 — 바닥 평면에 밀착된 부드러운 수묵 접지 그림자(떠 보임 방지) */
   let shadow = null;
   if (opt.shadow !== false) {
-    const sm = new THREE.SpriteMaterial({ map: shadowTex(), transparent: true, depthWrite: false, opacity: 0.9 });
-    shadow = new THREE.Sprite(sm);
-    shadow.scale.set(1.5, 1.5, 1);
-    shadow.position.set(0, 0.03, 0);
+    const sg = new THREE.PlaneGeometry(1.55, 1.55);
+    sg.rotateX(-Math.PI / 2);
+    const sm = new THREE.MeshBasicMaterial({ map: shadowTex(), transparent: true, depthWrite: false, opacity: 0.86 });
+    shadow = new THREE.Mesh(sg, sm);
+    shadow.position.set(0, 0.024, 0);
     shadow.renderOrder = 1;
     root.add(shadow);
   }
@@ -462,11 +463,20 @@ export function tick(group, kind, state, dt, vx, vz) {
      ③ 검 뒤로 젖힘: 오른팔·검을 진행 반대쪽으로 끌어 잔상과 함께 '베고 지나가는' 실루엣.
      ④ 출발 웅크림: 돌진 시작 0.06초 동안 골반을 살짝 낮춰 예비동작을 만든다. */
   const isDash = st === 'dash';
-  if (isDash && !H.wasDash) { H.dashT = 0; H.crouchV = 0.16; }
+  if (isDash && !H.wasDash) { H.dashT = 0; H.crouchV = 0.18; H.squash = -0.14; H.squashV = 2.6; }
+  if (!isDash && H.wasDash) { H.squash = 0.12; H.squashV = -2.2; } /* 착지 감쇠 스쿼시 (game-feel) */
   H.wasDash = isDash;
   if (isDash) H.dashT = (H.dashT || 0) + dt;
   H.crouchV = Math.max(0, (H.crouchV || 0) - dt * 3.2);
-  const leanT = (isDash ? 0.30 : 0) + Math.min(0.12, H.speed * 0.014);
+  /* 감쇠 스쿼시-스트레치 스프링 (면적 보존: Y 늘면 XZ 축소) */
+  H.squash = H.squash || 0; H.squashV = H.squashV || 0;
+  H.squashV += (-H.squash * 190 - H.squashV * 19) * dt;
+  H.squash += H.squashV * dt;
+  if (Math.abs(H.squash) < 0.001 && Math.abs(H.squashV) < 0.01) { H.squash = 0; H.squashV = 0; }
+  const sqY = 1 + H.squash;
+  const sqXZ = 1 / Math.sqrt(Math.max(0.75, sqY));
+  if (H.meshes[0]) H.meshes[0].scale.set(sqXZ, sqY, sqXZ);
+  const leanT = (isDash ? 0.34 : 0) + Math.min(0.14, H.speed * 0.016);
   H.lean += (leanT - H.lean) * (-Math.expm1(-dt * 11));
   /* 각속도(rad/s) — 부드럽게 재서 비틀림에 쓴다 */
   H.yawRate = (H.yawRate || 0) * 0.85 + ((H.yawTarget - H.yaw) * 6) * 0.15;
@@ -510,7 +520,8 @@ export function kick(group, k) {
 export function slashPose(group, k) {
   const H = group && group.userData && group.userData.hero3d;
   if (!H) return;
-  startBurst(H, 'slash', 0.07);
+  H.squash = 0.09; H.squashV = -1.9;
+  startBurst(H, 'slash', 0.06);
 }
 export function setOpacity(group, o) {
   const H = group && group.userData && group.userData.hero3d;

@@ -51,11 +51,11 @@ function withAnim(spec) { return Object.assign({}, spec, { animBones: animBonesO
 function K(t, p, o) { return Object.assign({ t: t, p: p || {} }, o || {}); }
 
 /* ================================================================ 주인공 — 눈 가린 검객
-   검은 도포(허리 아래로 퍼지는 자락), 새끼줄 허리띠, 넓은 소매 끝의 팔 감개, 검은 눈가리개와 상투, 환도. */
+   v0.60 실루엣 대비 강화: 깊은 먹청 도포 + 선명한 주홍 비단 허리띠·눈가리개 끈 + 밝은 한지 안깃·환도. */
 const HERO_COL = {
-  cloth: 0x5d5a50, clothLo: 0x4b473f, collar: 0x8a857b, rope: 0x7a6238, bracer: 0x45413a,
-  skin: 0x967b55, hair: 0x2a2723, band: 0x1e1c19, boot: 0x3f3b35, sole: 0x24221f,
-  blade: 0xb4b6b0, guard: 0x4a4034, grip: 0x2c2823, face: 0x9f8c73
+  cloth: 0x353b46, clothLo: 0x262b34, collar: 0xd8ceb8, rope: 0xc83424, bracer: 0x2c2926,
+  skin: 0xb2926a, hair: 0x1e1c1a, band: 0x1a1716, boot: 0x2c2824, sole: 0x1b1917,
+  blade: 0xd8e0e6, guard: 0x8a6d3b, grip: 0x26211d, face: 0xb8a082, sash: 0xd63c2a
 };
 export const HERO = {
   key: 'hero', h: 2.45, pelvisY: 1.20, hullT: 0.020,
@@ -86,10 +86,10 @@ export const HERO = {
     ['tailR', 'head', [-0.03, 0.14, -0.118]]
   ],
   cloth: {
-    skirt: { g: 0.085, k: 46, d: 7.5, sw: 0.012, max: 0.5 },
-    rope: { g: 0.16, k: 30, d: 5.5, rx: 0.02, sw: 0.035, ph: 1.3, max: 0.9 },
-    tailL: { g: 0.20, k: 26, d: 5.0, rx: 0.55, rz: 0.22, sw: 0.07, ph: 0.4, max: 1.4 },
-    tailR: { g: 0.20, k: 22, d: 4.6, rx: 0.42, rz: -0.10, sw: 0.07, ph: 2.1, max: 1.4 }
+    skirt: { g: 0.125, k: 42, d: 6.4, sw: 0.022, max: 0.65 },
+    rope: { g: 0.22, k: 26, d: 4.8, rx: 0.04, sw: 0.055, ph: 1.3, max: 1.15 },
+    tailL: { g: 0.28, k: 22, d: 4.2, rx: 0.62, rz: 0.28, sw: 0.10, ph: 0.4, max: 1.55 },
+    tailR: { g: 0.28, k: 19, d: 3.9, rx: 0.48, rz: -0.14, sw: 0.10, ph: 2.1, max: 1.55 }
   },
   base: {
     pelvis: [0, 0, 0], spine: [0.03, 0, 0], chest: [0.03, 0, 0], neck: [0.03, 0, 0], head: [-0.05, 0, 0],
@@ -155,11 +155,11 @@ export const HERO = {
     out.push(faceDecal('head', [[1.965, 0.046, 0.058, 0.012], [1.99, 0.078, 0.090, 0.012], [2.04, 0.100, 0.106, 0.012], [2.11, 0.114, 0.114, 0.012], [2.18, 0.118, 0.116, 0.012], [2.245, 0.110, 0.106, 0.012]],
       0.112, 1.96, 2.25, AZ.heroFace, C.face));
     topknot(out, 0.375, -0.02, 0.050, C.hair);
-    /* 눈가리개 끈 — 뒤로 날리는 두 가닥(스프링 뼈) */
+    /* 주홍 비단 머리끈 — 뒤로 길게 휘날리는 두 가닥(스프링 뼈 · 3d-cloth-material 실루엣 포인트) */
     ['L', 'R'].forEach(function (s, i) {
-      const g = new THREE.PlaneGeometry(0.085 - i * 0.02, 0.52 - i * 0.14, 1, 4);
-      g.translate(0, -(0.26 - i * 0.07), 0);
-      out.push(rigid('tail' + s, g, i ? C.band : 0xcfb98e, { rot: [0, 0.4 - i * 0.8, i ? -0.42 : 0.67], nh: 1 }));
+      const g = new THREE.PlaneGeometry(0.115 - i * 0.022, 0.72 - i * 0.16, 1, 5);
+      g.translate(0, -(0.36 - i * 0.08), 0);
+      out.push(rigid('tail' + s, g, i ? C.sash : 0xe04834, { rot: [0, 0.35 - i * 0.7, i ? -0.46 : 0.62], nh: 1 }));
     });
     /* 환도 — 가늘고 곧은 날, 둥근 코등이, 검은 자루. 날은 뼈 +Y 로 뻗는다. */
     const blade = loft([{ y: 0.02, rx: 0.021, rzF: 0.006, rzB: 0.006, x: 0 }, { y: 0.45, rx: 0.020, rzF: 0.006, rzB: 0.006, x: 0.004 },

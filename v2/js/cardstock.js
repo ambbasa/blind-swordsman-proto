@@ -16,13 +16,13 @@ import * as THREE from 'three';
 /** 모든 패치 재질이 공유하는 안개 uniform. game.js 가 매 프레임 한 번만 채운다. */
 export const WF = {
   uWfHero: { value: new THREE.Vector3(0, 0, 0) },
-  uWfRange: { value: new THREE.Vector4(5.4, 7.3, 15.6, 0) }, // inner, outer, far, pulse
-  uWfAmt: { value: new THREE.Vector4(0.85, 0.97, 0, 1) },    // v0.50: 원 안은 선명한 한지, 원 밖은 짙은 먹안개 대비
-  /* v0.43: 한지 톤 — 어둠이 아니라 '따뜻한 먹물'로 멀어진다(바탕이 밝아졌으므로). */
-  uWfColor: { value: new THREE.Color(0.01, 0.009, 0.009) },
+  uWfRange: { value: new THREE.Vector4(7.8, 14.5, 28.0, 0) }, // inner, outer, far, pulse
+  uWfAmt: { value: new THREE.Vector4(0.24, 0.48, 0, 1) },    // v0.60: 산수화 수묵 여백 안개 — 전장·기물 가독성 유지 + 원경 부드러운 먹안개
+  /* v0.60: 한지·수묵 원경 톤 — 칠흑 대신 따뜻한 산수 안개색으로 멀어진다. */
+  uWfColor: { value: new THREE.Color(0.11, 0.102, 0.092) },
   /* 화면 위쪽(멀어지는) 방향 xz 와 앞뒤 압축 계수. 원근 카메라에서는 월드 원이 화면 타원보다
      위로 길게 투영되므로, 예전 2D 안개의 '화면 타원' 감성을 유지하려면 앞뒤 거리를 덜 잰다. */
-  uWfDirK: { value: new THREE.Vector3(0, -1, 1.18) },
+  uWfDirK: { value: new THREE.Vector3(0, -1, 1.12) },
   uWfDbg: { value: 0 }
 };
 
@@ -32,16 +32,16 @@ export const WF = {
  *  tone  : 시트별 톤 흔들림(±)
  *  trans : 얇은 종이 역광 세기 */
 export const PROFILE = {
-  /* 기존 2D 안개(alpha 0.78)와 같은 짙음을 기준선으로 삼는다. */
-  ground:   { fade: 1.00, h: 2.6, tone: 0.045, trans: 0.00, hFloor: 1.00 },
-  prop:     { fade: 0.92, h: 3.4, tone: 0.060, trans: 0.14, hFloor: 0.88 },
-  paper:    { fade: 0.92, h: 4.0, tone: 0.075, trans: 0.26, hFloor: 0.86 },
-  /* 원경 병풍은 '안개 너머로 읽히던 배경'이라 잠금을 덜 한다(예전 상단 안개 걷기와 같은 몫). */
-  backdrop: { fade: 0.42, h: 14.0, tone: 0.030, trans: 0.14, hFloor: 1.00 },
-  /* v0.49: 주인공(거리 0)과 원 안 적은 100% 선명, 원 밖 적은 먹안개 실루엣으로 잠김 */
-  figure:   { fade: 0.62, h: 1.4, tone: 0.035, trans: 0.12, hFloor: 0.68 },
-  spirit:   { fade: 0.00, h: 1.0, tone: 0.020, trans: 0.09 },  // 혼령 — 조준 표적이므로 안개 면제
-  item:     { fade: 0.35, h: 1.3, tone: 0.030, trans: 0.10, hFloor: 0.80 }
+  /* v0.60: 회화풍 산수 가독성 — 지면·기물·캐릭터가 칠흑에 묻히지 않고 은은한 안개 원근감만 유지. */
+  ground:   { fade: 0.56, h: 2.6, tone: 0.040, trans: 0.00, hFloor: 0.90 },
+  prop:     { fade: 0.42, h: 3.6, tone: 0.055, trans: 0.18, hFloor: 0.72 },
+  paper:    { fade: 0.40, h: 4.0, tone: 0.065, trans: 0.30, hFloor: 0.72 },
+  /* 원경 병풍은 산수화 원경 안개로 부드럽게 잠긴다. */
+  backdrop: { fade: 0.28, h: 14.0, tone: 0.025, trans: 0.16, hFloor: 0.92 },
+  /* v0.60: 주인공과 적 모두 선명한 실루엣 유지 */
+  figure:   { fade: 0.18, h: 1.5, tone: 0.030, trans: 0.16, hFloor: 0.58 },
+  spirit:   { fade: 0.00, h: 1.0, tone: 0.020, trans: 0.12 },  // 혼령 — 조준 표적이므로 안개 면제
+  item:     { fade: 0.14, h: 1.3, tone: 0.030, trans: 0.14, hFloor: 0.70 }
 };
 
 /* ---------------------------------------------------------------------------------------------
@@ -275,22 +275,27 @@ export function updateFade(hero, ringRadius, pulse, sightRadius, fogHex, enabled
     WF.uWfDirK.value.set(fwdX / l, fwdZ / l, WF.uWfDirK.value.z);
   }
   const range = WF.uWfRange.value;
-  /* CFG.fogInner(0.86)/fogOuter(1.16) 을 그대로 쓰되, 월드 원이 화면 타원보다 넓게 보이는 만큼
-     안쪽을 조금 당겨 예전 '밝은 못'의 크기를 맞춘다. */
-  range.x = R * 0.80 * (1 - 0.07 * (pulse || 0));
-  range.y = R * 1.08;
-  range.z = Math.max(range.y + 0.5, (sightRadius || 12.5) * 1.25);
+  /* v0.60: 손전등식 어두운 구멍 대신, 전장 전체가 산수화처럼 열리고 외곽으로 갈수록 은은하게 스미는 수묵 안개 */
+  range.x = R * 1.18 * (1 - 0.05 * (pulse || 0));
+  range.y = R * 2.20;
+  range.z = Math.max(range.y + 4.5, (sightRadius || 14.0) * 1.85);
   range.w = pulse || 0;
   WF.uWfHero.value.set(hero.x, 0, hero.z);
   WF.uWfAmt.value.w = enabled === false ? 0 : 1;
   if (fogHex != null) {
-    // CSS hex 이면 팔레트 규칙대로 장면 안 색으로 되돌린다(후처리를 통과한 뒤 그 색으로 보이게).
     if (typeof fogHex === 'string') {
       const c = _fogTone(fogHex);
-      WF.uWfColor.value.setRGB(c[0], c[1], c[2]);
+      WF.uWfColor.value.setRGB(Math.max(0.085, c[0]), Math.max(0.080, c[1]), Math.max(0.075, c[2]));
     } else if (fogHex.length >= 3) {
-      // [r,g,b] 0~255 (스테이지 atmo.fogCol) — 후처리 앞이라 그대로 linear 로 눌러 넣는다
-      WF.uWfColor.value.setRGB(Math.pow(fogHex[0] / 255, 2.2) * 0.9, Math.pow(fogHex[1] / 255, 2.2) * 0.9, Math.pow(fogHex[2] / 255, 2.2) * 0.9);
+      /* v0.60: 먹색이 칠흑으로 무너지지 않도록 산수 한지 미스트 하한선(0.095)을 보정 */
+      const lr = Math.pow(fogHex[0] / 255, 2.2) * 0.9;
+      const lg = Math.pow(fogHex[1] / 255, 2.2) * 0.9;
+      const lb = Math.pow(fogHex[2] / 255, 2.2) * 0.9;
+      WF.uWfColor.value.setRGB(
+        0.095 + lr * 0.72,
+        0.090 + lg * 0.72,
+        0.082 + lb * 0.72
+      );
     }
   }
 }

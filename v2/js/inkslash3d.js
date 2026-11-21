@@ -10,22 +10,24 @@ export function createSlashArc({ from, to, height = 1.55, width = 0.62, elem = n
   const len = Math.max(0.2, Math.hypot(dx, dz));
   const ux = dx / len, uz = dz / len;
   const nx = -uz, nz = ux;
-  const N = 20;
+  const N = 28;
   const pos = new Float32Array((N + 1) * 2 * 3);
   const uv = new Float32Array((N + 1) * 2 * 2);
   const idx = [];
   for (let i = 0; i <= N; i++) {
     const t = i / N;
     const cx = from.x + dx * t, cz = from.z + dz * t;
-    const arc = Math.pow(Math.sin(Math.PI * t), 0.85);
-    const relief = elem === 'ice' ? Math.abs(Math.sin(4 * Math.PI * t)) * 0.26 :
-      elem === 'lightning' ? Math.sin(8 * Math.PI * t) * 0.19 :
-      elem === 'fire' ? Math.sin(3 * Math.PI * t) * 0.21 : 0;
-    const h = arc * relief + 0.12 + height * arc * (0.72 + 0.28 * Math.sin(Math.PI * Math.min(1, t * 1.1)));
-    /* 카메라(+x+z) 쪽으로 살짝 기울여 호가 화면에 넓게 보이게 */
-    const lean = arc * 0.35;
-    const w = width * (0.22 + 0.95 * Math.sin(Math.PI * Math.min(1, t * 0.92 + 0.05)));
-    const bx = cx + lean * 0.707, bz = cz + lean * 0.707;
+    const arc = Math.pow(Math.sin(Math.PI * t), 0.82);
+    const relief = elem === 'ice' ? Math.abs(Math.sin(4 * Math.PI * t)) * 0.28 :
+      elem === 'lightning' ? Math.sin(9 * Math.PI * t) * 0.22 :
+      elem === 'fire' ? Math.sin(3 * Math.PI * t) * 0.24 : 0;
+    const h = arc * relief + 0.16 + height * arc * (0.76 + 0.24 * Math.sin(Math.PI * Math.min(1, t * 1.1)));
+    /* v0.60 부드러운 유선형 베기 호 + 끝단 날카로운 붓끝 테이퍼 */
+    const sweep = Math.sin(Math.PI * t) * 0.42;
+    const lean = arc * 0.38;
+    const taper = Math.pow(Math.sin(Math.PI * Math.min(1, t * 0.94 + 0.03)), 0.72);
+    const w = width * (0.14 + 1.08 * taper);
+    const bx = cx + lean * 0.707 + nx * sweep, bz = cz + lean * 0.707 + nz * sweep;
     const i6 = i * 6, i4 = i * 4;
     pos[i6] = bx - nx * w * 0.5; pos[i6 + 1] = h; pos[i6 + 2] = bz - nz * w * 0.5;
     pos[i6 + 3] = bx + nx * w * 0.5; pos[i6 + 4] = h; pos[i6 + 5] = bz + nz * w * 0.5;

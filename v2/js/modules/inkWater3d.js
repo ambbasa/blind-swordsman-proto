@@ -75,35 +75,36 @@ void main() {
   float n2 = fbm(flow2 + n1 * 0.65);
   float wave = mix(n1, n2, 0.55);
 
-  float shoreNoise = (n1 - 0.5) * 0.22;
-  float edgeAlpha = 1.0 - smoothstep(0.68 + shoreNoise, 1.0, centerDist);
+  float shoreNoise = (n1 - 0.5) * 0.26;
+  float edgeAlpha = 1.0 - smoothstep(0.48 + shoreNoise, 1.0, centerDist);
   if (edgeAlpha < 0.02) discard;
 
   float eps = 0.07;
   float nx = fbm(flow1 + vec2(eps, 0.0)) - fbm(flow1 - vec2(eps, 0.0));
   float nz = fbm(flow2 + vec2(0.0, eps)) - fbm(flow2 - vec2(0.0, eps));
-  vec3 N = normalize(vec3(-nx * 1.9, 1.0, -nz * 1.9));
+  vec3 N = normalize(vec3(-nx * 1.7, 1.0, -nz * 1.7));
   vec3 V = normalize(vViewDir);
   vec3 L = normalize(uLightDir);
   vec3 H = normalize(L + V);
 
-  float depth = smoothstep(0.95, 0.18, centerDist);
+  float depth = smoothstep(0.95, 0.16, centerDist);
   vec3 col = mix(uShallowCol, uDeepCol, depth);
 
-  float rippleBand = smoothstep(0.55, 0.78, wave);
-  col = mix(col, uShallowCol * 1.48, rippleBand * 0.34);
+  /* 수묵 담채 윤슬 + 잔물결 띠 */
+  float rippleBand = smoothstep(0.50, 0.76, wave);
+  col = mix(col, uShallowCol * 1.42 + vec3(0.04, 0.05, 0.04), rippleBand * 0.40);
 
-  float fresnel = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 3.0);
-  col += uMoonCol * fresnel * 0.28;
+  float fresnel = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 2.6);
+  col += uMoonCol * fresnel * 0.36;
 
-  float spec = pow(max(dot(N, H), 0.0), 40.0);
-  col += uMoonCol * spec * (0.55 + 0.45 * rippleBand);
+  float spec = pow(max(dot(N, H), 0.0), 34.0);
+  col += uMoonCol * spec * (0.62 + 0.42 * rippleBand);
 
-  float foamBand = smoothstep(0.60, 0.82, centerDist + shoreNoise * 0.8) * (1.0 - smoothstep(0.84, 0.99, centerDist + shoreNoise * 0.6));
-  float foamBreak = smoothstep(0.36, 0.72, n2);
-  col = mix(col, uFoamCol, clamp(foamBand * foamBreak * 0.80, 0.0, 0.86));
+  float foamBand = smoothstep(0.54, 0.80, centerDist + shoreNoise * 0.85) * (1.0 - smoothstep(0.84, 1.0, centerDist + shoreNoise * 0.55));
+  float foamBreak = smoothstep(0.32, 0.70, n2);
+  col = mix(col, uFoamCol, clamp(foamBand * foamBreak * 0.84, 0.0, 0.88));
 
-  float alpha = clamp(edgeAlpha * (0.84 + 0.15 * depth), 0.0, 0.96);
+  float alpha = clamp(edgeAlpha * (0.78 + 0.16 * depth), 0.0, 0.92);
   gl_FragColor = vec4(col, alpha);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -171,10 +172,10 @@ export function createInkRiver3D(scene, opts = {}) {
     uniforms: {
       uTime: { value: 0 },
       uFlowDir: { value: flowDir },
-      uDeepCol: { value: new THREE.Color(opts.deepCol ?? 0x0b1a1f) },
-      uShallowCol: { value: new THREE.Color(opts.shallowCol ?? 0x2d484b) },
-      uFoamCol: { value: new THREE.Color(opts.foamCol ?? 0xd9ceb8) },
-      uMoonCol: { value: new THREE.Color(opts.moonCol ?? 0xf0dec2) },
+      uDeepCol: { value: new THREE.Color(opts.deepCol ?? 0x1d3740) },
+      uShallowCol: { value: new THREE.Color(opts.shallowCol ?? 0x5c848a) },
+      uFoamCol: { value: new THREE.Color(opts.foamCol ?? 0xf0e7d4) },
+      uMoonCol: { value: new THREE.Color(opts.moonCol ?? 0xfff0d4) },
       uLightDir: { value: new THREE.Vector3(-0.42, 0.78, 0.46).normalize() },
     },
   });

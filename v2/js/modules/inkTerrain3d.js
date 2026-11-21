@@ -84,6 +84,204 @@ void main() {
 }
 `;
 
+/* v0.60 산수화 원경 산맥 셰이더 (3d-kasumidera-ultra-realism — 수직 안개·먹 번짐 그라데이션) */
+const MOUNTAIN_VERT = /* glsl */`
+varying float vNormY;
+varying vec3 vWp;
+void main() {
+  vNormY = uv.y;
+  vec4 wp = modelMatrix * vec4(position, 1.0);
+  vWp = wp.xyz;
+  gl_Position = projectionMatrix * viewMatrix * wp;
+}
+`;
+const MOUNTAIN_FRAG = /* glsl */`
+uniform float uTime;
+uniform vec3 uPeakCol;
+uniform vec3 uMistCol;
+uniform float uAlpha;
+varying float vNormY;
+varying vec3 vWp;
+float mHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float mNoise(vec2 p) {
+  vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mHash(i), mHash(i + vec2(1.0, 0.0)), f.x), mix(mHash(i + vec2(0.0, 1.0)), mHash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+void main() {
+  float ridge = smoothstep(0.08, 0.92, vNormY);
+  float brush = mNoise(vWp.xz * 0.14 + vec2(0.0, vNormY * 3.5)) * 0.22;
+  float drift = mNoise(vec2(vWp.x * 0.06 + uTime * 0.035, vNormY * 2.2)) * 0.18;
+  float mistBand = clamp(1.0 - smoothstep(0.05, 0.72, vNormY + drift - 0.12), 0.0, 1.0);
+  vec3 col = mix(uPeakCol * (0.86 + brush), uMistCol, mistBand * 0.85);
+  /* 산마루 연한 먹선 실루엣 */
+  float crest = smoothstep(0.86, 0.98, vNormY);
+  col = mix(col, uPeakCol * 0.68, crest * 0.45);
+  float alpha = uAlpha * smoothstep(0.0, 0.18, vNormY) * (1.0 - smoothstep(0.95, 1.0, vNormY) * 0.25);
+  gl_FragColor = vec4(col, alpha);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}
+`;
+
+/* v0.60 바람에 나부끼는 비단·무명 깃발 셰이더 (3d-cloth-material — 접선각 물결 + 직조 결 + 역광 투과) */
+const CLOTH_FLAG_VERT = /* glsl */`
+uniform float uTime;
+varying vec2 vUv;
+varying float vWave;
+varying vec3 vNormalW;
+varying vec3 vViewW;
+void main() {
+  vUv = uv;
+  vec3 pos = position;
+  #ifdef USE_INSTANCING
+    float ph = instanceMatrix[3].x * 0.73 + instanceMatrix[3].z * 0.59;
+  #else
+    float ph = 0.0;
+  #endif
+  /* 깃대(uv.x = 0)는 고정, 끝자락(uv.x = 1)으로 갈수록 접선각 파동이 커지며 천 길이를 유지 */
+  float pin = smoothstep(0.0, 0.95, uv.x);
+  float a = sin(uTime * 3.6 - uv.x * 5.2 + ph + uv.y * 1.4) * 0.34
+          + sin(uTime * 6.1 - uv.x * 9.5 + ph * 1.7) * 0.11;
+  float bend = a * pin;
+  pos.z += bend * 0.36;
+  pos.x -= abs(bend) * 0.06 * pin;
+  pos.y += sin(uTime * 2.4 + ph + uv.x * 2.8) * 0.035 * pin;
+  vWave = bend;
+  vec4 wp = vec4(pos, 1.0);
+  #ifdef USE_INSTANCING
+    wp = instanceMatrix * wp;
+  #endif
+  wp = modelMatrix * wp;
+  vNormalW = normalize(vec3(-bend * 0.7, 0.15, 1.0));
+  vViewW = normalize(cameraPosition - wp.xyz);
+  gl_Position = projectionMatrix * viewMatrix * wp;
+}
+`;
+const CLOTH_FLAG_FRAG = /* glsl */`
+uniform vec3 uDyeCol;
+uniform vec3 uTrimCol;
+uniform vec3 uLightCol;
+varying vec2 vUv;
+varying float vWave;
+varying vec3 vNormalW;
+varying vec3 vViewW;
+void main() {
+  /* 깃발 끝자락 자연스러운 뾰족/제비꼬리 실루엣 */
+  float swallow = abs(vUv.y - 0.5) * 2.0;
+  float tipMask = 1.0 - smoothstep(0.76, 0.99, vUv.x + (1.0 - swallow) * 0.18);
+  if (tipMask < 0.08) discard;
+  /* 미세 평직 직조 결 (3d-cloth-material) */
+  float weave = 0.93 + 0.07 * sin(vUv.x * 110.0) * sin(vUv.y * 85.0);
+  /* 주름 음영 + 빛 투과(thin cloth backlit transmission) */
+  float foldAo = 0.76 + 0.24 * clamp(vWave * 1.8 + 0.5, 0.0, 1.0);
+  float sheen = pow(1.0 - abs(dot(normalize(vNormalW), normalize(vViewW))), 2.6) * 0.24;
+  float trim = smoothstep(0.84, 0.92, swallow) + smoothstep(0.10, 0.03, vUv.x);
+  vec3 base = mix(uDyeCol, uTrimCol, clamp(trim, 0.0, 1.0) * 0.72);
+  vec3 col = base * weave * foldAo + uLightCol * (sheen + 0.14 * (1.0 - foldAo * 0.5));
+  /* 깃발 중앙 먹붓 문양 원 */
+  float d = length((vUv - vec2(0.42, 0.5)) * vec2(1.4, 1.0));
+  float seal = smoothstep(0.22, 0.19, d) * smoothstep(0.11, 0.14, d);
+  col = mix(col, uTrimCol * 1.15, seal * 0.55);
+  gl_FragColor = vec4(col, 0.96);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}
+`;
+
+/* v0.60 한지 투과 풍등 셰이더 (3d-paper-material — 섬유질·대나무 살·따뜻한 호박빛 불빛 투과) */
+const HANJI_LANTERN_FRAG = /* glsl */`
+uniform float uTime;
+uniform vec3 uPaperCol;
+uniform vec3 uCoreCol;
+varying vec2 vUv;
+varying vec3 vWp;
+void main() {
+  float fiber = 0.88 + 0.12 * sin(vUv.x * 78.0 + sin(vUv.y * 24.0)) * cos(vUv.y * 54.0);
+  float rib = smoothstep(0.86, 0.98, abs(sin(vUv.y * 12.566)));
+  float vRib = smoothstep(0.92, 0.99, abs(sin(vUv.x * 18.849)));
+  /* 아래쪽 불꽃 입구에서 위로 갈수록 따뜻하게 번지는 역광 투과 */
+  float flame = smoothstep(0.95, 0.12, vUv.y);
+  float flicker = 0.93 + 0.07 * sin(uTime * 5.1 + vWp.x * 1.4 + vWp.z);
+  vec3 col = mix(uPaperCol * 0.78, uCoreCol, clamp(flame * 0.82, 0.0, 1.0)) * fiber * flicker;
+  col *= (1.0 - max(rib * 0.28, vRib * 0.18));
+  gl_FragColor = vec4(col, 0.96);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}
+`;
+
+/* v0.60 수묵 화폭 단풍·소나무 수관 셰이더 (3d-kasumidera-ultra-realism — 붓점 잎결·하단 먹음영·미세 먹선) */
+const FOLIAGE_VERT = /* glsl */`
+uniform float uTime;
+varying vec3 vNormalW;
+varying vec3 vViewW;
+varying vec3 vLocalP;
+varying vec3 vTint;
+void main() {
+  vLocalP = position;
+  vec3 pos = position;
+  #ifdef USE_INSTANCING
+    float wPh = instanceMatrix[3].x * 0.65 + instanceMatrix[3].z * 0.52;
+    #ifdef USE_INSTANCING_COLOR
+      vTint = instanceColor;
+    #else
+      vTint = vec3(1.0);
+    #endif
+  #else
+    float wPh = 0.0;
+    vTint = vec3(1.0);
+  #endif
+  float hK = clamp(position.y + 0.55, 0.0, 1.4);
+  pos.x += sin(uTime * 1.75 + wPh + position.z * 2.1) * 0.075 * hK;
+  pos.z += cos(uTime * 1.35 + wPh * 1.3 + position.x * 1.9) * 0.055 * hK;
+  vec4 wp = vec4(pos, 1.0);
+  vec3 wn = normal;
+  #ifdef USE_INSTANCING
+    wp = instanceMatrix * wp;
+    wn = mat3(instanceMatrix) * wn;
+  #endif
+  wp = modelMatrix * wp;
+  vNormalW = normalize(mat3(modelMatrix) * wn);
+  vViewW = normalize(cameraPosition - wp.xyz);
+  gl_Position = projectionMatrix * viewMatrix * wp;
+}
+`;
+const FOLIAGE_FRAG = /* glsl */`
+uniform vec3 uBaseCol;
+uniform vec3 uShadowCol;
+uniform vec3 uKeyDir;
+varying vec3 vNormalW;
+varying vec3 vViewW;
+varying vec3 vLocalP;
+varying vec3 vTint;
+float fHash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
+float fNoise(vec3 p) {
+  vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  float a = mix(fHash(i), fHash(i + vec3(1,0,0)), f.x);
+  float b = mix(fHash(i + vec3(0,1,0)), fHash(i + vec3(1,1,0)), f.x);
+  float c = mix(fHash(i + vec3(0,0,1)), fHash(i + vec3(1,0,1)), f.x);
+  float d = mix(fHash(i + vec3(0,1,1)), fHash(i + vec3(1,1,1)), f.x);
+  return mix(mix(a, b, f.y), mix(c, d, f.y), f.z);
+}
+void main() {
+  vec3 N = normalize(vNormalW);
+  vec3 V = normalize(vViewW);
+  float ndl = dot(N, normalize(uKeyDir)) * 0.5 + 0.5;
+  /* 수묵 붓점 잎결(2옥타브) — 플라스틱 공 대신 겹쳐 찍은 붓잎 질감 */
+  float dapple = fNoise(vLocalP * 6.5) * 0.65 + fNoise(vLocalP * 15.0) * 0.35;
+  float upShade = smoothstep(-0.45, 0.55, N.y) * 0.55 + ndl * 0.45;
+  float band = smoothstep(0.22, 0.86, upShade + (dapple - 0.5) * 0.34);
+  vec3 leafCol = uBaseCol * vTint;
+  vec3 col = mix(uShadowCol * vTint, leafCol * (0.86 + dapple * 0.28), band);
+  /* 산수화 은은한 먹선 윤곽 */
+  float rim = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 2.8);
+  col = mix(col, uShadowCol * 0.48, rim * 0.52);
+  gl_FragColor = vec4(col, 1.0);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}
+`;
+
 /* 공용 절차적 텍스처 캐시 (128x128 수묵 석재 그레인 + 64x64 원형 접지 그림자) */
 let _sharedGrainTex = null;
 let _sharedShadowTex = null;
@@ -604,6 +802,224 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     }
   }
 
+  /* ============================================================================
+     v0.60 산수화 3D 활력 환경 레이어 (3d-kasumidera-ultra-realism · 3d-cloth-material · 3d-paper-material)
+     전 스테이지 공통: ① 2겹 원경 산수 산맥 링  ② 바람에 나부끼는 주홍 깃발(InstancedMesh)
+                     ③ 바람에 흔들리는 단풍·소나무 군락  ④ 부유 한지 풍등(역광 투과)
+     ============================================================================ */
+  const actIdx = Math.max(1, Math.min(4, Math.ceil(stageNo / 4)));
+  const floatLanterns = [];
+  {
+    /* 1) 2겹 산수화 원경 산맥 실루엣 링 (부드러운 붓번짐·안개 그라데이션) */
+    const mountainPal = [
+      null,
+      { near: 0x3b352d, far: 0x5c5345, mist: 0xc2b69c }, // 1막: 따뜻한 한지 산수
+      { near: 0x263a37, far: 0x3f5b56, mist: 0x9ebbb4 }, // 2막: 비취 안개 계곡
+      { near: 0x3d2428, far: 0x5c373b, mist: 0xb88b82 }, // 3막: 혈월 황혼 산맥
+      { near: 0x2c283e, far: 0x474263, mist: 0xaab4cf }  // 4막: 설산·심연 능선
+    ][actIdx];
+
+    const buildMountainRing = (radius, segs, baseH, amp1, amp2, seedOff, peakCol, mistCol, alpha) => {
+      const pos = new Float32Array((segs + 1) * 2 * 3);
+      const uv = new Float32Array((segs + 1) * 2 * 2);
+      const idx = [];
+      for (let i = 0; i <= segs; i++) {
+        const u = i / segs;
+        const a = u * Math.PI * 2;
+        const ridge = baseH
+          + Math.sin(a * 5.0 + seedOff) * amp1
+          + Math.cos(a * 9.0 - seedOff * 1.4) * amp2
+          + Math.sin(a * 14.0 + seedOff * 2.1) * (amp2 * 0.45);
+        const h = Math.max(2.6, ridge);
+        const cx = Math.cos(a) * radius, cz = Math.sin(a) * radius;
+        const b = i * 6, tu = i * 4;
+        pos[b] = cx; pos[b + 1] = -0.6; pos[b + 2] = cz;
+        pos[b + 3] = cx; pos[b + 4] = h; pos[b + 5] = cz;
+        uv[tu] = u * 4.0; uv[tu + 1] = 0;
+        uv[tu + 2] = u * 4.0; uv[tu + 3] = 1;
+        if (i < segs) {
+          const v = i * 2;
+          idx.push(v, v + 2, v + 1, v + 1, v + 2, v + 3);
+        }
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+      g.setIndex(idx);
+      const m = new THREE.ShaderMaterial({
+        vertexShader: MOUNTAIN_VERT, fragmentShader: MOUNTAIN_FRAG,
+        transparent: true, depthWrite: false, side: THREE.DoubleSide,
+        uniforms: {
+          uTime: { value: 0 },
+          uPeakCol: { value: new THREE.Color(peakCol) },
+          uMistCol: { value: new THREE.Color(mistCol) },
+          uAlpha: { value: alpha },
+        },
+      });
+      m.userData.cardSkip = true;
+      shaderMats.push(m);
+      track(g, m);
+      const mesh = new THREE.Mesh(g, m);
+      mesh.renderOrder = 0;
+      mesh.frustumCulled = false;
+      group.add(mesh);
+    };
+    buildMountainRing(30.5, 64, 8.2, 3.2, 1.8, stageNo * 1.3, mountainPal.near, mountainPal.mist, 0.78);
+    buildMountainRing(39.0, 64, 13.8, 4.6, 2.4, stageNo * 2.7 + 1.9, mountainPal.far, mountainPal.mist, 0.56);
+
+    /* 2) 바람에 나부끼는 주홍·먹색 진영 깃발 (3d-cloth-material — InstancedMesh 2드로우콜) */
+    const poleGeo = new THREE.CylinderGeometry(0.045, 0.062, 3.6, 6);
+    const poleMat = makePbr(0x3a2a20, 0.88, 0.08);
+    const finialGeo = new THREE.SphereGeometry(0.085, 8, 6);
+    const finialMat = makePbr(0xb8944a, 0.42, 0.58);
+    const flagGeo = new THREE.PlaneGeometry(1.18, 0.82, 10, 4);
+    flagGeo.translate(0.59, 0, 0);
+    const flagDye = [0xb52b22, 0xb52b22, 0x2a6e5e, 0xc23026, 0x6b3a8a][actIdx] || 0xb52b22;
+    const flagMat = new THREE.ShaderMaterial({
+      vertexShader: CLOTH_FLAG_VERT, fragmentShader: CLOTH_FLAG_FRAG,
+      transparent: false, side: THREE.DoubleSide,
+      uniforms: {
+        uTime: { value: 0 },
+        uDyeCol: { value: new THREE.Color(flagDye) },
+        uTrimCol: { value: new THREE.Color(0xe6c278) },
+        uLightCol: { value: new THREE.Color(0xffe6b8) },
+      },
+    });
+    shaderMats.push(flagMat);
+    track(poleGeo, null); track(finialGeo, null); track(flagGeo, flagMat);
+    const flagCount = 6;
+    for (let i = 0; i < flagCount; i++) {
+      const a = (i / flagCount) * Math.PI * 2 + 0.42 + (stageNo % 3) * 0.18;
+      const r = 13.8 + (i % 2) * 1.6;
+      const fx = Math.cos(a) * r, fz = Math.sin(a) * r;
+      if (!canPlace(fx, fz, 2.8, 12.2)) continue;
+      const ry = -a + Math.PI * 0.35;
+      queueInst('v60FlagPole', poleGeo, poleMat, fx, 1.8, fz, 0, ry, 0.05);
+      queueInst('v60FlagFin', finialGeo, finialMat, fx - Math.sin(0.05) * 3.6, 3.62, fz, 0, ry, 0);
+      queueInst('v60FlagCloth', flagGeo, flagMat, fx - 0.12, 3.02, fz, 0, ry, 0);
+      addContactShadow(fx, fz, 0.9);
+    }
+
+    /* 3) 바람에 흔들리는 고목 단풍 · 수묵 소나무 군락 (3d-kasumidera-ultra-realism — 굽은 가지 + 다중 붓잎 군락) */
+    const trunkGeo = new THREE.CylinderGeometry(0.085, 0.22, 2.7, 7);
+    const branchGeo = new THREE.CylinderGeometry(0.032, 0.082, 1.35, 6);
+    const trunkMat = makePbr(0x332419, 0.94, 0.03);
+    /* 불규칙하게 다듬은 붓잎 뭉치 지오메트리(매끈한 플라스틱 공 제거) */
+    const canopyGeo = new THREE.DodecahedronGeometry(0.54, 1);
+    const cp = canopyGeo.attributes.position;
+    for (let vi = 0; vi < cp.count; vi++) {
+      const vx = cp.getX(vi), vy = cp.getY(vi), vz = cp.getZ(vi);
+      const jitter = 0.84 + 0.28 * Math.abs(Math.sin(vx * 7.3 + vy * 11.1 + vz * 5.7));
+      cp.setXYZ(vi, vx * jitter * 1.18, vy * jitter * 0.62, vz * jitter * 1.12);
+    }
+    canopyGeo.computeVertexNormals();
+    const canopyPal = [
+      null,
+      { base: 0x993a28, shadow: 0x3b1812, tints: [0xffffff, 0xe8b08a, 0xd48e72, 0xf2c68c] }, // 1막: 차분한 석채 단풍·황토
+      { base: 0x2d5446, shadow: 0x122620, tints: [0xffffff, 0xc6e2d6, 0xa8cbbd, 0xdfe8d2] }, // 2막: 수묵 소나무·비취 잎
+      { base: 0x872b24, shadow: 0x301012, tints: [0xffffff, 0xde9c84, 0xc27a6c, 0xe8b48a] }, // 3막: 혈월 고목 단풍
+      { base: 0x4b5c72, shadow: 0x1e2433, tints: [0xffffff, 0xd4dfec, 0xb8c6d8, 0xe6edf5] }  // 4막: 설산·심연 한송
+    ][actIdx];
+    const canopyMat = new THREE.ShaderMaterial({
+      vertexShader: FOLIAGE_VERT, fragmentShader: FOLIAGE_FRAG,
+      uniforms: {
+        uTime: { value: 0 },
+        uBaseCol: { value: new THREE.Color(canopyPal.base) },
+        uShadowCol: { value: new THREE.Color(canopyPal.shadow) },
+        uKeyDir: { value: new THREE.Vector3(-0.45, 0.82, 0.36).normalize() },
+      },
+    });
+    shaderMats.push(canopyMat);
+    track(trunkGeo, null); track(branchGeo, null); track(canopyGeo, canopyMat);
+    const treeCount = 6;
+    for (let i = 0; i < treeCount; i++) {
+      const a = (i / treeCount) * Math.PI * 2 + 0.88 + (stageNo % 5) * 0.14;
+      const r = 15.6 + (i % 3) * 1.3;
+      const tx = Math.cos(a) * r, tz = Math.sin(a) * r;
+      if (!canPlace(tx, tz, 4.0, 14.2)) continue;
+      const sc = 0.86 + rng() * 0.34;
+      const yaw = rng() * Math.PI * 2;
+      const lean = (rng() - 0.5) * 0.22;
+      queueInst('v60TreeTrunk', trunkGeo, trunkMat, tx, 1.32 * sc, tz, lean, yaw, lean * 0.7, sc, sc, sc);
+      addContactShadow(tx, tz, 1.95 * sc);
+      /* 뻗어 나가는 굽은 가지 3개 + 각 가지 끝에 겹쳐 찍은 붓잎 뭉치 3개(총 9뭉치) */
+      for (let b = 0; b < 3; b++) {
+        const ba = yaw + b * 2.15 + (rng() - 0.5) * 0.45;
+        const bx = tx + Math.cos(ba) * 0.52 * sc;
+        const bz = tz + Math.sin(ba) * 0.52 * sc;
+        const by = (2.15 + b * 0.22) * sc;
+        queueInst('v60TreeBranch', branchGeo, trunkMat, bx, by, bz, Math.sin(ba) * 0.68, ba, -Math.cos(ba) * 0.68, sc, sc, sc);
+        const tipX = tx + Math.cos(ba) * 0.98 * sc;
+        const tipZ = tz + Math.sin(ba) * 0.98 * sc;
+        const tipY = (2.68 + b * 0.24) * sc;
+        for (let k = 0; k < 3; k++) {
+          const ka = ba + (k - 1) * 1.1;
+          const ox = tipX + Math.cos(ka) * 0.46 * sc;
+          const oz = tipZ + Math.sin(ka) * 0.46 * sc;
+          const oy = tipY + (k === 1 ? 0.28 : -0.04) * sc;
+          const cs = (0.72 + (k === 1 ? 0.24 : 0.08) + rng() * 0.16) * sc;
+          queueInst('v60TreeLeaf', canopyGeo, canopyMat, ox, oy, oz, 0, rng() * 6.28, 0, cs * 1.25, cs * 0.85, cs * 1.15, canopyPal.tints[(i + b + k) % canopyPal.tints.length]);
+        }
+      }
+    }
+
+    /* 4) 부유 한지 풍등 (3d-paper-material — 조선 풍등 Lathe 실루엣 + 호박빛 역광 + 은은한 후광) */
+    const lPts = [
+      new THREE.Vector2(0.14, -0.34),
+      new THREE.Vector2(0.24, -0.18),
+      new THREE.Vector2(0.30, 0.06),
+      new THREE.Vector2(0.26, 0.26),
+      new THREE.Vector2(0.14, 0.38),
+      new THREE.Vector2(0.01, 0.42),
+    ];
+    const lBodyGeo = new THREE.LatheGeometry(lPts, 12);
+    const lRingGeo = new THREE.TorusGeometry(0.14, 0.018, 6, 12); lRingGeo.rotateX(Math.PI / 2);
+    const lRingMat = makePbr(0x3a2416, 0.80, 0.12);
+    const lPaperMat = new THREE.ShaderMaterial({
+      vertexShader: MIST_VERT, fragmentShader: HANJI_LANTERN_FRAG,
+      transparent: false,
+      uniforms: {
+        uTime: { value: 0 },
+        uPaperCol: { value: new THREE.Color(actIdx === 4 ? 0xa288ff : actIdx === 2 ? 0x7ae6c2 : 0xff8c38) },
+        uCoreCol: { value: new THREE.Color(0xfff0be) },
+      },
+    });
+    lPaperMat.userData.cardSkip = true;
+    /* 풍등 주변 은은한 호박빛 후광 스프라이트 */
+    let lHaloTex = null;
+    if (typeof document !== 'undefined') {
+      const hc = document.createElement('canvas'); hc.width = hc.height = 64;
+      const hctx = hc.getContext('2d');
+      const hg = hctx.createRadialGradient(32, 32, 2, 32, 32, 31);
+      hg.addColorStop(0, 'rgba(255,220,130,0.65)');
+      hg.addColorStop(0.45, 'rgba(255,148,58,0.24)');
+      hg.addColorStop(1, 'rgba(255,120,40,0)');
+      hctx.fillStyle = hg; hctx.fillRect(0, 0, 64, 64);
+      lHaloTex = new THREE.CanvasTexture(hc);
+    }
+    const lHaloMat = new THREE.SpriteMaterial({
+      map: lHaloTex, color: actIdx === 4 ? 0xb49cff : actIdx === 2 ? 0x8ef2d4 : 0xffa64d,
+      transparent: true, opacity: 0.72, blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    shaderMats.push(lPaperMat);
+    track(lBodyGeo, lPaperMat); track(lRingGeo, null); track(lHaloTex, lHaloMat);
+    const lanternCount = 3;
+    for (let i = 0; i < lanternCount; i++) {
+      const lg = new THREE.Group();
+      const body = new THREE.Mesh(lBodyGeo, lPaperMat);
+      const botRing = new THREE.Mesh(lRingGeo, lRingMat); botRing.position.y = -0.34;
+      const halo = new THREE.Sprite(lHaloMat); halo.scale.set(1.65, 1.65, 1); halo.position.y = -0.06;
+      lg.add(body, botRing, halo);
+      const orbitR = 13.5 + i * 2.2;
+      const baseAngle = (i / lanternCount) * Math.PI * 2 + stageNo * 0.9;
+      const baseY = 5.4 + (i % 3) * 1.1;
+      lg.position.set(Math.cos(baseAngle) * orbitR, baseY, Math.sin(baseAngle) * orbitR);
+      lg.userData = { orbitR, baseAngle, baseY, speed: 0.048 + i * 0.012, phase: i * 1.9 };
+      group.add(lg);
+      floatLanterns.push(lg);
+    }
+  }
+
   /* InstancedMesh 일괄 플러시 (단일 배칭으로 드로우콜 최소화) */
   let instDrawCalls = 0, totalInstances = 0;
   instBatches.forEach((b, key) => {
@@ -684,6 +1100,14 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       const d = Math.min(0.05, Number(dt || 0.016));
       elapsed += d;
       for (let i = 0; i < shaderMats.length; i++) shaderMats[i].uniforms.uTime.value = elapsed;
+      for (let i = 0; i < floatLanterns.length; i++) {
+        const fl = floatLanterns[i], u = fl.userData;
+        const a = u.baseAngle + elapsed * u.speed;
+        fl.position.x = Math.cos(a) * u.orbitR;
+        fl.position.z = Math.sin(a) * u.orbitR;
+        fl.position.y = u.baseY + Math.sin(elapsed * 1.15 + u.phase) * 0.36;
+        fl.rotation.y = -a;
+      }
       for (let i = 0; i < swayNodes.length; i++) swayNodes[i].rotation.z = Math.sin(elapsed * 1.6 + swayNodes[i].userData.phase) * 0.055;
       for (let i = 0; i < spinNodes.length; i++) spinNodes[i].rotation.z += d * 1.35;
       for (let i = 0; i < bellPivots.length; i++) {

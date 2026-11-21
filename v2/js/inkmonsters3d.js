@@ -36,6 +36,22 @@ const B = INK3D;
 const GEO = {};
 const CLIPS = {};
 let LIVE = 0, FRAME = 0, CAM = null;
+let _monShadowGeo = null, _monShadowMat = null;
+function getMonShadow() {
+  if (_monShadowGeo && _monShadowMat) return { geo: _monShadowGeo, mat: _monShadowMat };
+  _monShadowGeo = new THREE.PlaneGeometry(1, 1);
+  _monShadowGeo.rotateX(-Math.PI / 2);
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+  const g = cv.getContext('2d');
+  const gr = g.createRadialGradient(32, 32, 4, 32, 32, 30);
+  gr.addColorStop(0, 'rgba(8,6,5,0.68)');
+  gr.addColorStop(0.55, 'rgba(8,6,5,0.34)');
+  gr.addColorStop(1, 'rgba(8,6,5,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  const tex = new THREE.CanvasTexture(cv);
+  _monShadowMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0.85 });
+  return { geo: _monShadowGeo, mat: _monShadowMat };
+}
 export function setCamera(c) { CAM = c; }
 export function stats() {
   const g = {};
@@ -181,6 +197,17 @@ export function build(species, opt) {
     root.add(hull);
     hull.updateMatrixWorld(true);
     hull.bind(skeleton);
+  }
+
+  /* v0.60 공유 바닥 접지 그림자 (떠 보임 방지, 텍스처/지오메트리 1개 공유) */
+  if (opt.shadow !== false) {
+    const sh = getMonShadow();
+    const sm = new THREE.Mesh(sh.geo, sh.mat);
+    const sr = species === 'boss' ? 2.55 : species === 'heavy' || species === 'stone' ? 1.85 : 1.35;
+    sm.scale.set(sr, 1, sr);
+    sm.position.set(0, 0.022, 0);
+    sm.renderOrder = 1;
+    root.add(sm);
   }
 
   const mixer = new THREE.AnimationMixer(root);
@@ -412,9 +439,25 @@ export function tick(group, kind, state, dt, vx, vz) {
   group.rotation.y = H.yaw;
 
   syncLightUniforms(H);
-  /* 예고·노출 테는 fake rim 에서 셰이더 uniform 으로 매 프레임 옮긴다. */
+  /* 예고·노출 테 + v0.60 피격 섬광 림(hitFlash) 및 타격 반동 스쿼시(game-feel) */
   H.rimCol.copy(H.rim.material.color);
   H.rimOp = H.rim.material.opacity;
+  if (H.hitFlash > 0) {
+    H.hitFlash = Math.max(0, H.hitFlash - dt * 6.8);
+    const fk = H.hitFlash;
+    H.rimCol.setRGB(1.0, 0.92, 0.72);
+    H.rimOp = Math.max(H.rimOp, 0.85 * fk);
+  }
+  if (H.squash || H.squashV) {
+    H.squash = H.squash || 0; H.squashV = H.squashV || 0;
+    H.squashV += (-H.squash * 210 - H.squashV * 20) * dt;
+    H.squash += H.squashV * dt;
+    if (Math.abs(H.squash) < 0.001 && Math.abs(H.squashV) < 0.01) { H.squash = 0; H.squashV = 0; }
+    const sqY = 1 + H.squash;
+    const sqXZ = 1 / Math.sqrt(Math.max(0.72, sqY));
+    if (H.body) H.body.scale.set(sqXZ, sqY, sqXZ);
+    if (H.hull) H.hull.scale.set(sqXZ, sqY, sqXZ);
+  }
 
   if (H.freeze) return true;
 
@@ -514,6 +557,9 @@ function applyCloth(H, dt) {
 export function kick(group, k) {
   const H = group && group.userData && group.userData.m3d;
   if (!H) return;
+  H.hitFlash = 1.0;
+  H.squash = -0.15;
+  H.squashV = 2.8;
   startBurst(H, 'hit', 0.05);
 }
 export function slashPose(group, k) {
