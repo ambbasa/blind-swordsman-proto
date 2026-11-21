@@ -13,7 +13,6 @@ import { paperPropCanvas } from './inkpaper.js';
 import { texOf, aspectOf, panoOf } from './inkdiorama.js';
 import { createFloorLayer, floorReady, soilTexture, floorInfo } from './inkfloor.js';
 import { buildArena, ARENA } from './inkarena.js';
-import { enhanceGroundWithScannedPbr, getSkillGroundPbr } from './modules/skillAssets3d.js';
 
 export const CHUNK = 24;
 export const WINDOW_R = 1; /* 3×3 */
@@ -1426,26 +1425,7 @@ function createArenaWorld(opts) {
     map, bumpMap: detail, bumpScale: softGround ? 0.08 : 0.12, color: groundBase.clone(), roughness: 0.96, metalness: 0.0,
     vertexColors: true
   });
-  /* v0.65:
-     - 2·4장: 원래 수묵 페인팅 바닥(terrain-2/4.webp + relief bumpMap) 보존
-     - 3장(대나무 숲): 대칭 깨짐·돌무늬가 강했던 terrain-3.webp 대신 이끼 낀 대숲 흙바닥(CC0 스캔 토양 + 자연 녹음 색조)으로 교체 */
-  if (stageId === 3) {
-    try {
-      const pbr = getSkillGroundPbr();
-      groundMat.map = pbr.diff;
-      groundMat.normalMap = pbr.normal;
-      groundMat.normalScale = new THREE.Vector2(0.62, 0.62);
-      groundMat.roughnessMap = pbr.arm;
-      groundMat.bumpMap = null;
-      groundMat.roughness = 0.96;
-      groundMat.metalness = 0.02;
-      groundBase.setHex(0x6c8062).multiplyScalar(FLOOR_MUL * 2.15);
-      groundMat.color.copy(groundBase);
-      groundMat.needsUpdate = true;
-    } catch (e) {}
-  } else if (![2, 4].includes(stageId)) {
-    try { enhanceGroundWithScannedPbr(groundMat, stageId); } catch (e) {}
-  }
+  /* v0.66: 전 스테이지 바닥을 원래의 수묵 페인팅 지면(terrain-N.webp + relief bumpMap)으로 원복 */
   groundMat.userData.inkGround = true;
   groundMat.userData.cardProfile = 'ground';
   const groundGeo = new THREE.PlaneGeometry(ARENA.GROUND * 2, ARENA.GROUND * 2, 96, 96);

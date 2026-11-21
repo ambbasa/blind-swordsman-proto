@@ -625,9 +625,10 @@ export function buildKasumideraTorii3D(opts = {}) {
 export function buildFracturedBasaltRocks3D(rng, opts = {}) {
   const group = new THREE.Group();
   const mat = new THREE.MeshStandardMaterial({
-    color: opts.rockHex || 0x353338,
-    roughness: 0.88,
+    color: opts.rockHex || 0x6b645c,
+    roughness: 0.86,
     metalness: 0.08,
+    emissive: new THREE.Color(opts.rockHex || 0x6b645c).multiplyScalar(0.18),
     flatShading: true,
   });
   const disposables = [mat];
@@ -658,9 +659,10 @@ export function buildFracturedCragMonolith3D(rng, opts = {}) {
   const group = new THREE.Group();
   const h = opts.height || (3.6 + rng() * 1.8);
   const mat = new THREE.MeshStandardMaterial({
-    color: opts.rockHex || 0x322d38,
-    roughness: 0.88,
+    color: opts.rockHex || 0x5c5368,
+    roughness: 0.86,
     metalness: 0.10,
+    emissive: new THREE.Color(opts.rockHex || 0x5c5368).multiplyScalar(0.18),
     flatShading: true,
   });
   const disposables = [mat];
@@ -696,17 +698,17 @@ export function buildKasumideraGatehouse3D(opts = {}) {
   const group = new THREE.Group();
   group.name = isFortress ? 'kasumidera-fortress-gate' : 'kasumidera-gatehouse';
 
-  const stoneMat = new THREE.MeshStandardMaterial({ color: opts.stoneHex || 0x4c4a46, roughness: 0.93, metalness: 0.04 });
-  const woodMat = new THREE.MeshStandardMaterial({ color: opts.woodHex || 0x3b261c, roughness: 0.84, metalness: 0.06 });
-  const redMat = new THREE.MeshStandardMaterial({ color: opts.lacquerHex || 0x86241d, roughness: 0.54, metalness: 0.12 });
-  const tileMat = new THREE.MeshStandardMaterial({ color: opts.tileHex || 0x262930, roughness: 0.72, metalness: 0.16 });
-  const goldMat = new THREE.MeshStandardMaterial({ color: 0xc8a24c, roughness: 0.36, metalness: 0.72 });
+  const stoneMat = new THREE.MeshStandardMaterial({ color: opts.stoneHex || 0x7d766b, roughness: 0.90, metalness: 0.04, emissive: 0x1a1814, emissiveIntensity: 0.35 });
+  const woodMat = new THREE.MeshStandardMaterial({ color: opts.woodHex || 0x7a573e, roughness: 0.82, metalness: 0.06, emissive: 0x1d140e, emissiveIntensity: 0.30 });
+  const redMat = new THREE.MeshStandardMaterial({ color: opts.lacquerHex || 0xb53428, roughness: 0.50, metalness: 0.12, emissive: 0x2a0c08, emissiveIntensity: 0.45 });
+  const tileMat = new THREE.MeshStandardMaterial({ color: opts.tileHex || 0x4b5360, roughness: 0.68, metalness: 0.16, emissive: 0x141820, emissiveIntensity: 0.40 });
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xe0b858, roughness: 0.32, metalness: 0.72, emissive: 0x3b2c0c, emissiveIntensity: 0.45 });
   const paperMat = new THREE.MeshStandardMaterial({
     map: getPaperGrainTex(),
-    color: 0xf6e6c4,
-    emissive: new THREE.Color(opts.glowHex || 0xffb252),
-    emissiveIntensity: 1.15,
-    roughness: 0.88,
+    color: 0xfff0d0,
+    emissive: new THREE.Color(opts.glowHex || 0xffb856),
+    emissiveIntensity: 1.45,
+    roughness: 0.84,
   });
   paperMat.userData.cardSkip = true;
   const disposables = [stoneMat, woodMat, redMat, tileMat, goldMat, paperMat];
@@ -792,17 +794,17 @@ export function buildKasumideraPagoda3D(opts = {}) {
   const group = new THREE.Group();
   group.name = 'kasumidera-pagoda';
 
-  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x4b4a46, roughness: 0.92, metalness: 0.04 });
-  const redMat = new THREE.MeshStandardMaterial({ color: opts.lacquerHex || 0x8a241d, roughness: 0.52, metalness: 0.14 });
-  const woodMat = new THREE.MeshStandardMaterial({ color: 0x2f2119, roughness: 0.86, metalness: 0.05 });
-  const tileMat = new THREE.MeshStandardMaterial({ color: opts.tileHex || 0x262b33, roughness: 0.70, metalness: 0.18 });
-  const bronzeMat = new THREE.MeshStandardMaterial({ color: 0xc29e4c, roughness: 0.34, metalness: 0.76 });
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x7a756c, roughness: 0.90, metalness: 0.04, emissive: 0x181714, emissiveIntensity: 0.35 });
+  const redMat = new THREE.MeshStandardMaterial({ color: opts.lacquerHex || 0xb53428, roughness: 0.48, metalness: 0.14, emissive: 0x280c08, emissiveIntensity: 0.42 });
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x5c4130, roughness: 0.84, metalness: 0.05, emissive: 0x140e0a, emissiveIntensity: 0.25 });
+  const tileMat = new THREE.MeshStandardMaterial({ color: opts.tileHex || 0x4c5664, roughness: 0.66, metalness: 0.18, emissive: 0x141a22, emissiveIntensity: 0.40 });
+  const bronzeMat = new THREE.MeshStandardMaterial({ color: 0xdfb858, roughness: 0.32, metalness: 0.76, emissive: 0x3b2c0c, emissiveIntensity: 0.45 });
   const paperMat = new THREE.MeshStandardMaterial({
     map: getPaperGrainTex(),
-    color: 0xf7ecd0,
+    color: 0xfff2d8,
     emissive: new THREE.Color(opts.glowHex || 0x86f0ca),
-    emissiveIntensity: 1.25,
-    roughness: 0.86,
+    emissiveIntensity: 1.45,
+    roughness: 0.84,
   });
   paperMat.userData.cardSkip = true;
   const disposables = [stoneMat, redMat, woodMat, tileMat, bronzeMat, paperMat];
@@ -872,17 +874,17 @@ export function buildKasumideraPavilion3D(opts = {}) {
   const group = new THREE.Group();
   group.name = 'kasumidera-pavilion';
 
-  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x4f4c46, roughness: 0.92, metalness: 0.04 });
-  const redMat = new THREE.MeshStandardMaterial({ color: opts.lacquerHex || 0x8a241d, roughness: 0.52, metalness: 0.12 });
-  const woodMat = new THREE.MeshStandardMaterial({ color: 0x33231a, roughness: 0.86, metalness: 0.05 });
-  const tileMat = new THREE.MeshStandardMaterial({ color: opts.tileHex || 0x262930, roughness: 0.72, metalness: 0.16 });
-  const goldMat = new THREE.MeshStandardMaterial({ color: 0xc8a24c, roughness: 0.36, metalness: 0.72 });
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x7d766b, roughness: 0.90, metalness: 0.04, emissive: 0x1a1814, emissiveIntensity: 0.35 });
+  const redMat = new THREE.MeshStandardMaterial({ color: opts.lacquerHex || 0xb53428, roughness: 0.48, metalness: 0.12, emissive: 0x280c08, emissiveIntensity: 0.42 });
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x6b4b34, roughness: 0.84, metalness: 0.05, emissive: 0x160f0a, emissiveIntensity: 0.28 });
+  const tileMat = new THREE.MeshStandardMaterial({ color: opts.tileHex || 0x4c5460, roughness: 0.68, metalness: 0.16, emissive: 0x141820, emissiveIntensity: 0.40 });
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xdfb858, roughness: 0.34, metalness: 0.72, emissive: 0x3b2c0c, emissiveIntensity: 0.45 });
   const paperMat = new THREE.MeshStandardMaterial({
     map: getPaperGrainTex(),
-    color: 0xf7ead0,
-    emissive: new THREE.Color(opts.glowHex || 0xffb252),
-    emissiveIntensity: 1.25,
-    roughness: 0.88,
+    color: 0xfff0d4,
+    emissive: new THREE.Color(opts.glowHex || 0xffb856),
+    emissiveIntensity: 1.45,
+    roughness: 0.84,
   });
   paperMat.userData.cardSkip = true;
   const disposables = [stoneMat, redMat, woodMat, tileMat, goldMat, paperMat];
@@ -920,22 +922,23 @@ export function buildDrapedClothStall3D(opts = {}) {
   const group = new THREE.Group();
   group.name = 'cloth-draped-market-stall';
 
-  const woodMat = new THREE.MeshStandardMaterial({ color: 0x3b2a1e, roughness: 0.88, metalness: 0.04 });
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x6b4c34, roughness: 0.86, metalness: 0.04, emissive: 0x160f0a, emissiveIntensity: 0.28 });
   const clothMat = new THREE.MeshStandardMaterial({
-    color: opts.clothHex || 0x7a4834,
+    color: opts.clothHex || 0xb57242,
     normalMap: getClothWeaveNormal() || null,
-    normalScale: new THREE.Vector2(1.35, 1.35),
-    roughness: 0.90,
+    normalScale: new THREE.Vector2(1.4, 1.4),
+    roughness: 0.86,
     metalness: 0.0,
+    emissive: new THREE.Color(opts.clothHex || 0xb57242).multiplyScalar(0.18),
     side: THREE.DoubleSide,
   });
-  const clayMat = new THREE.MeshStandardMaterial({ color: 0x2b2420, roughness: 0.46, metalness: 0.16 });
+  const clayMat = new THREE.MeshStandardMaterial({ color: 0x4a3b32, roughness: 0.44, metalness: 0.16 });
   const lanternMat = new THREE.MeshStandardMaterial({
     map: getPaperGrainTex(),
-    color: 0xffeacc,
-    emissive: new THREE.Color(0xff9c3c),
-    emissiveIntensity: 1.55,
-    roughness: 0.85,
+    color: 0xfff0d4,
+    emissive: new THREE.Color(0xffaa44),
+    emissiveIntensity: 1.85,
+    roughness: 0.82,
   });
   lanternMat.userData.cardSkip = true;
   const disposables = [woodMat, clothMat, clayMat, lanternMat];
@@ -997,13 +1000,14 @@ export function buildStoneFortressWall3D(opts = {}) {
   const group = new THREE.Group();
   group.name = 'kasumidera-fortress-wall';
 
-  const stoneMat = new THREE.MeshStandardMaterial({ color: opts.stoneHex || 0x4b4844, roughness: 0.93, metalness: 0.04 });
-  const capMat = new THREE.MeshStandardMaterial({ color: 0x2f2e30, roughness: 0.86, metalness: 0.08 });
+  const stoneMat = new THREE.MeshStandardMaterial({ color: opts.stoneHex || 0x7a7368, roughness: 0.90, metalness: 0.04, emissive: 0x181612, emissiveIntensity: 0.35 });
+  const capMat = new THREE.MeshStandardMaterial({ color: 0x4e4b4d, roughness: 0.84, metalness: 0.08, emissive: 0x121214, emissiveIntensity: 0.32 });
   const clothMat = new THREE.MeshStandardMaterial({
-    color: opts.bannerHex || 0x8f241c,
+    color: opts.bannerHex || 0xb53226,
     normalMap: getClothWeaveNormal() || null,
-    normalScale: new THREE.Vector2(1.1, 1.1),
-    roughness: 0.88,
+    normalScale: new THREE.Vector2(1.2, 1.2),
+    roughness: 0.85,
+    emissive: new THREE.Color(opts.bannerHex || 0xb53226).multiplyScalar(0.22),
     side: THREE.DoubleSide,
   });
   const disposables = [stoneMat, capMat, clothMat];
@@ -1038,8 +1042,8 @@ export function buildKasumideraMoonStele3D(opts = {}) {
   const group = new THREE.Group();
   group.name = 'kasumidera-moon-stele';
 
-  const rockMat = new THREE.MeshStandardMaterial({ color: opts.rockHex || 0x352c36, roughness: 0.86, metalness: 0.12, flatShading: true });
-  const baseMat = new THREE.MeshStandardMaterial({ color: 0x454046, roughness: 0.92, metalness: 0.06 });
+  const rockMat = new THREE.MeshStandardMaterial({ color: opts.rockHex || 0x5d5266, roughness: 0.84, metalness: 0.12, emissive: 0x18141e, emissiveIntensity: 0.42, flatShading: true });
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0x766e72, roughness: 0.90, metalness: 0.06, emissive: 0x161418, emissiveIntensity: 0.35 });
   const glowHex = opts.glowHex || 0xff5242;
   const bandMat = new THREE.MeshBasicMaterial({ color: glowHex, transparent: true, opacity: 0.86, blending: THREE.AdditiveBlending, depthWrite: false });
   bandMat.userData.cardSkip = true;
@@ -1061,6 +1065,53 @@ export function buildKasumideraMoonStele3D(opts = {}) {
   group.add(halo);
 
   group.userData.spinHalo = halo;
+  group.userData.disposables = disposables;
+  return group;
+}
+
+
+/**
+ * 16) 무너진 성채 석재 잔해 (2장 구형 흰 원기둥·2D 스티커 대체: 16-평면 파쇄 화강암 + 부서진 기와 + 깨진 주춧돌)
+ */
+export function buildRuinedMasonry3D(rng, opts = {}) {
+  const group = new THREE.Group();
+  group.name = 'kasumidera-ruined-masonry';
+
+  const stoneMat = new THREE.MeshStandardMaterial({ color: opts.stoneHex || 0x7a7366, roughness: 0.90, metalness: 0.05, emissive: 0x181612, emissiveIntensity: 0.32, flatShading: true });
+  const tileMat = new THREE.MeshStandardMaterial({ color: 0x454d58, roughness: 0.72, metalness: 0.14, emissive: 0x12151a, emissiveIntensity: 0.35 });
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x62442d, roughness: 0.88, metalness: 0.04 });
+  const disposables = [stoneMat, tileMat, woodMat];
+
+  const seeds = [91, 57, 23, 137];
+  const gMain = createFracturedRockGeo(seeds[Math.floor(rng() * seeds.length)], 0.82);
+  const gSub = createFracturedRockGeo(seeds[Math.floor(rng() * seeds.length)], 0.56);
+  const beamG = new THREE.BoxGeometry(1.45, 0.16, 0.18);
+  const roofG = new THREE.BoxGeometry(1.15, 0.10, 0.75);
+  disposables.push(gMain, gSub, beamG, roofG);
+
+  const main = new THREE.Mesh(gMain, stoneMat);
+  main.scale.set(0.85, 0.72, 0.78);
+  main.position.set(0, 0.42, 0);
+  main.rotation.set(0.15, rng() * 6.28, -0.18);
+  main.castShadow = true; main.receiveShadow = true;
+  group.add(main);
+
+  const sub = new THREE.Mesh(gSub, stoneMat);
+  sub.scale.set(0.65, 0.45, 0.58);
+  sub.position.set(0.75, 0.22, 0.32);
+  sub.rotation.set(-0.1, rng() * 6.28, 0.22);
+  group.add(sub);
+
+  const beam = new THREE.Mesh(beamG, woodMat);
+  beam.position.set(-0.35, 0.24, 0.42);
+  beam.rotation.set(0.12, rng() * 3.14, -0.24);
+  group.add(beam);
+
+  const roof = new THREE.Mesh(roofG, tileMat);
+  roof.position.set(0.28, 0.26, -0.45);
+  roof.rotation.set(0.32, rng() * 3.14, 0.18);
+  group.add(roof);
+
   group.userData.disposables = disposables;
   return group;
 }
