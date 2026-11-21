@@ -755,20 +755,20 @@ switch(stageId) {
   // Low-profile relief is part of the batched arena mesh: paving, roots and
   // river gravel have actual silhouettes without creating invisible blockers.
   const paved = [2,5,6,8,9,11,12,13,15,16].includes(stageId);
-  for (let j=0; j<52; j++) {
-    const a=rnd()*Math.PI*2, r=5+Math.sqrt(rnd())*11;
+  for (let j=0; j<36; j++) {
+    const a=rnd()*Math.PI*2, r=9.2+Math.sqrt(rnd())*6.2;
     const x=r*Math.cos(a), z=r*Math.sin(a);
     if (paved) {
-      const circular = stageId === 5 || stageId === 9 || stageId === 12;
+      const circular = stageId === 5 || stageId === 9 || stageId === 12 || stageId === 16;
       const angle = circular ? -a : Math.PI/4;
-      B.add(G.box,c.stone,ZONE.STONE,{x,z,y:.025,ry:angle,
-        sx:.45+rnd()*1.0,sy:.06+rnd()*.06,sz:.20+rnd()*.4});
+      B.add(G.box,c.stone,ZONE.STONE,{x,z,y:.016,ry:angle,
+        sx:.55+rnd()*.85,sy:.028+rnd()*.022,sz:.26+rnd()*.35});
     } else if (stageId === 7) {
-      B.add(G.cyl6,c.woodDark,ZONE.WOOD,{x,z,y:.045,ry:-a,rz:1.52,
-        sx:.11,sy:.9+rnd(),sz:.14});
+      B.add(G.cyl6,c.woodDark,ZONE.WOOD,{x,z,y:.04,ry:-a,rz:1.52,
+        sx:.10,sy:.85+rnd()*.8,sz:.12});
     } else {
-      B.add(G.sphereLo,c.stone,ZONE.STONE,{x,z,y:.045,
-        sx:.13+rnd()*.48,sy:.09+rnd()*.14,sz:.18+rnd()*.4});
+      B.add(G.sphereLo,c.stone,ZONE.STONE,{x,z,y:.038,
+        sx:.14+rnd()*.42,sy:.08+rnd()*.11,sz:.18+rnd()*.36});
     }
   }
   cliffRing(B,rnd,c);

@@ -3079,7 +3079,8 @@ function renderStageSelect(sel) {
 let pendingStage = null;
 function setChapterArt(st) {
   const app = $('app');
-  app.style.setProperty('--chapter-art', 'url("' + new URL('../assets/ink-edition/stage-' + st.id + '.webp', import.meta.url).href + '")');
+  const artId = st.id > 12 ? (st.id - 4) : st.id;
+  app.style.setProperty('--chapter-art', 'url("' + new URL('../assets/ink-edition/stage-' + artId + '.webp', import.meta.url).href + '")');
   app.dataset.act = st.act;
 }
 function fillStageIntro(st) {

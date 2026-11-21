@@ -8,7 +8,13 @@
  * - LatheGeometry 조선 범종 실루엣 + 4막 13~16장 전용 고밀도 3D 환경 + 최소 이격 거리(뭉침 방지)
  */
 import * as THREE from 'three';
-import { WF } from '../cardstock.js';
+import { WF, paint as paintCard } from '../cardstock.js';
+import {
+  getClothWeaveNormal,
+  buildArchedBridge3D,
+  buildTalismanGateLine3D,
+  buildGnarledDeadTree3D
+} from './skillAssets3d.js';
 
 const MIST_VERT = /* glsl */`
 varying vec2 vUv; varying vec3 vWp;
@@ -578,7 +584,11 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     const roofGeo = new THREE.BoxGeometry(2.3, 0.08, 1.45);
     const crateGeo = new THREE.BoxGeometry(0.65, 0.52, 0.65);
     const charMat = makePbr(0x2a211c, 0.92, 0.04);
-    const awningMat = makePbr(0x634d3d, 0.88, 0.02, { side: THREE.DoubleSide });
+    const awningMat = makePbr(0x634d3d, 0.88, 0.02, {
+      side: THREE.DoubleSide,
+      normalMap: getClothWeaveNormal() || null,
+      normalScale: new THREE.Vector2(1.1, 1.1)
+    });
     const crateMat = makePbr(0x453528, 0.86, 0.04);
     track(postGeo, null); track(beamGeo, null); track(roofGeo, null); track(crateGeo, null);
     for (let i = 0; i < 6; i++) {
@@ -1058,6 +1068,70 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       lg.userData = { orbitR, baseAngle, baseY, speed: 0.048 + i * 0.012, phase: i * 1.9 };
       group.add(lg);
       floatLanterns.push(lg);
+    }
+
+    /* 5) v0.61 스킬 3D 지형지물 이식 (3d-kasumidera-ultra-realism · 3d-paper-material)
+          - 전 스테이지 공통: 바람에 나부끼는 찢긴 한지 부적 금줄 문 2기 (심안 안개 연동)
+          - 물길(10·14장) 및 4장: 캠버 아치 주홍 목교 (편백 판자·청동 기둥머리·돌 교대)
+          - 고목 골(7장): 자연 굴곡 굽은 고목 4그루 */
+    const talismanGlow = [0xff9a44, 0xffa64d, 0x7ef2cc, 0xff6248, 0xc29aff][actIdx] || 0xff9a44;
+    const tAngles = [Math.PI * 1.18, Math.PI * 1.62];
+    for (let ti = 0; ti < tAngles.length; ti++) {
+      const ta = tAngles[ti];
+      const tr = 11.4 + ti * 1.2;
+      const tx = Math.cos(ta) * tr, tz = Math.sin(ta) * tr;
+      const gateLine = buildTalismanGateLine3D({ span: 3.8, height: 2.9, glowHex: talismanGlow });
+      gateLine.position.set(tx, 0, tz);
+      gateLine.rotation.y = -ta + Math.PI * 0.5;
+      try { paintCard(gateLine, 'prop'); } catch (e) {}
+      group.add(gateLine);
+      if (gateLine.userData && gateLine.userData.swayTalismans) {
+        gateLine.userData.swayTalismans.forEach((tm) => swayNodes.push(tm));
+      }
+      if (gateLine.userData && gateLine.userData.disposables) {
+        gateLine.userData.disposables.forEach((d) => disposables.push(d));
+      }
+      addContactShadow(tx, tz, 2.2);
+    }
+
+    if (k === 'water' || stageNo === 4 || stageNo === 10 || stageNo === 14) {
+      const bridge = buildArchedBridge3D({
+        length: 7.4, width: 2.25, archH: 0.92,
+        railHex: stageNo === 14 ? 0x5c3a7a : 0xa62a20
+      });
+      if (stageNo === 10) {
+        bridge.position.set(-2.6, 0, -5.8);
+        bridge.rotation.y = 0.52;
+      } else if (stageNo === 14) {
+        bridge.position.set(1.5, 0, -6.2);
+        bridge.rotation.y = -0.35;
+      } else {
+        bridge.position.set(8.2, 0, -9.2);
+        bridge.rotation.y = Math.PI * 0.25;
+      }
+      try { paintCard(bridge, 'prop'); } catch (e) {}
+      group.add(bridge);
+      if (bridge.userData && bridge.userData.disposables) {
+        bridge.userData.disposables.forEach((d) => disposables.push(d));
+      }
+      addContactShadow(bridge.position.x, bridge.position.z, 3.6);
+    }
+
+    if (k === 'root' || stageNo === 7) {
+      for (let di = 0; di < 5; di++) {
+        const da = (di / 5) * Math.PI * 2 + 0.55;
+        const dr = 10.6 + (di % 2) * 2.0;
+        const dx = Math.cos(da) * dr, dz = Math.sin(da) * dr;
+        const dtNode = buildGnarledDeadTree3D(rng, 0.95 + rng() * 0.35, 0x3b2c20);
+        dtNode.position.set(dx, 0, dz);
+        dtNode.rotation.y = rng() * Math.PI * 2;
+        try { paintCard(dtNode, 'prop'); } catch (e) {}
+        group.add(dtNode);
+        if (dtNode.userData && dtNode.userData.disposables) {
+          dtNode.userData.disposables.forEach((d) => disposables.push(d));
+        }
+        addContactShadow(dx, dz, 1.8);
+      }
     }
   }
 

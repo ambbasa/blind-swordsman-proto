@@ -13,6 +13,7 @@ import { paperPropCanvas } from './inkpaper.js';
 import { texOf, aspectOf, panoOf } from './inkdiorama.js';
 import { createFloorLayer, floorReady, soilTexture, floorInfo } from './inkfloor.js';
 import { buildArena, ARENA } from './inkarena.js';
+import { enhanceGroundWithScannedPbr } from './modules/skillAssets3d.js';
 
 export const CHUNK = 24;
 export const WINDOW_R = 1; /* 3×3 */
@@ -1425,6 +1426,8 @@ function createArenaWorld(opts) {
     map, bumpMap: detail, bumpScale: softGround ? 0.08 : 0.12, color: groundBase.clone(), roughness: 0.96, metalness: 0.0,
     vertexColors: true
   });
+  /* v0.61: lightning-energy-skill-vfx 스킬의 Poly Haven CC0 1K 스캔 노멀·러프니스 맵 이식 */
+  try { enhanceGroundWithScannedPbr(groundMat, stageId); } catch (e) {}
   groundMat.userData.inkGround = true;
   groundMat.userData.cardProfile = 'ground';
   const groundGeo = new THREE.PlaneGeometry(ARENA.GROUND * 2, ARENA.GROUND * 2, 96, 96);
