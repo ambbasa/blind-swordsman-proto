@@ -7899,7 +7899,7 @@ function triggerPhaseCut(z, nextPhase, invulnDur, title, msg) {
   }
   S.shake = Math.max(S.shake || 0, nextPhase === 3 ? 0.85 : 0.72);
   S.hitstop = Math.max(S.hitstop || 0, 0.07);
-  inkFx.ring(nextPhase === 3 ? arenaR() : 6.4, nextPhase === 3 ? FX_COLORS.gold : FX_COLORS.crimson, 0.75);
+  inkFx.ring(nextPhase === 3 ? arenaR() : 6.4, nextPhase === 3 ? FX_COLORS.gold : FX_COLORS.vermilion, 0.75);
   if (audio && audio.gong) audio.gong();
   showJudge(title);
   toast(msg);

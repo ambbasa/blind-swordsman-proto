@@ -4,10 +4,13 @@
 /** Colours (r, g, b) the effects use; keys match items, elements and upgrades. */
 export const FX_COLORS = {
   fire: [255, 96, 52], ice: [150, 228, 255], poison: [186, 96, 255], jade: [46, 230, 166],
-  gold: [232, 192, 74], vermilion: [214, 48, 34], paper: [240, 230, 206]
+  gold: [232, 192, 74], vermilion: [214, 48, 34], crimson: [214, 48, 34], paper: [240, 230, 206]
 };
 
-function rgba(c, a) { return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + Math.max(0, Math.min(1, a)).toFixed(3) + ')'; }
+function rgba(c, a) {
+  const col = (c && c.length >= 3) ? c : FX_COLORS.paper;
+  return 'rgba(' + col[0] + ',' + col[1] + ',' + col[2] + ',' + Math.max(0, Math.min(1, a)).toFixed(3) + ')';
+}
 function ease(k) { return 1 - (1 - k) * (1 - k); }
 
 /** Holds short-lived effects and draws them each frame. `project(x, z, y)` returns screen {x, y}. */
