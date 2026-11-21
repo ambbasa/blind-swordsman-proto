@@ -8,18 +8,20 @@
 export const ACT_NAMES = Object.freeze({
   1: '폐허의 도성',
   2: '안개 산사',
-  3: '혈월의 나락'
+  3: '혈월의 나락',
+  4: '무간의 심연'
 });
 
 /* v0.49: 심안 원 안쪽은 따뜻한 한지 수묵화를 유지하면서 원 바깥쪽은 깊은 조선 먹안개로 잠기게 대비 강화. */
 export const HANJI_TONE = Object.freeze({
   1: { mix: 0.70, paper: 0xdcc9a4, fog: [32, 26, 20], dens: 0.0095, light: 1.45 },
   2: { mix: 0.66, paper: 0xcfd2c8, fog: [24, 34, 36], dens: 0.0130, light: 1.35 },
-  3: { mix: 0.62, paper: 0xd6b49a, fog: [42, 16, 14], dens: 0.0115, light: 1.40 }
+  3: { mix: 0.62, paper: 0xd6b49a, fog: [42, 16, 14], dens: 0.0115, light: 1.40 },
+  4: { mix: 0.58, paper: 0xc9b8de, fog: [24, 16, 40], dens: 0.0125, light: 1.38 }
 });
 
 export function actOf(n) {
-  return Math.max(1, Math.min(3, Math.ceil((n | 0) / 4)));
+  return Math.max(1, Math.min(4, Math.ceil((n | 0) / 4)));
 }
 
 export const STAGES = [
@@ -45,7 +47,7 @@ export const STAGES = [
     id: 2, act: 1, name: '무너진 성문', sub: '성곽 위에 매달린 원혼', map: 'map2', tag: '가로 · 세로',
     goal: '세로 획(ㅣ)이 열립니다. 두 방향을 오가며 성문을 지키세요.',
     tip: '금테를 두른 정예 원귀를 베면 부적 상자가 떨어집니다.',
-    time: 150, eliteAt: 75, bossAt: 115, bossShapes: 4,
+    time: 150, eliteAt: 95, bossAt: 115, bossShapes: 4,
     shapes: ['hline', 'vline'], spiritCap: 1,
     terrain: { kind: 'rubble', name: '잔해', line: '잔해 위에 착지하면 0.2초 비틀거림 — 다음 획은 선입력' },
     opening: { n: 6, ring: [0.5, 0.8], brute: 1 },
@@ -92,7 +94,7 @@ export const STAGES = [
       { t: 82, n: 32, mix: { imp: 0.5, brute: 0.32, stone: 0.18 }, r: [9.5, 12], elite: 1 },
       { t: 122, n: 36, mix: { imp: 0.45, brute: 0.33, stone: 0.22 }, r: [9.5, 12.5], elite: 1 }
     ],
-    spawn: { ms: 580, max: 45, earlyMax: 12, earlyMinMs: 1000 },
+    spawn: { ms: 660, max: 42, earlyMax: 11, earlyMinMs: 1050 },
     boss: { telegraph: 1.0, charge: 21, adds: 0, hazard: 1, patterns: ['sweep', 'volley', 'chant', 'charge'], phase2: ['slam', 'kiai', 'clones'], seal: true },
     starCombo: 32, star3: { kind: 'pattern', counter: 'goldReflect', need: 2, text: '금빛 부적 되받기 2회' }, bossVisual: { var: 0, scale: 1.05 }, bossName: '붉은 달의 사냥꾼', bossLine: '달이 붉어지면 사냥을 시작하는 자',
     atmo: { clear: 0x1c0f12, fogCol: [30, 10, 11], fog: 0.028, moon: 21.0, amb: 6.0, hemiI: 5.8, fill: 4.0, hemi: 0x8a5a52, ground: 0x1e1210, moonCol: 0xff9c84, tint: 'linear-gradient(180deg, rgba(150,32,28,0.22) 0%, rgba(52,6,8,0.28) 100%)' }
@@ -114,7 +116,7 @@ export const STAGES = [
       { t: 126, n: 38, mix: { imp: 0.42, brute: 0.26, charger: 0.18, thrower: 0.08, stone: 0.06 }, r: [9.5, 12.5], elite: 1 }
     ],
     spawn: { ms: 680, max: 44, earlyMax: 12, earlyMinMs: 1050 },
-    boss: { telegraph: 1.15, charge: 19, adds: 0, hazard: 2, patterns: ['charge', 'kiai', 'slam'], seal: true },
+    boss: { telegraph: 1.15, charge: 19, adds: 0, hazard: 2, patterns: ['veil', 'charge', 'kiai'], seal: true },
     starCombo: 30, star3: { kind: 'goal', text: '석등을 60초 지키기' }, subgoal: { id: 'guard', t: 60, hp: 10, label: '석등 지키기 60초' }, bossVisual: { var: 3, scale: 0.96 }, bossName: '탑을 감은 안개', bossLine: '구름에 잠긴 탑의 종지기',
     atmo: { clear: 0x101a1e, fogCol: [14, 24, 28], fog: 0.032, moon: 17.0, amb: 5.2, hemiI: 6.4, fill: 3.4, hemi: 0x6f8a92, ground: 0x0d1417, moonCol: 0xbcd8dc, tint: 'linear-gradient(180deg, rgba(38,86,96,0.20) 0%, rgba(6,20,26,0.30) 100%)' }
   },
@@ -191,7 +193,7 @@ export const STAGES = [
       { t: 92, n: 42, mix: { imp: 0.34, brute: 0.26, charger: 0.22, bomber: 0.18 }, r: [9.5, 12.5], elite: 1 },
       { t: 142, n: 46, mix: { imp: 0.26, brute: 0.24, charger: 0.2, bomber: 0.16, stone: 0.14 }, r: [9.5, 13], elite: 1 }
     ],
-    spawn: { ms: 580, max: 52, earlyMax: 14, earlyMinMs: 920 },
+    spawn: { ms: 540, max: 52, earlyMax: 14, earlyMinMs: 900 },
     boss: { telegraph: 1.0, charge: 22, adds: 0, hazard: 4, patterns: ['shrink', 'charge', 'kiai', 'volley'], phase2: ['clones'], seal: true },
     starCombo: 46, star3: { kind: 'goal', text: '한 무늬로 30초' }, subgoal: { id: 'shapeLock', at: 20, t: 30, label: '한 무늬로 30초' }, bossVisual: { var: 3, scale: 1.03 }, bossName: '혈석을 문 자', bossLine: '붉은 돌에 목숨을 맡긴 제관',
     atmo: { clear: 0x1e0e11, fogCol: [34, 12, 14], fog: 0.030, moon: 22.0, amb: 7.4, hemiI: 6.2, fill: 4.6, hemi: 0xa8746e, ground: 0x1e0f10, moonCol: 0xff9a80, tint: 'linear-gradient(180deg, rgba(150,28,34,0.20) 0%, rgba(44,4,8,0.24) 100%)' }
@@ -240,7 +242,7 @@ export const STAGES = [
     tip: '마지막 귀물은 장판을 다섯 겹으로 깝니다 — 붉은 예고선을 보고 일섬으로 빠져나가세요.',
     time: 250, eliteAt: 125, bossAt: 182, bossShapes: 11,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 4,
-    terrain: { kind: 'none', name: '없음', line: '지형 규칙 없음 — 마지막 획에 집중하는 심연' },
+    terrain: { kind: 'moon', name: '혈월 주기', line: '주기적으로 붉은 달이 떠 원귀가 빨라지고 엽전이 두 배가 됩니다' },
     opening: { n: 14, ring: [0.48, 1.0], brute: 4 },
     mix: [[0, { imp: 0.4, brute: 0.26, charger: 0.34 }], [14, { imp: 0.28, brute: 0.26, charger: 0.24, bomber: 0.22 }], [38, { imp: 0.2, brute: 0.24, charger: 0.22, bomber: 0.2, thrower: 0.14 }]],
     waves: [
@@ -252,6 +254,82 @@ export const STAGES = [
     boss: { telegraph: 0.8, charge: 25, adds: 0, hazard: 5, patterns: ['shuffle', 'sweep', 'volley'], phase2: ['chant', 'slam', 'kiai'], phase3: ['clones', 'veil', 'mimic'], seal: true },
     starCombo: 58, star3: { kind: 'pattern', counter: 'shuffleLock', need: 2, text: '무늬 뒤섞기 고정 2회' }, bossVisual: { var: 2, scale: 1.15 }, bossName: '나락의 주인', bossLine: '검은 달이 떨어지는 자리를 지키는 것',
     atmo: { clear: 0x2a0709, fogCol: [40, 8, 12], fog: 0.028, moon: 26.0, amb: 8.4, hemiI: 7.2, fill: 5.4, hemi: 0xc08a80, ground: 0x2a0b10, moonCol: 0xff7a5c, tint: 'linear-gradient(180deg, rgba(150,16,26,0.20) 0%, rgba(44,2,8,0.24) 100%)' }
+  },
+  {
+id: 13, act: 4, name: '무간의 회랑', sub: '끝없는 핏빛 안개 회랑', map: 'map9', tag: '4막 진입',
+    goal: '4막의 첫 관문입니다. 혈석을 끄며 4분간 버텨 심연의 문지기를 베세요.',
+    tip: '혈석 위 원귀는 재생하므로 먼저 베어 불을 꺼야 합니다.',
+    time: 260, eliteAt: 110, bossAt: 188, bossShapes: 10,
+    shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 4,
+    terrain: { kind: 'blood', name: '혈석', line: '핏빛 바닥 위 원귀는 재생 — 혈석을 베어 끄세요' },
+    opening: { n: 14, mix: { imp: 0.4, brute: 0.3, charger: 0.3 } },
+    mix: [[0, { imp: 0.35, brute: 0.25, charger: 0.25, thrower: 0.15 }], [95, { imp: 0.2, brute: 0.25, charger: 0.25, thrower: 0.15, bomber: 0.15 }]],
+    waves: [
+      { t: 45, n: 44, mix: { imp: 0.35, brute: 0.3, charger: 0.35 }, r: [9.5, 13] },
+      { t: 105, n: 48, mix: { imp: 0.25, brute: 0.25, charger: 0.25, thrower: 0.25 }, r: [9.5, 13.5], elite: 1 },
+      { t: 162, n: 52, mix: { imp: 0.2, brute: 0.25, charger: 0.2, thrower: 0.2, bomber: 0.15 }, r: [9.5, 14], elite: 1 }
+    ],
+    spawn: { ms: 460, max: 58, earlyMax: 15, earlyMinMs: 840 },
+    boss: { telegraph: 0.86, charge: 24, adds: 0, hazard: 5, patterns: ['shrink', 'charge', 'kiai', 'volley'], phase2: ['clones', 'slam'], seal: true },
+    starCombo: 54, star3: { kind: 'combo', n: 54 }, bossVisual: { var: 3, scale: 1.08 }, bossName: '무간의 수문장', bossLine: '핏빛 안개 속에서 칼을 가는 자',
+    atmo: { clear: 0x100b1a, fogCol: [24, 16, 40], fog: 0.032, moon: 18.0, amb: 6.2, hemiI: 6.0, fill: 4.4, hemi: 0x9b84c8, ground: 0x140e20, moonCol: 0xdcc7ff, tint: 'linear-gradient(180deg, rgba(110,72,185,0.22) 0%, rgba(20,10,36,0.32) 100%)' }
+  },
+      {
+    id: 14, act: 4, name: '망각의 나루', sub: '검은 물결이 흐르는 강', map: 'map10', tag: '격류와 은신',
+    goal: '흐르는 물길과 은신 보스에 맞서 무당방울 소리로 본체를 찾아내세요.',
+    tip: '물길을 가로지르는 일섬은 짧아지니 각도를 비스듬히 잡으세요.',
+    time: 270, eliteAt: 115, bossAt: 196, bossShapes: 10,
+    shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 4,
+    terrain: { kind: 'water', name: '물길', line: '물길을 가로지르는 일섬은 길이 −30%, 물 위 원귀는 느림' },
+    opening: { n: 14, mix: { imp: 0.35, brute: 0.25, thrower: 0.25, charger: 0.15 } },
+    mix: [[0, { imp: 0.3, brute: 0.25, thrower: 0.25, charger: 0.2 }], [100, { imp: 0.2, brute: 0.2, thrower: 0.25, charger: 0.2, bomber: 0.15 }]],
+    waves: [
+      { t: 46, n: 46, mix: { imp: 0.3, brute: 0.3, thrower: 0.4 }, r: [9.5, 13] },
+      { t: 108, n: 50, mix: { imp: 0.25, brute: 0.25, thrower: 0.25, charger: 0.25 }, r: [9.5, 13.5], elite: 1 },
+      { t: 168, n: 54, mix: { imp: 0.2, brute: 0.2, thrower: 0.25, charger: 0.2, bomber: 0.15 }, r: [9.5, 14], elite: 1 }
+    ],
+    spawn: { ms: 450, max: 60, earlyMax: 15, earlyMinMs: 820 },
+    boss: { telegraph: 0.84, charge: 24, adds: 0, hazard: 5, patterns: ['veil', 'chant', 'volley', 'kiai'], phase2: ['clones', 'charge'], seal: true },
+    starCombo: 56, star3: { kind: 'combo', n: 56 }, bossVisual: { var: 1, scale: 1.09 }, bossName: '망각의 사공', bossLine: '이름을 잊은 자만 건널 수 있다',
+    atmo: { clear: 0x0e0c18, fogCol: [20, 18, 38], fog: 0.034, moon: 18.0, amb: 6.0, hemiI: 6.0, fill: 4.4, hemi: 0x8f86c8, ground: 0x120f1e, moonCol: 0xd4c6ff, tint: 'linear-gradient(180deg, rgba(96,76,175,0.22) 0%, rgba(16,12,32,0.34) 100%)' }
+  },
+  {
+    id: 15, act: 4, name: '검은 누각', sub: '화살비와 칼날이 교차하는 성채', map: 'map11', tag: '합과 화살비',
+    goal: '성벽의 화살비를 피하며 정예 무리를 뚫고 검은 검귀와 합을 겨루세요.',
+    tip: '화살비 예고 원이 뜨면 즉시 원 밖 혼령으로 일섬 탈출하세요.',
+    time: 280, eliteAt: 120, bossAt: 204, bossShapes: 11,
+    shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 4,
+    terrain: { kind: 'wall', name: '성벽 포대', line: '30초마다 성벽에서 화살비 — 예고 원 1.2초를 피하세요' },
+    opening: { n: 15, mix: { imp: 0.3, brute: 0.3, charger: 0.2, thrower: 0.2 } },
+    mix: [[0, { imp: 0.28, brute: 0.27, charger: 0.25, thrower: 0.2 }], [110, { imp: 0.18, brute: 0.22, charger: 0.22, thrower: 0.2, bomber: 0.18 }]],
+    waves: [
+      { t: 48, n: 48, mix: { imp: 0.3, brute: 0.3, charger: 0.2, thrower: 0.2 }, r: [9.5, 13.5] },
+      { t: 112, n: 52, mix: { imp: 0.22, brute: 0.25, charger: 0.28, thrower: 0.25 }, r: [9.5, 14], elite: 1 },
+      { t: 174, n: 56, mix: { imp: 0.18, brute: 0.22, charger: 0.22, thrower: 0.2, bomber: 0.18 }, r: [9.5, 14.5], elite: 1 }
+    ],
+    spawn: { ms: 440, max: 62, earlyMax: 16, earlyMinMs: 800 },
+    boss: { telegraph: 0.82, charge: 25, adds: 0, hazard: 5, patterns: ['clash', 'sweep', 'volley', 'kiai'], phase2: ['mimic', 'veil', 'slam'], seal: true },
+    starCombo: 60, star3: { kind: 'combo', n: 60 }, bossVisual: { var: 2, scale: 1.1 }, bossName: '칠흑의 장수', bossLine: '성벽 위 모든 화살이 너를 향한다',
+    atmo: { clear: 0x130b1c, fogCol: [28, 14, 42], fog: 0.032, moon: 19.0, amb: 6.2, hemiI: 6.2, fill: 4.5, hemi: 0xa684d4, ground: 0x160d22, moonCol: 0xe2ccff, tint: 'linear-gradient(180deg, rgba(125,74,195,0.22) 0%, rgba(22,10,38,0.34) 100%)' }
+  },
+  {
+    id: 16, act: 4, name: '심안의 끝', sub: '모든 획이 모이는 마지막 달빛', map: 'map12', tag: '최종 결전',
+    goal: '4막의 최종 보스입니다. 3페이즈 무늬 뒤섞기와 은신을 넘어 심안을 완성하세요.',
+    tip: '보스 패턴이 바뀔 때 방울 소리와 금빛 빈틈을 끝까지 놓치지 마세요.',
+    time: 300, eliteAt: 125, bossAt: 215, bossShapes: 12,
+    shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 4,
+    terrain: { kind: 'moon', name: '심연 월광', line: '붉은 달이 뜨면 원귀가 빨라지고 처치 엽전이 두 배가 됩니다' },
+    opening: { n: 16, mix: { imp: 0.25, brute: 0.3, charger: 0.25, thrower: 0.2 } },
+    mix: [[0, { imp: 0.25, brute: 0.25, charger: 0.25, thrower: 0.25 }], [115, { imp: 0.16, brute: 0.22, charger: 0.22, thrower: 0.2, bomber: 0.2 }]],
+    waves: [
+      { t: 50, n: 50, mix: { imp: 0.25, brute: 0.3, charger: 0.25, thrower: 0.2 }, r: [9.5, 13.5], elite: 1 },
+      { t: 118, n: 54, mix: { imp: 0.2, brute: 0.25, charger: 0.25, thrower: 0.15, bomber: 0.15 }, r: [9.5, 14], elite: 1 },
+      { t: 184, n: 58, mix: { imp: 0.16, brute: 0.22, charger: 0.22, thrower: 0.2, bomber: 0.2 }, r: [9.5, 14.5], elite: 1 }
+    ],
+    spawn: { ms: 420, max: 64, earlyMax: 16, earlyMinMs: 780 },
+    boss: { telegraph: 0.78, charge: 26, adds: 0, hazard: 6, patterns: ['shuffle', 'clash', 'volley'], phase2: ['chant', 'slam', 'kiai'], phase3: ['clones', 'veil', 'mimic'], seal: true },
+    starCombo: 64, star3: { kind: 'combo', n: 64 }, bossVisual: { var: 3, scale: 1.14 }, bossName: '심안의 그림자', bossLine: '눈을 감아도 피할 수 없는 마지막 검',
+    atmo: { clear: 0x0d0816, fogCol: [22, 12, 38], fog: 0.036, moon: 20.0, amb: 6.4, hemiI: 6.2, fill: 4.6, hemi: 0xb292e6, ground: 0x120a1f, moonCol: 0xead8ff, tint: 'linear-gradient(180deg, rgba(135,84,215,0.25) 0%, rgba(16,8,30,0.38) 100%)' }
   }
 ];
 
