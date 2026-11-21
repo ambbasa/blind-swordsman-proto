@@ -74,6 +74,7 @@ import { createRunState, resetRunStateOnQuit } from './modules/state.js';
 import { createHudController } from './modules/hudController.js';
 import { createUiRouter } from './modules/uiRouter.js';
 import { syncSceneActTheme3D } from './modules/actTheme3d.js';
+import { createInkRiver3D } from './modules/inkWater3d.js';
 /* v0.39 1단계: 팔레트 토큰을 CSS 변수로 내린다(빌드 없이 단일 소스). */
 installCssVars();
 const hudCtrl = createHudController(document);
@@ -443,6 +444,10 @@ function terrainInit() {
     counts: {}, stumbleT: 0, rootT: 0, ringMul: 1, moon: false, moonT: 0,
     revealT: 0, bells: {}, stones: {}, wallT: 0, volleyOn: false, volleyHp: 0
   };
+  if (three && three.river) { try { three.river.dispose(); } catch (e) {} three.river = null; }
+  if (three && three.scene && S.terrain && S.terrain.kind === 'water') {
+    try { three.river = createInkRiver3D(three.scene, { centerFn: tWaterCenter }); } catch (e) { three.river = null; }
+  }
   telemetry.event('stage_terrain', { stage: S.stageNo || 0, rule: S.terrain.kind });
 }
 
@@ -1058,7 +1063,7 @@ function setMuted(m) {
   if (audio) audio.setQuiet(!!m, qa.noDelay);
   const b = $('btnMute'), b2 = $('btnMute2');
   if (b) {
-    b.textContent = m ? '✕' : '♪';
+    if (!b.querySelector('svg')) b.textContent = m ? '무음' : '소리';
     b.classList.toggle('off', !!m);
     b.setAttribute('aria-label', m ? '소리 켜기' : '소리 끄기');
   }
@@ -1095,6 +1100,7 @@ function quitRun() {
   if (sk) sk.hidden = true;
   hideGuide();
   hideOvs();
+  if (three && three.river) { try { three.river.dispose(); } catch (e) {} three.river = null; }
   clearEntities();
   closeArena(true);
   S = null;
@@ -3885,7 +3891,7 @@ function syncGroundEffects() {
         layer.put('terrain',kind==='root'?1:6,x+Math.cos(a)*len/2,z+Math.sin(a)*len/2,len,kind==='root'?1.1:2,a);
       }
     }
-  } else if(kind==='water') {
+  } else if(kind==='water' && !(three && three.river)) {
     for(let i=Math.floor((hx-R)/3);i<=Math.ceil((hx+R)/3);i++) {
       const x=i*3,z=tWaterCenter(x),width=2*(2.1+.7*Math.sin(x*.13+.6));
       layer.put('terrain',5,x,z,3.5,width);
@@ -9808,6 +9814,7 @@ function loop(ts) {
     if (three.map && three.map.follow && !(three.chunks && three.chunks.bounds)) three.map.follow(S ? S.cam.x : 0, S ? S.cam.z : 0);
     stepArena(raw);
     if (three.map && three.map.update) three.map.update(raw, ts * 0.001);
+    if (three.river && typeof three.river.update === 'function') three.river.update(raw);
     if (three.atmo) {
       if (S && S.hero) {
         three.atmo.setCenter(S.cam.x, 6, S.cam.z);
