@@ -2519,9 +2519,12 @@ function spawnBoss(opts) {
     id: ++S._id, kind: 'zombie', shape: seq[0], x: p.x, z: p.z, r: 1.1,
     alive: true, hp: opts.hp != null ? opts.hp : 99,
     frozen: 0, burn: 0, burnTick: 0, poison: 0, poisonT: 0, poisonTick: 0, stun: 0,
-    marked: false, isBoss: true, seq: seq, seqI: 0, poise: (CFG.bossPat || {}).poise || 3, firstWalk: true,
-    phase: 1, phase2: false, phase3: false
+    marked: false, isBoss: true, seq: seq, seqI: 0, firstWalk: true,
+    phase: 1, phase2: false, phase3: false,
+    poiseMax: [6, 8, 10, 12][Math.min(3, Math.floor((((S && S.stage && S.stage.id) || 1) - 1) / 4))] || 6,
+    poise: 6, poiseLastHit: 0, poiseBreakSeq: 0, phaseCutInvulnUntil: 0
   };
+  e.poise = e.poiseMax;
   e.maxHp=opts.hp ?? [28,34,42,50,56,64,72,82,92,102,114,128,140,155,172,195][S.stage.id-1] ?? 28;
   e.hp=e.maxHp; S.autoDmg=0; S.manualDmg=0;
   const vis = e.shape;
@@ -4007,86 +4010,67 @@ function drawV31(ctx, r, hs, t) {
     if (boss.hpTrail == null || boss.hpTrail < curHp) boss.hpTrail = curHp;
     else boss.hpTrail = Math.max(curHp, boss.hpTrail - maxHp * 0.38 * frameDt);
 
-    /* v0.54.2: 보스 약점 혼령의 실제 화면 상단 좌표(y - orbR)를 직접 읽어 HP 바·기세 마름모가
-       혼령과 단 1px도 겹치지 않도록 정확히 34px 위(여백 확보)에 고정한다. */
-    const ud = (boss.obj && boss.obj.userData) || {};
-    const zh = ud.worldH || 5.8;
-    const eye = (ud.bellLocal && ud.bellLocal.y) || zh * 0.55;
-    const orbY = eye + Math.max(0.75, Math.min(1.5, zh * 0.16));
-    const topP = projectXZ(boss.x, boss.z, orbY + 1.55);
-    const bossMark = (lastMarkMetrics && lastMarkMetrics.marks || []).find(function (m) { return m.boss && m.onScreen; });
-    const w = 108, h = 7;
-    const cx = clamp(bossMark ? bossMark.x : topP.x, w * 0.5 + 14, r.width - w * 0.5 - 14);
-    const anchorY = bossMark ? (bossMark.y - (bossMark.orbR || 22) - 34) : (topP.y - 34);
-    const y = clamp(anchorY, 128, r.height - 140);
+    /* v0.58 화면 상단 고정 보스 바 (boss-design · poise-stagger · attack-tell 적용) */
+    const w = Math.min(312, Math.max(210, r.width - 56));
+    const h = 10, ph = 5;
+    const cx = r.width * 0.5;
     const x = cx - w * 0.5;
-    const openLeft = Math.max(0, (boss.openUntil || 0) - (S.elapsed || 0));
+    const y = 62;
+    const nowT = S.elapsed || 0;
+    const openLeft = Math.max(0, (boss.openUntil || 0) - nowT);
     const isOpen = openLeft > 0 || boss.state === 'groggy';
     const isSeal = boss.state === 'seal' || boss.state === 'sealing';
+    const isPhaseCut = (boss.phaseCutInvulnUntil || 0) > nowT;
+    const P = bossPat();
+    const pMax = boss.poiseMax || (P && P.poise) || 6;
+    const pCur = clamp(boss.poise == null ? pMax : boss.poise, 0, pMax);
+    const pFrac = isOpen ? clamp(1 - (boss.stateT || 0) / Math.max(0.1, P.groggyT || 3.4), 0, 1) : (pCur / pMax);
 
     ctx.save();
-    /* 옻칠 먹 프레임 + 금박 외곽 */
-    ctx.fillStyle = 'rgba(18,12,12,0.88)';
-    ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
-    ctx.strokeStyle = isOpen ? 'rgba(255,224,118,0.96)' : 'rgba(180,146,88,0.68)';
-    ctx.lineWidth = isOpen ? 1.8 : 1;
-    ctx.strokeRect(x - 2, y - 2, w + 4, h + 4);
+    ctx.fillStyle = 'rgba(15,11,10,0.82)';
+    ctx.fillRect(x - 10, y - 22, w + 20, 56);
+    ctx.strokeStyle = isPhaseCut ? 'rgba(255,110,88,0.95)' : (isOpen ? 'rgba(255,224,118,0.96)' : 'rgba(180,146,88,0.62)');
+    ctx.lineWidth = (isOpen || isPhaseCut) ? 1.8 : 1.1;
+    ctx.strokeRect(x - 10, y - 22, w + 20, 56);
 
-    /* 잔상 데미지 트레일 바 */
+    ctx.font = '700 12px "InkSerif", serif';
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#f6ebd4';
+    ctx.fillText(S.stage.bossName || '귀물 우두머리', x, y - 7);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = isPhaseCut ? '#ff967a' : '#e8c47a';
+    ctx.fillText((boss.phase || 1) + '국면  ' + Math.ceil(curHp) + ' / ' + maxHp, x + w, y - 7);
+
+    ctx.fillStyle = 'rgba(32,20,18,0.95)';
+    ctx.fillRect(x, y, w, h);
     ctx.fillStyle = 'rgba(255,224,152,0.85)';
     ctx.fillRect(x, y, w * clamp(boss.hpTrail / maxHp, 0, 1), h);
-    /* 주홍 실제 HP 바 */
-    ctx.fillStyle = isOpen ? '#ee5e3a' : '#c44034';
+    ctx.fillStyle = isPhaseCut ? '#ff8b52' : (isOpen ? '#f0643b' : '#c43e33');
     ctx.fillRect(x, y, w * clamp(curHp / maxHp, 0, 1), h);
 
-    /* 페이즈 전환 눈금 */
     const B = bossCfg();
-    if (B.phase2) {
-      ctx.fillStyle = 'rgba(20,14,12,0.85)';
-      const marks = B.phase3 ? [1 / 3, 2 / 3] : [0.5];
-      marks.forEach(function (mk) { ctx.fillRect(x + w * mk - 1, y, 2, h); });
-    }
+    const cutMarks = (B.phase3 || (S.stageNo || 1) >= 12) ? [0.30, 0.60] : [0.60];
+    ctx.fillStyle = 'rgba(255,244,210,0.85)';
+    cutMarks.forEach(function (mk) { ctx.fillRect(x + w * mk - 1, y, 2, h); });
 
-    /* 보스 이름 + 수치 (HP 바 바로 위, 작고 또렷하게) */
-    ctx.font = '700 11px "InkSerif", serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-    ctx.strokeStyle = 'rgba(16,11,10,0.94)'; ctx.lineWidth = 3.2;
-    const label = S.stage.bossName + ' ' + Math.ceil(curHp) + '/' + maxHp;
-    ctx.strokeText(label, cx, y - 4);
-    ctx.fillStyle = '#f6ebd4';
-    ctx.fillText(label, cx, y - 4);
+    const py = y + h + 4;
+    ctx.fillStyle = 'rgba(28,24,18,0.95)';
+    ctx.fillRect(x, py, w, ph);
+    ctx.fillStyle = isOpen ? '#fff0a8' : '#e6b84c';
+    ctx.fillRect(x, py, w * clamp(pFrac, 0, 1), ph);
 
-    /* 기세(poise) 금빛 마름모 — HP 바 바로 아래 통합 */
-    const P = bossPat();
-    if (P && P.poise) {
-      const pn = P.poise, left = boss.poise == null ? pn : boss.poise;
-      const py = y + h + 9;
-      for (let i = 0; i < pn; i++) {
-        const px = cx + (i - (pn - 1) / 2) * 12;
-        ctx.beginPath(); ctx.moveTo(px, py - 4); ctx.lineTo(px + 4, py); ctx.lineTo(px, py + 4); ctx.lineTo(px - 4, py); ctx.closePath();
-        ctx.fillStyle = i < left ? 'rgba(242,202,86,0.96)' : 'rgba(54,46,40,0.68)';
-        ctx.fill();
-      }
-    }
-
-    /* 빈틈(×1.3) 또는 봉인 가능 뱃지 */
-    if (isSeal) {
-      ctx.font = '700 11px "InkSerif", serif';
-      ctx.strokeText('★ 봉인 가능', cx, y + h + 23);
-      ctx.fillStyle = '#ffe078';
-      ctx.fillText('★ 봉인 가능', cx, y + h + 23);
-    } else if (isOpen) {
-      const ow = w * 0.88, ox = cx - ow * 0.5, oy = y + h + 16;
-      const frac = boss.state === 'groggy' ? clamp(1 - (boss.stateT || 0) / Math.max(0.1, P.groggyT || 3), 0, 1) : clamp(openLeft / 2.0, 0, 1);
-      ctx.fillStyle = 'rgba(24,18,10,0.85)';
-      ctx.fillRect(ox, oy, ow, 4);
-      ctx.fillStyle = '#ffd86b';
-      ctx.fillRect(ox, oy, ow * frac, 4);
-      ctx.font = '700 10.5px "InkSerif", serif';
-      ctx.strokeText('빈틈 ×1.3', cx, oy + 13);
-      ctx.fillStyle = '#ffe484';
-      ctx.fillText('빈틈 ×1.3', cx, oy + 13);
-    }
+    ctx.font = '700 10.5px "InkSerif", serif';
+    ctx.textAlign = 'center';
+    const hint = isSeal
+      ? '봉인 가능 — 마지막 획을 그어 마무리하세요'
+      : isPhaseCut
+        ? '국면 전환 — 기합 충격파 주의'
+        : isOpen
+          ? '자세 붕괴 — 지금 일섬 피해 1.85배'
+          : '회피·패링·특수 획으로 자세를 무너뜨리세요';
+    ctx.fillStyle = isOpen || isSeal ? '#ffe68c' : (isPhaseCut ? '#ff9c82' : '#d6cbb5');
+    ctx.fillText(hint, cx, py + ph + 13);
     ctx.restore();
   }
   const wpp = worldPerCss();
@@ -5293,12 +5277,33 @@ function hurtZombie(z, amount, why, rec) {
   if (!z || !z.alive) return;
   if (z.isBoss) {
     if (!z.hp || z.hidden) return;
-    const isWeak = (z.openUntil > S.elapsed) || z.state === 'groggy';
+    const nowT = S.elapsed || 0;
+    if ((z.phaseCutInvulnUntil || 0) > nowT) {
+      if (why === 'slash' || why === 'bang') {
+        if (audio && audio.whiff) audio.whiff(true);
+        showJudge('기합 방어');
+      }
+      return;
+    }
+    const isWeak = (z.openUntil > nowT) || z.state === 'groggy';
     const isAuto = (why === 'bolt' || why === 'ward' || why === 'poison' || why === 'burn' || why === 'cloud' || why === 'ring' || why === 'inkstep');
-     const mult = why === 'bang' ? 1.6 : (isAuto ? (isWeak ? 0.45 : 0.15) : (isWeak ? 1.85 : 0.35));
-    const dealt = Math.min(z.hp, amount * mult);
+    const mult = why === 'bang' ? 1.6 : (isAuto ? (isWeak ? 0.45 : 0.15) : (isWeak ? 1.85 : 0.35));
+    let dealt = Math.min(z.hp, amount * mult);
+    const B0 = bossCfg();
+    const hasP3 = !!(B0.phase3 || (S.stageNo || 1) >= 12);
+    const p2Cut = z.maxHp * 0.60, p3Cut = z.maxHp * 0.30;
+    if ((z.phase || 1) < 2 && z.hp > p2Cut && (z.hp - dealt) <= p2Cut) {
+      dealt = Math.max(0.1, z.hp - p2Cut);
+    } else if (hasP3 && (z.phase || 1) < 3 && z.hp > p3Cut && (z.hp - dealt) <= p3Cut) {
+      dealt = Math.max(0.1, z.hp - p3Cut);
+    }
     z.hpTrail = Math.max(z.hpTrail || z.hp, z.hp);
     z.hp -= dealt;
+    if (!isAuto && !isWeak) {
+      const sh = rec && rec.shape;
+      const pDmg = why === 'bang' ? 3.5 : ((sh && sh !== 'hline' && sh !== 'vline') ? 1.8 : 0.7);
+      bossPoise(z, pDmg);
+    }
     const meter = why === 'bolt' || why === 'ward' ? 'autoDmg' : 'manualDmg';
     S[meter] = (S[meter] || 0) + dealt;
     if (rec && rec.hits) rec.hits.push({ id: z.id, dmg: dealt, hp: z.hp, why: why });
@@ -7243,7 +7248,7 @@ function stepBossPat(z, dt) {
   const P = bossPat();
   const st = z.state;
   if (st === 'groggy') {
-    if (z.stateT > P.groggyT) { z.state = 'walk'; z.stateT = 0; }
+    if (z.stateT > (P.groggyT || 3.4)) { z.state = 'walk'; z.stateT = 0; z.poise = z.poiseMax || P.poise || 6; }
     return true;
   }
   /* §4.4 합 겨루기: 3합. 1.2초 안에 뜬 무늬를 그으면 한 합, 늦으면 주인공이 밀리고 피해 1. */
@@ -7536,25 +7541,35 @@ function totemCover(boss) {
 }
 function bossJustDodge(z) {
   S.slowT = Math.max(S.slowT || 0, bossPat().dodgeSlow || 0.5);
-  showJudge('간발!');
+  showJudge('간발 회피 — 자세 타격!');
   if (z.pat) notePatSeen(z.pat, 'dodge');
   telemetry.event('boss_pattern', { p: z.pat || null, result: 'dodge', t: +(z.stateT || 0).toFixed(2) });
-  bossPoise(z, 1);
+  bossPoise(z, 2.2);
 }
-/** Knocks pips off the boss's poise; at zero it breaks into a long stun (groggy). */
+/** Deterministic poise pool decrement with idempotent single-event stagger transition. */
 function bossPoise(z, n) {
-  const P = bossPat();
-  z.poise = (z.poise == null ? P.poise : z.poise) - n;
-  if (z.poise <= 0) bossGroggy(z);
+  if (!z || !z.alive || z.state === 'groggy' || z.state === 'seal' || z.state === 'sealing') return;
+  const pMax = z.poiseMax || (bossPat() && bossPat().poise) || 6;
+  const before = z.poise == null ? pMax : z.poise;
+  z.poise = Math.max(0, before - Math.max(0, Number(n || 0)));
+  z.poiseLastHit = S.elapsed || 0;
+  if (before > 0 && z.poise <= 0) {
+    z.poiseBreakSeq = (z.poiseBreakSeq || 0) + 1;
+    bossGroggy(z);
+  }
 }
 function bossGroggy(z) {
   endBossSide(z);
-  z.state = 'groggy'; z.stateT = 0; z.leapY = 0; z.poise = bossPat().poise;
-  S.shake = Math.max(S.shake || 0, 0.6);
+  const gt = (bossPat() && bossPat().groggyT) || 3.4;
+  z.state = 'groggy'; z.stateT = 0; z.leapY = 0; z.poise = 0;
+  z.openUntil = Math.max(z.openUntil || 0, (S.elapsed || 0) + gt);
+  S.shake = Math.max(S.shake || 0, 0.72);
+  S.hitstop = Math.max(S.hitstop || 0, 0.085);
   bossFx.triggerGroggyBreak(z.x, z.z);
   if (audio && audio.bossBreak) audio.bossBreak();
-  showJudge('기세 붕괴!');
-  toast('귀물이 무너졌습니다 — 지금 베면 두 칸씩 넘어갑니다');
+  showJudge('자세 붕괴 — 일섬!');
+  toast('귀물의 자세가 무너졌습니다 — 지금 일섬 피해 1.85배');
+  telemetry.event('boss_poise_break', { stage: S.stageNo, seq: z.poiseBreakSeq || 1, phase: z.phase || 1 });
 }
 /** Ends whatever side pieces a pattern left out: clones, the fog veil, a chant, a kiai. */
 function endBossSide(z) {
@@ -7863,20 +7878,40 @@ function chantStroke(type) {
   bossPoise(z, 1);
   return true;
 }
+function triggerPhaseCut(z, nextPhase, invulnDur, title, msg) {
+  const nowT = S.elapsed || 0;
+  z.phase = nextPhase;
+  if (nextPhase === 2) z.phase2 = true;
+  if (nextPhase === 3) z.phase3 = true;
+  z.phaseCutInvulnUntil = nowT + invulnDur;
+  const pMax = z.poiseMax || 6;
+  z.poise = Math.min(pMax, (z.poise || 0) + pMax * (nextPhase === 3 ? 0.45 : 0.40));
+  if (S && S.hero) {
+    const dx = S.hero.x - z.x, dz = S.hero.z - z.z, d = Math.hypot(dx, dz) || 0.01;
+    if (d < 5.2) {
+      const push = 5.2 - d;
+      S.hero.x += (dx / d) * push;
+      S.hero.z += (dz / d) * push;
+    }
+  }
+  S.shake = Math.max(S.shake || 0, nextPhase === 3 ? 0.85 : 0.72);
+  S.hitstop = Math.max(S.hitstop || 0, 0.07);
+  inkFx.ring(nextPhase === 3 ? arenaR() : 6.4, nextPhase === 3 ? FX_COLORS.gold : FX_COLORS.crimson, 0.75);
+  if (audio && audio.gong) audio.gong();
+  showJudge(title);
+  toast(msg);
+  telemetry.event('boss_phase', { stage: S.stageNo, phase: nextPhase, seqI: z.seqI, hpRatio: +(z.hp / Math.max(1, z.maxHp)).toFixed(2) });
+}
 function bossPhaseCheck(z) {
   const B = bossCfg();
-  const len = z.seq.length;
-  if (B.phase2 && !z.phase2 && z.seqI >= Math.ceil(len / (B.phase3 ? 3 : 2))) {
-    z.phase2 = true; z.phase = 2;
-    S.shake = Math.max(S.shake || 0, 0.6);
-    toast('귀물이 분노합니다 — 새 기술이 섞입니다');
-    telemetry.event('boss_phase', { stage: S.stageNo, phase: 2, seqI: z.seqI });
+  const ratio = z.hp / Math.max(1, z.maxHp);
+  const hasP3 = !!(B.phase3 || (S.stageNo || 1) >= 12);
+  if (!z.phase2 && ratio <= 0.605) {
+    triggerPhaseCut(z, 2, 1.15, '제2국면 — 기합!', '귀물이 기세를 끌어올립니다 — 새 패턴이 섞입니다');
   }
-  /* §4.4 12장 3페이즈: 결계 반경 9m 고정 + 모든 예고 −10% */
-  if (B.phase3 && !z.phase3 && z.seqI >= Math.ceil(len * 2 / 3)) {
-    z.phase3 = true; z.phase = 3;
+  if (hasP3 && !z.phase3 && ratio <= 0.305) {
     S.phaseTele = CFG.phase3Tele || 0.9;
-    if (S.arena) {
+    if (S.arena && B.phase3) {
       S.arena.r0 = S.arena.r0 || S.arena.r;
       S.arena.r = Math.min(S.arena.r, CFG.phase3R || 9);
       S.arena.fixedR = S.arena.r;
@@ -7885,11 +7920,7 @@ function bossPhaseCheck(z) {
         three.arena.group.scale.set(k, 1, k);
       }
     }
-    S.shake = Math.max(S.shake || 0, 0.8);
-    inkFx.ring(arenaR(), FX_COLORS.gold, 0.9);
-    toast('나락이 조여 옵니다 — 결계 9m · 예고 −10%');
-    showJudge('3페이즈');
-    telemetry.event('boss_phase', { stage: S.stageNo, phase: 3, seqI: z.seqI, arena: S.arena ? +S.arena.r.toFixed(1) : null });
+    triggerPhaseCut(z, 3, 1.25, '제3국면 — 각성!', '심연이 조여 옵니다 — 예고가 빨라집니다');
   }
 }
 /* v0.52: 보스 스킬명 + 대응 행동(회피/받아치기/파훼/봉인) + 정밀 타이밍 배너 데이터 생성 */
@@ -9942,6 +9973,12 @@ function loop(ts) {
       }
     }
     syncGroundEffects();
+    if (S && S.boss && S.boss.alive && S.boss.state !== 'groggy' && S.boss.state !== 'seal' && S.boss.state !== 'sealing') {
+      const bz = S.boss, pMax = bz.poiseMax || 6;
+      if ((bz.poise || 0) < pMax && ((S.elapsed || 0) - (bz.poiseLastHit || 0)) >= 4.2) {
+        bz.poise = Math.min(pMax, (bz.poise || 0) + 1.15 * dt);
+      }
+    }
     bossFx.syncGround3D(S && S.boss, S && S.hazards, (S && S.elapsed) || 0, dt, ((CFG.bossPat || {}).slam || {}).r || 3.2);
     if (three.river && typeof three.river.update === 'function') three.river.update(dt);
     if (three.terrain3d && typeof three.terrain3d.update === 'function') three.terrain3d.update(dt);

@@ -608,7 +608,18 @@ export function buildArena(opts) {
   // Stage coordinates: lateral offset and depth away from the fixed camera.
   // Keep tall silhouettes at the back and flanks, outside the gesture lane.
   function at(side, depth, radius, draw) {
-    const x = (side - depth) * Math.SQRT1_2, z = (-side - depth) * Math.SQRT1_2;
+    let x = (side - depth) * Math.SQRT1_2, z = (-side - depth) * Math.SQRT1_2;
+    /* v0.58 뭉침 방지: 기물 간 최소 이격 거리를 보장하고 전투 중앙 원(r<12.5m) 침범을 막는다 */
+    const dist0 = Math.hypot(x, z);
+    if (dist0 > 0.01 && dist0 < 13.2) {
+      const push = 13.2 / dist0;
+      x *= push; z *= push;
+    }
+    for (let i = 0; i < props.length; i++) {
+      const p = props[i];
+      const minSep = Math.max(3.6, (radius + p.r) * 0.92);
+      if (Math.hypot(x - p.x, z - p.z) < minSep) return;
+    }
     B.beginStructure((draw.name || 'landmark') + '-' + spots.length,x,z);
     draw(x, z, Math.PI / 4);
     B.endStructure();

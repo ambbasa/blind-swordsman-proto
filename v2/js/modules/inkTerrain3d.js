@@ -115,6 +115,16 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
   const activeWaves = [];
   const dynamicPatchMap = new Map();
 
+  const placedPts = [];
+  const canPlace = (x, z, minSep = 3.8, minR = 8.4) => {
+    if (Math.hypot(x, z) < minR) return false;
+    for (let i = 0; i < placedPts.length; i++) {
+      const p = placedPts[i];
+      if (Math.hypot(x - p.x, z - p.z) < Math.max(minSep, p.r)) return false;
+    }
+    placedPts.push({ x, z, r: minSep });
+    return true;
+  };
   const track = (g, m) => { if (g) disposables.push(g); if (m) disposables.push(m); };
   const addParticles = (cnt, col, sz, op, mode) => {
     const p = makeParticleField(rng, cnt, col, sz, op, mode);
@@ -276,7 +286,8 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     const crateMat = new THREE.MeshLambertMaterial({ color: 0x3f3126 });
     track(postGeo, charMat); track(beamGeo, null); track(roofGeo, awningMat); track(crateGeo, crateMat);
     for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2 + 0.35, d = 7.8 + rng() * 3.8;
+      const a = (i / 6) * Math.PI * 2 + 0.35, d = 10.2 + (i % 2) * 1.8;
+      if (!canPlace(Math.cos(a) * d, Math.sin(a) * d, 4.4, 9.5)) continue;
       const st = new THREE.Group();
       st.position.set(Math.cos(a) * d, 0, Math.sin(a) * d);
       st.rotation.y = -a + (rng() - 0.5) * 0.4;
@@ -300,7 +311,7 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     const leafMat = new THREE.MeshLambertMaterial({ color: 0x4c8a6b });
     track(stalkGeo, stalkMat); track(nodeGeo, nodeMat); track(bladeGeo, leafMat);
     for (let c = 0; c < 6; c++) {
-      const ang = (c / 6) * Math.PI * 2 + 0.25, d = 6.6 + rng() * 4.8, cx = Math.cos(ang) * d, cz = Math.sin(ang) * d;
+      const ang = (c / 6) * Math.PI * 2 + 0.25, d = 9.2 + (c % 2) * 2.2, cx = Math.cos(ang) * d, cz = Math.sin(ang) * d;
       for (let j = 0; j < 4; j++) {
         const pv = new THREE.Group();
         pv.position.set(cx + (rng() - 0.5) * 1.5, 0, cz + (rng() - 0.5) * 1.5);
@@ -329,7 +340,8 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     const tileMat = new THREE.MeshLambertMaterial({ color: 0x2d3036, side: THREE.DoubleSide });
     track(colGeo, stoneMat); track(slabGeo, darkStoneMat); track(tileGeo, tileMat);
     for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2 + 0.2, d = 6.2 + rng() * 5.2;
+      const a = (i / 8) * Math.PI * 2 + 0.25, d = 9.4 + (i % 2) * 2.1;
+      if (!canPlace(Math.cos(a) * d, Math.sin(a) * d, 4.2, 8.8)) continue;
       const g = new THREE.Group(); g.position.set(Math.cos(a) * d, 0, Math.sin(a) * d); g.rotation.y = rng() * 6.28;
       const c = new THREE.Mesh(colGeo, stoneMat); c.position.y = 0.85; c.scale.y = 0.55 + rng() * 0.65; c.rotation.z = (rng() - 0.5) * 0.45; g.add(c);
       const s = new THREE.Mesh(slabGeo, darkStoneMat); s.position.set(0.65, 0.14, 0.35); s.rotation.set(0.15, rng(), -0.18); g.add(s);
@@ -382,7 +394,8 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     const snowMat = new THREE.MeshLambertMaterial({ color: 0xeef5fa });
     track(pillarGeo, pillarMat); track(snowCapGeo, snowMat);
     for (let i = 0; i < 7; i++) {
-      const a = (i / 7) * Math.PI * 2 + rng() * 0.35, d = 4.2 + rng() * 7.8;
+      const a = (i / 7) * Math.PI * 2 + 0.2, d = 8.6 + (i % 2) * 2.2;
+      if (!canPlace(Math.cos(a) * d, Math.sin(a) * d, 4.0, 8.0)) continue;
       const { geo, mat } = makeShaderPool(2.8 + rng() * 1.1, 0x7b8c98, 0xcad6df, 0xffffff, 1); track(geo, mat); shaderMats.push(mat);
       const p = new THREE.Mesh(geo, mat); p.position.set(Math.cos(a) * d, 0.04, Math.sin(a) * d); p.renderOrder = 1; group.add(p);
       if (i < 5) {
@@ -404,7 +417,8 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     const branchGeo = new THREE.CylinderGeometry(0.08, 0.22, 2.6, 6);
     track(stumpGeo, rootMat); track(branchGeo, mossMat);
     for (let i = 0; i < 9; i++) {
-      const a = (i / 9) * Math.PI * 2 + rng() * 0.25, d = 5.0 + rng() * 6.5;
+      const a = (i / 9) * Math.PI * 2 + 0.15, d = 9.2 + (i % 2) * 2.0;
+      if (!canPlace(Math.cos(a) * d, Math.sin(a) * d, 4.0, 8.6)) continue;
       const curve = new THREE.CatmullRomCurve3([
         new THREE.Vector3(-1.8, -0.1, 0),
         new THREE.Vector3(-0.6, 0.45 + rng() * 0.3, 0.3),
@@ -505,7 +519,8 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       const coalMat = new THREE.MeshStandardMaterial({ color: 0xff6230, emissive: 0xff4818, emissiveIntensity: 1.5 });
       track(poleGeo, poleMat); track(flagGeo, flagMat); track(brazGeo, ironMat); track(coalGeo, coalMat);
       for (let i = 0; i < 6; i++) {
-        const a = (i / 6) * Math.PI * 2 + 0.5, r = 9.4;
+        const a = (i / 6) * Math.PI * 2 + 0.5, r = 10.6;
+        if (!canPlace(Math.cos(a) * r, Math.sin(a) * r, 4.4, 9.6)) continue;
         const pv = new THREE.Group(); pv.position.set(Math.cos(a) * r, 0, Math.sin(a) * r);
         const pl = new THREE.Mesh(poleGeo, poleMat); pl.position.y = 1.9; pv.add(pl);
         const fl = new THREE.Mesh(flagGeo, flagMat); fl.position.set(0.5, 2.95, 0); pv.add(fl);
@@ -524,7 +539,8 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       const sealMat = new THREE.MeshBasicMaterial({ color: stageNo === 16 ? 0xffd27a : 0xff4c42, transparent: true, opacity: 0.78, blending: THREE.AdditiveBlending, depthWrite: false });
       track(steleGeo, stoneMat); track(baseGeo, null); track(sealGeo, sealMat);
       for (let i = 0; i < 6; i++) {
-        const a = (i / 6) * Math.PI * 2 + 0.3, r = 9.2 + (i % 2) * 1.4;
+        const a = (i / 6) * Math.PI * 2 + 0.3, r = 10.4 + (i % 2) * 1.6;
+        if (!canPlace(Math.cos(a) * r, Math.sin(a) * r, 4.4, 9.6)) continue;
         const g = new THREE.Group(); g.position.set(Math.cos(a) * r, 0, Math.sin(a) * r); g.rotation.y = -a + Math.PI / 2;
         const bs = new THREE.Mesh(baseGeo, stoneMat); bs.position.y = 0.17; g.add(bs);
         const st = new THREE.Mesh(steleGeo, stoneMat); st.position.y = 1.65; g.add(st);
@@ -534,7 +550,8 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       addParticles(140, stageNo === 16 ? 0xffcf78 : 0xff6252, 0.16, 0.78, 'rise');
     } else {
       for (let i = 0; i < 6; i++) {
-        const a = (i / 6) * Math.PI * 2 + 0.4, r = 8.4 + (i % 2) * 2.0;
+        const a = (i / 6) * Math.PI * 2 + 0.4, r = 10.0 + (i % 2) * 1.8;
+        if (!canPlace(Math.cos(a) * r, Math.sin(a) * r, 4.2, 9.2)) continue;
         addStoneLantern(group, Math.cos(a) * r, Math.sin(a) * r, 0x7ef2d4, i % 2 === 0 ? 1.25 : 0.92);
       }
       addParticles(140, 0x84f2d6, 0.15, 0.76, 'drift');

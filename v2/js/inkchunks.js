@@ -952,7 +952,7 @@ function createChunkWindow(opts) {
   let screenMesh = null;
   const SCREEN = { N: 10, R: 21, H: 11, arc: Math.PI * 170 / 180, mid: Math.PI * 1.25, pleat: 0.85, x: null, z: null, tex: null };
   function buildScreenRing(srcTex) {
-    const tex = new THREE.TextureLoader().load(new URL('../assets/ink-edition/stage-' + stageId + '.webp', import.meta.url).href);
+    const tex = new THREE.TextureLoader().load(new URL('../assets/ink-edition/stage-' + (stageId > 12 ? stageId - 4 : stageId) + '.webp', import.meta.url).href);
     tex.image = srcTex.image;
     tex.needsUpdate = true;
     tex.wrapS = THREE.MirroredRepeatWrapping;
@@ -1394,7 +1394,8 @@ function createArenaWorld(opts) {
 
   // v0.49: Map the painted courtyard cleanly across the playable area without mirrored kaleidoscope tiling,
   // then blend organic multi-octave sumi-ink & hanji vertex washes over the 96x96 ground mesh.
-  const url = new URL('../assets/ink-edition/terrain-' + stageId + '.webp', import.meta.url);
+  const texStageId = stageId > 12 ? (stageId - 4) : stageId;
+  const url = new URL('../assets/ink-edition/terrain-' + texStageId + '.webp', import.meta.url);
   const map = new THREE.TextureLoader().load(url.href);
   map.colorSpace = THREE.SRGBColorSpace;
   map.anisotropy = 4;
@@ -1404,8 +1405,15 @@ function createArenaWorld(opts) {
   map.offset.set((1 - coverage) * 0.5, (1 - coverage) * 0.5);
   map.center.set(0.5, 0.5);
   map.rotation = Math.PI / 4 + ((stageId * 0.31) % 0.6);
-  const groundBase = new THREE.Color(1, 0.96, 0.90).multiplyScalar(FLOOR_MUL * 2.3);
-  const softGround = [1,3,6,7,10].includes(stageId);
+  const ACT4_GROUND_TINT = {
+    13: [1.14, 0.80, 0.76],
+    14: [0.80, 0.92, 1.12],
+    15: [0.94, 0.88, 0.92],
+    16: [1.12, 0.98, 0.80]
+  };
+  const gt = ACT4_GROUND_TINT[stageId] || [1, 0.96, 0.90];
+  const groundBase = new THREE.Color(gt[0], gt[1], gt[2]).multiplyScalar(FLOOR_MUL * (stageId > 12 ? 2.55 : 2.3));
+  const softGround = [1,3,6,7,10,14].includes(stageId);
   const detail = new THREE.TextureLoader().load(new URL('../assets/ink-edition/' +
     (softGround ? 'earth' : 'stone') + '-relief.webp', import.meta.url).href);
   detail.wrapS = detail.wrapT = THREE.RepeatWrapping;
@@ -1533,7 +1541,7 @@ function createArenaWorld(opts) {
   let screenMesh = null;
   const SCREEN = { N: 12, R: 31, H: 15, arc: Math.PI * 170 / 180, mid: Math.PI * 1.25, pleat: 0.9, x: null, z: null, tex: null };
   function buildScreenRing(srcTex) {
-    const tex = new THREE.TextureLoader().load(new URL('../assets/ink-edition/stage-' + stageId + '.webp', import.meta.url).href);
+    const tex = new THREE.TextureLoader().load(new URL('../assets/ink-edition/stage-' + (stageId > 12 ? stageId - 4 : stageId) + '.webp', import.meta.url).href);
     tex.image = srcTex.image;
     tex.needsUpdate = true;
     tex.wrapS = THREE.MirroredRepeatWrapping;
