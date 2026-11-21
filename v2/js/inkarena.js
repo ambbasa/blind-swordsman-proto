@@ -78,7 +78,11 @@ const PAL = {
   9: { wood: 0x2b1f19, woodDark: 0x18110e, plaster: 0xa08a74, tile: 0x1c1416, stone: 0x38302c, pine: 0x191a13, bamboo: 0x24200f, cloth: 0x674b3c, glow: 0xff9a55 },
   10: { wood: 0x2d221b, woodDark: 0x1a130f, plaster: 0xa89480, tile: 0x1c1715, stone: 0x3a302b, pine: 0x191a12, bamboo: 0x242214, cloth: 0x675245, glow: 0xffb062 },
   11: { wood: 0x2b1d19, woodDark: 0x18100e, plaster: 0x9f857a, tile: 0x1d1315, stone: 0x382a27, pine: 0x191810, bamboo: 0x241d12, cloth: 0x654a40, glow: 0xff8f52 },
-  12: { wood: 0x2c1b18, woodDark: 0x180e0e, plaster: 0x9c7b76, tile: 0x1e1113, stone: 0x372725, pine: 0x1a170f, bamboo: 0x231c11, cloth: 0x63433c, glow: 0xff8a48 }
+  12: { wood: 0x2c1b18, woodDark: 0x180e0e, plaster: 0x9c7b76, tile: 0x1e1113, stone: 0x372725, pine: 0x1a170f, bamboo: 0x231c11, cloth: 0x63433c, glow: 0xff8a48 },
+  13: { wood: 0x451212, woodDark: 0x1f0a0c, plaster: 0x8a6967, tile: 0x1c1014, stone: 0x2f1f22, pine: 0x1c1214, bamboo: 0x261414, cloth: 0x6b2224, glow: 0xff5442 },
+  14: { wood: 0x25242e, woodDark: 0x14151f, plaster: 0x8b96a6, tile: 0x161a26, stone: 0x2c3240, pine: 0x141e26, bamboo: 0x1c2630, cloth: 0x465266, glow: 0x8fd8ff },
+  15: { wood: 0x281e22, woodDark: 0x140f12, plaster: 0x8f8286, tile: 0x151218, stone: 0x2e2930, pine: 0x18151a, bamboo: 0x201c22, cloth: 0x5c2b2f, glow: 0xff7848 },
+  16: { wood: 0x2b1d1c, woodDark: 0x160e10, plaster: 0xa69480, tile: 0x1a1418, stone: 0x332828, pine: 0x181414, bamboo: 0x241c14, cloth: 0x70563c, glow: 0xffd278 }
 };
 
 /* zone 번호 — inktex3d 아틀라스 칸 */
@@ -648,58 +652,98 @@ export function buildArena(opts) {
     const h=3+rnd()*3;
     B.add(G.cone4,0x292331,ZONE.STONE,{x,z,y:h*.49,sx:1.8,sy:h,sz:1.25,rz:rnd()*.4-.2});
   }
-  switch(stageId) {
-    case 1: // Market lanes converge at the burned inn.
-      at(0,19,4,roof);
-      at(-15, 2, 2, market);
+switch(stageId) {
+    case 1:
+      at(0,19,4,roof); at(0,-17,4,roof);
+      at(-15, 2, 2, market); at(15, -4, 2, market);
       at(14, 12, 2, (x,z,r) => stall(B,x,z,r-0.35,c));
       at(-13, 13, 2, (x,z,r) => stall(B,x,z,r+0.55,c,true));
+      at(-14, -10, 2, (x,z,r) => stall(B,x,z,r+0.25,c));
       at(16, 1, 2, rubble);
+      for(const side of [-1,1]) { at(side*11,-12,1,lamp); at(side*12,8,1,lamp); }
       break;
     case 2:
       at(-3,15,4,door); at(-11,16,3,wall); at(8,19,3,wall);
-      for(let j=0;j<7;j++) at(10+j%3,2+j*1.8,1.5,rubble);
+      at(4,-16,4,door); at(-13,-13,3,wall); at(14,-11,3,wall);
+      for(let j=0;j<8;j++) at(10+j%3,-8+j*2.4,1.5,rubble);
+      for(let j=0;j<5;j++) at(-14,-6+j*3.6,1.5,rubble);
       break;
     case 3:
       for(let j=0;j<7;j++) for(const side of [-1,1]) at(side*(13+Math.sin(j)*2),-6+j*4,2,grove);
       break;
     case 4:
       at(-8,16,4,court); at(6,15,4,(x,z,r)=>bridge(B,x,z,r,8,c));
-      for(const side of [-1,1]) { at(side*13,4,1,lamp); at(side*16,10,3,tree); }
+      at(9,-15,4,court); at(-11,-14,3,shrine);
+      for(const side of [-1,1]) { at(side*13,4,1,lamp); at(side*13,-6,1,lamp); at(side*16,10,3,tree); at(side*15,-10,3,tree); }
       break;
     case 5:
-      at(0,14,4,pagoda);
-      for(const side of [-1,1]) { at(side*11,12,2,pagoda); at(side*9,7,1,lamp); }
+      at(0,14,4,pagoda); at(0,-16,3,pagoda);
+      for(const side of [-1,1]) { at(side*11,12,2,pagoda); at(side*13,-4,2,pagoda); at(side*9,7,1,lamp); at(side*10,-9,1,lamp); }
       break;
     case 6:
-      at(0,18,4,roof); at(-11,14,3,court);
-      for(const side of [-1,1]) { at(side*14,3,2,tree); at(side*8,12,1,lamp); }
+      at(0,18,4,roof); at(-11,14,3,court); at(11,-14,3,court);
+      for(const side of [-1,1]) { at(side*14,3,2,tree); at(side*14,-9,2,tree); at(side*8,12,1,lamp); at(side*9,-12,1,lamp); }
       break;
     case 7:
-      for(let j=0;j<13;j++) { const a=j*.47; at(16*Math.cos(a),16*Math.sin(a),2,deadTree); }
+      for(let j=0;j<15;j++) { const a=j*(Math.PI*2/15); at(15.5*Math.cos(a),15.5*Math.sin(a),2,deadTree); }
       break;
     case 8:
-      at(0,15,4,door); at(0,23,4,court);
-      for(const side of [-1,1]) for(let j=0;j<4;j++) at(side*(9-j),3+j*3,1,lamp);
+      at(0,15,4,door); at(0,23,4,court); at(0,-17,4,door);
+      for(const side of [-1,1]) {
+        for(let j=0;j<4;j++) at(side*(10-j*0.6),-6+j*4.5,1,lamp);
+        at(side*14,8,3,shrine); at(side*14,-10,3,tree);
+      }
       break;
     case 9:
-      at(0,13,3,shrine);
-      for(const side of [-1,1]) { at(side*12,7,3,shrine); at(side*9,14,2,spire); }
+      at(0,13,3,shrine); at(0,-15,3,shrine);
+      for(const side of [-1,1]) { at(side*12,7,3,shrine); at(side*12,-8,3,shrine); at(side*9,14,2,spire); at(side*10,-13,2,spire); }
       break;
     case 10:
-      for(let j=0;j<5;j++) { at(-13+j%2,-5+j*5,2,ribs); at(12+j%3,1+j*4,2,rubble); }
+      for(let j=0;j<6;j++) { at(-13+j%2,-8+j*4.4,2,ribs); at(12+j%3,-7+j*4.2,2,rubble); }
+      for(const side of [-1,1]) { at(side*8,15,2,ribs); at(side*8,-15,2,ribs); }
       break;
     case 11:
-      at(0,18,4,door);
-      for(const side of [-1,1]) { at(side*7,18,3,wall); at(side*14,17,4,roof); at(side*15,8,3,wall); }
+      at(0,18,4,door); at(0,-18,4,door);
+      for(const side of [-1,1]) { at(side*7,18,3,wall); at(side*14,17,4,roof); at(side*15,8,3,wall); at(side*15,-8,3,wall); at(side*13,-16,4,roof); }
       break;
     case 12:
-      for(let j=0;j<16;j++) { const a=j*Math.PI/8; at(17*Math.cos(a),17*Math.sin(a),2,spire); }
+      for(let j=0;j<16;j++) { const a=j*Math.PI/8; at(16.5*Math.cos(a),16.5*Math.sin(a),2,spire); }
       break;
-  }
+    case 13:
+      at(0,17,4,door); at(0,-17,4,door);
+      for(const side of [-1,1]) {
+        for(let j=0;j<5;j++) {
+          const z = -12 + j * 6;
+          at(side*13.5, z, 3, j % 2 === 0 ? shrine : spire);
+          at(side*11.2, z + 2.6, 1, lamp);
+        }
+      }
+      break;
+    case 14:
+      at(-12,13,4,(x,z,r)=>bridge(B,x,z,r,9,c));
+      at(12,-13,4,(x,z,r)=>bridge(B,x,z,r,9,c));
+      for(let j=0;j<5;j++) {
+        at(-14+j*1.2, -10+j*4.5, 2, j%2 ? ribs : shrine);
+        at(14-j*1.2, -10+j*4.5, 2, j%2 ? shrine : rubble);
+      }
+      for(const side of [-1,1]) { at(side*10, 14, 1, lamp); at(side*10, -14, 1, lamp); }
+      break;
+    case 15:
+      at(0,18,4,door); at(0,-18,4,door);
+      for(const side of [-1,1]) {
+        at(side*9,18,3,wall); at(side*15,15,4,roof); at(side*16,4,3,wall);
+        at(side*16,-6,3,wall); at(side*15,-15,4,roof); at(side*9,-18,3,wall);
+      }
+      break;
+    case 16:
+      at(0,17,4,door); at(0,-17,4,shrine);
+      for(let j=0;j<16;j++) { const a=j*Math.PI/8; at(16.2*Math.cos(a),16.2*Math.sin(a),2,spire); }
+      for(let j=0;j<6;j++) { const a=j*Math.PI/3 + 0.5; at(12.2*Math.cos(a),12.2*Math.sin(a),1,lamp); }
+      break;
+}
   // Low-profile relief is part of the batched arena mesh: paving, roots and
   // river gravel have actual silhouettes without creating invisible blockers.
-  const paved = [2,5,6,8,9,11,12].includes(stageId);
+  const paved = [2,5,6,8,9,11,12,13,15,16].includes(stageId);
   for (let j=0; j<52; j++) {
     const a=rnd()*Math.PI*2, r=5+Math.sqrt(rnd())*11;
     const x=r*Math.cos(a), z=r*Math.sin(a);
