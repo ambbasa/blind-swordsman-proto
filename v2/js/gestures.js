@@ -481,7 +481,7 @@
     return len <= 22 && Math.max(box.w, box.h) <= 16;
   }
 
-  var LABELS = { vline: 'ㅣ', hline: '—', vee: 'V', circle: 'O', bolt: '⚡', tap: '탭', square: 'ㅁ', tri: '△', arc: '◡', spiral: '@' };
+  var LABELS = { vline: 'ㅣ', hline: '—', vee: 'V', circle: 'O', bolt: 'Z', tap: '탭', square: 'ㅁ', tri: '△', arc: '◡', spiral: '@' };
   var TOTEM = ['tri', 'square', 'spiral'];
   var COMBAT = ['vline', 'hline', 'vee', 'circle', 'square', 'tap'];
 
@@ -519,7 +519,7 @@
         if (ab < L * 0.135 || dot > -0.56 * ab * bc || (leg && cross !== winding)) valid = false;
         winding = cross;
       }
-      if (valid) return { type:'star', best:'star', label:'⛤', scores:{star:1}, bestScore:1, q:1 };
+      if (valid) return { type:'star', best:'star', label:'★', scores:{star:1}, bestScore:1, q:1 };
     }
     var rs = resample(pts, 48);
     var bb = bbox(rs);
