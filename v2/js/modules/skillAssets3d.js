@@ -649,3 +649,418 @@ export function buildFracturedBasaltRocks3D(rng, opts = {}) {
   group.userData.disposables = disposables;
   return group;
 }
+
+
+/**
+ * 9) 16-평면 절단 층상 현무암 암봉 (storm-energy.mjs + Kasumidera cliff.jpg)
+ */
+export function buildFracturedCragMonolith3D(rng, opts = {}) {
+  const group = new THREE.Group();
+  const h = opts.height || (3.6 + rng() * 1.8);
+  const mat = new THREE.MeshStandardMaterial({
+    color: opts.rockHex || 0x322d38,
+    roughness: 0.88,
+    metalness: 0.10,
+    flatShading: true,
+  });
+  const disposables = [mat];
+  const seeds = [91, 57, 23, 137, 211];
+  const tilt = (rng() - 0.5) * 0.22;
+  const yaw = rng() * 6.28;
+  const specs = [
+    { y: h * 0.22, sx: 1.45, sy: h * 0.34, sz: 1.25, ox: 0, oz: 0, sIdx: 0 },
+    { y: h * 0.54, sx: 1.02, sy: h * 0.36, sz: 0.90, ox: tilt * 0.42, oz: -tilt * 0.28, sIdx: 1 },
+    { y: h * 0.82, sx: 0.62, sy: h * 0.28, sz: 0.56, ox: tilt * 0.82, oz: -tilt * 0.50, sIdx: 2 },
+  ];
+  for (let i = 0; i < specs.length; i++) {
+    const sp = specs[i];
+    const g = createFracturedRockGeo(seeds[(sp.sIdx + Math.floor(rng() * 5)) % seeds.length], 1.15);
+    disposables.push(g);
+    const m = new THREE.Mesh(g, mat);
+    m.position.set(sp.ox, sp.y, sp.oz);
+    m.scale.set(sp.sx, sp.sy, sp.sz);
+    m.rotation.set(0, yaw + i * 1.15, tilt * (0.5 + i * 0.4));
+    m.castShadow = true; m.receiveShadow = true;
+    group.add(m);
+  }
+  group.userData.disposables = disposables;
+  return group;
+}
+
+/**
+ * 10) 카스미데라 누각·성문 (3d-kasumidera-ultra-realism eaves.jpg + 3d-paper-material 역광 창호)
+ */
+export function buildKasumideraGatehouse3D(opts = {}) {
+  const isFortress = !!opts.fortress;
+  const w = opts.w || 5.4, d = opts.d || 3.4, baseH = 0.46, wallH = 2.65;
+  const group = new THREE.Group();
+  group.name = isFortress ? 'kasumidera-fortress-gate' : 'kasumidera-gatehouse';
+
+  const stoneMat = new THREE.MeshStandardMaterial({ color: opts.stoneHex || 0x4c4a46, roughness: 0.93, metalness: 0.04 });
+  const woodMat = new THREE.MeshStandardMaterial({ color: opts.woodHex || 0x3b261c, roughness: 0.84, metalness: 0.06 });
+  const redMat = new THREE.MeshStandardMaterial({ color: opts.lacquerHex || 0x86241d, roughness: 0.54, metalness: 0.12 });
+  const tileMat = new THREE.MeshStandardMaterial({ color: opts.tileHex || 0x262930, roughness: 0.72, metalness: 0.16 });
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xc8a24c, roughness: 0.36, metalness: 0.72 });
+  const paperMat = new THREE.MeshStandardMaterial({
+    map: getPaperGrainTex(),
+    color: 0xf6e6c4,
+    emissive: new THREE.Color(opts.glowHex || 0xffb252),
+    emissiveIntensity: 1.15,
+    roughness: 0.88,
+  });
+  paperMat.userData.cardSkip = true;
+  const disposables = [stoneMat, woodMat, redMat, tileMat, goldMat, paperMat];
+
+  const baseGeo = new THREE.BoxGeometry(w + 1.1, baseH, d + 1.0);
+  const stepGeo = new THREE.BoxGeometry(2.2, baseH * 0.55, 0.7);
+  const colGeo = new THREE.CylinderGeometry(0.16, 0.20, wallH, 10);
+  const footGeo = new THREE.CylinderGeometry(0.24, 0.28, 0.26, 8);
+  const beamGeo = new THREE.BoxGeometry(w + 0.6, 0.24, 0.26);
+  const wallGeo = new THREE.BoxGeometry(w - 0.5, wallH - 0.1, d - 0.6);
+  disposables.push(baseGeo, stepGeo, colGeo, footGeo, beamGeo, wallGeo);
+
+  const base = new THREE.Mesh(baseGeo, stoneMat); base.position.y = baseH * 0.5; base.receiveShadow = true; group.add(base);
+  const step = new THREE.Mesh(stepGeo, stoneMat); step.position.set(0, baseH * 0.28, d * 0.5 + 0.65); group.add(step);
+  const core = new THREE.Mesh(wallGeo, isFortress ? stoneMat : woodMat); core.position.set(0, baseH + wallH * 0.5, -0.1); core.castShadow = true; group.add(core);
+
+  for (const sx of [-w * 0.44, 0, w * 0.44]) {
+    for (const sz of [-d * 0.42, d * 0.42]) {
+      if (sx === 0 && sz > 0) continue;
+      const ft = new THREE.Mesh(footGeo, stoneMat); ft.position.set(sx, baseH + 0.13, sz); group.add(ft);
+      const col = new THREE.Mesh(colGeo, redMat); col.position.set(sx, baseH + wallH * 0.5, sz); col.castShadow = true; group.add(col);
+    }
+  }
+  const frontBeam = new THREE.Mesh(beamGeo, redMat); frontBeam.position.set(0, baseH + wallH + 0.08, d * 0.42); group.add(frontBeam);
+  const backBeam = new THREE.Mesh(beamGeo, woodMat); backBeam.position.set(0, baseH + wallH + 0.08, -d * 0.42); group.add(backBeam);
+
+  if (isFortress) {
+    const doorGeo = new THREE.BoxGeometry(2.6, wallH * 0.84, 0.16);
+    const ringGeo = new THREE.TorusGeometry(0.14, 0.03, 6, 14);
+    disposables.push(doorGeo, ringGeo);
+    const door = new THREE.Mesh(doorGeo, redMat); door.position.set(0, baseH + wallH * 0.44, d * 0.34); group.add(door);
+    for (const s of [-0.48, 0.48]) {
+      const rg = new THREE.Mesh(ringGeo, goldMat); rg.position.set(s, baseH + wallH * 0.44, d * 0.44); group.add(rg);
+    }
+  } else {
+    const paneGeo = new THREE.BoxGeometry(1.45, wallH * 0.62, 0.06);
+    const mullGeo = new THREE.BoxGeometry(0.055, wallH * 0.64, 0.09);
+    disposables.push(paneGeo, mullGeo);
+    for (const sx of [-w * 0.25, w * 0.25]) {
+      const pane = new THREE.Mesh(paneGeo, paperMat); pane.position.set(sx, baseH + wallH * 0.50, d * 0.34); group.add(pane);
+      for (let m = -1; m <= 1; m++) {
+        const ml = new THREE.Mesh(mullGeo, woodMat); ml.position.set(sx + m * 0.36, baseH + wallH * 0.50, d * 0.36); group.add(ml);
+      }
+    }
+  }
+
+  const eaveY = baseH + wallH + 0.14, ridgeY = eaveY + 1.18;
+  const halfD = d * 0.5 + 1.05, roofW = w + 1.85;
+  const slope = Math.hypot(halfD, ridgeY - eaveY);
+  const ang = Math.atan2(ridgeY - eaveY, halfD);
+  const roofGeo = new THREE.BoxGeometry(roofW, 0.18, slope);
+  const ribGeo = new THREE.BoxGeometry(0.12, 0.10, slope * 1.02);
+  const ridgeGeo = new THREE.BoxGeometry(roofW + 0.25, 0.30, 0.36);
+  const chimiGeo = new THREE.ConeGeometry(0.22, 0.52, 4);
+  disposables.push(roofGeo, ribGeo, ridgeGeo, chimiGeo);
+  for (const s of [-1, 1]) {
+    const sl = new THREE.Mesh(roofGeo, tileMat);
+    sl.position.set(0, (eaveY + ridgeY) * 0.5, s * halfD * 0.5);
+    sl.rotation.x = s * ang;
+    sl.castShadow = true;
+    group.add(sl);
+    for (let r = -3; r <= 3; r++) {
+      const rb = new THREE.Mesh(ribGeo, tileMat);
+      rb.position.set(r * (roofW / 7.5), (eaveY + ridgeY) * 0.5 + 0.11, s * halfD * 0.5);
+      rb.rotation.x = s * ang;
+      group.add(rb);
+    }
+  }
+  const ridge = new THREE.Mesh(ridgeGeo, tileMat); ridge.position.set(0, ridgeY + 0.08, 0); group.add(ridge);
+  for (const s of [-1, 1]) {
+    const ch = new THREE.Mesh(chimiGeo, goldMat); ch.position.set(s * (roofW * 0.5 + 0.06), ridgeY + 0.34, 0); group.add(ch);
+  }
+
+  group.userData.disposables = disposables;
+  return group;
+}
+
+/**
+ * 11) 카스미데라 4층 사찰 목탑 (3d-kasumidera-ultra-realism gate.jpg / eaves.jpg)
+ */
+export function buildKasumideraPagoda3D(opts = {}) {
+  const scale = opts.scale || 1.0;
+  const group = new THREE.Group();
+  group.name = 'kasumidera-pagoda';
+
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x4b4a46, roughness: 0.92, metalness: 0.04 });
+  const redMat = new THREE.MeshStandardMaterial({ color: opts.lacquerHex || 0x8a241d, roughness: 0.52, metalness: 0.14 });
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x2f2119, roughness: 0.86, metalness: 0.05 });
+  const tileMat = new THREE.MeshStandardMaterial({ color: opts.tileHex || 0x262b33, roughness: 0.70, metalness: 0.18 });
+  const bronzeMat = new THREE.MeshStandardMaterial({ color: 0xc29e4c, roughness: 0.34, metalness: 0.76 });
+  const paperMat = new THREE.MeshStandardMaterial({
+    map: getPaperGrainTex(),
+    color: 0xf7ecd0,
+    emissive: new THREE.Color(opts.glowHex || 0x86f0ca),
+    emissiveIntensity: 1.25,
+    roughness: 0.86,
+  });
+  paperMat.userData.cardSkip = true;
+  const disposables = [stoneMat, redMat, woodMat, tileMat, bronzeMat, paperMat];
+
+  const base1 = new THREE.BoxGeometry(4.2, 0.46, 4.2);
+  const base2 = new THREE.BoxGeometry(3.4, 0.22, 3.4);
+  disposables.push(base1, base2);
+  const b1 = new THREE.Mesh(base1, stoneMat); b1.position.y = 0.23; b1.receiveShadow = true; group.add(b1);
+  const b2 = new THREE.Mesh(base2, stoneMat); b2.position.y = 0.56; group.add(b2);
+
+  let curY = 0.67;
+  for (let i = 0; i < 4; i++) {
+    const k = 1 - i * 0.18;
+    const bw = 2.35 * k, fh = (i === 0 ? 1.50 : 1.10) * (0.94 + 0.06 * k);
+    const ew = bw + 1.55 * (0.86 + 0.14 * k);
+
+    const coreG = new THREE.BoxGeometry(bw * 0.86, fh, bw * 0.86);
+    const paneG = new THREE.BoxGeometry(bw * 0.58, fh * 0.56, bw * 0.90);
+    const paneG2 = new THREE.BoxGeometry(bw * 0.90, fh * 0.56, bw * 0.58);
+    const colG = new THREE.CylinderGeometry(0.09 * k + 0.03, 0.10 * k + 0.04, fh, 8);
+    const railG = new THREE.BoxGeometry(bw + 0.36, 0.09, 0.09);
+    const eaveG = new THREE.BoxGeometry(ew, 0.14, ew);
+    const roofG = new THREE.ConeGeometry(ew * 0.72, 0.62, 4);
+    roofG.rotateY(Math.PI / 4);
+    disposables.push(coreG, paneG, paneG2, colG, railG, eaveG, roofG);
+
+    const core = new THREE.Mesh(coreG, woodMat); core.position.y = curY + fh * 0.5; core.castShadow = true; group.add(core);
+    const p1 = new THREE.Mesh(paneG, paperMat); p1.position.y = curY + fh * 0.52; group.add(p1);
+    const p2 = new THREE.Mesh(paneG2, paperMat); p2.position.y = curY + fh * 0.52; group.add(p2);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const col = new THREE.Mesh(colG, redMat); col.position.set(sx * bw * 0.45, curY + fh * 0.5, sz * bw * 0.45); group.add(col);
+    }
+    for (const s of [-1, 1]) {
+      const r1 = new THREE.Mesh(railG, redMat); r1.position.set(0, curY + 0.34, s * (bw * 0.5 + 0.16)); group.add(r1);
+      const r2 = new THREE.Mesh(railG, redMat); r2.position.set(s * (bw * 0.5 + 0.16), curY + 0.34, 0); r2.rotation.y = Math.PI / 2; group.add(r2);
+    }
+    const ry = curY + fh;
+    const eave = new THREE.Mesh(eaveG, tileMat); eave.position.y = ry + 0.08; eave.castShadow = true; group.add(eave);
+    const roof = new THREE.Mesh(roofG, tileMat); roof.position.y = ry + 0.45; roof.castShadow = true; group.add(roof);
+    curY = ry + 0.52;
+  }
+
+  const spireG = new THREE.CylinderGeometry(0.04, 0.07, 1.9, 8);
+  const ringG = new THREE.TorusGeometry(0.22, 0.032, 6, 14);
+  ringG.rotateX(Math.PI / 2);
+  const orbG = new THREE.SphereGeometry(0.11, 8, 6);
+  disposables.push(spireG, ringG, orbG);
+  const spire = new THREE.Mesh(spireG, bronzeMat); spire.position.y = curY + 0.92; group.add(spire);
+  for (let r = 0; r < 5; r++) {
+    const rg = new THREE.Mesh(ringG, bronzeMat);
+    rg.position.y = curY + 0.42 + r * 0.24;
+    rg.scale.setScalar(1 - r * 0.11);
+    group.add(rg);
+  }
+  const orb = new THREE.Mesh(orbG, bronzeMat); orb.position.y = curY + 1.92; group.add(orb);
+
+  group.scale.setScalar(scale);
+  group.userData.disposables = disposables;
+  return group;
+}
+
+/**
+ * 12) 카스미데라 사당·정자 (3d-kasumidera-ultra-realism — 돌계단·주홍 기둥·역광 한지 감실·팔작 기와)
+ */
+export function buildKasumideraPavilion3D(opts = {}) {
+  const w = opts.w || 3.1, d = opts.d || 2.6, baseH = 0.46, h = 2.25;
+  const group = new THREE.Group();
+  group.name = 'kasumidera-pavilion';
+
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x4f4c46, roughness: 0.92, metalness: 0.04 });
+  const redMat = new THREE.MeshStandardMaterial({ color: opts.lacquerHex || 0x8a241d, roughness: 0.52, metalness: 0.12 });
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x33231a, roughness: 0.86, metalness: 0.05 });
+  const tileMat = new THREE.MeshStandardMaterial({ color: opts.tileHex || 0x262930, roughness: 0.72, metalness: 0.16 });
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xc8a24c, roughness: 0.36, metalness: 0.72 });
+  const paperMat = new THREE.MeshStandardMaterial({
+    map: getPaperGrainTex(),
+    color: 0xf7ead0,
+    emissive: new THREE.Color(opts.glowHex || 0xffb252),
+    emissiveIntensity: 1.25,
+    roughness: 0.88,
+  });
+  paperMat.userData.cardSkip = true;
+  const disposables = [stoneMat, redMat, woodMat, tileMat, goldMat, paperMat];
+
+  const baseG = new THREE.BoxGeometry(w + 0.9, baseH, d + 0.9);
+  const stepG = new THREE.BoxGeometry(1.4, baseH * 0.65, 0.52);
+  const colG = new THREE.CylinderGeometry(0.11, 0.13, h, 8);
+  const altarG = new THREE.BoxGeometry(w * 0.68, h * 0.88, d * 0.60);
+  const paneG = new THREE.BoxGeometry(w * 0.48, h * 0.56, 0.06);
+  const eaveG = new THREE.BoxGeometry(w + 1.55, 0.16, d + 1.55);
+  const roofG = new THREE.ConeGeometry(Math.max(w, d) * 0.96, 1.05, 4);
+  roofG.rotateY(Math.PI / 4);
+  const finG = new THREE.SphereGeometry(0.14, 8, 6);
+  disposables.push(baseG, stepG, colG, altarG, paneG, eaveG, roofG, finG);
+
+  const base = new THREE.Mesh(baseG, stoneMat); base.position.y = baseH * 0.5; base.receiveShadow = true; group.add(base);
+  const step = new THREE.Mesh(stepG, stoneMat); step.position.set(0, baseH * 0.32, d * 0.5 + 0.55); group.add(step);
+  const altar = new THREE.Mesh(altarG, woodMat); altar.position.set(0, baseH + h * 0.44, -0.10); altar.castShadow = true; group.add(altar);
+  const pane = new THREE.Mesh(paneG, paperMat); pane.position.set(0, baseH + h * 0.48, d * 0.22); group.add(pane);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    const col = new THREE.Mesh(colG, redMat); col.position.set(sx * w * 0.44, baseH + h * 0.5, sz * d * 0.44); col.castShadow = true; group.add(col);
+  }
+  const eave = new THREE.Mesh(eaveG, tileMat); eave.position.y = baseH + h + 0.08; eave.castShadow = true; group.add(eave);
+  const roof = new THREE.Mesh(roofG, tileMat); roof.position.y = baseH + h + 0.62; roof.castShadow = true; group.add(roof);
+  const fin = new THREE.Mesh(finG, goldMat); fin.position.y = baseH + h + 1.18; group.add(fin);
+
+  group.userData.disposables = disposables;
+  return group;
+}
+
+/**
+ * 13) 3d-cloth-material 직조 천막 저잣거리 좌판 (곡선 현수선 드리핑 천막 + 옹기 항아리 + 역광 초롱불)
+ */
+export function buildDrapedClothStall3D(opts = {}) {
+  const group = new THREE.Group();
+  group.name = 'cloth-draped-market-stall';
+
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x3b2a1e, roughness: 0.88, metalness: 0.04 });
+  const clothMat = new THREE.MeshStandardMaterial({
+    color: opts.clothHex || 0x7a4834,
+    normalMap: getClothWeaveNormal() || null,
+    normalScale: new THREE.Vector2(1.35, 1.35),
+    roughness: 0.90,
+    metalness: 0.0,
+    side: THREE.DoubleSide,
+  });
+  const clayMat = new THREE.MeshStandardMaterial({ color: 0x2b2420, roughness: 0.46, metalness: 0.16 });
+  const lanternMat = new THREE.MeshStandardMaterial({
+    map: getPaperGrainTex(),
+    color: 0xffeacc,
+    emissive: new THREE.Color(0xff9c3c),
+    emissiveIntensity: 1.55,
+    roughness: 0.85,
+  });
+  lanternMat.userData.cardSkip = true;
+  const disposables = [woodMat, clothMat, clayMat, lanternMat];
+
+  const topG = new THREE.BoxGeometry(2.1, 0.10, 1.05);
+  const legG = new THREE.CylinderGeometry(0.055, 0.07, 2.30, 7);
+  const poleG = new THREE.CylinderGeometry(0.04, 0.04, 2.55, 7);
+  poleG.rotateZ(Math.PI / 2);
+  disposables.push(topG, legG, poleG);
+
+  const tbl = new THREE.Mesh(topG, woodMat); tbl.position.set(0, 0.78, 0); tbl.castShadow = true; group.add(tbl);
+  for (const sx of [-0.95, 0.95]) for (const sz of [-0.52, 0.52]) {
+    const ph = sz < 0 ? 2.38 : 2.06;
+    const leg = new THREE.Mesh(legG, woodMat);
+    leg.scale.y = ph / 2.30;
+    leg.position.set(sx, ph * 0.5, sz);
+    group.add(leg);
+  }
+  const pBack = new THREE.Mesh(poleG, woodMat); pBack.position.set(0, 2.34, -0.52); group.add(pBack);
+  const pFront = new THREE.Mesh(poleG, woodMat); pFront.position.set(0, 2.04, 0.52); group.add(pFront);
+
+  const canopyG = new THREE.PlaneGeometry(2.55, 1.58, 8, 6);
+  const cp = canopyG.attributes.position;
+  for (let i = 0; i < cp.count; i++) {
+    const x = cp.getX(i), y = cp.getY(i);
+    const u = (y / 1.58) + 0.5;
+    const sag = Math.sin(u * Math.PI) * 0.22 + Math.cos(x * 3.8) * 0.035;
+    const zPos = -0.68 + u * 1.48;
+    const yPos = 2.40 - u * 0.38 - sag;
+    cp.setXYZ(i, x, yPos, zPos);
+  }
+  canopyG.computeVertexNormals();
+  disposables.push(canopyG);
+  const canopy = new THREE.Mesh(canopyG, clothMat);
+  canopy.castShadow = true;
+  group.add(canopy);
+
+  const jarPts = [
+    new THREE.Vector2(0.0, 0.0), new THREE.Vector2(0.11, 0.02),
+    new THREE.Vector2(0.18, 0.16), new THREE.Vector2(0.15, 0.30),
+    new THREE.Vector2(0.09, 0.36), new THREE.Vector2(0.11, 0.39),
+  ];
+  const jarG = new THREE.LatheGeometry(jarPts, 10);
+  const lanG = new THREE.CylinderGeometry(0.12, 0.11, 0.30, 8);
+  disposables.push(jarG, lanG);
+  const jar = new THREE.Mesh(jarG, clayMat); jar.position.set(-0.48, 0.83, 0.05); group.add(jar);
+  const jar2 = new THREE.Mesh(jarG, clayMat); jar2.scale.setScalar(0.75); jar2.position.set(-0.14, 0.83, -0.14); group.add(jar2);
+  const lan = new THREE.Mesh(lanG, lanternMat); lan.position.set(0.92, 1.80, 0.58); group.add(lan);
+
+  group.userData.disposables = disposables;
+  return group;
+}
+
+/**
+ * 14) 석재 성벽 + 여장 + 직조 군기 (3d-kasumidera-ultra-realism + 3d-cloth-material)
+ */
+export function buildStoneFortressWall3D(opts = {}) {
+  const len = opts.len || 5.6, h = opts.h || 2.5;
+  const group = new THREE.Group();
+  group.name = 'kasumidera-fortress-wall';
+
+  const stoneMat = new THREE.MeshStandardMaterial({ color: opts.stoneHex || 0x4b4844, roughness: 0.93, metalness: 0.04 });
+  const capMat = new THREE.MeshStandardMaterial({ color: 0x2f2e30, roughness: 0.86, metalness: 0.08 });
+  const clothMat = new THREE.MeshStandardMaterial({
+    color: opts.bannerHex || 0x8f241c,
+    normalMap: getClothWeaveNormal() || null,
+    normalScale: new THREE.Vector2(1.1, 1.1),
+    roughness: 0.88,
+    side: THREE.DoubleSide,
+  });
+  const disposables = [stoneMat, capMat, clothMat];
+
+  const bodyG = new THREE.BoxGeometry(len, h, 0.95);
+  const trimG = new THREE.BoxGeometry(len + 0.16, 0.18, 1.06);
+  const merlonG = new THREE.BoxGeometry(0.88, 0.48, 0.98);
+  const banG = new THREE.PlaneGeometry(0.72, 1.45);
+  disposables.push(bodyG, trimG, merlonG, banG);
+
+  const body = new THREE.Mesh(bodyG, stoneMat); body.position.y = h * 0.5; body.castShadow = true; body.receiveShadow = true; group.add(body);
+  const trim = new THREE.Mesh(trimG, capMat); trim.position.y = h + 0.06; group.add(trim);
+  const count = Math.max(3, Math.round(len / 1.4));
+  for (let i = 0; i < count; i++) {
+    const x = -len * 0.5 + (len * (i + 0.5)) / count;
+    const m = new THREE.Mesh(merlonG, stoneMat);
+    m.position.set(x, h + 0.34, 0);
+    group.add(m);
+  }
+  const banner = new THREE.Mesh(banG, clothMat);
+  banner.position.set(0, h * 0.58, 0.52);
+  group.add(banner);
+
+  group.userData.disposables = disposables;
+  return group;
+}
+
+/**
+ * 15) 16-평면 절단 현무암 월석 비석 + 빛나는 봉인륜 (4장·16장 구형 회색 상자 비석 완전 대체)
+ */
+export function buildKasumideraMoonStele3D(opts = {}) {
+  const group = new THREE.Group();
+  group.name = 'kasumidera-moon-stele';
+
+  const rockMat = new THREE.MeshStandardMaterial({ color: opts.rockHex || 0x352c36, roughness: 0.86, metalness: 0.12, flatShading: true });
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0x454046, roughness: 0.92, metalness: 0.06 });
+  const glowHex = opts.glowHex || 0xff5242;
+  const bandMat = new THREE.MeshBasicMaterial({ color: glowHex, transparent: true, opacity: 0.86, blending: THREE.AdditiveBlending, depthWrite: false });
+  bandMat.userData.cardSkip = true;
+  const disposables = [rockMat, baseMat, bandMat];
+
+  const baseG = new THREE.CylinderGeometry(0.78, 0.96, 0.34, 8);
+  const steleG = createFracturedRockGeo(opts.seed || 137, 2.25);
+  const haloG = new THREE.TorusGeometry(0.56, 0.036, 6, 24);
+  disposables.push(baseG, steleG, haloG);
+
+  const base = new THREE.Mesh(baseG, baseMat); base.position.y = 0.17; group.add(base);
+  const stele = new THREE.Mesh(steleG, rockMat);
+  stele.scale.set(0.52, 0.68, 0.42);
+  stele.position.y = 1.65;
+  stele.castShadow = true;
+  group.add(stele);
+  const halo = new THREE.Mesh(haloG, bandMat);
+  halo.position.y = 3.25;
+  group.add(halo);
+
+  group.userData.spinHalo = halo;
+  group.userData.disposables = disposables;
+  return group;
+}

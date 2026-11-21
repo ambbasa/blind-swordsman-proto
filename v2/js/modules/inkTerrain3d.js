@@ -16,7 +16,14 @@ import {
   buildGnarledDeadTree3D,
   buildCarvedLantern3D,
   buildKasumideraTorii3D,
-  buildFracturedBasaltRocks3D
+  buildFracturedBasaltRocks3D,
+  buildFracturedCragMonolith3D,
+  buildKasumideraGatehouse3D,
+  buildKasumideraPagoda3D,
+  buildKasumideraPavilion3D,
+  buildDrapedClothStall3D,
+  buildStoneFortressWall3D,
+  buildKasumideraMoonStele3D
 } from './skillAssets3d.js';
 
 const MIST_VERT = /* glsl */`
@@ -590,42 +597,13 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     return g;
   }
 
-  /* ===================== 테마별 3D 기물 (전면 InstancedMesh 배칭) ===================== */
+  /* ===================== 테마별 환경 효과 & 대나무 숲 (구형 박스 좌판·흰 기둥 잔해·회색 비석 전면 제거) ===================== */
   if (k === 'none') {
-    const postGeo = new THREE.CylinderGeometry(0.085, 0.11, 2.35, 6);
-    const beamGeo = new THREE.BoxGeometry(2.1, 0.12, 0.14);
-    const roofGeo = new THREE.BoxGeometry(2.3, 0.08, 1.45);
-    const crateGeo = new THREE.BoxGeometry(0.65, 0.52, 0.65);
-    const charMat = makePbr(0x2a211c, 0.92, 0.04);
-    const awningMat = makePbr(0x634d3d, 0.88, 0.02, {
-      side: THREE.DoubleSide,
-      normalMap: getClothWeaveNormal() || null,
-      normalScale: new THREE.Vector2(1.1, 1.1)
-    });
-    const crateMat = makePbr(0x453528, 0.86, 0.04);
-    track(postGeo, null); track(beamGeo, null); track(roofGeo, null); track(crateGeo, null);
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2 + 0.35, d = 10.2 + (i % 2) * 1.8;
-      const sx = Math.cos(a) * d, sz = Math.sin(a) * d;
-      if (!canPlace(sx, sz, 4.4, 9.5)) continue;
-      const ry = -a + (rng() - 0.5) * 0.35, cosR = Math.cos(ry), sinR = Math.sin(ry);
-      const loc = (lx, lz) => [sx + lx * cosR - lz * sinR, sz + lx * sinR + lz * cosR];
-      [[-0.9, -0.55], [0.9, -0.55], [-0.9, 0.55], [0.9, 0.55]].forEach(([px, pz]) => {
-        const [wx, wz] = loc(px, pz);
-        queueInst('post', postGeo, charMat, wx, 1.15, wz, 0, ry, 0);
-      });
-      queueInst('beam', beamGeo, charMat, sx, 2.25, sz, 0, ry, 0);
-      queueInst('roof', roofGeo, awningMat, sx, 2.35, sz, 0.22, ry, (rng() - 0.5) * 0.14);
-      const [cx, cz] = loc(0.45, 0.2);
-      queueInst('crate', crateGeo, crateMat, cx, 0.26, cz, 0, ry + rng(), 0);
-      addContactShadow(sx, sz, 1.85);
-      if (i % 2 === 0) queueStoneLantern(Math.cos(a + 0.26) * (d - 1.3), Math.sin(a + 0.26) * (d - 1.3), 0xffa652, 0.88);
-    }
-    addParticles(130, 0xff9252, 0.14, 0.78, 'rise');
-    addParticles(100, 0xc9bfb0, 0.12, 0.52, 'drift');
+    addParticles(120, 0xff9252, 0.14, 0.76, 'rise');
+    addParticles(90, 0xc9bfb0, 0.12, 0.50, 'drift');
   } else if (k === 'bamboo') {
-    /* 대나무 숲: 기존 240 draw calls → 4 draw calls (InstancedMesh + per-instance 청죽 색조 변주) */
-    const stalkGeo = new THREE.CylinderGeometry(0.055, 0.08, 5.2, 7); stalkGeo.translate(0, 2.6, 0);
+    /* 3장 대나무 숲: 외곽 8군락 청죽 InstancedMesh + 줄기 충돌 등록 (중앙 전투 여백 확보) */
+    const stalkGeo = new THREE.CylinderGeometry(0.055, 0.08, 5.4, 7); stalkGeo.translate(0, 2.7, 0);
     const nodeGeo = new THREE.TorusGeometry(0.074, 0.014, 5, 10); nodeGeo.rotateX(Math.PI / 2);
     const bladeGeo = new THREE.BoxGeometry(0.095, 0.014, 0.72); bladeGeo.translate(0, 0, 0.36);
     const stalkMat = makePbr(0x467f64, 0.58, 0.08);
@@ -633,44 +611,30 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     const leafMat = makePbr(0x529473, 0.62, 0.05);
     track(stalkGeo, null); track(nodeGeo, null); track(bladeGeo, null);
     const tints = [0x3d7259, 0x498468, 0x528f70, 0x35644e];
-    for (let c = 0; c < 6; c++) {
-      const ang = (c / 6) * Math.PI * 2 + 0.25, d = 9.2 + (c % 2) * 2.2, cx = Math.cos(ang) * d, cz = Math.sin(ang) * d;
+    for (let c = 0; c < 8; c++) {
+      const ang = (c / 8) * Math.PI * 2 + 0.32, d = 13.0 + (c % 2) * 1.8;
+      const cx = Math.cos(ang) * d, cz = Math.sin(ang) * d;
+      if (!canPlace(cx, cz, 4.4, 12.0)) continue;
       addContactShadow(cx, cz, 2.0);
+      addCollider(cx, cz, 1.10);
       for (let j = 0; j < 4; j++) {
-        const bx = cx + (rng() - 0.5) * 1.5, bz = cz + (rng() - 0.5) * 1.5;
-        const leanX = (rng() - 0.5) * 0.08, leanZ = (rng() - 0.5) * 0.08, scY = 0.88 + rng() * 0.26;
+        const bx = cx + (rng() - 0.5) * 1.35, bz = cz + (rng() - 0.5) * 1.35;
+        const leanX = (rng() - 0.5) * 0.08, leanZ = (rng() - 0.5) * 0.08, scY = 0.90 + rng() * 0.28;
         const tCol = tints[(c + j) % tints.length];
         queueInst('bStalk', stalkGeo, stalkMat, bx, 0, bz, leanX, 0, leanZ, 1, scY, 1, tCol);
-        for (let h = 1.0; h <= 4.4; h += 1.1) {
+        for (let h = 1.0; h <= 4.6; h += 1.1) {
           queueInst('bNode', nodeGeo, nodeMat, bx + leanZ * h * 0.4, h * scY, bz + leanX * h * 0.4, leanX, 0, leanZ);
         }
         for (let b = 0; b < 5; b++) {
-          const hy = (3.1 + b * 0.42) * scY;
+          const hy = (3.2 + b * 0.42) * scY;
           queueInst('bLeaf', bladeGeo, leafMat, bx, hy, bz, -0.28 + (rng() - 0.5) * 0.2, b * 1.25 + rng() * 0.6, (rng() - 0.5) * 0.3, 1, 1, 1, tCol);
         }
       }
     }
     addParticles(125, 0x7ee0b4, 0.15, 0.74, 'fall');
   } else if (k === 'rubble') {
-    const colGeo = new THREE.CylinderGeometry(0.32, 0.42, 2.2, 7);
-    const slabGeo = new THREE.BoxGeometry(1.5, 0.28, 0.9);
-    const tileGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.95, 6, 1, false, 0, Math.PI);
-    const stoneMat = makePbr(0x635d52, 0.90, 0.06);
-    const darkStoneMat = makePbr(0x42403b, 0.92, 0.05);
-    const tileMat = makePbr(0x31353c, 0.72, 0.12, { side: THREE.DoubleSide });
-    track(colGeo, null); track(slabGeo, null); track(tileGeo, null);
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2 + 0.25, d = 9.4 + (i % 2) * 2.1;
-      const rx = Math.cos(a) * d, rz = Math.sin(a) * d;
-      if (!canPlace(rx, rz, 4.2, 8.8)) continue;
-      queueInst('rCol', colGeo, stoneMat, rx, 0.85, rz, 0, rng() * 6.28, (rng() - 0.5) * 0.42, 1, 0.55 + rng() * 0.65, 1);
-      queueInst('rSlab', slabGeo, darkStoneMat, rx + 0.6, 0.14, rz + 0.3, 0.15, rng() * 3, -0.18);
-      for (let t = 0; t < 3; t++) {
-        queueInst('rTile', tileGeo, tileMat, rx - 0.35 + t * 0.35, 0.18 + t * 0.08, rz - 0.25 + rng() * 0.4, Math.PI / 2 + (rng() - 0.5) * 0.4, rng() * 3, 0);
-      }
-      addContactShadow(rx, rz, 1.55);
-    }
-    addParticles(130, 0xd8ccb8, 0.13, 0.58, 'drift');
+    /* v0.65: 구형 흰 원기둥/회색 상자 잔해 제거 → 하단 16-평면 절단 현무암 바위·성문·성벽으로 전수 교체 */
+    addParticles(110, 0xd8ccb8, 0.13, 0.56, 'drift');
   } else if (k === 'blood') {
     if (stageNo === 13) {
       const colGeo = new THREE.CylinderGeometry(0.24, 0.28, 4.8, 8);
@@ -810,24 +774,26 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       }
       addParticles(130, 0xff8048, 0.15, 0.80, 'rise');
     } else if (k === 'moon') {
-      const steleGeo = new THREE.BoxGeometry(0.75, 2.8, 0.32);
-      const baseGeo = new THREE.BoxGeometry(1.25, 0.35, 0.85);
-      const sealGeo = new THREE.TorusGeometry(0.55, 0.035, 6, 24);
-      const stoneMat = makePbr(0x362a2c, 0.86, 0.08);
-      const sealMat = new THREE.MeshBasicMaterial({ color: stageNo === 16 ? 0xffd27a : 0xff4c42, transparent: true, opacity: 0.82, blending: THREE.AdditiveBlending, depthWrite: false });
-      track(steleGeo, null); track(baseGeo, null); track(sealGeo, sealMat);
-      for (let i = 0; i < 4; i++) {
-        const a = (i / 4) * Math.PI * 2 + 0.78, r = 12.4;
+      /* v0.65: 구형 회색 사각 비석(mStele)을 16-평면 절단 현무암 월석 비석(buildKasumideraMoonStele3D)으로 전면 교체 */
+      for (let i = 0; i < 3; i++) {
+        const a = (i / 3) * Math.PI * 2 + 0.78, r = 13.0;
         const mx = Math.cos(a) * r, mz = Math.sin(a) * r;
-        if (!canPlace(mx, mz, 4.6, 11.0)) continue;
-        const ry = -a + Math.PI / 2;
-        queueInst('mBase', baseGeo, stoneMat, mx, 0.17, mz, 0, ry, 0);
-        queueInst('mStele', steleGeo, stoneMat, mx, 1.65, mz, 0, ry, 0);
+        if (!canPlace(mx, mz, 4.6, 11.6)) continue;
+        const stNode = buildKasumideraMoonStele3D({
+          seed: 91 + i * 37,
+          rockHex: stageNo === 16 ? 0x2d2438 : 0x3b262a,
+          glowHex: stageNo === 16 ? 0xffd27a : 0xff4c42
+        });
+        stNode.position.set(mx, 0, mz);
+        stNode.rotation.y = -a + Math.PI / 2;
+        try { paintCard(stNode, 'prop'); } catch (e) {}
+        group.add(stNode);
+        if (stNode.userData && stNode.userData.spinHalo) spinNodes.push(stNode.userData.spinHalo);
+        if (stNode.userData && stNode.userData.disposables) stNode.userData.disposables.forEach((d) => disposables.push(d));
         addContactShadow(mx, mz, 1.35);
-        addCollider(mx, mz, 0.85);
-        const sl = new THREE.Mesh(sealGeo, sealMat); sl.position.set(mx, 3.45, mz); sl.rotation.y = ry; group.add(sl); spinNodes.push(sl);
+        addCollider(mx, mz, 0.90);
       }
-      addParticles(130, stageNo === 16 ? 0xffcf78 : 0xff6252, 0.16, 0.76, 'rise');
+      addParticles(125, stageNo === 16 ? 0xffcf78 : 0xff6252, 0.16, 0.76, 'rise');
     } else {
       addParticles(130, 0x84f2d6, 0.15, 0.74, 'drift');
     }
@@ -1055,121 +1021,223 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       floatLanterns.push(lg);
     }
 
-    /* 5) v0.64 정돈된 스킬 3D 랜드마크 배치 (inkarena 기물과 자동 이격 + 실제 충돌체 등록) */
+    /* 5) v0.65 전 스테이지 100% 스킬 기반 PBR 3D 지형지물 전수 교체 & 여백 구도 컴포지터
+       - 카메라 기준 좌표(side: 좌-/우+, depth: 북+/남-)로 모바일 세로 화면 구도를 정밀 배치
+       - 모든 고체 기물은 colliders[]에 정확한 충돌 반경 등록 (홍살문·금줄문은 기둥만, 아치 목교는 통행 가능) */
     const talismanGlow = [0xff9a44, 0xffa64d, 0x7ef2cc, 0xff6248, 0xc29aff][actIdx] || 0xff9a44;
-    const registerLandmark = (node, x, z, shadowR = 1.6, colR = 0) => {
+    const toriiWood = [0x8f241c, 0x8f241c, 0x385248, 0x8c1e1e, 0x422d5a][actIdx] || 0x8f241c;
+    const rockHex = actIdx === 4 ? 0x2f293c : actIdx === 3 ? 0x3c2426 : 0x45413b;
+    const lacquerHex = [0x86241d, 0x86241d, 0x6b2820, 0x8a1c1c, 0x452a54][actIdx] || 0x86241d;
+    const bannerHex = [0x8f241c, 0x8f241c, 0x2b5e4d, 0x9c2020, 0x583178][actIdx] || 0x8f241c;
+
+    const toStageXZ = (side, depth) => [(side - depth) * Math.SQRT1_2, (-side - depth) * Math.SQRT1_2];
+    const registerLandmark = (node, x, z, rotY = Math.PI / 4, shadowR = 1.6, colR = 0, minSep = 3.8) => {
       node.position.set(x, 0, z);
+      node.rotation.y = rotY;
       try { paintCard(node, 'prop'); } catch (e) {}
       group.add(node);
       if (node.userData && node.userData.disposables) {
         node.userData.disposables.forEach((d) => disposables.push(d));
       }
+      if (node.userData && node.userData.swayTalismans) {
+        node.userData.swayTalismans.forEach((tm) => swayNodes.push(tm));
+      }
       if (shadowR > 0) addContactShadow(x, z, shadowR);
       if (colR > 0) addCollider(x, z, colR);
+      placedPts.push({ x, z, r: minSep });
     };
-
-    /* 5-a) 좌상단 여백에 한지 부적 금줄 문 1기만 정갈하게 배치 (기둥 양쪽만 충돌 등록해 아치 아래는 통과) */
-    {
-      const ta = Math.PI * 1.12, tr = 13.4;
-      const tx = Math.cos(ta) * tr, tz = Math.sin(ta) * tr;
-      if (canPlace(tx, tz, 4.4, 12.0)) {
-        const span = 3.8;
-        const rotY = -ta + Math.PI * 0.5;
-        const gateLine = buildTalismanGateLine3D({ span, height: 2.9, glowHex: talismanGlow });
-        gateLine.rotation.y = rotY;
-        registerLandmark(gateLine, tx, tz, 2.0, 0);
-        if (gateLine.userData && gateLine.userData.swayTalismans) {
-          gateLine.userData.swayTalismans.forEach((tm) => swayNodes.push(tm));
-        }
-        for (const s of [-1, 1]) {
-          addCollider(tx + Math.cos(rotY) * s * (span * 0.5), tz - Math.sin(rotY) * s * (span * 0.5), 0.45);
-        }
+    const putStage = (node, side, depth, rotOffset = 0, shadowR = 2.0, colR = 1.4, minSep = 4.2) => {
+      const [wx, wz] = toStageXZ(side, depth);
+      registerLandmark(node, wx, wz, Math.PI / 4 + rotOffset, shadowR, colR, minSep);
+    };
+    const putTorii = (side, depth, rotOffset = 0) => {
+      const [wx, wz] = toStageXZ(side, depth);
+      const span = 4.5, rotY = Math.PI / 4 + rotOffset;
+      registerLandmark(buildKasumideraTorii3D({ span, height: 4.0, woodHex: toriiWood }), wx, wz, rotY, 2.6, 0, 4.6);
+      for (const s of [-1, 1]) {
+        addCollider(wx + Math.cos(rotY) * s * (span * 0.44), wz - Math.sin(rotY) * s * (span * 0.44), 0.52);
       }
-    }
-
-    /* 5-b) 물길(10·14장) 및 4장: 캠버 아치 주홍 목교 1기 (통행 가능, 교각 기둥만 외곽 정리) */
-    if (k === 'water' || stageNo === 4 || stageNo === 10 || stageNo === 14) {
+    };
+    const putTalismanGate = (side, depth, rotOffset = 0) => {
+      const [wx, wz] = toStageXZ(side, depth);
+      const span = 3.8, rotY = Math.PI / 4 + rotOffset;
+      registerLandmark(buildTalismanGateLine3D({ span, height: 2.9, glowHex: talismanGlow }), wx, wz, rotY, 2.0, 0, 4.2);
+      for (const s of [-1, 1]) {
+        addCollider(wx + Math.cos(rotY) * s * (span * 0.5), wz - Math.sin(rotY) * s * (span * 0.5), 0.45);
+      }
+    };
+    const putLantern = (side, depth, sc = 0.96) => {
+      const [wx, wz] = toStageXZ(side, depth);
+      registerLandmark(buildCarvedLantern3D({ glowHex: talismanGlow, scale: sc }), wx, wz, Math.PI / 4, 1.15, 0.72, 3.0);
+    };
+    const putRocks = (side, depth, sc = 1.0) => {
+      const [wx, wz] = toStageXZ(side, depth);
+      registerLandmark(buildFracturedBasaltRocks3D(rng, { rockHex, count: 3, scale: sc }), wx, wz, rng() * 6.28, 1.85, 1.35, 3.8);
+    };
+    const putCrag = (side, depth, h = 4.2) => {
+      const [wx, wz] = toStageXZ(side, depth);
+      registerLandmark(buildFracturedCragMonolith3D(rng, { rockHex, height: h }), wx, wz, 0, 1.9, 1.45, 4.2);
+    };
+    const putBridgeRiver = () => {
       const rcfg = opts.riverCfg || {};
-      const hasRiver = (k === 'water' || stageNo === 10 || stageNo === 14);
-      let bx = 8.4, bz = -9.6, rotY = Math.PI * 0.25, bLen = 7.4;
-      if (hasRiver) {
-        const centerFn = rcfg.centerFn || ((u) => 5.5 * Math.sin(u * 0.085) + 2.0 * Math.sin(u * 0.021 + 1.3));
-        const widthFn = rcfg.widthFn || ((u) => 2.1 + 0.7 * Math.sin(u * 0.13 + 0.6));
-        const ang = Number(rcfg.angle || 0), off = Number(rcfg.offset || 0);
-        const cosA = Math.cos(ang), sinA = Math.sin(ang);
-        const lx = stageNo === 14 ? -4.2 : -6.2;
-        const lz = centerFn(lx) + off;
-        bx = lx * cosA - lz * sinA;
-        bz = lx * sinA + lz * cosA;
-        const dzdlx = centerFn(lx + 0.5) - centerFn(lx - 0.5);
-        const tx = cosA - dzdlx * sinA;
-        const tz = sinA + dzdlx * cosA;
-        const nx = -tz, nz = tx;
-        rotY = Math.atan2(-nz, nx);
-        bLen = Math.max(7.2, widthFn(lx) * 2.85);
-      }
-      const bridge = buildArchedBridge3D({
+      const centerFn = rcfg.centerFn || ((u) => 5.5 * Math.sin(u * 0.085) + 2.0 * Math.sin(u * 0.021 + 1.3));
+      const widthFn = rcfg.widthFn || ((u) => 2.1 + 0.7 * Math.sin(u * 0.13 + 0.6));
+      const ang = Number(rcfg.angle || 0), off = Number(rcfg.offset || 0);
+      const cosA = Math.cos(ang), sinA = Math.sin(ang);
+      const lx = stageNo === 14 ? -4.2 : -6.2;
+      const lz = centerFn(lx) + off;
+      const bx = lx * cosA - lz * sinA, bz = lx * sinA + lz * cosA;
+      const dzdlx = centerFn(lx + 0.5) - centerFn(lx - 0.5);
+      const tx = cosA - dzdlx * sinA, tz = sinA + dzdlx * cosA;
+      const rotY = Math.atan2(-tx, -tz);
+      const bLen = Math.max(7.2, widthFn(lx) * 2.85);
+      registerLandmark(buildArchedBridge3D({
         length: bLen, width: 2.3, archH: 0.96,
         railHex: stageNo === 14 ? 0x623b84 : 0xa62a20
-      });
-      bridge.rotation.y = rotY;
-      registerLandmark(bridge, bx, bz, 3.6, 0);
-      placedPts.push({ x: bx, z: bz, r: 4.5 });
-    }
+      }), bx, bz, rotY, 3.6, 0, 5.0);
+    };
 
-    /* 5-c) 7장 고목 골: 자연 굴곡 굽은 고목 7그루를 넓은 여백으로 원형 배치 + 줄기 충돌 */
-    if (k === 'root' || stageNo === 7) {
-      for (let di = 0; di < 7; di++) {
-        const da = (di / 7) * Math.PI * 2 + 0.35;
-        const dr = 13.6 + (di % 2) * 1.6;
-        const dx = Math.cos(da) * dr, dz = Math.sin(da) * dr;
-        if (!canPlace(dx, dz, 4.6, 12.2)) continue;
-        const dtNode = buildGnarledDeadTree3D(rng, 0.95 + rng() * 0.35, 0x3b2c20);
-        dtNode.rotation.y = rng() * Math.PI * 2;
-        registerLandmark(dtNode, dx, dz, 1.85, 0.85);
-      }
-    }
-
-    /* 5-d) 성소·성채 스테이지 우상단 여백: 금줄 곡선 산문(Torii) 1기 (좌우 기둥만 충돌 등록) */
-    if ([2, 5, 6, 8, 9, 11, 13, 15, 16].includes(stageNo)) {
-      const toriiWood = [0x8f241c, 0x8f241c, 0x3a4d44, 0x8c1e1e, 0x3c2c52][actIdx] || 0x8f241c;
-      const ga = Math.PI * 1.44, gr = 14.0;
-      const gx = Math.cos(ga) * gr, gz = Math.sin(ga) * gr;
-      if (canPlace(gx, gz, 4.8, 12.6)) {
-        const span = 4.5;
-        const rotY = -ga + Math.PI * 0.5;
-        const torii = buildKasumideraTorii3D({ span, height: 4.0, woodHex: toriiWood });
-        torii.rotation.y = rotY;
-        registerLandmark(torii, gx, gz, 2.6, 0);
-        for (const s of [-1, 1]) {
-          addCollider(gx + Math.cos(rotY) * s * (span * 0.44), gz - Math.sin(rotY) * s * (span * 0.44), 0.52);
+    switch (stageNo) {
+      case 1:
+        /* 1장 잿빛 장터: 카스미데라 누각 1동 + 3d-cloth-material 드리핑 천막 좌판 3개 + 한지 금줄문 1 + 조각 석등 2 */
+        putStage(buildKasumideraGatehouse3D({ fortress: false, lacquerHex, glowHex: talismanGlow }), 0, 16.8, 0, 3.4, 2.4);
+        putStage(buildDrapedClothStall3D({ clothHex: 0x7c4632 }), -11.8, 6.2, 0.35, 1.8, 1.35);
+        putStage(buildDrapedClothStall3D({ clothHex: 0x455a66 }), 11.8, 5.2, -0.35, 1.8, 1.35);
+        putStage(buildDrapedClothStall3D({ clothHex: 0x8a6436 }), -9.8, -11.2, 2.55, 1.8, 1.35);
+        putTalismanGate(-7.2, 13.0, 0.25);
+        putLantern(-8.6, 10.6); putLantern(9.2, 10.2);
+        break;
+      case 2:
+        /* 2장 무너진 성문: 성문 1동 + 좌우 석재 성벽 2 + 금줄 홍살문 1 + 16-평면 파쇄 현무암 바위 4군락 + 석등 2 */
+        putStage(buildKasumideraGatehouse3D({ fortress: true, lacquerHex, glowHex: talismanGlow }), 0, 16.8, 0, 3.4, 2.4);
+        putStage(buildStoneFortressWall3D({ len: 5.4, bannerHex }), -10.4, 15.0, 0.16, 2.4, 2.1);
+        putStage(buildStoneFortressWall3D({ len: 5.4, bannerHex }), 10.4, 15.0, -0.16, 2.4, 2.1);
+        putTorii(9.2, 10.6, -0.35);
+        putRocks(-12.6, 4.2, 1.05); putRocks(12.6, 1.5, 1.05);
+        putRocks(-10.8, -10.8, 0.95); putRocks(10.8, -10.4, 0.95);
+        putLantern(-8.5, 11.2); putLantern(8.5, -11.8);
+        break;
+      case 3:
+        /* 3장 대숲: 외곽 청죽 군락 + 대숲 사당 정자 1 + 한지 금줄문 1 + 파쇄 바위 2 + 조각 석등 2 */
+        putStage(buildKasumideraPavilion3D({ lacquerHex: 0x5c3624, glowHex: 0x8ef2cc }), 7.8, 13.6, -0.30, 2.6, 1.9);
+        putTalismanGate(-7.6, 12.8, 0.28);
+        putRocks(-12.2, -5.2, 1.0); putRocks(12.0, -7.4, 0.95);
+        putLantern(-6.2, 11.4); putLantern(8.8, 8.6);
+        break;
+      case 4:
+        /* 4장 붉은 달: 카스미데라 정자 1 + 아치형 주홍 목교 1 + 금줄문 1 + 월석 비석 3 + 조각 석등 2 */
+        putStage(buildKasumideraPavilion3D({ lacquerHex, glowHex: talismanGlow }), -9.4, 13.4, 0.32, 2.6, 1.9);
+        putStage(buildArchedBridge3D({ length: 7.4, width: 2.3, archH: 0.92, railHex: 0xa62a20 }), 11.2, 2.0, -0.55, 3.4, 0);
+        putTalismanGate(-2.4, 13.6, 0.12);
+        putLantern(8.4, 11.4); putLantern(-10.6, -8.2);
+        break;
+      case 5:
+        /* 5장 안개 석탑: 중앙 4층 카스미데라 목탑 1 + 좌우 목탑 2 + 비취 금줄 산문 1 + 금줄문 1 + 석등 2 */
+        putStage(buildKasumideraPagoda3D({ scale: 1.04, lacquerHex: 0x7c2620, glowHex: 0x88f2ca }), 0, 15.8, 0, 3.2, 2.3);
+        putStage(buildKasumideraPagoda3D({ scale: 0.76, lacquerHex: 0x6e241e, glowHex: 0x88f2ca }), -13.6, 4.2, 0.4, 2.6, 1.8);
+        putStage(buildKasumideraPagoda3D({ scale: 0.76, lacquerHex: 0x6e241e, glowHex: 0x88f2ca }), 13.6, 4.2, -0.4, 2.6, 1.8);
+        putTorii(8.8, 11.2, -0.35);
+        putTalismanGate(-8.4, 11.6, 0.30);
+        putLantern(-7.4, -11.4); putLantern(7.4, -11.4);
+        break;
+      case 6:
+        /* 6장 눈보라 안마당: 설원 누각 1 + 좌우 정자 2 + 산문 1 + 조각 석등 2 */
+        putStage(buildKasumideraGatehouse3D({ fortress: false, lacquerHex: 0x5c2d28, tileHex: 0x45525e, glowHex: 0xbce6ff }), 0, 16.6, 0, 3.4, 2.4);
+        putStage(buildKasumideraPavilion3D({ lacquerHex: 0x5c2d28, tileHex: 0x45525e, glowHex: 0xbce6ff }), -12.8, 6.4, 0.4, 2.6, 1.9);
+        putStage(buildKasumideraPavilion3D({ lacquerHex: 0x5c2d28, tileHex: 0x45525e, glowHex: 0xbce6ff }), 12.8, -6.4, -0.4, 2.6, 1.9);
+        putTorii(9.0, 11.4, -0.35);
+        putLantern(-8.2, 10.8); putLantern(8.4, -11.4);
+        break;
+      case 7:
+        /* 7장 고목 골: 자연 굴곡 굽은 고목 7그루 + 한지 금줄문 1 + 조각 석등 2 */
+        for (let di = 0; di < 7; di++) {
+          const da = (di / 7) * Math.PI * 2 + 0.35, dr = 13.6 + (di % 2) * 1.6;
+          const dx = Math.cos(da) * dr, dz = Math.sin(da) * dr;
+          if (!canPlace(dx, dz, 4.6, 12.2)) continue;
+          registerLandmark(buildGnarledDeadTree3D(rng, 0.96 + rng() * 0.34, 0x3b2c20), dx, dz, rng() * Math.PI * 2, 1.85, 0.85, 4.4);
         }
-      }
-    }
-
-    /* 5-e) 조각 한지 석등 2기 (전투 구역 바깥 시선 유도 포인트 + 충돌 등록) */
-    if ([1, 2, 4, 5, 6, 8, 9, 11, 13, 15, 16].includes(stageNo)) {
-      const lAngles = [Math.PI * 0.82, Math.PI * 1.72];
-      for (let li = 0; li < lAngles.length; li++) {
-        const la = lAngles[li], lr = 12.6;
-        const lx = Math.cos(la) * lr, lz = Math.sin(la) * lr;
-        if (!canPlace(lx, lz, 4.0, 11.4)) continue;
-        const lantern = buildCarvedLantern3D({ glowHex: talismanGlow, scale: 0.96 });
-        registerLandmark(lantern, lx, lz, 1.15, 0.72);
-      }
-    }
-
-    /* 5-f) 16-평면 파쇄 현무암 바위 군락 2곳 (과밀 방지 + 충돌 등록) */
-    if ([2, 9, 12, 13, 15, 16].includes(stageNo)) {
-      const rHex = actIdx === 4 ? 0x2f293c : actIdx === 3 ? 0x3a2325 : 0x45413b;
-      const rAngles = [Math.PI * 0.16, Math.PI * 0.66];
-      for (let ri = 0; ri < rAngles.length; ri++) {
-        const ra = rAngles[ri], rr = 13.6;
-        const rx = Math.cos(ra) * rr, rz = Math.sin(ra) * rr;
-        if (!canPlace(rx, rz, 4.6, 12.2)) continue;
-        const rocks = buildFracturedBasaltRocks3D(rng, { rockHex: rHex, count: 3, scale: 0.96 + rng() * 0.2 });
-        registerLandmark(rocks, rx, rz, 1.9, 1.40);
-      }
+        putTalismanGate(-6.8, 12.6, 0.22);
+        putLantern(-10.2, 8.8); putLantern(10.2, -8.8);
+        break;
+      case 8:
+        /* 8장 사당 앞: 성소 대문 1 + 좌우 카스미데라 사당 2 + 금줄 산문 1 + 조각 석등 2 */
+        putStage(buildKasumideraGatehouse3D({ fortress: true, lacquerHex, glowHex: 0xffd27a }), 0, 16.6, 0, 3.4, 2.4);
+        putStage(buildKasumideraPavilion3D({ lacquerHex, glowHex: 0xffd27a }), -13.2, 5.2, 0.35, 2.6, 1.9);
+        putStage(buildKasumideraPavilion3D({ lacquerHex, glowHex: 0xffd27a }), 13.2, 5.2, -0.35, 2.6, 1.9);
+        putTorii(8.6, 11.6, -0.32);
+        putLantern(-8.8, -11.0); putLantern(8.8, -11.0);
+        break;
+      case 9:
+        /* 9장 혈석 제단: 카스미데라 사당 3 + 붉은 금줄 홍살문 1 + 16-평면 현무암 암봉 3 + 석등 2 */
+        putStage(buildKasumideraPavilion3D({ lacquerHex: 0x8a1c1c, glowHex: 0xff5a42 }), 0, 16.0, 0, 2.8, 2.0);
+        putStage(buildKasumideraPavilion3D({ lacquerHex: 0x8a1c1c, glowHex: 0xff5a42 }), -13.4, 3.6, 0.4, 2.6, 1.9);
+        putStage(buildKasumideraPavilion3D({ lacquerHex: 0x8a1c1c, glowHex: 0xff5a42 }), 13.4, 3.6, -0.4, 2.6, 1.9);
+        putTorii(8.8, 11.4, -0.36);
+        putCrag(-10.8, 11.8, 4.4); putCrag(-11.2, -11.4, 4.0); putCrag(11.2, -11.4, 4.2);
+        putLantern(-7.6, 11.2); putLantern(7.6, 11.2);
+        break;
+      case 10:
+        /* 10장 뼈의 강: 강 정중앙 수직 아치 목교 1 + 한지 금줄문 1 + 파쇄 현무암 바위 2 + 석등 2 */
+        putBridgeRiver();
+        putTalismanGate(-4.2, 13.2, 0.15);
+        putRocks(12.2, 5.8, 1.05); putRocks(-12.6, -6.2, 1.0);
+        putLantern(10.6, 10.2); putLantern(-10.8, -11.2);
+        break;
+      case 11:
+        /* 11장 혈월 성채: 성채 대문 1 + 좌우 성벽 2 + 주홍 금줄 홍살문 1 + 조각 석등 2 (+ 화로 4) */
+        putStage(buildKasumideraGatehouse3D({ fortress: true, lacquerHex: 0x8c1e1e, glowHex: 0xff7042 }), 0, 16.8, 0, 3.4, 2.4);
+        putStage(buildStoneFortressWall3D({ len: 5.8, bannerHex: 0x9c2020 }), -10.8, 14.8, 0.18, 2.4, 2.1);
+        putStage(buildStoneFortressWall3D({ len: 5.8, bannerHex: 0x9c2020 }), 10.8, 14.8, -0.18, 2.4, 2.1);
+        putTorii(8.6, 11.0, -0.35);
+        putTalismanGate(-8.0, 11.4, 0.30);
+        putLantern(-9.4, -10.6); putLantern(9.4, -10.6);
+        break;
+      case 12:
+        /* 12장 심연의 문: 6기 16-평면 현무암 암봉 원형 결계 + 북쪽 주홍 금줄 산문 + 파쇄 바위 2 + 석등 2 */
+        putTorii(0, 15.2, 0);
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2 + 0.52;
+          const cx = Math.cos(a) * 15.0, cz = Math.sin(a) * 15.0;
+          if (!canPlace(cx, cz, 4.6, 13.0)) continue;
+          registerLandmark(buildFracturedCragMonolith3D(rng, { rockHex, height: 4.0 + (i % 2) * 1.1 }), cx, cz, 0, 2.0, 1.5, 4.4);
+        }
+        putLantern(-8.8, 11.2); putLantern(8.8, 11.2);
+        break;
+      case 13:
+        /* 13장 붉은 회랑: 성소 대문 1 + 좌우 사당 2 + 암봉 2 + 조각 석등 2 (+ 붉은 회랑 기둥) */
+        putStage(buildKasumideraGatehouse3D({ fortress: true, lacquerHex: 0x7c1518, glowHex: 0xff5442 }), 0, 16.8, 0, 3.4, 2.4);
+        putStage(buildKasumideraPavilion3D({ lacquerHex: 0x7c1518, glowHex: 0xff5442 }), -13.6, 6.0, 0.35, 2.6, 1.9);
+        putStage(buildKasumideraPavilion3D({ lacquerHex: 0x7c1518, glowHex: 0xff5442 }), 13.6, 6.0, -0.35, 2.6, 1.9);
+        putCrag(-12.4, -10.2, 4.5); putCrag(12.4, -10.2, 4.5);
+        putLantern(-8.8, 11.6); putLantern(8.8, 11.6);
+        break;
+      case 14:
+        /* 14장 망각의 나루: 강 정중앙 자색 아치 목교 1 + 사당 2 + 파쇄 바위 2 + 석등 2 */
+        putBridgeRiver();
+        putStage(buildKasumideraPavilion3D({ lacquerHex: 0x4b2e64, tileHex: 0x202536, glowHex: 0x8fd8ff }), -13.2, 8.2, 0.35, 2.6, 1.9);
+        putStage(buildKasumideraPavilion3D({ lacquerHex: 0x4b2e64, tileHex: 0x202536, glowHex: 0x8fd8ff }), 13.2, -8.2, -0.35, 2.6, 1.9);
+        putRocks(11.8, 9.6, 1.0); putRocks(-11.8, -9.6, 1.0);
+        putLantern(-8.4, 12.2); putLantern(8.4, -12.2);
+        break;
+      case 15:
+        /* 15장 검은 누각: 자흑색 성채 대문 1 + 좌우 성벽 2 + 자색 금줄 산문 1 + 금줄문 1 + 석등 2 (+ 화로 4) */
+        putStage(buildKasumideraGatehouse3D({ fortress: true, lacquerHex: 0x3b2448, tileHex: 0x1c1a26, glowHex: 0xc29aff }), 0, 16.8, 0, 3.4, 2.4);
+        putStage(buildStoneFortressWall3D({ len: 5.8, stoneHex: 0x36323d, bannerHex: 0x562c70 }), -10.8, 14.8, 0.18, 2.4, 2.1);
+        putStage(buildStoneFortressWall3D({ len: 5.8, stoneHex: 0x36323d, bannerHex: 0x562c70 }), 10.8, 14.8, -0.18, 2.4, 2.1);
+        putTorii(8.6, 11.2, -0.35);
+        putTalismanGate(-8.2, 11.6, 0.28);
+        putLantern(-9.4, -10.6); putLantern(9.4, -10.6);
+        break;
+      case 16:
+      default:
+        /* 16장 심안의 끝: 자흑색 대문 1 + 자색 금줄 산문 1 + 한지 금줄문 1 + 16-평면 현무암 암봉 4 + 조각 석등 2 (+ 월석 비석 3) */
+        putStage(buildKasumideraGatehouse3D({ fortress: true, lacquerHex: 0x452852, tileHex: 0x1e1a28, glowHex: 0xffd278 }), 0, 16.8, 0, 3.4, 2.4);
+        putTorii(8.8, 11.4, -0.36);
+        putTalismanGate(-8.2, 11.8, 0.28);
+        putCrag(-13.6, 3.2, 4.6); putCrag(13.6, 3.2, 4.6);
+        putCrag(-11.4, -11.6, 4.2); putCrag(11.4, -11.6, 4.2);
+        putLantern(-9.6, 7.8); putLantern(9.6, 7.8);
+        break;
     }
   }
 

@@ -3961,13 +3961,8 @@ function syncGroundEffects() {
       three.terrain3d.syncPatches(layer.patches.list, kind === 'blood' ? T.stones : T.bells, S.elapsed);
     }
      for (const p of layer.patches.list) {
-      if (kind==='bamboo') {
-        for(let i=0;i<6;i++) {
-          const a=i*Math.PI/3+p.x*.13;
-          layer.put('loot',12+i%4,p.x+Math.cos(a)*p.r*.8,p.z+Math.sin(a)*p.r*.8,p.r*.83,p.r*.83,a);
-      }
-       }   else if ((kind === 'blood' || kind === 'bell') && three && three.terrain3d) {
-         /* 8장 종루 · 9/13장 혈석(무간의 회랑): 평면 2D 스프라이트 대신 3D 입체 종각·혈석 크리스탈로 대체 */
+      if ((kind === 'bamboo' || kind === 'rubble' || kind === 'blood' || kind === 'bell') && three && three.terrain3d) {
+        /* v0.65: 2장 잔해·3장 대숲·8장 종루·9/13장 혈석의 평면 2D 바닥 스티커를 제거하고 3D 입체 기물로 통일 */
       } else {
         const cell=kind==='rubble'?0:kind==='bell'?2:T.stones[p.key]>S.elapsed?4:3;
         layer.put('terrain',cell,p.x,p.z,p.r*2,p.r*2);
