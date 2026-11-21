@@ -75,6 +75,7 @@ import { createHudController } from './modules/hudController.js';
 import { createUiRouter } from './modules/uiRouter.js';
 import { syncSceneActTheme3D } from './modules/actTheme3d.js';
 import { createInkRiver3D } from './modules/inkWater3d.js';
+import { createInkTerrain3D } from './modules/inkTerrain3d.js';
 /* v0.39 1단계: 팔레트 토큰을 CSS 변수로 내린다(빌드 없이 단일 소스). */
 installCssVars();
 const hudCtrl = createHudController(document);
@@ -448,7 +449,11 @@ function terrainInit() {
   if (three && three.scene && S.terrain && S.terrain.kind === 'water') {
     try { three.river = createInkRiver3D(three.scene, { centerFn: tWaterCenter }); } catch (e) { three.river = null; }
   }
-  telemetry.event('stage_terrain', { stage: S.stageNo || 0, rule: S.terrain.kind });
+  if (three && three.terrain3d) { try { three.terrain3d.dispose(); } catch (e) {} three.terrain3d = null; }
+  if (three && three.scene && S.terrain && S.terrain.kind && S.terrain.kind !== 'none' && S.terrain.kind !== 'water') {
+    try { three.terrain3d = createInkTerrain3D(three.scene, S.terrain.kind, { stageNo: S.stageNo }); } catch (e) { three.terrain3d = null; }
+  }
+   telemetry.event('stage_terrain', { stage: S.stageNo || 0, rule: S.terrain.kind });
 }
 
 /* ---------- v0.34 §6.2 장마다 부목표 ----------
@@ -1101,7 +1106,8 @@ function quitRun() {
   hideGuide();
   hideOvs();
   if (three && three.river) { try { three.river.dispose(); } catch (e) {} three.river = null; }
-  clearEntities();
+  if (three && three.terrain3d) { try { three.terrain3d.dispose(); } catch (e) {} three.terrain3d = null; }
+   clearEntities();
   closeArena(true);
   S = null;
   if (audio) { if (audio.setBossMode) audio.setBossMode(false); audio.stopBgm(); }
@@ -9815,7 +9821,8 @@ function loop(ts) {
     stepArena(raw);
     if (three.map && three.map.update) three.map.update(raw, ts * 0.001);
     if (three.river && typeof three.river.update === 'function') three.river.update(raw);
-    if (three.atmo) {
+    if (three.terrain3d && typeof three.terrain3d.update === 'function') three.terrain3d.update(raw);
+     if (three.atmo) {
       if (S && S.hero) {
         three.atmo.setCenter(S.cam.x, 6, S.cam.z);
         three.atmo.update(raw);
