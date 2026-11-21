@@ -65,3 +65,20 @@ h1, h2, h3, #timer, #titleName, #bossCardName, #resultTitle { font-family: var(-
 #btnMute:not(.off):not([data-sound="off"]) { color: #84f2d6 !important; border-color: #84f2d6 !important; box-shadow: 0 0 12px rgba(91,232,196,0.3); }
 .title-foot { display: grid !important; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px !important; }
 @media (max-height: 680px), (max-width: 390px) { .title-card { padding: 12px 14px !important; gap: 6px !important; } .title-card .seal { width: 40px !important; height: 40px !important; } .title-card h1#titleName { font-size: 42px !important; } }
+#guide, #toast {
+  position: fixed !important; top: calc(88px + env(safe-area-inset-top, 0px)) !important; bottom: auto !important;
+  left: 50% !important; right: auto !important; transform: translateX(-50%) !important;
+  width: fit-content !important; max-width: min(92vw, 460px) !important; text-align: center !important;
+  word-break: keep-all !important; overflow-wrap: break-word !important; line-height: 1.42 !important; z-index: 18 !important;
+}
+#toast { top: calc(134px + env(safe-area-inset-top, 0px)) !important; z-index: 19 !important; }
+#judgeFlash {
+  position: fixed !important; top: 23% !important; bottom: auto !important; left: 50% !important; right: auto !important;
+  transform: translateX(-50%) !important; width: max-content !important; max-width: 88vw !important; padding: 5px 18px !important;
+  font-family: var(--font-display) !important; font-size: clamp(18px, 3vw, 24px) !important; line-height: 1.25 !important;
+  letter-spacing: 0.06em !important; text-align: center !important; white-space: nowrap !important; word-break: keep-all !important;
+  color: #fff6e4 !important; background: linear-gradient(90deg, rgba(16,12,10,0) 0%, rgba(18,13,10,0.86) 18%, rgba(18,13,10,0.86) 82%, rgba(16,12,10,0) 100%) !important;
+  border-top: 1px solid rgba(217,185,126,0.45) !important; border-bottom: 1px solid rgba(217,185,126,0.45) !important;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.9) !important; pointer-events: none !important; z-index: 20 !important;
+}
+#bossCard { top: 32% !important; }
