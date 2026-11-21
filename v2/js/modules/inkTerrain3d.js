@@ -8,6 +8,7 @@
  * - LatheGeometry 조선 범종 실루엣 + 4막 13~16장 전용 고밀도 3D 환경 + 최소 이격 거리(뭉침 방지)
  */
 import * as THREE from 'three';
+import { WF } from '../cardstock.js';
 
 const MIST_VERT = /* glsl */`
 varying vec2 vUv; varying vec3 vWp;
@@ -130,6 +131,7 @@ varying vec2 vUv;
 varying float vWave;
 varying vec3 vNormalW;
 varying vec3 vViewW;
+varying vec3 vWorldP;
 void main() {
   vUv = uv;
   vec3 pos = position;
@@ -152,6 +154,7 @@ void main() {
     wp = instanceMatrix * wp;
   #endif
   wp = modelMatrix * wp;
+  vWorldP = wp.xyz;
   vNormalW = normalize(vec3(-bend * 0.7, 0.15, 1.0));
   vViewW = normalize(cameraPosition - wp.xyz);
   gl_Position = projectionMatrix * viewMatrix * wp;
@@ -161,10 +164,26 @@ const CLOTH_FLAG_FRAG = /* glsl */`
 uniform vec3 uDyeCol;
 uniform vec3 uTrimCol;
 uniform vec3 uLightCol;
+uniform vec3 uWfHero;
+uniform vec4 uWfRange;
+uniform vec4 uWfAmt;
+uniform vec3 uWfColor;
+uniform vec3 uWfDirK;
 varying vec2 vUv;
 varying float vWave;
 varying vec3 vNormalW;
 varying vec3 vViewW;
+varying vec3 vWorldP;
+float simanFade(vec3 p) {
+  if (uWfAmt.w < 0.5) return 0.0;
+  vec2 rel = p.xz - uWfHero.xz;
+  vec2 fw = uWfDirK.xy;
+  vec2 rt = vec2(fw.y, -fw.x);
+  float d = length(vec2(dot(rel, rt), dot(rel, fw) * uWfDirK.z));
+  float nearF = smoothstep(uWfRange.x, uWfRange.y, d) * uWfAmt.x;
+  float farF = smoothstep(uWfRange.y, max(uWfRange.z, uWfRange.y + 0.1), d) * max(0.0, uWfAmt.y - uWfAmt.x);
+  return clamp(nearF + farF, 0.0, 1.0) * 0.86;
+}
 void main() {
   /* 깃발 끝자락 자연스러운 뾰족/제비꼬리 실루엣 */
   float swallow = abs(vUv.y - 0.5) * 2.0;
@@ -182,6 +201,7 @@ void main() {
   float d = length((vUv - vec2(0.42, 0.5)) * vec2(1.4, 1.0));
   float seal = smoothstep(0.22, 0.19, d) * smoothstep(0.11, 0.14, d);
   col = mix(col, uTrimCol * 1.15, seal * 0.55);
+  col = mix(col, uWfColor, simanFade(vWorldP));
   gl_FragColor = vec4(col, 0.96);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -217,6 +237,7 @@ varying vec3 vNormalW;
 varying vec3 vViewW;
 varying vec3 vLocalP;
 varying vec3 vTint;
+varying vec3 vWorldP;
 void main() {
   vLocalP = position;
   vec3 pos = position;
@@ -241,6 +262,7 @@ void main() {
     wn = mat3(instanceMatrix) * wn;
   #endif
   wp = modelMatrix * wp;
+  vWorldP = wp.xyz;
   vNormalW = normalize(mat3(modelMatrix) * wn);
   vViewW = normalize(cameraPosition - wp.xyz);
   gl_Position = projectionMatrix * viewMatrix * wp;
@@ -250,10 +272,16 @@ const FOLIAGE_FRAG = /* glsl */`
 uniform vec3 uBaseCol;
 uniform vec3 uShadowCol;
 uniform vec3 uKeyDir;
+uniform vec3 uWfHero;
+uniform vec4 uWfRange;
+uniform vec4 uWfAmt;
+uniform vec3 uWfColor;
+uniform vec3 uWfDirK;
 varying vec3 vNormalW;
 varying vec3 vViewW;
 varying vec3 vLocalP;
 varying vec3 vTint;
+varying vec3 vWorldP;
 float fHash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
 float fNoise(vec3 p) {
   vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -262,6 +290,16 @@ float fNoise(vec3 p) {
   float c = mix(fHash(i + vec3(0,0,1)), fHash(i + vec3(1,0,1)), f.x);
   float d = mix(fHash(i + vec3(0,1,1)), fHash(i + vec3(1,1,1)), f.x);
   return mix(mix(a, b, f.y), mix(c, d, f.y), f.z);
+}
+float simanFadeF(vec3 p) {
+  if (uWfAmt.w < 0.5) return 0.0;
+  vec2 rel = p.xz - uWfHero.xz;
+  vec2 fw = uWfDirK.xy;
+  vec2 rt = vec2(fw.y, -fw.x);
+  float d = length(vec2(dot(rel, rt), dot(rel, fw) * uWfDirK.z));
+  float nearF = smoothstep(uWfRange.x, uWfRange.y, d) * uWfAmt.x;
+  float farF = smoothstep(uWfRange.y, max(uWfRange.z, uWfRange.y + 0.1), d) * max(0.0, uWfAmt.y - uWfAmt.x);
+  return clamp(nearF + farF, 0.0, 1.0) * 0.86;
 }
 void main() {
   vec3 N = normalize(vNormalW);
@@ -276,6 +314,7 @@ void main() {
   /* 산수화 은은한 먹선 윤곽 */
   float rim = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 2.8);
   col = mix(col, uShadowCol * 0.48, rim * 0.52);
+  col = mix(col, uWfColor, simanFadeF(vWorldP));
   gl_FragColor = vec4(col, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -813,10 +852,10 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     /* 1) 2겹 산수화 원경 산맥 실루엣 링 (부드러운 붓번짐·안개 그라데이션) */
     const mountainPal = [
       null,
-      { near: 0x3b352d, far: 0x5c5345, mist: 0xc2b69c }, // 1막: 따뜻한 한지 산수
-      { near: 0x263a37, far: 0x3f5b56, mist: 0x9ebbb4 }, // 2막: 비취 안개 계곡
-      { near: 0x3d2428, far: 0x5c373b, mist: 0xb88b82 }, // 3막: 혈월 황혼 산맥
-      { near: 0x2c283e, far: 0x474263, mist: 0xaab4cf }  // 4막: 설산·심연 능선
+      { near: 0x1e1a16, far: 0x2d2720, mist: 0x161311 }, // 1막: 심안 달빛 먹산
+      { near: 0x13201e, far: 0x1f3330, mist: 0x0e1817 }, // 2막: 대숲 밤안개 산맥
+      { near: 0x241316, far: 0x361d21, mist: 0x190d0f }, // 3막: 혈월 야산
+      { near: 0x191626, far: 0x29243d, mist: 0x120e1c }  // 4막: 심연 능선
     ][actIdx];
 
     const buildMountainRing = (radius, segs, baseH, amp1, amp2, seedOff, peakCol, mistCol, alpha) => {
@@ -883,6 +922,7 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
         uDyeCol: { value: new THREE.Color(flagDye) },
         uTrimCol: { value: new THREE.Color(0xe6c278) },
         uLightCol: { value: new THREE.Color(0xffe6b8) },
+        uWfHero: WF.uWfHero, uWfRange: WF.uWfRange, uWfAmt: WF.uWfAmt, uWfColor: WF.uWfColor, uWfDirK: WF.uWfDirK,
       },
     });
     shaderMats.push(flagMat);
@@ -927,6 +967,7 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
         uBaseCol: { value: new THREE.Color(canopyPal.base) },
         uShadowCol: { value: new THREE.Color(canopyPal.shadow) },
         uKeyDir: { value: new THREE.Vector3(-0.45, 0.82, 0.36).normalize() },
+        uWfHero: WF.uWfHero, uWfRange: WF.uWfRange, uWfAmt: WF.uWfAmt, uWfColor: WF.uWfColor, uWfDirK: WF.uWfDirK,
       },
     });
     shaderMats.push(canopyMat);

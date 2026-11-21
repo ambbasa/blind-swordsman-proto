@@ -1394,7 +1394,7 @@ async function makeWorld() {
 }
 
 /* 후처리 fade 소스: cardstock 의 공유 uniform 을 그대로 읽고, 화면 좌표만 여기서 더한다. */
-const WF_POST = { uWfHero: WF.uWfHero, uWfRange: WF.uWfRange, uWfAmt: WF.uWfAmt, uWfColor: WF.uWfColor, uWfDirK: WF.uWfDirK, heroScreen: new THREE.Vector2(0.5, 0.5), post: 0.16 };
+const WF_POST = { uWfHero: WF.uWfHero, uWfRange: WF.uWfRange, uWfAmt: WF.uWfAmt, uWfColor: WF.uWfColor, uWfDirK: WF.uWfDirK, heroScreen: new THREE.Vector2(0.5, 0.5), post: 0.50 };
 /* 품질 변경으로 포스트 체인이 다시 만들어져도 안개 소스를 다시 묶는다(새 패스는 소스가 없다). */
 function wireFadeSource() {
   try {
@@ -9838,7 +9838,7 @@ function syncWorldFade() {
     if (Math.hypot(fx, fz) < 1e-4) { fx = 0; fz = -1; }
   }
   updateWorldFade(arenaActive()?S.arena:hero, arenaActive()?arenaR()*1.65:R, (S && S.fogPulse) || 0, 12.5, qaFadeColor ? '#00ff00' : fogRgb(), qaFadeMat > 0, fx, fz);
-  WF_POST.post = arenaActive() ? 0 : 0.16 * qaFadePostK;
+  WF_POST.post = arenaActive() ? 0 : 0.50 * qaFadePostK;
   const hs = heroScreen();
   WF_POST.heroScreen.set(hs.x, hs.y);
   return hs;
