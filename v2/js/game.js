@@ -2950,7 +2950,7 @@ function refreshTitleHelp() {
   try { renderChallenges(); } catch (e) {}
   /* 마지막에 깨운 스테이지가 이미 깨졌으면 새로 열린 장을 기본 선택으로 보여 준다. */
   if (titleSel == null) titleSel = clamp(save.stage || 1, 1, STAGES.length);
-  else if (((save.stars || {})[titleSel] || 0) > 0 && (save.stage || 1) > titleSel) titleSel = clamp(save.stage, 1, STAGES.length);
+  else titleSel = clamp(titleSel, 1, unlockedMax());
   const el = $('titleShapes') || document.querySelector('.shapes-help');
   const sel = clamp((titleSel != null ? titleSel : (save.stage || 1)) | 0, 1, STAGES.length);
   const st = stageOf(sel);
