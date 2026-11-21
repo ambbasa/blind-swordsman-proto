@@ -73,14 +73,14 @@ const dmg = computeDashDmg({ baseDashDmg: 2.5, combo: 10, atkLv: 5, bloodRelicAc
 assert.ok(Math.abs(dmg - 5.6875) < 1e-9);
 
 /* 4. 3막 12장 스테이지 무결성 검증 */
-assert.equal(STAGES.length, 12);
-assert.deepEqual(Object.keys(ACT_NAMES), ['1', '2', '3']);
-assert.deepEqual(Object.keys(HANJI_TONE), ['1', '2', '3']);
+assert.equal(STAGES.length, 16);
+assert.deepEqual(Object.keys(ACT_NAMES), ['1', '2', '3', '4']);
+assert.deepEqual(Object.keys(HANJI_TONE), ['1', '2', '3', '4']);
 assert.equal(actOf(1), 1);
 assert.equal(actOf(5), 2);
 assert.equal(actOf(12), 3);
 assert.equal(stageOf(0).id, 1);
-assert.equal(stageOf(99).id, 12);
+assert.equal(stageOf(99).id, 16);
 STAGES.forEach((st, i) => {
   assert.equal(st.id, i + 1);
   assert.equal(st.act, actOf(st.id));
