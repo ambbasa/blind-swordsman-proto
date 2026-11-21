@@ -187,8 +187,9 @@
   transition: opacity 0.2s ease, visibility 0.2s ease;
 }
 
-#stageLabel { color: var(--chapter-accent); font-weight: 700; }
-#comboLabel { color: var(--v49-jade-text); font-variant-numeric: tabular-nums; font-weight: 700; }
+/* style.css의 `#hud #stageLabel`·`#hud #comboLabel`(id 2개)보다 뒤에 오도록 같은 특이도로 맞춘다. */
+#hud #stageLabel { color: var(--chapter-accent); font-weight: 700; }
+#hud #comboLabel { color: var(--v49-jade-text); font-variant-numeric: tabular-nums; font-weight: 700; }
 
 #chargeWrap.full {
   border-color: var(--v49-jade) !important;
