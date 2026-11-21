@@ -22,7 +22,7 @@ export const WF = {
   uWfColor: { value: new THREE.Color(0.01, 0.009, 0.009) },
   /* 화면 위쪽(멀어지는) 방향 xz 와 앞뒤 압축 계수. 원근 카메라에서는 월드 원이 화면 타원보다
      위로 길게 투영되므로, 예전 2D 안개의 '화면 타원' 감성을 유지하려면 앞뒤 거리를 덜 잰다. */
-  uWfDirK: { value: new THREE.Vector3(0, -1, 0.70) },
+  uWfDirK: { value: new THREE.Vector3(0, -1, 1.18) },
   uWfDbg: { value: 0 }
 };
 
