@@ -78,12 +78,9 @@ const VERT = [
 
 /* 주인공 프래그먼트에 개체별 tint(uTint)와 투명도(uAlpha)만 얹는다 — 나머지는 글자 하나 안 바뀐다.
    v0.47의 한지·먹결 텍스처 샘플링은 주인공 셰이더에 이미 들어 있어 이대로 따라온다. */
-const FRAG = B.FRAG
-  .replace('uniform float uRim, uWash, uGrain;', 'uniform float uRim, uWash, uGrain;\nuniform vec3 uTint;\nuniform float uAlpha;')
-  /* 테는 '가장자리 선'이어야 한다 — 몬스터는 정예 금테·예고 붉은 테를 자주 켜므로
-     주인공(4제곱)보다 좁은 5제곱으로 좁히고 세기도 절반으로 줄인다. */
-  .replace('float fres = pow(1.0 - clamp(dot(N, normalize(vV)), 0.0, 1.0), 4.0);',
-           'float fres = pow(1.0 - clamp(dot(N, normalize(vV)), 0.0, 1.0), 5.0) * 0.22;')
+const FRAG = ('uniform vec3 uTint;\nuniform float uAlpha;\n' + B.FRAG)
+  .replace(/float fres = pow\(1\.0 - clamp\(dot\(N,[^;]+;/,
+           'float fres = pow(1.0 - clamp(dot(N, normalize(vV)), 0.0, 1.0), 4.5) * 0.45;')
   .replace('vec3 col = vAlb * light * wash * grain;', 'vec3 col = vAlb * uTint * light * wash * grain;')
   .replace('gl_FragColor = vec4(max(col, vec3(0.0)), 1.0);', 'gl_FragColor = vec4(max(col, vec3(0.0)), uAlpha);');
 
