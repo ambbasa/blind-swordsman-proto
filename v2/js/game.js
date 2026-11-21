@@ -396,13 +396,43 @@ function tRootAt(x, z) {
   return null;
 }
 /* 물길: 마른 강바닥이 사인 곡선으로 지나간다(길이 −30% · 물 위 원귀 느림) */
-function tWaterCenter(x) { return 5.5 * Math.sin(x * 0.085) + 2.0 * Math.sin(x * 0.021 + 1.3); }
-function tWaterAt(x, z) {
-  const c = tWaterCenter(x);
-  const w = 2.1 + 0.7 * Math.sin(x * 0.13 + 0.6);
-  return Math.abs(z - c) <= w ? { x: x, z: c, r: w, key: 'river' } : null;
+/* 물길: 10장 '뼈의 강'과 14장 '망각의 나루'가 서로 다른 각도·위치·곡선으로 흐른다 */
+function getRiverCfg(stageId) {
+  if (stageId === 14) {
+    return {
+      angle: -Math.PI * 0.36,
+      offset: -3.6,
+      flowDir: -1,
+      centerFn: (u) => -4.2 * Math.cos(u * 0.095 + 0.7) + 1.8 * Math.sin(u * 0.045),
+      widthFn: (u) => 2.25 + 0.65 * Math.cos(u * 0.11),
+      deepCol: 0x090b18, shallowCol: 0x24334a, foamCol: 0xb6c7d9, moonCol: 0xc2d8ff
+    };
+  }
+  return {
+    angle: 0,
+    offset: 0,
+    flowDir: 1,
+    centerFn: (u) => 5.5 * Math.sin(u * 0.085) + 2.0 * Math.sin(u * 0.021 + 1.3),
+    widthFn: (u) => 2.1 + 0.7 * Math.sin(u * 0.13 + 0.6),
+    deepCol: 0x0b1a1f, shallowCol: 0x2d484b, foamCol: 0xd9ceb8, moonCol: 0xf0dec2
+  };
 }
-/* 그 자리의 지형 — 없으면 null */
+function tWaterCenter(x, st) {
+  const sid = (st && st.id) || (S && S.stage && S.stage.id) || 10;
+  const cfg = getRiverCfg(sid);
+  return cfg.centerFn(x) + cfg.offset;
+}
+function tWaterAt(x, z, st) {
+  const sid = (st && st.id) || (S && S.stage && S.stage.id) || 10;
+  const cfg = getRiverCfg(sid);
+  const cosA = Math.cos(-cfg.angle), sinA = Math.sin(-cfg.angle);
+  const lx = x * cosA - z * sinA;
+  const lz = x * sinA + z * cosA;
+  const c = cfg.centerFn(lx) + cfg.offset;
+  const w = cfg.widthFn(lx);
+  return Math.abs(lz - c) <= w ? { x: x, z: z, r: w, key: 'river' } : null;
+}
+/*그 자리의 지형 — 없으면 null */
 function zoneAt(x, z, st) {
   const stage = st || (S && S.stage) || null;
   const T = stage && stage.terrain;
@@ -427,7 +457,7 @@ function zoneAt(x, z, st) {
     if ((st2[p.key] || 0) > (S ? S.elapsed : 0)) return null;
     return { kind: 'blood', x: p.x, z: p.z, r: p.r, key: p.key };
   }
-  if (T.kind === 'water') { const p = tWaterAt(x, z); return p ? Object.assign({ kind: 'water' }, p) : null; }
+  if (T.kind === 'water') { const p = tWaterAt(x, z, stage); return p ? Object.assign({ kind: 'water' }, p) : null; }
   return null;
 }
 function tSegZone(from, to, st) {
@@ -446,12 +476,13 @@ function terrainInit() {
     revealT: 0, bells: {}, stones: {}, wallT: 0, volleyOn: false, volleyHp: 0
   };
   if (three && three.river) { try { three.river.dispose(); } catch (e) {} three.river = null; }
-  if (three && three.scene && S.terrain && S.terrain.kind === 'water') {
-    try { three.river = createInkRiver3D(three.scene, { centerFn: tWaterCenter }); } catch (e) { three.river = null; }
+  const rCfg = (S.terrain && S.terrain.kind === 'water') ? getRiverCfg(S.stageNo) : null;
+   if (three && three.scene && rCfg) {
+    try { three.river = createInkRiver3D(three.scene, rCfg); } catch (e) { three.river = null; }
   }
   if (three && three.terrain3d) { try { three.terrain3d.dispose(); } catch (e) {} three.terrain3d = null; }
   if (three && three.scene && S.terrain) {
-    try { three.terrain3d = createInkTerrain3D(three.scene, S.terrain.kind, { stageNo: S.stageNo }); } catch (e) { three.terrain3d = null; }
+    try { three.terrain3d = createInkTerrain3D(three.scene, S.terrain.kind, { stageNo: S.stageNo, riverCfg: rCfg }); } catch (e) { three.terrain3d = null; }
   }
    telemetry.event('stage_terrain', { stage: S.stageNo || 0, rule: S.terrain.kind });
 }
@@ -668,7 +699,8 @@ function onDashPath(from, to) {
       T.revealT = C.bell.reveal;
       const n = tcount('bell');
       tFire('bell', { reveal: C.bell.reveal, n: n });
-      inkFx.ring(3.2, FX_COLORS.gold, 0.5);
+      if (three && three.terrain3d && typeof three.terrain3d.triggerBellWave === 'function') three.terrain3d.triggerBellWave(p.x, p.z);
+      else inkFx.ring(3.2, FX_COLORS.gold, 0.5);
       if (audio && audio.gong) audio.gong(); else if (audio && audio.bell) audio.bell(0, 'hline');
       showJudge('종이 울린다 — 2초');
     });
@@ -3877,12 +3909,17 @@ function syncGroundEffects() {
     if (!cached || cached.kind !== kind || cached.radius !== R || Math.hypot(hx-cached.x,hz-cached.z) > .5) {
       layer.patches = {kind, radius:R, x:hx, z:hz, list:tPatchesNear(hx,hz,R+.5,...PATCH_SPECS[kind])};
     }
-    for (const p of layer.patches.list) {
+    if ((kind === 'blood' || kind === 'bell') && three && three.terrain3d && typeof three.terrain3d.syncPatches === 'function') {
+      three.terrain3d.syncPatches(layer.patches.list, kind === 'blood' ? T.stones : T.bells, S.elapsed);
+    }
+     for (const p of layer.patches.list) {
       if (kind==='bamboo') {
         for(let i=0;i<6;i++) {
           const a=i*Math.PI/3+p.x*.13;
           layer.put('loot',12+i%4,p.x+Math.cos(a)*p.r*.8,p.z+Math.sin(a)*p.r*.8,p.r*.83,p.r*.83,a);
-        }
+      } else if ((kind === 'blood' || kind === 'bell') && three && three.terrain3d) {
+         /* 8장 종루 · 9/13장 혈석(무간의 회랑): 평면 2D 스프라이트 대신 3D 입체 종각·혈석 크리스탈로 대체 */
+      }
       } else {
         const cell=kind==='rubble'?0:kind==='bell'?2:T.stones[p.key]>S.elapsed?4:3;
         layer.put('terrain',cell,p.x,p.z,p.r*2,p.r*2);
