@@ -469,6 +469,19 @@ function tSegZone(from, to, st) {
   }
   return null;
 }
+function rebuildTerrain3D() {
+  if (!S || !three || !three.scene || !S.terrain) return;
+  const rCfg = (S.terrain && S.terrain.kind === 'water') ? getRiverCfg(S.stageNo) : null;
+  const arenaProps = (three.chunks && three.chunks.arena && three.chunks.arena.props) || [];
+  if (three.terrain3d) { try { three.terrain3d.dispose(); } catch (e) {} three.terrain3d = null; }
+  try {
+    three.terrain3d = createInkTerrain3D(three.scene, S.terrain.kind, {
+      stageNo: S.stageNo,
+      riverCfg: rCfg,
+      arenaProps: arenaProps
+    });
+  } catch (e) { three.terrain3d = null; }
+}
 function terrainInit() {
   if (!S) return;
   S.terrain = {
@@ -478,14 +491,11 @@ function terrainInit() {
   };
   if (three && three.river) { try { three.river.dispose(); } catch (e) {} three.river = null; }
   const rCfg = (S.terrain && S.terrain.kind === 'water') ? getRiverCfg(S.stageNo) : null;
-   if (three && three.scene && rCfg) {
+  if (three && three.scene && rCfg) {
     try { three.river = createInkRiver3D(three.scene, rCfg); } catch (e) { three.river = null; }
   }
-  if (three && three.terrain3d) { try { three.terrain3d.dispose(); } catch (e) {} three.terrain3d = null; }
-  if (three && three.scene && S.terrain) {
-    try { three.terrain3d = createInkTerrain3D(three.scene, S.terrain.kind, { stageNo: S.stageNo, riverCfg: rCfg }); } catch (e) { three.terrain3d = null; }
-  }
-   telemetry.event('stage_terrain', { stage: S.stageNo || 0, rule: S.terrain.kind });
+  rebuildTerrain3D();
+  telemetry.event('stage_terrain', { stage: S.stageNo || 0, rule: S.terrain.kind });
 }
 
 /* ---------- v0.34 §6.2 장마다 부목표 ----------
@@ -1954,7 +1964,11 @@ function startRun(opts) {
     appEl.style.removeProperty('--hero-y');
     clearOnebell(true);
   }
-  if (three && three.map && (three.map.id !== S.mapId || three.map.stageId !== S.mapStage)) switchMap(S.mapId, S.mapStage);
+  if (three && three.map && (three.map.id !== S.mapId || three.map.stageId !== S.mapStage)) {
+    switchMap(S.mapId, S.mapStage);
+    /* v0.64: 새 스테이지의 arena.props 확정 직후 terrain3d를 재빌드해 중복·겹침을 완전 차단 */
+    rebuildTerrain3D();
+  }
   else applyFxinkAtmo(S.mapId);
   if (three && three.atmo) three.atmo.setCenter(0, 6, 0);
   applyStageAtmo(st);
@@ -2245,7 +2259,10 @@ function seedOpeningSpirits() {
   livingMarks().forEach(function (s) { destroySpirit(s); });
   if (cap === 1) {
     const near = nearestTo(zs, S.hero);
-    if (near) spawnSpirit({ x: near.x, z: near.z, target: near });
+    if (near) {
+      const sp = spawnSpirit({ x: near.x, z: near.z, target: near });
+      if (sp) { sp.age = CFG.spiritFadeIn || 0.4; setSpiritAlpha(sp); }
+    }
     return;
   }
   const sorted = zs.map(function (z) { return { z: z, a: angNorm(angleOf(z.x, z.z, S.hero)) }; });
@@ -2253,7 +2270,8 @@ function seedOpeningSpirits() {
   const step = sorted.length / cap;
   for (let i = 0; i < cap; i++) {
     const pick = sorted[Math.floor(i * step) % sorted.length];
-    spawnSpirit({ x: pick.z.x, z: pick.z.z, target: pick.z });
+    const sp = spawnSpirit({ x: pick.z.x, z: pick.z.z, target: pick.z });
+    if (sp) { sp.age = CFG.spiritFadeIn || 0.4; setSpiritAlpha(sp); }
   }
 }
 /* 혼령을 놓아준다: 대상 사망이 아니라 거리·화면 조건으로 회수될 때. 요령 소리가 짧게 끊긴다. */
@@ -3292,10 +3310,28 @@ function threatScore(s, from) {
   if (s.hp != null && s.hp <= (S ? dashDmg() : 2.5)) k += 8;
   return k;
 }
+/* v0.64: 화면에 제스처 표시(혼령)가 실제로 나타난 대상만 일섬으로 잡는다.
+   방금 스폰돼 투명도 0이거나(age < 0.14) 화면 밖/심안 암흑 너머에 숨은 대상에 연속 일섬이 발동하는 버그 차단 */
+function isSpiritVisibleForDash(s) {
+  if (!s || !s.alive) return false;
+  if (qa.noDelay) return true;
+  if (s.obj && s.obj.visible === false) return false;
+  const isBossOrTotem = !!(s.isBoss || (s.target && (s.target.isBoss || s.target.isTotem)));
+  if (isBossOrTotem) return true;
+  if (!isOnScreen(s, 14)) return false;
+  if ((s.age || 0) < 0.14) return false;
+  if (S && S.hero && !arenaActive()) {
+    const tgt = (s.target && s.target.alive) ? s.target : s;
+    if (dist(tgt, S.hero) > ringR() * 1.18) return false;
+  }
+  return true;
+}
 function pickSpirits(shape, n, from, dir, exclude) {
   from = from || (S && S.hero);
   const skip = exclude || [];
-  const list = livingMarks().filter(function (s) { return spiritShape(s) === shape && skip.indexOf(s) < 0; });
+  const list = livingMarks().filter(function (s) {
+    return spiritShape(s) === shape && skip.indexOf(s) < 0 && isSpiritVisibleForDash(s);
+  });
   const boss = list.filter(function (s) { return s.isBoss; });
   let rest = list.filter(function (s) { return !s.isBoss; });
   const on = rest.filter(function (s) { return isOnScreen(s, 20); });
@@ -3329,7 +3365,7 @@ function pickSpirits(shape, n, from, dir, exclude) {
     return copy;
   }
   rest = sortRest(rest);
-  if (rest.length < n && off.length) rest = rest.concat(sortRest(off));
+  if (qa.noDelay && rest.length < n && off.length) rest = rest.concat(sortRest(off));
   return boss.concat(rest).slice(0, Math.max(0, n));
 }
 function spiritShape(s) {
@@ -4572,12 +4608,68 @@ function worldBounds() {
   const b = three && three.chunks && three.chunks.bounds;
   return (b && b.r > 0) ? b : null;
 }
+/* v0.64: 지형지물(arena.props + terrain3d.colliders) 충돌 해소 — 주인공·몬스터가 기물을 뚫고 지나가지 않도록 부드럽게 밀어냄 */
+function resolvePropCollision(x, z, entityR) {
+  const er = entityR == null ? 0.55 : entityR;
+  let px = x, pz = z;
+  const arenaProps = (three && three.chunks && three.chunks.arena && three.chunks.arena.props) || null;
+  const tCols = (three && three.terrain3d && three.terrain3d.colliders) || null;
+  if (!arenaProps && !tCols) return { x: px, z: pz };
+  for (let pass = 0; pass < 2; pass++) {
+    if (arenaProps) {
+      for (let i = 0; i < arenaProps.length; i++) {
+        const p = arenaProps[i];
+        if (!p) continue;
+        const pr = p.cr != null ? p.cr : Math.min(2.0, Math.max(0.7, (p.r || 1.5) * 0.55));
+        const minD = pr + er;
+        const dx = px - p.x, dz = pz - p.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < minD * minD) {
+          const d = Math.sqrt(d2);
+          if (d > 1e-4) {
+            px = p.x + (dx / d) * minD;
+            pz = p.z + (dz / d) * minD;
+          } else {
+            const ang = Math.atan2(-p.z, -p.x);
+            px = p.x + Math.cos(ang) * minD;
+            pz = p.z + Math.sin(ang) * minD;
+          }
+        }
+      }
+    }
+    if (tCols) {
+      for (let i = 0; i < tCols.length; i++) {
+        const p = tCols[i];
+        if (!p) continue;
+        const minD = (p.r || 0.7) + er;
+        const dx = px - p.x, dz = pz - p.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < minD * minD) {
+          const d = Math.sqrt(d2);
+          if (d > 1e-4) {
+            px = p.x + (dx / d) * minD;
+            pz = p.z + (dz / d) * minD;
+          } else {
+            const ang = Math.atan2(-p.z, -p.x);
+            px = p.x + Math.cos(ang) * minD;
+            pz = p.z + Math.sin(ang) * minD;
+          }
+        }
+      }
+    }
+  }
+  return { x: px, z: pz };
+}
 function clipWorld(p, pad) {
   const b = worldBounds();
-  if (!b) return { x: p.x, z: p.z };
-  const R = Math.max(2, b.r - (pad == null ? 0.55 : pad));
-  const dx = p.x - b.x, dz = p.z - b.z, ro = Math.hypot(dx, dz);
-  if (ro <= R) return { x: p.x, z: p.z };
+  let x = p.x, z = p.z;
+  const er = pad == null ? 0.55 : pad;
+  const res = resolvePropCollision(x, z, er);
+  x = res.x; z = res.z;
+  if (!b) return { x: x, z: z };
+  const R = Math.max(2, b.r - er);
+  const dx = x - b.x, dz = z - b.z, ro = Math.hypot(dx, dz);
+  if (ro <= R) return { x: x, z: z };
   return { x: b.x + dx * R / ro, z: b.z + dz * R / ro };
 }
 function clipBound(p) {
@@ -4693,6 +4785,9 @@ function openMarketFork() {
   const guard = foe(1, 'brute');
   const escape = foe(-1, 'imp');
   livingMarks().forEach(destroySpirit);
+  /* v0.64: 튜토리얼 첫 일섬 직후 예약 버퍼를 비워 새 혼령이 보이기 전에 자동 연속 발동되는 현상 방지 */
+  if (S.inputQueue && S.inputQueue.clear) S.inputQueue.clear();
+  S.inputBuf = null;
   S.spiritCap = Math.max(2, S.spiritCap);
   for (const target of [guard, escape]) {
     if (target) spawnSpirit({ x: target.x, z: target.z, target });
@@ -4826,8 +4921,9 @@ function landingShock(at) {
     const k = d < 1e-3 ? 1 : 1;
     const ux = d < 1e-3 ? 1 : (z.x - at.x) / d;
     const uz = d < 1e-3 ? 0 : (z.z - at.z) / d;
-    z.x += ux * push;
-    z.z += uz * push;
+    const pushed = resolvePropCollision(z.x + ux * push, z.z + uz * push, z.r || 0.55);
+    z.x = pushed.x;
+    z.z = pushed.z;
     z.stun = Math.max(z.stun || 0, stun);
     if (z.obj) placeGroup(z.obj, z.x, z.z);
   });
@@ -8595,6 +8691,11 @@ function step(dt) {
       }
     }
     if (z.isBoss && z.state !== 'slamTele') z.leapY = 0;
+    /* v0.64: 모든 귀물·보스가 지형지물을 뚫고 지나가지 않도록 부드럽게 우회 충돌 해소 */
+    if (!z.isClone && !z.isPillar && !z.isTotem) {
+      const col = resolvePropCollision(z.x, z.z, z.r || (z.isBoss ? 1.05 : 0.55));
+      z.x = col.x; z.z = col.z;
+    }
     placeGroup(z.obj, z.x, z.z, z.isBoss ? (z.leapY || 0) : 0);
     if (art.tickChar) {
       const kind = z.isBoss ? 'boss' : 'zombie';
@@ -8751,8 +8852,9 @@ function stepDash(dt) {
   d.t += dt;
   const u = clamp(d.t / d.dur, 0, 1);
   const k = u * u * (3 - 2 * u);
-  S.hero.x = d.from.x + (d.to.x - d.from.x) * k;
-  S.hero.z = d.from.z + (d.to.z - d.from.z) * k;
+  const hp = resolvePropCollision(d.from.x + (d.to.x - d.from.x) * k, d.from.z + (d.to.z - d.from.z) * k, 0.55);
+  S.hero.x = hp.x;
+  S.hero.z = hp.z;
   if (three && three.heroSpr) placeGroup(three.heroSpr, S.hero.x, S.hero.z);
   if (u >= 0.85) resolveDash(d);
   /* v0.49.2 테일 캔슬: 판정이 끝난 뒤(u>=0.88) 예약된 후속 획이 대기 중이면 잔여 프레임을 생략하고 즉시 다음 일섬으로 연결 */

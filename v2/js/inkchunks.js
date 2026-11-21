@@ -1426,8 +1426,10 @@ function createArenaWorld(opts) {
     map, bumpMap: detail, bumpScale: softGround ? 0.08 : 0.12, color: groundBase.clone(), roughness: 0.96, metalness: 0.0,
     vertexColors: true
   });
-  /* v0.61: lightning-energy-skill-vfx 스킬의 Poly Haven CC0 1K 스캔 노멀·러프니스 맵 이식 */
-  try { enhanceGroundWithScannedPbr(groundMat, stageId); } catch (e) {}
+  /* v0.64: 2·3·4장은 기존 수묵 페인팅 바닥(terrain-2/3/4.webp + relief bumpMap)이 더 잘 어울리므로 그대로 보존 */
+  if (![2, 3, 4].includes(stageId)) {
+    try { enhanceGroundWithScannedPbr(groundMat, stageId); } catch (e) {}
+  }
   groundMat.userData.inkGround = true;
   groundMat.userData.cardProfile = 'ground';
   const groundGeo = new THREE.PlaneGeometry(ARENA.GROUND * 2, ARENA.GROUND * 2, 96, 96);

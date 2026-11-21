@@ -661,21 +661,23 @@ export function buildArena(opts) {
   // Keep tall silhouettes at the back and flanks, outside the gesture lane.
   function at(side, depth, radius, draw) {
     let x = (side - depth) * Math.SQRT1_2, z = (-side - depth) * Math.SQRT1_2;
-    /* v0.58 뭉침 방지: 기물 간 최소 이격 거리를 보장하고 전투 중앙 원(r<12.5m) 침범을 막는다 */
+    /* v0.64 여백·구도 정리: 중앙 전투 원(r < 14.0m)은 넉넉히 비우고 외곽 링에만 균형 배치 */
     const dist0 = Math.hypot(x, z);
-    if (dist0 > 0.01 && dist0 < 13.2) {
-      const push = 13.2 / dist0;
+    if (dist0 > 0.01 && dist0 < 14.0) {
+      const push = 14.0 / dist0;
       x *= push; z *= push;
     }
     for (let i = 0; i < props.length; i++) {
       const p = props[i];
-      const minSep = Math.max(3.6, (radius + p.r) * 0.92);
+      const minSep = Math.max(5.0, (radius + p.r) * 1.08);
       if (Math.hypot(x - p.x, z - p.z) < minSep) return;
     }
     B.beginStructure((draw.name || 'landmark') + '-' + spots.length,x,z);
     draw(x, z, Math.PI / 4);
     B.endStructure();
-    const spot = { x, z, r: radius };
+    /* cr: 실제 캐릭터/몬스터 충돌 반경 (시각 밑면과 밀착, 투명 벽 방지) */
+    const cr = Math.min(2.15, Math.max(0.75, radius * 0.56));
+    const spot = { x, z, r: radius, cr };
     props.push(spot); spots.push(spot);
   }
   const tree = (x,z) => pine(B,x,z,rnd,c,1.2);
@@ -801,111 +803,120 @@ export function buildArena(opts) {
   }
 switch(stageId) {
     case 1:
-      at(0,19,4,roof); at(0,-17,4,roof);
-      at(-15, 2, 2, market); at(15, -4, 2, market);
-      at(14, 12, 2, (x,z,r) => stall(B,x,z,r-0.35,c));
-      at(-13, 13, 2, (x,z,r) => stall(B,x,z,r+0.55,c,true));
-      at(-14, -10, 2, (x,z,r) => stall(B,x,z,r+0.25,c));
-      at(16, 1, 2, rubble);
-      for(const side of [-1,1]) { at(side*11,-12,1,lamp); at(side*12,8,1,lamp); }
+      /* 1장 잿빛 장터: 북쪽 누각 1동 + 드리핑 천막 좌판 3곳 + 육각 석등 2기 (시야 개방·여백 확보) */
+      at(0, 18.5, 4, roof);
+      at(-14.5, 4, 2.2, market);
+      at(14.5, 2, 2.2, (x,z,r) => stall(B,x,z,r-0.35,c));
+      at(-11, -12, 2.2, (x,z,r) => stall(B,x,z,r+0.3,c));
+      at(12.5, -11, 1.4, lamp);
+      at(-12.5, 12, 1.4, lamp);
       break;
     case 2:
-      at(-3,15,4,door); at(-11,16,3,wall); at(8,19,3,wall);
-      at(4,-16,4,door); at(-13,-13,3,wall); at(14,-11,3,wall);
-      for(let j=0;j<8;j++) at(10+j%3,-8+j*2.4,1.5,rubble);
-      for(let j=0;j<5;j++) at(-14,-6+j*3.6,1.5,rubble);
+      /* 2장 성문 앞: 북·남 성문 + 좌우 성벽 + 16-평면 파쇄 바위 4군락 */
+      at(0, 17.5, 4, door); at(-12, 16, 3, wall); at(12, 16, 3, wall);
+      at(0, -17.5, 4, door);
+      at(14, -4, 1.8, rubble); at(-14, -4, 1.8, rubble);
+      at(13, 8, 1.8, rubble); at(-13, 8, 1.8, rubble);
       break;
     case 3:
-      for(let j=0;j<7;j++) for(const side of [-1,1]) at(side*(13+Math.sin(j)*2),-6+j*4,2,grove);
+      /* 3장 대숲: 외곽 6군락으로 정리해 대숲 여백과 전투 가독성 확보 */
+      for(let j=0;j<6;j++) { const a = j * Math.PI / 3 + 0.35; at(16.2*Math.cos(a), 16.2*Math.sin(a), 2.4, grove); }
       break;
     case 4:
-      at(-8,16,4,court); at(6,15,4,(x,z,r)=>bridge(B,x,z,r,8,c));
-      at(9,-15,4,court); at(-11,-14,3,shrine);
-      for(const side of [-1,1]) { at(side*13,4,1,lamp); at(side*13,-6,1,lamp); at(side*16,10,3,tree); at(side*15,-10,3,tree); }
+      /* 4장 연못 정자: 정자 2동 + 카스미데라 사당 1동 + 소나무 2 + 석등 2 (다리는 inkTerrain3d 아치 목교 1기만 사용) */
+      at(-11, 15, 4, court); at(11, -15, 4, court);
+      at(-12, -13, 3.2, shrine);
+      at(15, 6, 2.6, tree); at(-15, -2, 2.6, tree);
+      at(11, 12, 1.4, lamp); at(-11, -4, 1.4, lamp);
       break;
     case 5:
-      at(0,14,4,pagoda); at(0,-16,3,pagoda);
-      for(const side of [-1,1]) { at(side*11,12,2,pagoda); at(side*13,-4,2,pagoda); at(side*9,7,1,lamp); at(side*10,-9,1,lamp); }
+      /* 5장 안개 석탑: 북쪽 중앙 카스미데라 4층 사찰 탑 1기 + 좌우 탑 2기 + 육각 석등 2기 */
+      at(0, 16.5, 4.2, pagoda);
+      at(-14.5, 5, 3.4, pagoda); at(14.5, 5, 3.4, pagoda);
+      at(-11, -12, 1.4, lamp); at(11, -12, 1.4, lamp);
       break;
     case 6:
-      at(0,18,4,roof); at(-11,14,3,court); at(11,-14,3,court);
-      for(const side of [-1,1]) { at(side*14,3,2,tree); at(side*14,-9,2,tree); at(side*8,12,1,lamp); at(side*9,-12,1,lamp); }
+      /* 6장 폐가 안마당: 북쪽 폐가 누각 + 좌우 정자 + 소나무 2 + 석등 2 */
+      at(0, 18, 4, roof); at(-13.5, 10, 3.4, court); at(13.5, -10, 3.4, court);
+      at(15, 6, 2.5, tree); at(-15, -8, 2.5, tree);
+      at(-10, -13, 1.4, lamp); at(10, 13, 1.4, lamp);
       break;
     case 7:
-      /* v0.62: 구형 직선 막대기 고목 대신 inkTerrain3d.js의 자연 굴곡 굽은 고목(buildGnarledDeadTree3D) 12그루로 완전 교체 */
-      for(const side of [-1,1]) { at(side*13.5, 9, 1.5, lamp); at(side*13.5, -9, 1.5, lamp); }
+      /* 7장 고목 골: 외곽 육각 석등 2기 + inkTerrain3d 굽은 고목 7그루로 정돈 */
+      at(-13.5, 9, 1.4, lamp); at(13.5, -9, 1.4, lamp);
       break;
     case 8:
-      at(0,15,4,door); at(0,23,4,court); at(0,-17,4,door);
-      for(const side of [-1,1]) {
-        for(let j=0;j<4;j++) at(side*(10-j*0.6),-6+j*4.5,1,lamp);
-        at(side*14,8,3,shrine); at(side*14,-10,3,tree);
-      }
+      /* 8장 사당 앞: 북쪽 대문 + 좌우 카스미데라 사당 2동 + 소나무 2 + 육각 석등 2기 */
+      at(0, 17, 4, door); at(0, -17.5, 4, door);
+      at(-14.5, 7, 3.2, shrine); at(14.5, 7, 3.2, shrine);
+      at(-15, -9, 2.5, tree); at(15, -9, 2.5, tree);
+      at(-11, -12, 1.4, lamp); at(11, -12, 1.4, lamp);
       break;
     case 9:
-      at(0,13,3,shrine); at(0,-15,3,shrine);
-      for(const side of [-1,1]) { at(side*12,7,3,shrine); at(side*12,-8,3,shrine); at(side*9,14,2,spire); at(side*10,-13,2,spire); }
+      /* 9장 혈석 제단: 카스미데라 사당 3동 + 16-평면 현무암 암봉 4기 (혈석 제단 시야 확보) */
+      at(0, 16.5, 3.4, shrine);
+      at(-14.5, 4, 3.2, shrine); at(14.5, 4, 3.2, shrine);
+      at(-12, -13, 2.4, spire); at(12, -13, 2.4, spire);
+      at(-13, 13, 2.4, spire); at(13, 13, 2.4, spire);
       break;
     case 10:
-      for(let j=0;j<6;j++) { at(-13+j%2,-8+j*4.4,2,ribs); at(12+j%3,-7+j*4.2,2,rubble); }
-      for(const side of [-1,1]) { at(side*8,15,2,ribs); at(side*8,-15,2,ribs); }
+      /* 10장 뼈의 강: 강변 외곽 늑골 아치 4기 + 파쇄 바위 2군락 (중앙 아치 목교 강조) */
+      at(-14, 9, 2.4, ribs); at(-14, -9, 2.4, ribs);
+      at(14, 9, 2.4, ribs); at(14, -9, 2.4, ribs);
+      at(14, 0, 2.0, rubble); at(-14, 0, 2.0, rubble);
       break;
     case 11:
-      at(0,18,4,door); at(0,-18,4,door);
-      for(const side of [-1,1]) { at(side*7,18,3,wall); at(side*14,17,4,roof); at(side*15,8,3,wall); at(side*15,-8,3,wall); at(side*13,-16,4,roof); }
+      /* 11장 혈월 성채: 북쪽 성문 + 좌우 성벽·망루 누각 (깔끔한 성채 안마당 구도) */
+      at(0, 18, 4, door); at(0, -18, 4, door);
+      for(const side of [-1,1]) { at(side*8, 18, 3, wall); at(side*15, 13, 4, roof); at(side*15, -9, 3, wall); }
       break;
     case 12:
-      for(let j=0;j<16;j++) { const a=j*Math.PI/8; at(16.5*Math.cos(a),16.5*Math.sin(a),2,spire); }
+      /* 12장 심연의 문: 외곽 8기 16-평면 현무암 암봉으로 웅장하고 정돈된 원형 결계 */
+      for(let j=0;j<8;j++) { const a=j*Math.PI/4 + 0.2; at(16.8*Math.cos(a), 16.8*Math.sin(a), 2.6, spire); }
       break;
     case 13:
-      at(0,17,4,door); at(0,-17,4,door);
-      for(const side of [-1,1]) {
-        for(let j=0;j<5;j++) {
-          const z = -12 + j * 6;
-          at(side*13.5, z, 3, j % 2 === 0 ? shrine : spire);
-          at(side*11.2, z + 2.6, 1, lamp);
-        }
-      }
+      /* 13장 붉은 회랑: 북·남 대문 + 좌우 사당 2동 + 암봉 2기 + 석등 2기 */
+      at(0, 17.5, 4, door); at(0, -17.5, 4, door);
+      at(-14.5, 6, 3.2, shrine); at(14.5, 6, 3.2, shrine);
+      at(-14.5, -7, 2.4, spire); at(14.5, -7, 2.4, spire);
+      at(-12, 13, 1.4, lamp); at(12, -13, 1.4, lamp);
       break;
     case 14:
-      at(-12,13,4,(x,z,r)=>bridge(B,x,z,r,9,c));
-      at(12,-13,4,(x,z,r)=>bridge(B,x,z,r,9,c));
-      for(let j=0;j<5;j++) {
-        at(-14+j*1.2, -10+j*4.5, 2, j%2 ? ribs : shrine);
-        at(14-j*1.2, -10+j*4.5, 2, j%2 ? shrine : rubble);
-      }
-      for(const side of [-1,1]) { at(side*10, 14, 1, lamp); at(side*10, -14, 1, lamp); }
+      /* 14장 망각의 나루: 좌우 사당 2동 + 파쇄 바위 2 + 석등 2 (다리는 inkTerrain3d 아치 목교 1기만 사용) */
+      at(-14.5, 8, 3.2, shrine); at(14.5, -8, 3.2, shrine);
+      at(-14, -9, 2.0, rubble); at(14, 9, 2.0, rubble);
+      at(-11, 14, 1.4, lamp); at(11, -14, 1.4, lamp);
       break;
     case 15:
-      at(0,18,4,door); at(0,-18,4,door);
+      /* 15장 검은 누각: 북·남 대문 + 좌우 성벽·누각 (깔끔한 대칭 구도) */
+      at(0, 18, 4, door); at(0, -18, 4, door);
       for(const side of [-1,1]) {
-        at(side*9,18,3,wall); at(side*15,15,4,roof); at(side*16,4,3,wall);
-        at(side*16,-6,3,wall); at(side*15,-15,4,roof); at(side*9,-18,3,wall);
+        at(side*9, 18, 3, wall); at(side*15.5, 11, 4, roof); at(side*15.5, -10, 3, wall);
       }
       break;
     case 16:
-      at(0,17,4,door); at(0,-17,4,shrine);
-      for(let j=0;j<16;j++) { const a=j*Math.PI/8; at(16.2*Math.cos(a),16.2*Math.sin(a),2,spire); }
-      for(let j=0;j<6;j++) { const a=j*Math.PI/3 + 0.5; at(12.2*Math.cos(a),12.2*Math.sin(a),1,lamp); }
+      /* 16장 심안의 끝: 북쪽 성문 + 남쪽 사당 + 외곽 6기 16-평면 현무암 암봉 + 석등 2기 */
+      at(0, 17.5, 4, door); at(0, -17.5, 3.6, shrine);
+      for(let j=0;j<6;j++) { const a=j*Math.PI/3 + 0.52; at(16.6*Math.cos(a), 16.6*Math.sin(a), 2.6, spire); }
+      at(-13, 10, 1.4, lamp); at(13, -10, 1.4, lamp);
       break;
 }
-  // Low-profile relief is part of the batched arena mesh: paving, roots and
-  // river gravel have actual silhouettes without creating invisible blockers.
+  // v0.64: 바닥 잔해/판석 난립을 36개→12개 외곽 포인트로 대폭 정리해 전투 구역을 깨끗하게 유지
   const paved = [2,5,6,8,9,11,12,13,15,16].includes(stageId);
-  for (let j=0; j<36; j++) {
-    const a=rnd()*Math.PI*2, r=9.2+Math.sqrt(rnd())*6.2;
+  for (let j=0; j<12; j++) {
+    const a = (j / 12) * Math.PI * 2 + rnd() * 0.25, r = 12.8 + rnd() * 2.4;
     const x=r*Math.cos(a), z=r*Math.sin(a);
     if (paved) {
       const circular = stageId === 5 || stageId === 9 || stageId === 12 || stageId === 16;
       const angle = circular ? -a : Math.PI/4;
       B.add(G.box,c.stone,ZONE.STONE,{x,z,y:.016,ry:angle,
-        sx:.55+rnd()*.85,sy:.028+rnd()*.022,sz:.26+rnd()*.35});
+        sx:.55+rnd()*.65,sy:.024+rnd()*.018,sz:.26+rnd()*.30});
     } else if (stageId === 7) {
       B.add(G.cyl6,c.woodDark,ZONE.WOOD,{x,z,y:.04,ry:-a,rz:1.52,
-        sx:.10,sy:.85+rnd()*.8,sz:.12});
+        sx:.09,sy:.75+rnd()*.65,sz:.10});
     } else {
-      B.add(G.sphereLo,c.stone,ZONE.STONE,{x,z,y:.038,
-        sx:.14+rnd()*.42,sy:.08+rnd()*.11,sz:.18+rnd()*.36});
+      B.add(G.sphereLo,c.stone,ZONE.STONE,{x,z,y:.035,
+        sx:.14+rnd()*.32,sy:.07+rnd()*.09,sz:.16+rnd()*.28});
     }
   }
   cliffRing(B,rnd,c);

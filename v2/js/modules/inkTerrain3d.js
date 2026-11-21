@@ -424,9 +424,19 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
   const activeWaves = [];
   const dynamicPatchMap = new Map();
 
-  /* 최소 이격 거리 가드 (뭉침 방지 + 중앙 전투 구역 보호) */
+  /* v0.64: inkarena 기물 위치와 충돌하지 않도록 사전 등록 + 캐릭터 충돌용 colliders 배열 관리 */
   const placedPts = [];
-  const canPlace = (x, z, minSep = 3.8, minR = 8.4) => {
+  const colliders = [];
+  const addCollider = (x, z, r) => {
+    if (r > 0.15) colliders.push({ x, z, r });
+  };
+  if (Array.isArray(opts.arenaProps)) {
+    for (let i = 0; i < opts.arenaProps.length; i++) {
+      const ap = opts.arenaProps[i];
+      if (ap) placedPts.push({ x: ap.x, z: ap.z, r: Math.max(3.8, (ap.r || 2.0) + 1.4) });
+    }
+  }
+  const canPlace = (x, z, minSep = 4.2, minR = 10.2) => {
     if (Math.hypot(x, z) < minR) return false;
     for (let i = 0; i < placedPts.length; i++) {
       const p = placedPts[i];
@@ -672,24 +682,20 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       const emberMat = makePbr(0xff4c38, 0.25, 0.10, { emissive: 0xff3b28, emissiveIntensity: 1.5 });
       track(colGeo, null); track(capGeo, null); track(beamGeo, null); track(brazierGeo, null);
       for (const side of [-1, 1]) {
-        for (let i = -2; i <= 2; i++) {
-          const px = side * 10.6, pz = i * 5.4;
+        for (let i = -2; i <= 2; i += 2) {
+          const px = side * 12.4, pz = i * 5.2;
           queueInst('cCol', colGeo, lacqMat, px, 2.4, pz);
           queueInst('cCap', capGeo, darkMat, px, 4.78, pz);
           queueInst('cCap', capGeo, darkMat, px, 0.13, pz);
-          if (i < 2) queueInst('cBeam', beamGeo, darkMat, px, 4.55, pz + 2.7);
           queueInst('cBraz', brazierGeo, emberMat, px - side * 0.65, 3.25, pz);
           addContactShadow(px, pz, 1.25);
+          addCollider(px, pz, 0.72);
         }
       }
-      addParticles(150, 0xff4a3a, 0.16, 0.82, 'rise');
-      addParticles(90, 0x8f1a24, 0.22, 0.45, 'drift');
+      addParticles(140, 0xff4a3a, 0.16, 0.80, 'rise');
+      addParticles(80, 0x8f1a24, 0.22, 0.42, 'drift');
     } else {
-      for (let i = 0; i < 4; i++) {
-        const a = (i / 4) * Math.PI * 2 + 0.4;
-        queueStoneLantern(Math.cos(a) * 10.6, Math.sin(a) * 10.6, 0xff4538, 1.05);
-      }
-      addParticles(130, 0xff5842, 0.15, 0.78, 'rise');
+      addParticles(120, 0xff5842, 0.15, 0.76, 'rise');
     }
   } else if (k === 'snow') {
     const pillarGeo = new THREE.CylinderGeometry(0.28, 0.38, 2.4, 6);
@@ -697,53 +703,37 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     const pillarMat = makePbr(0x8898a4, 0.84, 0.08);
     const snowMat = makePbr(0xf0f7fc, 0.68, 0.04);
     track(pillarGeo, null); track(snowCapGeo, null);
-    for (let i = 0; i < 7; i++) {
-      const a = (i / 7) * Math.PI * 2 + 0.2, d = 8.6 + (i % 2) * 2.2;
-      const sx = Math.cos(a) * d, sz = Math.sin(a) * d;
-      if (!canPlace(sx, sz, 4.0, 8.0)) continue;
-      const { geo, mat } = makeShaderPool(2.8 + rng() * 0.9, 0x7b8c98, 0xcad6df, 0xffffff, 1); track(geo, mat); shaderMats.push(mat);
-      const p = new THREE.Mesh(geo, mat); p.position.set(sx, 0.04, sz); p.renderOrder = 1; group.add(p);
-      if (i < 5) {
-        const gx = Math.cos(a) * (d + 2.0), gz = Math.sin(a) * (d + 2.0);
-        queueInst('sPil', pillarGeo, pillarMat, gx, 1.15, gz);
-        queueInst('sCap', snowCapGeo, snowMat, gx, 2.32, gz);
-        addContactShadow(gx, gz, 1.15);
-      }
-    }
     for (let i = 0; i < 4; i++) {
-      const a = (i / 4) * Math.PI * 2 + 0.6;
-      queueStoneLantern(Math.cos(a) * 10.2, Math.sin(a) * 10.2, 0xbce6ff, 1.0);
+      const a = (i / 4) * Math.PI * 2 + 0.45, d = 11.4;
+      const sx = Math.cos(a) * d, sz = Math.sin(a) * d;
+      if (!canPlace(sx, sz, 4.4, 10.2)) continue;
+      const { geo, mat } = makeShaderPool(2.8 + rng() * 0.7, 0x7b8c98, 0xcad6df, 0xffffff, 1); track(geo, mat); shaderMats.push(mat);
+      const p = new THREE.Mesh(geo, mat); p.position.set(sx, 0.04, sz); p.renderOrder = 1; group.add(p);
+      const gx = Math.cos(a) * (d + 1.8), gz = Math.sin(a) * (d + 1.8);
+      queueInst('sPil', pillarGeo, pillarMat, gx, 1.15, gz);
+      queueInst('sCap', snowCapGeo, snowMat, gx, 2.32, gz);
+      addContactShadow(gx, gz, 1.15);
+      addCollider(gx, gz, 0.72);
     }
-    addParticles(200, 0xf2f8ff, 0.17, 0.88, 'fall');
-    addParticles(90, 0xc8e4f8, 0.12, 0.58, 'drift');
+    addParticles(180, 0xf2f8ff, 0.17, 0.85, 'fall');
+    addParticles(80, 0xc8e4f8, 0.12, 0.55, 'drift');
   } else if (k === 'root') {
     const rootMat = makePbr(0x3a2b1e, 0.92, 0.03);
-    const stumpGeo = new THREE.CylinderGeometry(0.45, 0.78, 1.35, 7);
-    const branchGeo = new THREE.CylinderGeometry(0.08, 0.22, 2.6, 6);
     const archCurve = new THREE.CatmullRomCurve3([new THREE.Vector3(-1.8, -0.1, 0), new THREE.Vector3(-0.6, 0.58, 0.28), new THREE.Vector3(0.6, 0.42, -0.22), new THREE.Vector3(1.9, -0.1, 0.1)]);
     const archGeo = new THREE.TubeGeometry(archCurve, 14, 0.15, 6, false);
-    track(stumpGeo, null); track(branchGeo, null); track(archGeo, null);
-    for (let i = 0; i < 9; i++) {
-      const a = (i / 9) * Math.PI * 2 + 0.15, d = 9.2 + (i % 2) * 2.0;
+    track(archGeo, null);
+    /* v0.64: 구형 직선 그루터기/가지 제거, 자연 굴곡 뿌리 5개만 외곽에 여백 배치 */
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 + 0.35, d = 11.4 + (i % 2) * 1.4;
       const rx = Math.cos(a) * d, rz = Math.sin(a) * d;
-      if (!canPlace(rx, rz, 4.0, 8.6)) continue;
-      queueInst('rArch', archGeo, rootMat, rx, 0, rz, 0, rng() * Math.PI, 0, 0.9 + rng() * 0.25, 0.9 + rng() * 0.3, 1);
-      addContactShadow(rx, rz, 1.6);
-      if (i % 2 === 0) {
-        const sx = Math.cos(a) * (d + 1.4), sz = Math.sin(a) * (d + 1.4);
-        queueInst('rStump', stumpGeo, rootMat, sx, 0.65, sz);
-        queueInst('rBranch', branchGeo, rootMat, sx + 0.35, 1.9, sz, 0.35, a, -0.45);
-        addContactShadow(sx, sz, 1.35);
-      }
+      if (!canPlace(rx, rz, 4.4, 10.4)) continue;
+      queueInst('rArch', archGeo, rootMat, rx, 0, rz, 0, rng() * Math.PI, 0, 0.9 + rng() * 0.22, 0.9 + rng() * 0.25, 1);
+      addContactShadow(rx, rz, 1.5);
     }
-    addParticles(130, 0xcfa968, 0.15, 0.72, 'fall');
-    addParticles(80, 0x8fd694, 0.12, 0.55, 'drift');
+    addParticles(120, 0xcfa968, 0.15, 0.70, 'fall');
+    addParticles(70, 0x8fd694, 0.12, 0.52, 'drift');
   } else if (k === 'bell') {
-    for (let i = 0; i < 4; i++) {
-      const a = (i / 4) * Math.PI * 2 + 0.35;
-      queueStoneLantern(Math.cos(a) * 10.8, Math.sin(a) * 10.8, 0xffd27a, 1.0);
-    }
-    addParticles(120, 0xf6db9c, 0.15, 0.72, 'rise');
+    addParticles(110, 0xf6db9c, 0.15, 0.70, 'rise');
   } else if (k === 'water') {
     const rcfg = opts.riverCfg || {};
     const centerFn = rcfg.centerFn || ((u) => 5.5 * Math.sin(u * 0.085) + 2.0 * Math.sin(u * 0.021 + 1.3));
@@ -803,22 +793,22 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       const m = new THREE.Mesh(geo, mat); m.position.set(Math.cos(a) * 7.2, 0.14 + i * 0.02, Math.sin(a) * 7.2); m.renderOrder = 2; group.add(m);
     }
     if (k === 'wall') {
-      /* v0.62: 구형 평면 깃발은 제거하고 하단 3d-cloth-material 바람 제비꼬리 깃발로 통일. 화로(brazier)만 유지 */
+      /* v0.64: 화로 4기만 외곽에 깔끔하게 배치 + 충돌 등록 */
       const brazGeo = new THREE.CylinderGeometry(0.45, 0.28, 0.55, 8);
       const coalGeo = new THREE.SphereGeometry(0.36, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2);
       const ironMat = makePbr(0x27262b, 0.45, 0.72);
       const coalMat = makePbr(0xff6230, 0.30, 0.05, { emissive: 0xff4818, emissiveIntensity: 1.55 });
       track(brazGeo, null); track(coalGeo, null);
-      for (let i = 0; i < 6; i++) {
-        const a = (i / 6) * Math.PI * 2 + 0.5, r = 10.6;
-        const fx = Math.cos(a) * r, fz = Math.sin(a) * r;
-        if (!canPlace(fx, fz, 4.4, 9.6)) continue;
-        const bx = Math.cos(a + 0.24) * (r - 1.3), bz = Math.sin(a + 0.24) * (r - 1.3);
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2 + 0.78, r = 12.2;
+        const bx = Math.cos(a) * r, bz = Math.sin(a) * r;
+        if (!canPlace(bx, bz, 4.4, 11.0)) continue;
         queueInst('wBraz', brazGeo, ironMat, bx, 0.55, bz);
         queueInst('wCoal', coalGeo, coalMat, bx, 0.80, bz);
         addContactShadow(bx, bz, 1.0);
+        addCollider(bx, bz, 0.72);
       }
-      addParticles(150, 0xff8048, 0.15, 0.82, 'rise');
+      addParticles(130, 0xff8048, 0.15, 0.80, 'rise');
     } else if (k === 'moon') {
       const steleGeo = new THREE.BoxGeometry(0.75, 2.8, 0.32);
       const baseGeo = new THREE.BoxGeometry(1.25, 0.35, 0.85);
@@ -826,25 +816,20 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       const stoneMat = makePbr(0x362a2c, 0.86, 0.08);
       const sealMat = new THREE.MeshBasicMaterial({ color: stageNo === 16 ? 0xffd27a : 0xff4c42, transparent: true, opacity: 0.82, blending: THREE.AdditiveBlending, depthWrite: false });
       track(steleGeo, null); track(baseGeo, null); track(sealGeo, sealMat);
-      for (let i = 0; i < 6; i++) {
-        const a = (i / 6) * Math.PI * 2 + 0.3, r = 10.4 + (i % 2) * 1.6;
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2 + 0.78, r = 12.4;
         const mx = Math.cos(a) * r, mz = Math.sin(a) * r;
-        if (!canPlace(mx, mz, 4.4, 9.6)) continue;
+        if (!canPlace(mx, mz, 4.6, 11.0)) continue;
         const ry = -a + Math.PI / 2;
         queueInst('mBase', baseGeo, stoneMat, mx, 0.17, mz, 0, ry, 0);
         queueInst('mStele', steleGeo, stoneMat, mx, 1.65, mz, 0, ry, 0);
         addContactShadow(mx, mz, 1.35);
+        addCollider(mx, mz, 0.85);
         const sl = new THREE.Mesh(sealGeo, sealMat); sl.position.set(mx, 3.45, mz); sl.rotation.y = ry; group.add(sl); spinNodes.push(sl);
       }
-      addParticles(140, stageNo === 16 ? 0xffcf78 : 0xff6252, 0.16, 0.78, 'rise');
+      addParticles(130, stageNo === 16 ? 0xffcf78 : 0xff6252, 0.16, 0.76, 'rise');
     } else {
-      for (let i = 0; i < 6; i++) {
-        const a = (i / 6) * Math.PI * 2 + 0.4, r = 10.0 + (i % 2) * 1.8;
-        const fx = Math.cos(a) * r, fz = Math.sin(a) * r;
-        if (!canPlace(fx, fz, 4.2, 9.2)) continue;
-        queueStoneLantern(fx, fz, 0x7ef2d4, i % 2 === 0 ? 1.22 : 0.92);
-      }
-      addParticles(140, 0x84f2d6, 0.15, 0.76, 'drift');
+      addParticles(130, 0x84f2d6, 0.15, 0.74, 'drift');
     }
   }
 
@@ -934,17 +919,18 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     });
     shaderMats.push(flagMat);
     track(poleGeo, null); track(finialGeo, null); track(flagGeo, flagMat);
-    const flagCount = 6;
+    const flagCount = 3;
     for (let i = 0; i < flagCount; i++) {
-      const a = (i / flagCount) * Math.PI * 2 + 0.42 + (stageNo % 3) * 0.18;
-      const r = 13.8 + (i % 2) * 1.6;
+      const a = (i / flagCount) * Math.PI * 2 + 0.62 + (stageNo % 3) * 0.20;
+      const r = 14.4;
       const fx = Math.cos(a) * r, fz = Math.sin(a) * r;
-      if (!canPlace(fx, fz, 2.8, 12.2)) continue;
+      if (!canPlace(fx, fz, 4.2, 13.0)) continue;
       const ry = -a + Math.PI * 0.35;
       queueInst('v60FlagPole', poleGeo, poleMat, fx, 1.8, fz, 0, ry, 0.05);
       queueInst('v60FlagFin', finialGeo, finialMat, fx - Math.sin(0.05) * 3.6, 3.62, fz, 0, ry, 0);
       queueInst('v60FlagCloth', flagGeo, flagMat, fx - 0.12, 3.02, fz, 0, ry, 0);
       addContactShadow(fx, fz, 0.9);
+      addCollider(fx, fz, 0.45);
     }
 
     /* 3) 바람에 흔들리는 고목 단풍 · 수묵 소나무 군락 (3d-kasumidera-ultra-realism — 굽은 가지 + 다중 붓잎 군락) */
@@ -979,17 +965,19 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     });
     shaderMats.push(canopyMat);
     track(trunkGeo, null); track(branchGeo, null); track(canopyGeo, canopyMat);
-    const treeCount = 6;
+    /* v0.64: 야외/자연 스테이지에만 3그루 외곽 단풍·소나무 배치 (석탑·고목·암봉 무대 과밀 방지) */
+    const treeCount = [1, 2, 3, 4, 6, 8, 10, 14].includes(stageNo) ? 3 : 0;
     for (let i = 0; i < treeCount; i++) {
-      const a = (i / treeCount) * Math.PI * 2 + 0.88 + (stageNo % 5) * 0.14;
-      const r = 15.6 + (i % 3) * 1.3;
+      const a = (i / Math.max(1, treeCount)) * Math.PI * 2 + 1.05 + (stageNo % 5) * 0.18;
+      const r = 15.2 + (i % 2) * 1.1;
       const tx = Math.cos(a) * r, tz = Math.sin(a) * r;
-      if (!canPlace(tx, tz, 4.0, 14.2)) continue;
-      const sc = 0.86 + rng() * 0.34;
+      if (!canPlace(tx, tz, 4.8, 14.0)) continue;
+      const sc = 0.88 + rng() * 0.30;
       const yaw = rng() * Math.PI * 2;
       const lean = (rng() - 0.5) * 0.22;
       queueInst('v60TreeTrunk', trunkGeo, trunkMat, tx, 1.32 * sc, tz, lean, yaw, lean * 0.7, sc, sc, sc);
       addContactShadow(tx, tz, 1.95 * sc);
+      addCollider(tx, tz, 0.85 * sc);
       /* 뻗어 나가는 굽은 가지 3개 + 각 가지 끝에 겹쳐 찍은 붓잎 뭉치 3개(총 9뭉치) */
       for (let b = 0; b < 3; b++) {
         const ba = yaw + b * 2.15 + (rng() - 0.5) * 0.45;
@@ -1067,34 +1055,43 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       floatLanterns.push(lg);
     }
 
-    /* 5) v0.61 스킬 3D 지형지물 이식 (3d-kasumidera-ultra-realism · 3d-paper-material)
-          - 전 스테이지 공통: 바람에 나부끼는 찢긴 한지 부적 금줄 문 2기 (심안 안개 연동)
-          - 물길(10·14장) 및 4장: 캠버 아치 주홍 목교 (편백 판자·청동 기둥머리·돌 교대)
-          - 고목 골(7장): 자연 굴곡 굽은 고목 4그루 */
+    /* 5) v0.64 정돈된 스킬 3D 랜드마크 배치 (inkarena 기물과 자동 이격 + 실제 충돌체 등록) */
     const talismanGlow = [0xff9a44, 0xffa64d, 0x7ef2cc, 0xff6248, 0xc29aff][actIdx] || 0xff9a44;
-    const tAngles = [Math.PI * 1.18, Math.PI * 1.62];
-    for (let ti = 0; ti < tAngles.length; ti++) {
-      const ta = tAngles[ti];
-      const tr = 11.4 + ti * 1.2;
+    const registerLandmark = (node, x, z, shadowR = 1.6, colR = 0) => {
+      node.position.set(x, 0, z);
+      try { paintCard(node, 'prop'); } catch (e) {}
+      group.add(node);
+      if (node.userData && node.userData.disposables) {
+        node.userData.disposables.forEach((d) => disposables.push(d));
+      }
+      if (shadowR > 0) addContactShadow(x, z, shadowR);
+      if (colR > 0) addCollider(x, z, colR);
+    };
+
+    /* 5-a) 좌상단 여백에 한지 부적 금줄 문 1기만 정갈하게 배치 (기둥 양쪽만 충돌 등록해 아치 아래는 통과) */
+    {
+      const ta = Math.PI * 1.12, tr = 13.4;
       const tx = Math.cos(ta) * tr, tz = Math.sin(ta) * tr;
-      const gateLine = buildTalismanGateLine3D({ span: 3.8, height: 2.9, glowHex: talismanGlow });
-      gateLine.position.set(tx, 0, tz);
-      gateLine.rotation.y = -ta + Math.PI * 0.5;
-      try { paintCard(gateLine, 'prop'); } catch (e) {}
-      group.add(gateLine);
-      if (gateLine.userData && gateLine.userData.swayTalismans) {
-        gateLine.userData.swayTalismans.forEach((tm) => swayNodes.push(tm));
+      if (canPlace(tx, tz, 4.4, 12.0)) {
+        const span = 3.8;
+        const rotY = -ta + Math.PI * 0.5;
+        const gateLine = buildTalismanGateLine3D({ span, height: 2.9, glowHex: talismanGlow });
+        gateLine.rotation.y = rotY;
+        registerLandmark(gateLine, tx, tz, 2.0, 0);
+        if (gateLine.userData && gateLine.userData.swayTalismans) {
+          gateLine.userData.swayTalismans.forEach((tm) => swayNodes.push(tm));
+        }
+        for (const s of [-1, 1]) {
+          addCollider(tx + Math.cos(rotY) * s * (span * 0.5), tz - Math.sin(rotY) * s * (span * 0.5), 0.45);
+        }
       }
-      if (gateLine.userData && gateLine.userData.disposables) {
-        gateLine.userData.disposables.forEach((d) => disposables.push(d));
-      }
-      addContactShadow(tx, tz, 2.2);
     }
 
+    /* 5-b) 물길(10·14장) 및 4장: 캠버 아치 주홍 목교 1기 (통행 가능, 교각 기둥만 외곽 정리) */
     if (k === 'water' || stageNo === 4 || stageNo === 10 || stageNo === 14) {
       const rcfg = opts.riverCfg || {};
       const hasRiver = (k === 'water' || stageNo === 10 || stageNo === 14);
-      let bx = 8.2, bz = -9.2, rotY = Math.PI * 0.25, bLen = 7.4;
+      let bx = 8.4, bz = -9.6, rotY = Math.PI * 0.25, bLen = 7.4;
       if (hasRiver) {
         const centerFn = rcfg.centerFn || ((u) => 5.5 * Math.sin(u * 0.085) + 2.0 * Math.sin(u * 0.021 + 1.3));
         const widthFn = rcfg.widthFn || ((u) => 2.1 + 0.7 * Math.sin(u * 0.13 + 0.6));
@@ -1104,7 +1101,6 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
         const lz = centerFn(lx) + off;
         bx = lx * cosA - lz * sinA;
         bz = lx * sinA + lz * cosA;
-        /* 강 접선 벡터의 정확한 수직 법선 방향으로 아치 목교를 강 정중앙에 교차 배치 */
         const dzdlx = centerFn(lx + 0.5) - centerFn(lx - 0.5);
         const tx = cosA - dzdlx * sinA;
         const tz = sinA + dzdlx * cosA;
@@ -1116,70 +1112,63 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
         length: bLen, width: 2.3, archH: 0.96,
         railHex: stageNo === 14 ? 0x623b84 : 0xa62a20
       });
-      bridge.position.set(bx, 0, bz);
       bridge.rotation.y = rotY;
-      try { paintCard(bridge, 'prop'); } catch (e) {}
-      group.add(bridge);
-      if (bridge.userData && bridge.userData.disposables) {
-        bridge.userData.disposables.forEach((d) => disposables.push(d));
-      }
-      addContactShadow(bx, bz, 3.6);
+      registerLandmark(bridge, bx, bz, 3.6, 0);
+      placedPts.push({ x: bx, z: bz, r: 4.5 });
     }
 
+    /* 5-c) 7장 고목 골: 자연 굴곡 굽은 고목 7그루를 넓은 여백으로 원형 배치 + 줄기 충돌 */
     if (k === 'root' || stageNo === 7) {
-      /* v0.62: 7장 고목 골 전체를 자연 굴곡 굽은 고목 11그루로 교체 */
-      for (let di = 0; di < 11; di++) {
-        const da = (di / 11) * Math.PI * 2 + 0.28;
-        const dr = 10.8 + (di % 3) * 1.9;
+      for (let di = 0; di < 7; di++) {
+        const da = (di / 7) * Math.PI * 2 + 0.35;
+        const dr = 13.6 + (di % 2) * 1.6;
         const dx = Math.cos(da) * dr, dz = Math.sin(da) * dr;
-        const dtNode = buildGnarledDeadTree3D(rng, 0.92 + rng() * 0.42, 0x3b2c20);
-        dtNode.position.set(dx, 0, dz);
+        if (!canPlace(dx, dz, 4.6, 12.2)) continue;
+        const dtNode = buildGnarledDeadTree3D(rng, 0.95 + rng() * 0.35, 0x3b2c20);
         dtNode.rotation.y = rng() * Math.PI * 2;
-        try { paintCard(dtNode, 'prop'); } catch (e) {}
-        group.add(dtNode);
-        if (dtNode.userData && dtNode.userData.disposables) {
-          dtNode.userData.disposables.forEach((d) => disposables.push(d));
-        }
-        addContactShadow(dx, dz, 1.85);
+        registerLandmark(dtNode, dx, dz, 1.85, 0.85);
       }
     }
 
-    /* 6) v0.62 전 스테이지 테마별 Kasumidera 3D 랜드마크(곡선 산문·조각 한지 석등·파쇄 현무암 바위) */
-    const registerLandmark = (node, x, z, shadowR = 1.6) => {
-      node.position.set(x, 0, z);
-      try { paintCard(node, 'prop'); } catch (e) {}
-      group.add(node);
-      if (node.userData && node.userData.disposables) {
-        node.userData.disposables.forEach((d) => disposables.push(d));
-      }
-      if (shadowR > 0) addContactShadow(x, z, shadowR);
-    };
-
-    if ([2, 5, 6, 8, 9, 11, 12, 13, 15, 16].includes(stageNo)) {
+    /* 5-d) 성소·성채 스테이지 우상단 여백: 금줄 곡선 산문(Torii) 1기 (좌우 기둥만 충돌 등록) */
+    if ([2, 5, 6, 8, 9, 11, 13, 15, 16].includes(stageNo)) {
       const toriiWood = [0x8f241c, 0x8f241c, 0x3a4d44, 0x8c1e1e, 0x3c2c52][actIdx] || 0x8f241c;
-      const torii = buildKasumideraTorii3D({ span: 4.5, height: 4.0, woodHex: toriiWood });
-      const ga = Math.PI * 1.38;
-      torii.rotation.y = -ga + Math.PI * 0.5;
-      registerLandmark(torii, Math.cos(ga) * 13.8, Math.sin(ga) * 13.8, 2.8);
-    }
-
-    if ([1, 2, 4, 5, 6, 8, 9, 11, 13, 15, 16].includes(stageNo)) {
-      const lAngles = [Math.PI * 1.05, Math.PI * 1.50, Math.PI * 0.22];
-      for (let li = 0; li < lAngles.length; li++) {
-        const la = lAngles[li];
-        const lr = 10.6 + (li % 2) * 1.4;
-        const lantern = buildCarvedLantern3D({ glowHex: talismanGlow, scale: 0.94 + (li % 2) * 0.12 });
-        registerLandmark(lantern, Math.cos(la) * lr, Math.sin(la) * lr, 1.15);
+      const ga = Math.PI * 1.44, gr = 14.0;
+      const gx = Math.cos(ga) * gr, gz = Math.sin(ga) * gr;
+      if (canPlace(gx, gz, 4.8, 12.6)) {
+        const span = 4.5;
+        const rotY = -ga + Math.PI * 0.5;
+        const torii = buildKasumideraTorii3D({ span, height: 4.0, woodHex: toriiWood });
+        torii.rotation.y = rotY;
+        registerLandmark(torii, gx, gz, 2.6, 0);
+        for (const s of [-1, 1]) {
+          addCollider(gx + Math.cos(rotY) * s * (span * 0.44), gz - Math.sin(rotY) * s * (span * 0.44), 0.52);
+        }
       }
     }
 
+    /* 5-e) 조각 한지 석등 2기 (전투 구역 바깥 시선 유도 포인트 + 충돌 등록) */
+    if ([1, 2, 4, 5, 6, 8, 9, 11, 13, 15, 16].includes(stageNo)) {
+      const lAngles = [Math.PI * 0.82, Math.PI * 1.72];
+      for (let li = 0; li < lAngles.length; li++) {
+        const la = lAngles[li], lr = 12.6;
+        const lx = Math.cos(la) * lr, lz = Math.sin(la) * lr;
+        if (!canPlace(lx, lz, 4.0, 11.4)) continue;
+        const lantern = buildCarvedLantern3D({ glowHex: talismanGlow, scale: 0.96 });
+        registerLandmark(lantern, lx, lz, 1.15, 0.72);
+      }
+    }
+
+    /* 5-f) 16-평면 파쇄 현무암 바위 군락 2곳 (과밀 방지 + 충돌 등록) */
     if ([2, 9, 12, 13, 15, 16].includes(stageNo)) {
       const rHex = actIdx === 4 ? 0x2f293c : actIdx === 3 ? 0x3a2325 : 0x45413b;
-      for (let ri = 0; ri < 4; ri++) {
-        const ra = (ri / 4) * Math.PI * 2 + 0.68;
-        const rr = 12.6 + (ri % 2) * 1.8;
-        const rocks = buildFracturedBasaltRocks3D(rng, { rockHex: rHex, count: 3, scale: 0.95 + rng() * 0.25 });
-        registerLandmark(rocks, Math.cos(ra) * rr, Math.sin(ra) * rr, 2.0);
+      const rAngles = [Math.PI * 0.16, Math.PI * 0.66];
+      for (let ri = 0; ri < rAngles.length; ri++) {
+        const ra = rAngles[ri], rr = 13.6;
+        const rx = Math.cos(ra) * rr, rz = Math.sin(ra) * rr;
+        if (!canPlace(rx, rz, 4.6, 12.2)) continue;
+        const rocks = buildFracturedBasaltRocks3D(rng, { rockHex: rHex, count: 3, scale: 0.96 + rng() * 0.2 });
+        registerLandmark(rocks, rx, rz, 1.9, 1.40);
       }
     }
   }
@@ -1214,6 +1203,7 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
   return {
     group,
     kind: k,
+    colliders,
     getStats() {
       return {
         kind: k,
