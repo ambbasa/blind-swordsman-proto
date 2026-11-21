@@ -2490,7 +2490,7 @@ function spawnBoss(opts) {
     marked: false, isBoss: true, seq: seq, seqI: 0, poise: (CFG.bossPat || {}).poise || 3, firstWalk: true,
     phase: 1, phase2: false, phase3: false
   };
-  e.maxHp=opts.hp ?? [18,23,28,32,37,42,47,52,55,63,71,80][S.stage.id-1] ?? 18;
+  e.maxHp=opts.hp ?? [18,21,28,32,37,42,47,52,60,63,71,80,88,96,106,120][S.stage.id-1] ?? 18;
   e.hp=e.maxHp; S.autoDmg=0; S.manualDmg=0;
   const vis = e.shape;
   /* §4.5 보스 개성: 장마다 외형 변주(머리 장신구·장기 4종, 무기 3종, 크기 0.9~1.15배) */
@@ -2950,7 +2950,7 @@ function unlockedMax() {
   if (seq > actStart && (stars[actStart] || 0) > 0) return actEnd;
   return seq;
 }
-function selActOf(n) { return Math.max(1, Math.min(3, Math.floor(((n | 0) - 1) / 4) + 1)); }
+function selActOf(n) { return Math.max(1, Math.min(4, Math.floor(((n | 0) - 1) / 4) + 1)); }
 let titleAct = null;
 function previewStageWorld(n) {
   if (!three || (S && S.playing)) return;
@@ -2994,7 +2994,7 @@ function renderStageSelect(sel) {
   if (titleAct == null || titleAct !== selActOf(cur)) titleAct = selActOf(cur);
   const tabs = $('actTabs');
   if (tabs) {
-    tabs.innerHTML = [1, 2, 3].map(function (a) {
+    tabs.innerHTML = [1, 2, 3, 4].map(function (a) {
       const first = (a - 1) * 4 + 1;
       const openA = unlocked >= first;
       let stars = 0;
@@ -9318,10 +9318,10 @@ function renderShopTab() {
   } else if (shopTab === 'relic') {
     rows.push('<p class="shop-note">판 시작에 장착한 유물 하나가 규칙을 바꿉니다. 지금 칸: ' + relicSlots(save) + '개</p>');
     RELICS.forEach(function (r) {
-      const owned = !!save.relics.owned[r.id], eq = relicOn(save, r.id);
-      const can = !owned && coins >= r.price;
-      rows.push('<button type="button" class="btn shop-item' + (owned ? ' owned' : '') + (eq ? ' equipped' : '') + '" data-act="' + (owned ? 'equip-relic' : 'buy-relic') + '" data-id="' + r.id + '"' + (owned || can ? '' : ' disabled') + '>' +
-        '<b>' + r.name + '</b><span class="meta-price">' + (owned ? (eq ? '장착됨' : '보유') : r.price + '엽전') + '</span><br>' + r.desc + '</button>');
+      const owned = !!save.relics.owned[r.id], eq = relicOn(save, r.id); const open = !r.unlock || swordBlueprint(r.unlock);
+      const can = !owned && open && coins >= r.price;
+      rows.push('<button type="button" class="btn shop-item' + (owned ? ' owned' : '') + (eq ? ' equipped' : '') + (open ? '' : ' locked') + '" data-act="' + (owned ? 'equip-relic' : 'buy-relic') + '" data-id="' + r.id + '"' + (owned || can ? '' : ' disabled') + '>' +
+        '<b>' + r.name + '</b><span class="meta-price">' + (owned ? (eq ? '장착됨' : '보유') : (open ? r.price + '엽전' : r.unlock + '장 클리어 해금')) + '</span><br>' + r.desc + '</button>');
     });
   } else {
     rows.push('<p class="shop-note">보스·기물 색조 — 능력은 없습니다.</p>');
@@ -10105,10 +10105,10 @@ async function boot() {
   persist(!idled);
   /* v0.35/v0.49: 타이틀이 즉시 조작 가능해진 뒤 백그라운드로 예열·디오라마 프리로드 수행 */
   try { titlePrewarm(); } catch (e) {}
-  setTimeout(function () {
+  if (need2d || (typeof location !== 'undefined' && new URLSearchParams(location.search).get('arena') === '0')) { setTimeout(function () {
     try { preloadDiorama(); } catch (e) {}
-    if (!need2d) { try { preloadFigures().catch(function () {}); } catch (e) {} }
-  }, 600);
+    if (need2d) { try { preloadFigures().catch(function () {}); } catch (e) {} }
+  }, 800); }
   if (!raf) loop(now());
   window.GPv2.ready = true;
   window.GPv2.assetsUsed = art.used;
