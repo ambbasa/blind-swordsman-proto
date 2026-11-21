@@ -8160,7 +8160,7 @@ function endRun(win, msg) {
   } else if (!win && timeUp) {
     note = '시간이 모자랐습니다 — 보스의 빈틈에 집중하거나 모드를 바꿔 보세요.';
   } else if (!win) {
-    note = '보스의 도형 순서를 끝까지 베면 클리어입니다.';
+    note = '보스의 체력을 깎아 쓰러뜨린 뒤 한붓별(★)로 봉인하면 클리어입니다.';
   }
   $('resultNext').textContent = note;
   /* §7.3 투명성: 이번 판에 어떤 도움이 들어갔는지 결과 화면에 작게 남긴다. */
@@ -9398,7 +9398,7 @@ function renderCodex() {
 }
 
 /* §8.3 무늬 수련장: 10종 자유 연습 + 최근 20회 인식률 + 그리는 요령 애니메이션 */
-const TRAIN_SHAPES = ['hline', 'vline', 'vee', 'bolt', 'circle', 'square', 'tri', 'arc', 'spiral', 'star', 'tap'];
+const TRAIN_SHAPES = ['hline', 'vline', 'vee', 'bolt', 'circle', 'square', 'tri', 'spiral', 'star', 'tap'];
 const SHAPE_LABEL = { hline: '—', vline: 'ㅣ', vee: 'V', bolt: '⚡', circle: 'O', star: '⛤', square: 'ㅁ', tri: '△', arc: '◡', spiral: '@', tap: '•' };
 const SHAPE_TIP = {
   hline: '가로로 곧게, 화면 폭의 절반쯤. 끝에서 멈칫하지 마세요.',
@@ -9510,7 +9510,7 @@ function trainPoint(e) {
 }
 function trainFinish() {
   if (!train.pts.length) return;
-  const rec = G.recognize(train.pts, { allowBolt: true, seal: train.shape === 'star', totem: ['tri', 'square', 'arc', 'spiral'].includes(train.shape) });
+  const rec = G.recognize(train.pts, { allowBolt: true, seal: train.shape === 'star', totem: ['tri', 'square', 'spiral'].includes(train.shape) });
   const ok = rec.type === train.shape;
   save.train = save.train || { stats: {}, seen: 0 };
   save.train.stats[train.shape] = (save.train.stats[train.shape] || []).concat([ok ? 1 : 0]).slice(-20);
@@ -10039,6 +10039,16 @@ function bindUi() {
     setMode('train');
     startRun({ stage: (S && S.stageNo) || 1 });
   });
+document.addEventListener('visibilitychange', function () {
+  if (document.hidden) {
+    if (S && S.playing && !S.paused) pauseRun();
+    else if (audio) audio.stopBgm();
+  }
+});
+window.addEventListener('pagehide', function () {
+  if (S && S.playing && !S.paused) pauseRun();
+  else if (audio) audio.stopBgm();
+});
 }
 
 function fpsReport() {
