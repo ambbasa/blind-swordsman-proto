@@ -371,7 +371,7 @@ export class BossFx {
     const w = Math.min(312, r.width - 28);
     const h = 42;
     const x = (r.width - w) * 0.5;
-    const y = 76;
+    const y = 128;
 
     ctx.save();
     /* 배경 패널 (한지 먹프레임 + 반응 순간 밝은 금/주홍 맥동) */

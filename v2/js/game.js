@@ -1050,6 +1050,8 @@ function setHudText(el, value) {
   if (el.textContent !== text) el.textContent = text;
 }
 function renderHud() {
+  const appEl = $('app');
+  if (appEl) appEl.classList.toggle('boss-active', !!(S && S.playing && S.boss && S.boss.alive));
   if (!S) {
     setHudText($('stageLabel'), '심안');
     $('judgeFlash').hidden = true;
@@ -2537,6 +2539,7 @@ function spawnBoss(opts) {
   S.zombies.push(e);
   art.tickChar(e.obj,'boss','boss:idle',1/60,S.hero.x-e.x,S.hero.z-e.z);
   S.boss = e; S.bossSpawned = true;
+  if ($('app')) $('app').classList.add('boss-active');
   /* v0.50: 보스 등장 장단 전환 + 웅장한 등장이펙트·사운드 */
   if (audio) {
     if (audio.setBossMode) audio.setBossMode(true);
@@ -4010,12 +4013,12 @@ function drawV31(ctx, r, hs, t) {
     if (boss.hpTrail == null || boss.hpTrail < curHp) boss.hpTrail = curHp;
     else boss.hpTrail = Math.max(curHp, boss.hpTrail - maxHp * 0.38 * frameDt);
 
-    /* v0.58 화면 상단 고정 보스 바 (boss-design · poise-stagger · attack-tell 적용) */
+    /* v0.58 + v0.59.1 화면 상단 고정 보스 바 — 상단 HUD(y=0..58) 아래 y=64..120 구간에 깔끔히 배치 */
     const w = Math.min(312, Math.max(210, r.width - 56));
     const h = 10, ph = 5;
     const cx = r.width * 0.5;
     const x = cx - w * 0.5;
-    const y = 62;
+    const y = 86;
     const nowT = S.elapsed || 0;
     const openLeft = Math.max(0, (boss.openUntil || 0) - nowT);
     const isOpen = openLeft > 0 || boss.state === 'groggy';
