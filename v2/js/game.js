@@ -9858,8 +9858,6 @@ function loop(ts) {
     if (three.map && three.map.follow && !(three.chunks && three.chunks.bounds)) three.map.follow(S ? S.cam.x : 0, S ? S.cam.z : 0);
     stepArena(raw);
     if (three.map && three.map.update) three.map.update(raw, ts * 0.001);
-    if (three.river && typeof three.river.update === 'function') three.river.update(raw);
-    if (three.terrain3d && typeof three.terrain3d.update === 'function') three.terrain3d.update(raw);
      if (three.atmo) {
       if (S && S.hero) {
         three.atmo.setCenter(S.cam.x, 6, S.cam.z);
@@ -9945,7 +9943,9 @@ function loop(ts) {
     }
     syncGroundEffects();
     bossFx.syncGround3D(S && S.boss, S && S.hazards, (S && S.elapsed) || 0, dt, ((CFG.bossPat || {}).slam || {}).r || 3.2);
-    fitShadowFrustum();
+    if (three.river && typeof three.river.update === 'function') three.river.update(dt);
+    if (three.terrain3d && typeof three.terrain3d.update === 'function') three.terrain3d.update(dt);
+     fitShadowFrustum();
     if (three.bloom && three.bloom.render) three.bloom.render(dt);
     else three.renderer.render(three.scene, three.camera);
     updateMarks();
