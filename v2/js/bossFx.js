@@ -410,7 +410,7 @@ export class BossFx {
     ctx.font = isNow ? '700 12.5px "InkSerif", serif' : '600 11px sans-serif';
     ctx.fillStyle = isNow ? '#fff2b0' : 'rgba(244,232,206,0.88)';
     const rightTxt = isNow
-      ? (info.mode === 'parry' ? '★ 지금 탭! ★' : (info.mode === 'dodge' ? '지금 회피!' : (info.hint || S.hint)))
+      ? (info.mode === 'parry' ? '지금 받아쳐라' : (info.mode === 'dodge' ? '지금 회피!' : (info.hint || S.hint)))
       : (info.hint || S.hint);
     ctx.fillText(rightTxt, x + w - 9, y + 16);
 
@@ -719,7 +719,7 @@ export class BossFx {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = open && !lock ? '700 14px "InkSerif", serif' : '700 12.5px "InkSerif", serif';
     ctx.fillStyle = lock ? '#b2a89e' : (open ? '#fff2aa' : '#f4e6c8');
-    const title = lock ? '기물 뒤로 피하라' : (open ? '★ 지금 화면 탭! (받아치기) ★' : '기합 폭발 — 금빛 칸에서 화면 탭!');
+    const title = lock ? '기물 뒤로 피하라' : (open ? '지금 화면을 탭해 받아쳐라' : '기합 폭발 — 금빛 칸에서 화면 탭!');
     ctx.fillText(title, r.width * 0.5, y + 15);
 
     /* 하단 굵고 선명한 타이밍 바 */
@@ -817,7 +817,7 @@ export class BossFx {
       ctx.strokeStyle = ctx.fillStyle;
       if (done) {
         ctx.font = '700 16px sans-serif';
-        ctx.fillText('✓', px, cy + 1);
+        ctx.fillText('完', px, cy + 1);
       } else if (sh === 'star') {
         ctx.beginPath();
         ctx.moveTo(px, cy - 13);
