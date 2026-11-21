@@ -1,10 +1,6 @@
 /**
  * v2/js/modules/inkTerrain3d.js
- * 심안(SIMAN) v0.57 — 전 스테이지(1~16장) 대나무숲 기준 고밀도 3D 입체 기물 + 3D 음파 셰이더 환경 엔진
- * - 모든 지형(none·rubble·bamboo·moon·fog·snow·root·bell·blood·water·wall)에 다중 파츠 3D 기물 + 고유 파티클 부여
- * - 8장 종루: 커스텀 GLSL 3D 음파 돔 + 다층 3D 토러스 충격파 링 + 종 흔들림 (triggerBellWave 실시간 연동)
- * - 9장 혈석 제단 · 13장 무간의 회랑: 2D 혈석 대체용 실시간 3D 혈석 크리스탈 제단(syncPatches) + 13장 전용 붉은 회랑 주열·향로
- * - 10장 뼈의 강 · 14장 망각의 나루: 각 스테이지 강 곡선·각도(riverCfg)에 맞춘 강변 3D 기물(거대 갈비뼈 아치 / 나루터 목교·등롱)
+ * 심안(SIMAN) v0.57.1 — 전 스테이지(1~16장) 대나무숲 기준 고밀도 3D 입체 기물 + 3D 음파 셰이더 환경 엔진
  */
 import * as THREE from 'three';
 
@@ -658,4 +654,4 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       for (let i = 0; i < disposables.length; i++) if (disposables[i] && disposables[i].dispose) disposables[i].dispose();
     },
   };
-                           }
+              }
