@@ -205,11 +205,89 @@ export function getHanjiTalismanTex() {
 }
 
 /* ============================================================================
-   5) 3D Kasumidera 스타일 동양 건축·자연 랜드마크 빌더
+   5) 16-평면 절단 현무암 바위 팩토리 (lightning-energy-skill-vfx/assets/storm-energy.mjs 이식)
+   ============================================================================ */
+const _fracturedRockCache = new Map();
+
+/**
+ * 정육면체를 ~16개의 무작위 절단 평면으로 깎아 날카로운 단면과 평면 절리를 가진
+ * 실제 파쇄 바위 BufferGeometry를 생성한다 (storm-energy.mjs fracturedRock 직이식).
+ */
+export function createFracturedRockGeo(seed = 91, squashY = 0.76) {
+  const key = `${seed}_${squashY.toFixed(2)}`;
+  if (_fracturedRockCache.has(key)) return _fracturedRockCache.get(key).clone();
+  let s = (seed >>> 0) || 1;
+  const r2 = () => { s = (s + 0x6D2B79F5) >>> 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t ^= t + Math.imul(t ^ (t >>> 7), 61 | t); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const V3 = THREE.Vector3;
+  const UP = new V3(0, 1, 0), X = new V3(1, 0, 0), _a = new V3(), _b = new V3();
+  const C = [-1, 1];
+  let faces = [];
+  for (let ax = 0; ax < 3; ax++) for (const sg of C) {
+    const n = new V3(); n.setComponent(ax, sg);
+    const u = new V3(), w = new V3(); u.setComponent((ax + 1) % 3, 1); w.crossVectors(n, u);
+    faces.push({
+      n,
+      v: [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, b]) =>
+        n.clone().add(u.clone().multiplyScalar(a)).add(w.clone().multiplyScalar(b))
+      ),
+    });
+  }
+  const cuts = 14 + Math.floor(r2() * 6);
+  for (let k = 0; k < cuts; k++) {
+    const n = new V3(r2() * 2 - 1, (r2() * 2 - 1) * 0.8, r2() * 2 - 1).normalize();
+    const d = 0.52 + r2() * 0.38;
+    const out = [], cap = [];
+    for (const F of faces) {
+      const res = [];
+      for (let i = 0; i < F.v.length; i++) {
+        const a = F.v[i], b = F.v[(i + 1) % F.v.length], da = a.dot(n) - d, db = b.dot(n) - d;
+        if (da <= 0) res.push(a);
+        if ((da <= 0) !== (db <= 0)) {
+          const p = a.clone().lerp(b, da / (da - db));
+          res.push(p); cap.push(p);
+        }
+      }
+      if (res.length >= 3) out.push({ n: F.n, v: res });
+    }
+    if (cap.length >= 3) {
+      const c = cap.reduce((acc, p) => acc.add(p), new V3()).divideScalar(cap.length);
+      const u = new V3().crossVectors(n, Math.abs(n.y) < 0.9 ? UP : X).normalize();
+      const w = new V3().crossVectors(n, u);
+      const pts = [];
+      for (const p of cap) if (!pts.some((q) => q.distanceToSquared(p) < 1e-8)) pts.push(p);
+      pts.sort((p, q) => Math.atan2(_a.subVectors(p, c).dot(w), _a.dot(u)) - Math.atan2(_b.subVectors(q, c).dot(w), _b.dot(u)));
+      if (pts.length >= 3) out.push({ n, v: pts });
+    }
+    faces = out;
+  }
+  const pos = [], nrm = [];
+  for (const F of faces) {
+    for (let i = 1; i < F.v.length - 1; i++) {
+      for (const p of [F.v[0], F.v[i], F.v[i + 1]]) {
+        pos.push(p.x, p.y * squashY, p.z);
+        nrm.push(F.n.x, F.n.y / squashY, F.n.z);
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  const nv = new THREE.Float32BufferAttribute(nrm, 3);
+  for (let i = 0; i < nv.count; i++) {
+    _a.fromBufferAttribute(nv, i).normalize();
+    nv.setXYZ(i, _a.x, _a.y, _a.z);
+  }
+  g.setAttribute('normal', nv);
+  g.computeBoundingSphere();
+  _fracturedRockCache.set(key, g);
+  return g.clone();
+}
+
+/* ============================================================================
+   6) 3D Kasumidera 스타일 동양 건축·자연 랜드마크 빌더
    ============================================================================ */
 
 /**
- * 캠버 아치 목교 (3d-kasumidera-ultra-realism: 휜 상판·개별 판자·주홍 난간·청동 기둥머리·돌 교대)
+ * 캠버 아치 목교 (3d-kasumidera-ultra-realism/bridge.jpg: 휜 상판·이중 주홍 난간·청동 보주(Giboshi) 기둥머리·돌 교대)
  */
 export function buildArchedBridge3D(opts = {}) {
   const length = opts.length || 7.6;
@@ -219,9 +297,9 @@ export function buildArchedBridge3D(opts = {}) {
   group.name = 'kasumidera-arched-bridge';
 
   const woodMat = new THREE.MeshStandardMaterial({ color: opts.woodHex || 0x5c3e26, roughness: 0.86, metalness: 0.04 });
-  const lacquerMat = new THREE.MeshStandardMaterial({ color: opts.railHex || 0x9e2a20, roughness: 0.52, metalness: 0.12 });
+  const lacquerMat = new THREE.MeshStandardMaterial({ color: opts.railHex || 0x9e2a20, roughness: 0.50, metalness: 0.14 });
   const stoneMat = new THREE.MeshStandardMaterial({ color: opts.stoneHex || 0x5c5850, roughness: 0.92, metalness: 0.02 });
-  const bronzeMat = new THREE.MeshStandardMaterial({ color: 0xb8964c, roughness: 0.38, metalness: 0.65 });
+  const bronzeMat = new THREE.MeshStandardMaterial({ color: 0xc29e4a, roughness: 0.34, metalness: 0.74 });
   const disposables = [woodMat, lacquerMat, stoneMat, bronzeMat];
 
   /* 양쪽 돌 교대(Stone Seats) */
@@ -251,27 +329,40 @@ export function buildArchedBridge3D(opts = {}) {
     group.add(p);
   }
 
-  /* 양쪽 휜 목재 아치 들보(Arch Ribs) + 주홍 난간(Vermilion Rails) + 청동 기둥머리 */
+  /* Kasumidera bridge.jpg 청동 보주(Giboshi) LatheGeometry 기둥머리 */
+  const giboshiPts = [
+    new THREE.Vector2(0.085, 0.0),
+    new THREE.Vector2(0.105, 0.04),
+    new THREE.Vector2(0.082, 0.08),
+    new THREE.Vector2(0.115, 0.14),
+    new THREE.Vector2(0.095, 0.21),
+    new THREE.Vector2(0.038, 0.27),
+    new THREE.Vector2(0.0, 0.32),
+  ];
   const postGeo = new THREE.BoxGeometry(0.13, 0.96, 0.13);
-  const finialGeo = new THREE.SphereGeometry(0.095, 8, 6);
+  const finialGeo = new THREE.LatheGeometry(giboshiPts, 10);
   disposables.push(postGeo, finialGeo);
   const postCount = 5;
   for (const zSide of [-1, 1]) {
     const z = zSide * (width * 0.48);
     const ribPts = [];
-    const railPts = [];
+    const railTopPts = [];
+    const railMidPts = [];
     for (let i = 0; i <= 12; i++) {
       const u = i / 12;
       const x = (u - 0.5) * length;
       const y = 0.20 + Math.sin(u * Math.PI) * archH;
-      ribPts.push(new THREE.Vector3(x, y - 0.12, z * 0.88));
-      railPts.push(new THREE.Vector3(x, y + 0.86, z));
+      ribPts.push(new THREE.Vector3(x, y - 0.14, z * 0.86));
+      railTopPts.push(new THREE.Vector3(x, y + 0.86, z));
+      railMidPts.push(new THREE.Vector3(x, y + 0.48, z));
     }
-    const ribGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(ribPts), 16, 0.11, 6, false);
-    const railGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(railPts), 16, 0.065, 6, false);
-    disposables.push(ribGeo, railGeo);
+    const ribGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(ribPts), 16, 0.12, 6, false);
+    const railTopGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(railTopPts), 16, 0.068, 6, false);
+    const railMidGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(railMidPts), 16, 0.045, 6, false);
+    disposables.push(ribGeo, railTopGeo, railMidGeo);
     group.add(new THREE.Mesh(ribGeo, woodMat));
-    group.add(new THREE.Mesh(railGeo, lacquerMat));
+    group.add(new THREE.Mesh(railTopGeo, lacquerMat));
+    group.add(new THREE.Mesh(railMidGeo, lacquerMat));
 
     for (let j = 0; j < postCount; j++) {
       const u = j / (postCount - 1);
@@ -281,7 +372,7 @@ export function buildArchedBridge3D(opts = {}) {
       post.position.set(x, y + 0.44, z);
       group.add(post);
       const fin = new THREE.Mesh(finialGeo, bronzeMat);
-      fin.position.set(x, y + 0.98, z);
+      fin.position.set(x, y + 0.90, z);
       group.add(fin);
     }
   }
@@ -500,12 +591,36 @@ export function buildKasumideraTorii3D(opts = {}) {
   crest.position.set(0, height - 0.42, 0.13);
   group.add(crest);
 
+  /* Kasumidera gate.jpg 처진 금줄(Shimenawa) + 한지 종이 지전(Shide) */
+  const ropeMat = new THREE.MeshStandardMaterial({ color: 0xb09058, roughness: 0.94, metalness: 0.02 });
+  const shideMat = new THREE.MeshStandardMaterial({ color: 0xede0c2, roughness: 0.9, side: THREE.DoubleSide });
+  disposables.push(ropeMat, shideMat);
+  const ropePts = [];
+  for (let i = 0; i <= 12; i++) {
+    const u = i / 12;
+    const rx = (u - 0.5) * (span * 0.92);
+    const ry = height - 0.92 - Math.sin(u * Math.PI) * 0.52;
+    ropePts.push(new THREE.Vector3(rx, ry, 0.14));
+  }
+  const ropeGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(ropePts), 14, 0.065, 6, false);
+  const shideGeo = new THREE.PlaneGeometry(0.16, 0.34);
+  disposables.push(ropeGeo, shideGeo);
+  group.add(new THREE.Mesh(ropeGeo, ropeMat));
+  for (const su of [0.26, 0.5, 0.74]) {
+    const sx = (su - 0.5) * (span * 0.92);
+    const sy = height - 0.96 - Math.sin(su * Math.PI) * 0.52;
+    const sh = new THREE.Mesh(shideGeo, shideMat);
+    sh.position.set(sx, sy - 0.16, 0.17);
+    sh.rotation.z = (su - 0.5) * 0.28;
+    group.add(sh);
+  }
+
   group.userData.disposables = disposables;
   return group;
 }
 
 /**
- * 8) 파쇄 현무암 바위 군락 (lightning-energy-skill-vfx 다면 절단 현무암 바위)
+ * 8) 파쇄 현무암 바위 군락 (lightning-energy-skill-vfx 16-평면 절단 현무암 바위 직이식)
  */
 export function buildFracturedBasaltRocks3D(rng, opts = {}) {
   const group = new THREE.Group();
@@ -517,22 +632,17 @@ export function buildFracturedBasaltRocks3D(rng, opts = {}) {
   });
   const disposables = [mat];
   const count = opts.count || 3;
+  const seeds = [91, 57, 23, 137, 211];
   for (let i = 0; i < count; i++) {
-    const r = (i === 0 ? 0.92 : 0.48 + rng() * 0.32) * (opts.scale || 1.0);
-    const g = new THREE.DodecahedronGeometry(r, 0);
-    const p = g.attributes.position;
-    for (let vi = 0; vi < p.count; vi++) {
-      const vx = p.getX(vi), vy = p.getY(vi), vz = p.getZ(vi);
-      const k = 0.78 + 0.36 * Math.abs(Math.sin(vx * 5.1 + vy * 7.3 + vz * 3.9 + i * 2.1));
-      p.setXYZ(vi, vx * k, vy * k * 0.72, vz * k);
-    }
-    g.computeVertexNormals();
+    const r = (i === 0 ? 0.98 : 0.52 + rng() * 0.34) * (opts.scale || 1.0);
+    const g = createFracturedRockGeo(seeds[(i + Math.floor(rng() * 5)) % seeds.length], 0.72 + (rng() - 0.5) * 0.16);
     disposables.push(g);
     const m = new THREE.Mesh(g, mat);
     const a = i * 2.1 + rng() * 0.6;
-    const dist = i === 0 ? 0 : 0.85 + rng() * 0.45;
-    m.position.set(Math.cos(a) * dist, r * 0.36, Math.sin(a) * dist);
-    m.rotation.set((rng() - 0.5) * 0.4, rng() * 6.28, (rng() - 0.5) * 0.4);
+    const dist = i === 0 ? 0 : 0.88 + rng() * 0.48;
+    m.scale.set(r * (0.95 + rng() * 0.25), r * (0.88 + rng() * 0.32), r * (0.9 + rng() * 0.22));
+    m.position.set(Math.cos(a) * dist, r * 0.38, Math.sin(a) * dist);
+    m.rotation.set((rng() - 0.5) * 0.32, rng() * 6.28, (rng() - 0.5) * 0.32);
     m.castShadow = true; m.receiveShadow = true;
     group.add(m);
   }

@@ -22,6 +22,7 @@ import { SKIN_VERT } from './inkbody3d.js';
 import { INK3D } from './inkhero3d.js';
 import { actFromStageId, getActTheme3D, applyThemeToInkUniforms } from './modules/actTheme3d.js';
 import { mulberry } from './inkbake.js';
+import { createFracturedRockGeo } from './modules/skillAssets3d.js';
 
 export const ARENA = {
   R: 16.5,        /* 플레이 공간 반경 — 경계 클램프 */
@@ -213,6 +214,8 @@ const G = {
   cyl: new THREE.CylinderGeometry(0.5, 0.5, 1, 10, 1),
   cyl6: new THREE.CylinderGeometry(0.5, 0.5, 1, 6, 1),
   cone4: new THREE.ConeGeometry(0.707, 1, 4, 1),
+  cone6: new THREE.ConeGeometry(0.62, 1, 6, 1),
+  torus: new THREE.TorusGeometry(0.5, 0.14, 5, 10),
   sphere: new THREE.SphereGeometry(0.5, 10, 7),
   sphereLo: new THREE.SphereGeometry(0.5, 8, 6),
   plane: new THREE.PlaneGeometry(1, 1)
@@ -415,32 +418,41 @@ function rockGeo(seed, detail) {
 }
 function rock(B, x, z, rnd, c, s) {
   s = s || 1;
-  const seed = Math.floor(rnd() * 97);
-  const g = rockGeo(seed, rnd() < 0.5 ? 2 : 1);
-  B.add(g, c.stone, ZONE.STONE, { x: x, y: 0.22 * s, z: z, sx: 1.05 * s, sy: 0.66 * s, sz: 0.95 * s, ry: rnd() * 6.28, rz: (rnd() - 0.5) * 0.12 });
+  /* v0.63 lightning-energy-skill-vfx: 16-평면 절단 날카로운 현무암 바위 직이식 */
+  const seeds = [91, 57, 23, 137, 211, 73];
+  const g = createFracturedRockGeo(seeds[Math.floor(rnd() * seeds.length)], 0.72);
+  B.add(g, c.stone, ZONE.STONE, { x: x, y: 0.24 * s, z: z, sx: 1.05 * s, sy: 0.78 * s, sz: 0.96 * s, ry: rnd() * 6.28, rz: (rnd() - 0.5) * 0.14 });
   g.dispose();
-  if (rnd() < 0.55) {
-    B.add(G.sphereLo, c.pine, ZONE.LEAF, { x: x + (rnd() - 0.5) * 0.5, y: 0.55 * s, z: z + (rnd() - 0.5) * 0.5, sx: 0.55 * s, sy: 0.14 * s, sz: 0.48 * s });
+  if (rnd() < 0.45) {
+    const g2 = createFracturedRockGeo(seeds[Math.floor(rnd() * seeds.length)], 0.65);
+    B.add(g2, c.stone, ZONE.STONE, { x: x + (rnd() - 0.5) * 0.85 * s, y: 0.14 * s, z: z + (rnd() - 0.5) * 0.85 * s, sx: 0.52 * s, sy: 0.42 * s, sz: 0.48 * s, ry: rnd() * 6.28 });
+    g2.dispose();
   }
 }
 
-/* ---------------------------------------------------------------- 기물: 석등 */
+/* ---------------------------------------------------------------- 기물: 석등 (v0.63 Kasumidera 육각 조각 석등) */
 function lantern(B, x, z, ry, c) {
-  const T = function (lx, ly, lz, sx, sy, sz) {
+  const T = function (lx, ly, lz, sx, sy, sz, rx, rz) {
     const cos = Math.cos(ry), sin = Math.sin(ry);
-    return { x: x + lx * cos + lz * sin, y: ly, z: z - lx * sin + lz * cos, ry: ry, sx: sx, sy: sy, sz: sz };
+    return { x: x + lx * cos + lz * sin, y: ly, z: z - lx * sin + lz * cos, ry: ry, rx: rx || 0, rz: rz || 0, sx: sx, sy: sy, sz: sz };
   };
-  B.add(G.box, c.stone, ZONE.STONE, T(0, 0.13, 0, 0.86, 0.26, 0.86));
-  B.add(G.cyl, c.stone, ZONE.STONE, T(0, 0.72, 0, 0.34, 0.95, 0.34));
-  B.add(G.box, c.stone, ZONE.STONE, T(0, 1.26, 0, 0.62, 0.12, 0.62));
-  B.add(G.box, c.stone, ZONE.STONE, T(0, 1.46, 0, 0.56, 0.5, 0.56));
-  /* 네 면 창호 불빛 */
-  for (let i = 0; i < 4; i++) {
-    const a = i * Math.PI / 2;
-    B.lit(G.plane, c.glow, { x: x + Math.cos(a + ry) * 0.285, y: 1.46, z: z - Math.sin(a + ry) * 0.285, ry: ry - a + Math.PI / 2, sx: 0.3, sy: 0.32, sz: 1 });
+  /* 2단 육각 기단 + 연화대 간주석 */
+  B.add(G.cyl6, c.stone, ZONE.STONE, T(0, 0.10, 0, 1.02, 0.20, 1.02));
+  B.add(G.cyl6, c.stone, ZONE.STONE, T(0, 0.26, 0, 0.76, 0.14, 0.76));
+  B.add(G.cyl6, c.stone, ZONE.STONE, T(0, 0.76, 0, 0.34, 0.90, 0.34));
+  /* 연꽃 중대석 */
+  B.add(G.cyl6, c.stone, ZONE.STONE, T(0, 1.28, 0, 0.72, 0.15, 0.72));
+  B.add(G.cyl6, c.woodDark, ZONE.STONE, T(0, 1.38, 0, 0.54, 0.08, 0.54));
+  /* 화사석(6개 석재 창살 기둥 + 내부 역광 한지 등불) */
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + ry;
+    B.add(G.cyl6, c.stone, ZONE.STONE, { x: x + Math.cos(a) * 0.25, y: 1.62, z: z - Math.sin(a) * 0.25, sx: 0.075, sy: 0.44, sz: 0.075 });
   }
-  B.add(G.cone4, c.stone, ZONE.STONE, T(0, 1.86, 0, 0.98, 0.36, 0.98));
-  B.add(G.sphereLo, c.stone, ZONE.STONE, T(0, 2.1, 0, 0.2, 0.26, 0.2));
+  B.lit(G.cyl6, c.glow, T(0, 1.62, 0, 0.38, 0.38, 0.38));
+  /* 넓은 육각 곡선 옥개석(2단 지붕) + 보주 */
+  B.add(G.cyl6, c.tile || c.stone, ZONE.STONE, T(0, 1.90, 0, 1.18, 0.10, 1.18));
+  B.add(G.cone6, c.tile || c.stone, ZONE.STONE, T(0, 2.12, 0, 1.16, 0.36, 1.16));
+  B.add(G.sphereLo, c.stone, ZONE.STONE, T(0, 2.34, 0, 0.18, 0.24, 0.18));
 }
 
 /* ---------------------------------------------------------------- 기물: 난간·다리·좌판 */
@@ -456,48 +468,88 @@ function railing(B, x, z, ry, len, c) {
   }
 }
 
+/* v0.63 Kasumidera bridge.jpg: 캠버 아치 목교(휜 상판·하부 아치 들보·이중 주홍 난간·청동 보주 기둥머리·돌 교대) */
 function bridge(B, x, z, ry, len, c) {
-  const n = Math.round(len / 0.42);
-  for (let i = 0; i < n; i++) {
-    const t = -len / 2 + (len * (i + 0.5)) / n;
-    B.add(G.box, c.wood, ZONE.WOOD, { x: x + t * Math.cos(ry), y: 0.42, z: z - t * Math.sin(ry), sx: len / n - 0.035, sy: 0.1, sz: 1.9, ry: ry });
-  }
+  const cos = Math.cos(ry), sin = Math.sin(ry);
+  const archH = 0.88, width = 2.1;
+  const railCol = 0x823c38;
+  const T = function (lx, ly, lz, sx, sy, sz, rx, rz) {
+    return { x: x + lx * cos + lz * sin, y: ly, z: z - lx * sin + lz * cos, ry: ry, rx: rx || 0, rz: rz || 0, sx: sx, sy: sy, sz: sz };
+  };
+  /* 양쪽 돌 교대 */
   for (const s of [-1, 1]) {
-    railing(B, x + Math.cos(ry + Math.PI / 2) * s * 0.95, z - Math.sin(ry + Math.PI / 2) * s * 0.95, ry, len, c);
+    B.add(G.box, c.stone, ZONE.STONE, T(s * len * 0.48, 0.22, 0, 1.05, 0.48, width + 0.4));
   }
-  /* 물 위로 놓인 다리 기둥 */
-  for (const t of [-len * 0.32, len * 0.32]) {
+  /* 휜 아치 상판 + 하부 아치 들보 */
+  const n = Math.max(10, Math.round(len / 0.52));
+  const segLen = len / n;
+  for (let i = 0; i < n; i++) {
+    const u = (i + 0.5) / n;
+    const lx = (u - 0.5) * len;
+    const ly = 0.24 + Math.sin(u * Math.PI) * archH;
+    const slope = Math.atan(Math.cos(u * Math.PI) * (archH * Math.PI / len));
+    B.add(G.box, c.wood, ZONE.WOOD, T(lx, ly, 0, segLen * 0.92, 0.10, width, 0, slope));
     for (const s of [-1, 1]) {
-      B.add(G.cyl, c.woodDark, ZONE.WOOD, {
-        x: x + t * Math.cos(ry) + Math.cos(ry + Math.PI / 2) * s * 0.8,
-        y: 0.1, z: z - t * Math.sin(ry) - Math.sin(ry + Math.PI / 2) * s * 0.8,
-        sx: 0.16, sy: 0.8, sz: 0.16
-      });
+      B.add(G.box, c.woodDark, ZONE.WOOD, T(lx, ly - 0.14, s * (width * 0.40), segLen * 1.06, 0.16, 0.14, 0, slope));
+      /* 상·중 이중 주홍 곡선 난간 */
+      B.add(G.box, railCol, ZONE.WOOD, T(lx, ly + 0.82, s * (width * 0.48), segLen * 1.06, 0.09, 0.10, 0, slope));
+      B.add(G.box, railCol, ZONE.WOOD, T(lx, ly + 0.46, s * (width * 0.48), segLen * 1.06, 0.06, 0.08, 0, slope));
+    }
+  }
+  /* 난간 기둥 5쌍 + 청동 보주(Giboshi) 머리 */
+  for (let j = 0; j < 5; j++) {
+    const u = j / 4;
+    const lx = (u - 0.5) * len * 0.90;
+    const ly = 0.24 + Math.sin(u * Math.PI) * archH;
+    for (const s of [-1, 1]) {
+      B.add(G.box, railCol, ZONE.WOOD, T(lx, ly + 0.44, s * (width * 0.48), 0.13, 0.88, 0.13));
+      B.add(G.cone6, c.woodDark, ZONE.GOLD, T(lx, ly + 0.98, s * (width * 0.48), 0.18, 0.24, 0.18));
     }
   }
 }
 
+/* v0.63 3d-cloth-material: 현수선 드리핑 천막 + 주름 자락 + 호롱불 저잣거리 좌판 */
 function stall(B, x, z, ry, c, bare = false) {
   const T = function (lx, ly, lz, sx, sy, sz, rx, rz) {
     const cos = Math.cos(ry), sin = Math.sin(ry);
     return { x: x + lx * cos + lz * sin, y: ly, z: z - lx * sin + lz * cos, ry: ry, rx: rx || 0, rz: rz || 0, sx: sx, sy: sy, sz: sz };
   };
-  /* 좌판 */
-  B.add(G.box, c.wood, ZONE.WOOD, T(0, 0.78, 0, 1.9, 0.1, 0.95));
+  /* 좌판 테이블 + 보강 횡목 */
+  B.add(G.box, c.wood, ZONE.WOOD, T(0, 0.78, 0, 2.05, 0.10, 1.02));
+  B.add(G.box, c.woodDark, ZONE.WOOD, T(0, 0.32, 0, 1.75, 0.07, 0.80));
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    B.add(G.box, c.woodDark, ZONE.WOOD, T(sx * 0.82, 0.39, sz * 0.4, 0.09, 0.78, 0.09));
+    B.add(G.box, c.woodDark, ZONE.WOOD, T(sx * 0.86, 0.39, sz * 0.42, 0.10, 0.78, 0.10));
   }
+  /* 좌판 위 물건 — 옹기 항아리 + 포목 묶음 */
+  B.add(G.cyl, c.woodDark, ZONE.STONE, T(-0.52, 0.94, 0.08, 0.26, 0.26, 0.26));
+  B.add(G.cyl, c.woodDark, ZONE.STONE, T(-0.20, 0.90, -0.12, 0.20, 0.18, 0.20));
+  B.add(G.box, c.plaster, ZONE.PLASTER, T(0.42, 0.91, -0.04, 0.46, 0.16, 0.34, 0, 0.06));
   if (bare) return;
-  /* 기둥 4 + 천막 */
+  /* 목재 기둥 4 + 횡목 들보 */
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-    B.add(G.cyl, c.woodDark, ZONE.WOOD, T(sx * 0.95, 1.12, sz * 0.52, 0.1, 2.24, 0.1));
+    const ph = sz < 0 ? 2.42 : 2.10;
+    B.add(G.cyl, c.woodDark, ZONE.WOOD, T(sx * 0.98, ph * 0.5, sz * 0.56, 0.10, ph, 0.10));
   }
-  B.add(G.box, c.cloth, ZONE.LEAF, T(0, 2.2, 0, 2.3, 0.07, 1.4, 0, 0.09));
-  /* 천막 자락 */
-  B.add(G.box, c.cloth, ZONE.LEAF, T(0, 2.0, 0.68, 2.1, 0.4, 0.04));
-  /* 좌판 위 물건 — 말린 약초 단·항아리 */
-  B.add(G.cyl, c.woodDark, ZONE.WOOD, T(-0.45, 0.9, 0.1, 0.22, 0.2, 0.22));
-  B.add(G.box, c.plaster, ZONE.PLASTER, T(0.35, 0.9, -0.05, 0.4, 0.18, 0.32));
+  B.add(G.cyl, c.wood, ZONE.WOOD, T(0, 2.38, -0.56, 0.08, 2.42, 0.08, 0, Math.PI / 2));
+  B.add(G.cyl, c.wood, ZONE.WOOD, T(0, 2.08, 0.56, 0.08, 2.42, 0.08, 0, Math.PI / 2));
+  /* 3d-cloth-material 현수선(catenary) 처짐 직조 천막 5분할 드레이프 */
+  const segs = 5;
+  for (let i = 0; i < segs; i++) {
+    const u0 = i / segs, u1 = (i + 1) / segs, um = (u0 + u1) * 0.5;
+    const z0 = -0.68 + u0 * 1.40, z1 = -0.68 + u1 * 1.40, zm = (z0 + z1) * 0.5;
+    const yAt = (u) => 2.44 - u * 0.38 - Math.sin(u * Math.PI) * 0.18;
+    const y0 = yAt(u0), y1 = yAt(u1), ym = (y0 + y1) * 0.5;
+    const pitch = Math.atan2(y1 - y0, z1 - z0);
+    const len = Math.hypot(z1 - z0, y1 - y0) * 1.05;
+    B.add(G.box, c.cloth, ZONE.CLOTH, T(0, ym, zm, 2.42, 0.045, len, -pitch, 0));
+  }
+  /* 앞면 주름진 천막 자락(scalloped pleats) */
+  for (let p = -2; p <= 2; p++) {
+    B.add(G.box, c.cloth, ZONE.CLOTH, T(p * 0.44, 1.90 + Math.abs(p) * 0.015, 0.72, 0.42, 0.34, 0.035, 0.14, 0));
+  }
+  /* 처마 끝에 매달린 한지 초롱불 */
+  B.lit(G.cyl6, c.glow, T(0.92, 1.82, 0.62, 0.20, 0.28, 0.20));
+  B.add(G.cyl6, c.woodDark, ZONE.WOOD, T(0.92, 1.98, 0.62, 0.23, 0.05, 0.23));
 }
 
 /* ---------------------------------------------------------------- 기물: 성벽·문 */
@@ -635,12 +687,54 @@ export function buildArena(opts) {
   const court = (x,z,r) => pavilion(B,x,z,r,c);
   const roof = (x,z,r) => house(B,x,z,r,{c, w:6, d:4});
   const market = (x,z,r) => stall(B,x,z,r,c);
-  function pagoda(x,z) {
-    for (let i=0;i<5;i++) {
-      const size = 3.6-i*.55;
-      B.add(G.box,c.stone,ZONE.STONE,{x,z,y:.55+i*1.2,sx:size*.7,sy:1.1,sz:size*.7});
-      B.add(G.cone4,c.tile || c.stone,ZONE.STONE,{x,z,y:1.13+i*1.2,sx:size,sy:.65,sz:size,ry:Math.PI/4});
+  /* v0.63 Kasumidera gate.jpg/eaves.jpg: 다층 목조/석조 사찰 탑(기단·주홍 기둥·난간·역광 창호·곡선 기와 처마·청동 상륜부) */
+  function pagoda(x,z,ry) {
+    ry = ry || Math.PI / 4;
+    const cos = Math.cos(ry), sin = Math.sin(ry);
+    const T = (lx, ly, lz, sx, sy, sz, rx, rz) => ({
+      x: x + lx * cos + lz * sin, y: ly, z: z - lx * sin + lz * cos, ry, rx: rx || 0, rz: rz || 0, sx, sy, sz
+    });
+    const redWood = 0x823c38;
+    /* 2단 석재 기단 */
+    B.add(G.box, c.stone, ZONE.STONE, T(0, 0.24, 0, 4.1, 0.48, 4.1));
+    B.add(G.box, c.stone, ZONE.STONE, T(0, 0.56, 0, 3.4, 0.18, 3.4));
+    let curY = 0.65;
+    const tiers = 4;
+    for (let i = 0; i < tiers; i++) {
+      const k = 1 - i * 0.18;
+      const bodyW = 2.35 * k;
+      const floorH = (i === 0 ? 1.55 : 1.12) * (0.94 + 0.06 * k);
+      const eaveW = bodyW + 1.55 * (0.85 + 0.15 * k);
+      /* 중앙 코어 + 4면 역광 한지 창호 */
+      B.add(G.box, c.woodDark, ZONE.WOOD, T(0, curY + floorH * 0.5, 0, bodyW * 0.86, floorH, bodyW * 0.86));
+      for (const s of [-1, 1]) {
+        B.lit(G.box, c.glow, T(0, curY + floorH * 0.52, s * (bodyW * 0.445), bodyW * 0.56, floorH * 0.60, 0.05));
+        B.lit(G.box, c.glow, T(s * (bodyW * 0.445), curY + floorH * 0.52, 0, 0.05, floorH * 0.60, bodyW * 0.56));
+      }
+      /* 4모서리 주홍 기둥 + 난간 발코니 */
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+        B.add(G.cyl, redWood, ZONE.WOOD, T(sx * bodyW * 0.46, curY + floorH * 0.5, sz * bodyW * 0.46, 0.19 * k + 0.06, floorH, 0.19 * k + 0.06));
+      }
+      const railW = bodyW + 0.36;
+      for (const s of [-1, 1]) {
+        B.add(G.box, redWood, ZONE.WOOD, T(0, curY + 0.34, s * railW * 0.5, railW, 0.09, 0.09));
+        B.add(G.box, redWood, ZONE.WOOD, T(s * railW * 0.5, curY + 0.34, 0, 0.09, 0.09, railW));
+      }
+      /* 처마 공포 들보 + 2단 플레어 기와 지붕(추녀 들림 실루엣) */
+      const roofY = curY + floorH;
+      B.add(G.box, c.woodDark, ZONE.WOOD, T(0, roofY + 0.06, 0, bodyW + 0.45, 0.16, bodyW + 0.45));
+      B.add(G.box, c.tile || c.stone, ZONE.TILE, T(0, roofY + 0.20, 0, eaveW, 0.14, eaveW));
+      const coneTf = T(0, roofY + 0.56, 0, eaveW * 0.96, 0.62, eaveW * 0.96);
+      coneTf.ry = ry + Math.PI / 4;
+      B.add(G.cone4, c.tile || c.stone, ZONE.TILE, coneTf);
+      curY = roofY + 0.62;
     }
+    /* 꼭대기 청동 상륜부(Sorin) 찰주 + 5겹 보륜 */
+    B.add(G.cyl6, c.woodDark, ZONE.GOLD, T(0, curY + 0.85, 0, 0.11, 1.85, 0.11));
+    for (let r = 0; r < 5; r++) {
+      B.add(G.torus, c.woodDark, ZONE.GOLD, T(0, curY + 0.42 + r * 0.24, 0, 0.44 - r * 0.05, 0.44 - r * 0.05, 0.18, Math.PI / 2, 0));
+    }
+    B.add(G.sphereLo, c.woodDark, ZONE.GOLD, T(0, curY + 1.82, 0, 0.24, 0.28, 0.24));
   }
   function deadTree(x,z) {
     B.add(G.cyl6,c.woodDark,ZONE.WOOD,{x,z,y:2,sx:.8,sy:4.2,sz:.9,rz:.12});
@@ -655,13 +749,55 @@ export function buildArena(opts) {
       B.add(bone,0xcdbb98,ZONE.STONE,{x:x+j*.55,z,y:.23,ry:Math.PI/2,rz:-.4});
     }
   }
-  function shrine(x,z) {
-    B.add(G.box,c.stone,ZONE.STONE,{x,z,y:.36,sx:4.2,sy:.72,sz:3.8});
-    B.add(G.cone4,0x823c38,ZONE.STONE,{x,z,y:2.4,sx:2.1,sy:3.8,sz:1.6,rz:.12});
+  /* v0.63 Kasumidera eaves.jpg: 사당/소전각 (석재 기단·계단·주홍 기둥 4·역광 한지 창살문·이중 기와 처마·치미) */
+  function shrine(x,z,ry) {
+    ry = ry || Math.PI / 4;
+    const cos = Math.cos(ry), sin = Math.sin(ry);
+    const T = (lx, ly, lz, sx, sy, sz, rx, rz) => ({
+      x: x + lx * cos + lz * sin, y: ly, z: z - lx * sin + lz * cos, ry, rx: rx || 0, rz: rz || 0, sx, sy, sz
+    });
+    const redWood = 0x823c38;
+    const w = 2.7, d = 2.2, base = 0.46, h = 2.05;
+    /* 석재 기단 + 앞 돌계단 */
+    B.add(G.box, c.stone, ZONE.STONE, T(0, base * 0.5, 0, w + 0.9, base, d + 0.9));
+    B.add(G.box, c.stone, ZONE.STONE, T(0, base * 0.35, d * 0.5 + 0.52, 1.35, base * 0.7, 0.48));
+    /* 내부 어두운 감실 + 주홍 기둥 4 */
+    B.add(G.box, c.woodDark, ZONE.WOOD, T(0, base + h * 0.5, -0.08, w * 0.82, h, d * 0.74));
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      B.add(G.cyl, redWood, ZONE.WOOD, T(sx * w * 0.44, base + h * 0.5, sz * d * 0.42, 0.22, h, 0.22));
+    }
+    /* 앞면 역광 한지 신당 문 + 세로 창살 */
+    B.lit(G.box, c.glow, T(0, base + h * 0.48, d * 0.33, 1.35, 1.25, 0.06));
+    for (let m = -1; m <= 1; m++) {
+      B.add(G.box, c.woodDark, ZONE.WOOD, T(m * 0.36, base + h * 0.48, d * 0.35, 0.055, 1.30, 0.055));
+    }
+    /* 들보·공포 + 맞배/팔작 기와 지붕 + 용마루·치미 */
+    const eaveY = base + h + 0.06, ridgeY = eaveY + 0.92;
+    B.add(G.box, redWood, ZONE.WOOD, T(0, eaveY, 0, w + 0.35, 0.20, d + 0.35));
+    const halfD = d * 0.5 + 0.85, slope = Math.hypot(halfD, ridgeY - eaveY) * 0.97;
+    const ang = Math.atan2(ridgeY - eaveY, halfD);
+    const cz0 = Math.cos(ang) * slope * 0.5, cy0 = Math.sin(ang) * slope * 0.5;
+    for (const s of [-1, 1]) {
+      B.add(G.box, c.tile, ZONE.TILE, T(0, ridgeY + 0.02 - cy0, s * cz0, w + 1.55, 0.16, slope, s * ang, 0));
+    }
+    B.add(G.box, c.woodDark, ZONE.TILE, T(0, ridgeY + 0.08, 0, w + 1.75, 0.28, 0.34));
+    for (const s of [-1, 1]) {
+      B.add(G.cone4, c.woodDark, ZONE.TILE, T(s * (w * 0.5 + 0.84), ridgeY + 0.30, 0, 0.30, 0.44, 0.30));
+    }
   }
+  /* v0.63 lightning-energy-skill-vfx + Kasumidera cliff.jpg: 16-평면 절단 층상 현무암 암봉(구형 사각뿔 대체) */
   function spire(x,z) {
-    const h=3+rnd()*3;
-    B.add(G.cone4,0x292331,ZONE.STONE,{x,z,y:h*.49,sx:1.8,sy:h,sz:1.25,rz:rnd()*.4-.2});
+    const h = 3.1 + rnd() * 2.4;
+    const seeds = [91, 57, 23, 137, 211];
+    const gBase = createFracturedRockGeo(seeds[Math.floor(rnd() * seeds.length)], 1.05);
+    const gMid = createFracturedRockGeo(seeds[Math.floor(rnd() * seeds.length)], 1.25);
+    const gTop = createFracturedRockGeo(seeds[Math.floor(rnd() * seeds.length)], 1.35);
+    const col = 0x292331;
+    const yaw = rnd() * 6.28, tilt = (rnd() - 0.5) * 0.26;
+    B.add(gBase, col, ZONE.STONE, { x, z, y: h * 0.20, sx: 1.45, sy: h * 0.34, sz: 1.25, ry: yaw, rz: tilt * 0.5 });
+    B.add(gMid, col, ZONE.STONE, { x: x + tilt * 0.4, z: z - tilt * 0.3, y: h * 0.52, sx: 1.02, sy: h * 0.36, sz: 0.90, ry: yaw + 1.1, rz: tilt });
+    B.add(gTop, col, ZONE.STONE, { x: x + tilt * 0.85, z: z - tilt * 0.55, y: h * 0.80, sx: 0.62, sy: h * 0.28, sz: 0.56, ry: yaw + 2.3, rz: tilt * 1.3 });
+    gBase.dispose(); gMid.dispose(); gTop.dispose();
   }
 switch(stageId) {
     case 1:
