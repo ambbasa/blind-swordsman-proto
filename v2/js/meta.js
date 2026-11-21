@@ -21,13 +21,13 @@ export const RELICS = [
   { id: 'sheath', name: '금실 칼집', price: 500, desc: '기모으기 금빛 칸이 0.1초 길어집니다.' },
   { id: 'jar', name: '빈 항아리', price: 350, desc: '묵항아리 드롭이 두 배입니다.' },
   { id: 'blood', name: '혈월 부적', price: 450, desc: '체력 절반 아래면 일섬 피해 +25%.' },
-  { id: 'tower', name: '거꾸로 된 탑', price: 600, desc: '보스 무늬 −1, 대신 받는 피해 +1.' },
+  { id: 'tower', name: '거꾸로 된 탑', price: 600, unlock: 4, desc: '보스 무늬 −1, 대신 받는 피해 +1.' },
   { id: 'needle', name: '안개 바늘', price: 400, desc: '원 반경 −10%, 처치 엽전 +30%.' },
   { id: 'eye', name: '세 번째 눈', price: 350, desc: '은신한 보스의 방울 간격 −30%.' },
-  { id: 'totem', name: '기물 장인', price: 700, desc: '보스전 기물이 4개(무늬 하나는 V 재사용).' },
+  { id: 'totem', name: '기물 장인', price: 700, unlock: 8, desc: '보스전 기물이 4개(무늬 하나는 V 재사용).' },
   { id: 'brush', name: '늙은 붓', price: 450, desc: '정확한 획 문턱 −0.05.' },
   { id: 'lantern', name: '연꽃 등', price: 300, desc: '판 시작 참 +30.' },
-  { id: 'beads', name: '저주 염주', price: 700, desc: '유물을 2개 장착, 대신 최대 체력 −4.' }
+  { id: 'beads', name: '저주 염주', price: 700, unlock: 8, desc: '유물을 2개 장착, 대신 최대 체력 −4.' }
 ];
 
 /* §9.2 외형: 보스·기물 색조 6종(능력 없음) */
