@@ -320,12 +320,12 @@ export class BossFx {
   triggerSlamImpact(x, z, r) {
     this.spawnImpact3D(x, z, r || 3.0, 1.35);
     this.events.push({ kind: 'slam', x, z, r: r || 3.0, t: 0, dur: 1.05, seed: Math.random() * 6.28 });
-    this.events.push({ kind: 'kanji', text: '轟', x, z, y: 1.6, color: [236, 78, 54], rim: [255, 218, 136], t: 0, dur: 0.78 });
+    this.events.push({ kind: 'kanji', text: '울림', x, z, y: 1.6, color: [236, 78, 54], rim: [255, 218, 136], t: 0, dur: 0.78 });
   }
 
   triggerSweepBurst(x, z, aimA, range) {
     this.events.push({ kind: 'sweep', x, z, ang: aimA || 0, r: range || 5.8, t: 0, dur: 0.58 });
-    this.events.push({ kind: 'kanji', text: '斬', x, z, y: 1.7, color: [244, 84, 58], rim: [255, 224, 148], t: 0, dur: 0.68 });
+    this.events.push({ kind: 'kanji', text: '참', x, z, y: 1.7, color: [244, 84, 58], rim: [255, 224, 148], t: 0, dur: 0.68 });
   }
 
   triggerKiaiBurst(x, z, parried) {
@@ -335,7 +335,7 @@ export class BossFx {
       t: 0, dur: 0.68
     });
     this.events.push({
-      kind: 'kanji', text: parried ? '破' : '喝', x, z, y: 1.9,
+      kind: 'kanji', text: parried ? '파훼' : '기합', x, z, y: 1.9,
       color: parried ? [255, 228, 122] : [238, 84, 60],
       rim: parried ? [255, 250, 220] : [24, 14, 12],
       t: 0, dur: 0.78
@@ -349,7 +349,7 @@ export class BossFx {
 
   triggerGroggyBreak(x, z) {
     this.events.push({ kind: 'wave', x, z, r: 5.5, color: [244, 204, 96], t: 0, dur: 0.74 });
-    this.events.push({ kind: 'kanji', text: '崩', x, z, y: 2.1, color: [248, 212, 102], rim: [20, 14, 10], t: 0, dur: 0.84 });
+    this.events.push({ kind: 'kanji', text: '붕괴', x, z, y: 2.1, color: [248, 212, 102], rim: [20, 14, 10], t: 0, dur: 0.84 });
   }
 
   triggerSmokeBurst(x, z, jade) {
@@ -615,9 +615,9 @@ export class BossFx {
       ctx.font = '700 18px "InkSerif", serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(14,10,8,0.92)';
-      ctx.strokeText('破 · 지금 탭!', hp.x, hp.y - 26);
+      ctx.strokeText('파훼 · 지금 탭!', hp.x, hp.y - 26);
       ctx.fillStyle = '#ffe580';
-      ctx.fillText('破 · 지금 탭!', hp.x, hp.y - 26);
+      ctx.fillText('파훼 · 지금 탭!', hp.x, hp.y - 26);
     }
     ctx.restore();
   }
@@ -817,7 +817,7 @@ export class BossFx {
       ctx.strokeStyle = ctx.fillStyle;
       if (done) {
         ctx.font = '700 16px sans-serif';
-        ctx.fillText('完', px, cy + 1);
+        ctx.fillText('완료', px, cy + 1);
       } else if (sh === 'star') {
         ctx.beginPath();
         ctx.moveTo(px, cy - 13);
