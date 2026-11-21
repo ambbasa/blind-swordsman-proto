@@ -1,4 +1,4 @@
-/**
+﻿/**
  * v2/js/modules/skillAssets3d.js
  * 심안(SIMAN) v0.61 — 설치된 스킬 에셋·셰이더·3D 지형지물 이식 라이브러리
  *
@@ -391,6 +391,151 @@ export function buildGnarledDeadTree3D(rng, scale = 1.0, woodHex = 0x3b2c22) {
     group.add(new THREE.Mesh(bGeo, mat));
   }
 
+  group.userData.disposables = disposables;
+  return group;
+}
+
+/**
+ * 6) 조각 한지 석등 (3d-kasumidera-ultra-realism + 3d-paper-material — 육각 기단·역광 한지 화사창·처마 갓)
+ */
+export function buildCarvedLantern3D(opts = {}) {
+  const scale = opts.scale || 1.0;
+  const group = new THREE.Group();
+  group.name = 'kasumidera-carved-lantern';
+
+  const stoneMat = new THREE.MeshStandardMaterial({ color: opts.stoneHex || 0x5c5850, roughness: 0.92, metalness: 0.04 });
+  const roofMat = new THREE.MeshStandardMaterial({ color: opts.roofHex || 0x3b3a38, roughness: 0.86, metalness: 0.08 });
+  const glowHex = opts.glowHex || 0xffb85c;
+  const paperMat = new THREE.MeshStandardMaterial({
+    map: getPaperGrainTex(),
+    color: 0xf6e8c8,
+    emissive: new THREE.Color(glowHex),
+    emissiveIntensity: 1.45,
+    roughness: 0.88,
+  });
+  paperMat.userData.cardSkip = true;
+  const disposables = [stoneMat, roofMat, paperMat];
+
+  const baseGeo = new THREE.CylinderGeometry(0.42, 0.56, 0.34, 6);
+  const shaftGeo = new THREE.CylinderGeometry(0.16, 0.21, 1.05, 6);
+  const trayGeo = new THREE.CylinderGeometry(0.40, 0.22, 0.18, 6);
+  const boxGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.44, 6);
+  const ribGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.48, 5);
+  const roofGeo = new THREE.ConeGeometry(0.62, 0.44, 6);
+  const finialGeo = new THREE.SphereGeometry(0.09, 8, 6);
+  disposables.push(baseGeo, shaftGeo, trayGeo, boxGeo, ribGeo, roofGeo, finialGeo);
+
+  const base = new THREE.Mesh(baseGeo, stoneMat); base.position.y = 0.17; base.castShadow = true; group.add(base);
+  const shaft = new THREE.Mesh(shaftGeo, stoneMat); shaft.position.y = 0.86; shaft.castShadow = true; group.add(shaft);
+  const tray = new THREE.Mesh(trayGeo, stoneMat); tray.position.y = 1.45; group.add(tray);
+  const fireBox = new THREE.Mesh(boxGeo, paperMat); fireBox.position.y = 1.74; group.add(fireBox);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const rib = new THREE.Mesh(ribGeo, stoneMat);
+    rib.position.set(Math.cos(a) * 0.25, 1.74, Math.sin(a) * 0.25);
+    group.add(rib);
+  }
+  const roof = new THREE.Mesh(roofGeo, roofMat); roof.position.y = 2.18; roof.castShadow = true; group.add(roof);
+  const fin = new THREE.Mesh(finialGeo, roofMat); fin.position.y = 2.44; group.add(fin);
+
+  group.scale.setScalar(scale);
+  group.userData.disposables = disposables;
+  return group;
+}
+
+/**
+ * 7) 곡선 처마 신사/홍살 산문 (3d-kasumidera-ultra-realism — 주춧돌·기둥·이중 횡목·곡선 상인방·금빛 현판)
+ */
+export function buildKasumideraTorii3D(opts = {}) {
+  const span = opts.span || 4.8;
+  const height = opts.height || 4.2;
+  const group = new THREE.Group();
+  group.name = 'kasumidera-sacred-gate';
+
+  const woodMat = new THREE.MeshStandardMaterial({ color: opts.woodHex || 0x8f241c, roughness: 0.72, metalness: 0.08 });
+  const capMat = new THREE.MeshStandardMaterial({ color: opts.capHex || 0x222024, roughness: 0.68, metalness: 0.16 });
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x454340, roughness: 0.94, metalness: 0.02 });
+  const goldMat = new THREE.MeshStandardMaterial({ color: 0xd4ad52, roughness: 0.36, metalness: 0.72 });
+  const disposables = [woodMat, capMat, stoneMat, goldMat];
+
+  const footGeo = new THREE.CylinderGeometry(0.24, 0.32, 0.48, 8);
+  const colGeo = new THREE.CylinderGeometry(0.15, 0.19, height, 10);
+  const subBeamGeo = new THREE.BoxGeometry(span + 1.4, 0.20, 0.22);
+  const plaqueGeo = new THREE.BoxGeometry(0.54, 0.72, 0.12);
+  disposables.push(footGeo, colGeo, subBeamGeo, plaqueGeo);
+
+  for (const side of [-1, 1]) {
+    const px = side * (span * 0.44);
+    const ft = new THREE.Mesh(footGeo, stoneMat); ft.position.set(px, 0.24, 0); group.add(ft);
+    const col = new THREE.Mesh(colGeo, woodMat);
+    col.position.set(px, height * 0.5, 0);
+    col.rotation.z = side * 0.045;
+    col.castShadow = true;
+    group.add(col);
+  }
+  const sub = new THREE.Mesh(subBeamGeo, woodMat);
+  sub.position.set(0, height - 0.82, 0);
+  group.add(sub);
+
+  /* 곡선으로 끝단이 들린 상인방(Kasagi lintel) */
+  const lPts = [];
+  for (let i = 0; i <= 10; i++) {
+    const u = i / 10;
+    const x = (u - 0.5) * (span + 2.2);
+    const curl = Math.pow(Math.abs(u - 0.5) * 2.0, 2.2) * 0.38;
+    lPts.push(new THREE.Vector3(x, height + curl, 0));
+  }
+  const lintelGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(lPts), 16, 0.16, 6, false);
+  const capGeo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(lPts.map((p) => new THREE.Vector3(p.x, p.y + 0.14, 0))), 16, 0.12, 6, false);
+  disposables.push(lintelGeo, capGeo);
+  group.add(new THREE.Mesh(lintelGeo, woodMat));
+  group.add(new THREE.Mesh(capGeo, capMat));
+
+  const plaque = new THREE.Mesh(plaqueGeo, capMat);
+  plaque.position.set(0, height - 0.42, 0.06);
+  group.add(plaque);
+  const crestGeo = new THREE.TorusGeometry(0.14, 0.025, 6, 16);
+  disposables.push(crestGeo);
+  const crest = new THREE.Mesh(crestGeo, goldMat);
+  crest.position.set(0, height - 0.42, 0.13);
+  group.add(crest);
+
+  group.userData.disposables = disposables;
+  return group;
+}
+
+/**
+ * 8) 파쇄 현무암 바위 군락 (lightning-energy-skill-vfx 다면 절단 현무암 바위)
+ */
+export function buildFracturedBasaltRocks3D(rng, opts = {}) {
+  const group = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({
+    color: opts.rockHex || 0x353338,
+    roughness: 0.88,
+    metalness: 0.08,
+    flatShading: true,
+  });
+  const disposables = [mat];
+  const count = opts.count || 3;
+  for (let i = 0; i < count; i++) {
+    const r = (i === 0 ? 0.92 : 0.48 + rng() * 0.32) * (opts.scale || 1.0);
+    const g = new THREE.DodecahedronGeometry(r, 0);
+    const p = g.attributes.position;
+    for (let vi = 0; vi < p.count; vi++) {
+      const vx = p.getX(vi), vy = p.getY(vi), vz = p.getZ(vi);
+      const k = 0.78 + 0.36 * Math.abs(Math.sin(vx * 5.1 + vy * 7.3 + vz * 3.9 + i * 2.1));
+      p.setXYZ(vi, vx * k, vy * k * 0.72, vz * k);
+    }
+    g.computeVertexNormals();
+    disposables.push(g);
+    const m = new THREE.Mesh(g, mat);
+    const a = i * 2.1 + rng() * 0.6;
+    const dist = i === 0 ? 0 : 0.85 + rng() * 0.45;
+    m.position.set(Math.cos(a) * dist, r * 0.36, Math.sin(a) * dist);
+    m.rotation.set((rng() - 0.5) * 0.4, rng() * 6.28, (rng() - 0.5) * 0.4);
+    m.castShadow = true; m.receiveShadow = true;
+    group.add(m);
+  }
   group.userData.disposables = disposables;
   return group;
 }

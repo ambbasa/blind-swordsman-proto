@@ -696,7 +696,8 @@ switch(stageId) {
       for(const side of [-1,1]) { at(side*14,3,2,tree); at(side*14,-9,2,tree); at(side*8,12,1,lamp); at(side*9,-12,1,lamp); }
       break;
     case 7:
-      for(let j=0;j<15;j++) { const a=j*(Math.PI*2/15); at(15.5*Math.cos(a),15.5*Math.sin(a),2,deadTree); }
+      /* v0.62: 구형 직선 막대기 고목 대신 inkTerrain3d.js의 자연 굴곡 굽은 고목(buildGnarledDeadTree3D) 12그루로 완전 교체 */
+      for(const side of [-1,1]) { at(side*13.5, 9, 1.5, lamp); at(side*13.5, -9, 1.5, lamp); }
       break;
     case 8:
       at(0,15,4,door); at(0,23,4,court); at(0,-17,4,door);

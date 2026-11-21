@@ -70,7 +70,12 @@ export function createWorldInkUniforms() {
     uSonarRadius: { value: 0.0 },
     uSonarWidth: { value: 0.4 },
     uSonarAlpha: { value: 0.0 },
-    uSonarColor: { value: palColor('jade').clone() }
+    uSonarColor: { value: palColor('jade').clone() },
+    /* v0.62 lightning-energy-skill-vfx: 스캔 바닥 균열 틈새 발열 글로우(번개·참·보스 강타 연동) */
+    uCrackHeatPos: { value: new THREE.Vector3(0, 0, 0) },
+    uCrackHeatRadius: { value: 3.5 },
+    uCrackHeatAmt: { value: 0.0 },
+    uCrackHeatCol: { value: new THREE.Color(0xff9838) }
   };
 }
 
@@ -102,12 +107,30 @@ export function attachGroundInkShader(material, uniforms) {
         uniform float uSonarRadius;
         uniform float uSonarWidth;
         uniform float uSonarAlpha;
-        uniform vec3 uSonarColor;`)
+        uniform vec3 uSonarColor;
+        uniform vec3 uCrackHeatPos;
+        uniform float uCrackHeatRadius;
+        uniform float uCrackHeatAmt;
+        uniform vec3 uCrackHeatCol;`)
       .replace('#include <dithering_fragment>', `
         if (uSonarAlpha > 0.001) {
           float dSonar = abs(length(vInkWorldPos.xz - uSonarOrigin.xz) - uSonarRadius);
           float ring = 1.0 - smoothstep(0.0, uSonarWidth, dSonar);
           gl_FragColor.rgb += uSonarColor * ring * uSonarAlpha * 1.35;
+        }
+        if (uCrackHeatAmt > 0.002) {
+          float dHeat = length(vInkWorldPos.xz - uCrackHeatPos.xz);
+          float hFall = 1.0 - smoothstep(0.15, max(0.5, uCrackHeatRadius), dHeat);
+          if (hFall > 0.005) {
+            /* 스캔 바닥 ARM 맵의 AO 채널(r)이 낮은 깊은 균열 틈새만 가늘게 달아오른다 */
+            float crackMask = 0.55;
+            #ifdef USE_ROUGHNESSMAP
+              float aoVal = texture2D(roughnessMap, vRoughnessMapUv).r;
+              crackMask = 1.0 - smoothstep(0.28, 0.52, aoVal);
+            #endif
+            float glow = hFall * hFall * (0.22 + 1.45 * crackMask) * uCrackHeatAmt;
+            gl_FragColor.rgb += uCrackHeatCol * glow;
+          }
         }
         #include <dithering_fragment>`);
   };

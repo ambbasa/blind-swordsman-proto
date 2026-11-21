@@ -5070,6 +5070,7 @@ function castCleave(rec) {
       );
     }
     three.vfx3d.triggerImpactFrame({ dur: 0.085, safe: a11yShake() });
+    triggerGroundCrackHeat(S.hero.x, S.hero.z, R * 1.1, 0x5ef2c8);
   }
   showJudge('참(斬)');
   renderHud();
@@ -5563,6 +5564,14 @@ function tickStatuses(dt) {
     tintZombie(z);
   });
 }
+/* v0.62 lightning-energy-skill-vfx: 스캔 바닥 균열 틈새 발열 글로우 트리거 */
+function triggerGroundCrackHeat(x, z, radius, hex) {
+  if (!three || !three.inkUniforms || !three.inkUniforms.uCrackHeatAmt) return;
+  three.inkUniforms.uCrackHeatPos.value.set(x || 0, 0, z || 0);
+  three.inkUniforms.uCrackHeatRadius.value = radius || 3.6;
+  three.inkUniforms.uCrackHeatAmt.value = 1.0;
+  if (hex != null) three.inkUniforms.uCrackHeatCol.value.setHex(hex);
+}
 function makeSlash(from, to) {
   const dx = to.x - from.x, dz = to.z - from.z;
   const len = Math.max(0.2, Math.hypot(dx, dz));
@@ -5604,6 +5613,7 @@ function makeSlash(from, to) {
         { x: to.x, y: 0.25, z: to.z },
         { color: 0x7ab4ff, core: 0xf4f9ff, hold: 0.13, fade: 0.18, sparks: 10 }
       );
+      triggerGroundCrackHeat(to.x, to.z, 3.6, 0x6ea8ff);
     }
   }
   /* v0.41: 검기 시트(초승달 종이 아크) — 원소면 그 원소 시트가 함께 터진다. */
@@ -5650,6 +5660,7 @@ function makeBossSlash(from, to, opts) {
       three.vfx3d.spawnInkTrail(from, to, 5);
       three.vfx3d.spawnSwirl(to.x, to.z, { r0: 1.4, r1: Math.max(3.6, width * 1.45), accentHex: 0xe84830, dur: 0.44 });
       three.vfx3d.spawnSparks(to.x, to.z, 14, { color: 0xff6e38, speed: 7.4 });
+      triggerGroundCrackHeat(to.x, to.z, Math.max(3.8, width * 1.3), 0xff5a30);
     }
     if (three.paper) three.paper.slash(from, to, elem);
     if (three.lights) {
@@ -5754,6 +5765,7 @@ function killZombie(z, rec) {
     three.vfx3d.spawnLightning({ x: z.x, y: 8.5, z: z.z }, { x: z.x, y: 0.2, z: z.z }, { color: 0xffd26a, core: 0xfffdf2, hold: 0.18, fade: 0.24, sparks: 22 });
     three.vfx3d.spawnSwirl(z.x, z.z, { r0: 1.6, r1: 5.4, accentHex: 0xf0c258, dur: 0.52 });
     three.vfx3d.triggerImpactFrame({ dur: 0.08, safe: a11yShake() });
+    triggerGroundCrackHeat(z.x, z.z, 5.5, 0xffd26a);
   }
   } else codexMon(z.type);
   /* 분열 정예: 죽으면 둘로 갈라진다. */
@@ -7622,6 +7634,7 @@ function bossGroggy(z) {
     three.vfx3d.spawnLightning({ x: z.x, y: 8.5, z: z.z }, { x: z.x, y: 0.2, z: z.z }, { color: 0xffd26a, core: 0xfffdf2, hold: 0.18, fade: 0.24, sparks: 22 });
     three.vfx3d.spawnSwirl(z.x, z.z, { r0: 1.6, r1: 5.4, accentHex: 0xf0c258, dur: 0.52 });
     three.vfx3d.triggerImpactFrame({ dur: 0.08, safe: a11yShake() });
+    triggerGroundCrackHeat(z.x, z.z, 5.5, 0xffd26a);
   }
   if (audio && audio.bossBreak) audio.bossBreak();
   showJudge('자세 붕괴 — 일섬!');
@@ -7959,6 +7972,7 @@ function triggerPhaseCut(z, nextPhase, invulnDur, title, msg) {
     three.vfx3d.spawnLightning({ x: z.x, y: 9.2, z: z.z }, { x: z.x, y: 0.2, z: z.z }, { color: pCol, core: 0xfff8ee, hold: 0.18, fade: 0.26, sparks: 24 });
     three.vfx3d.spawnSwirl(z.x, z.z, { r0: 1.8, r1: nextPhase === 3 ? 7.8 : 6.0, accentHex: pCol, dur: 0.58 });
     three.vfx3d.triggerImpactFrame({ dur: 0.085, safe: a11yShake() });
+    triggerGroundCrackHeat(z.x, z.z, nextPhase === 3 ? 7.5 : 5.8, pCol);
   }
   if (audio && audio.gong) audio.gong();
   showJudge(title);
@@ -10031,6 +10045,10 @@ function loop(ts) {
     /* v0.40 5단계: 접힘 스프링 대상(부적·결계·카드) 적분 */
     try { tickFolds(dt); } catch (e) {}
     if (three.inkUniforms && S && S.hero) three.inkUniforms.uHeroPos.value.set(S.hero.x, 0, S.hero.z);
+    if (three.inkUniforms && three.inkUniforms.uCrackHeatAmt && three.inkUniforms.uCrackHeatAmt.value > 0.002) {
+      three.inkUniforms.uCrackHeatAmt.value *= Math.exp(-dt * 1.45);
+      if (three.inkUniforms.uCrackHeatAmt.value < 0.002) three.inkUniforms.uCrackHeatAmt.value = 0;
+    }
     /* v0.39: 그림자 프러스텀을 그 프레임의 카메라 가시 바닥에 맞춘다(텍셀 스냅 포함). */
     if (S && S.hero && S.playing) {
       const radius = ringR();
