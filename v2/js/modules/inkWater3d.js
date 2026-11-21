@@ -105,6 +105,8 @@ void main() {
 
   float alpha = clamp(edgeAlpha * (0.84 + 0.15 * depth), 0.0, 0.96);
   gl_FragColor = vec4(col, alpha);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
 }
 `;
 
