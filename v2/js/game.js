@@ -450,7 +450,7 @@ function terrainInit() {
     try { three.river = createInkRiver3D(three.scene, { centerFn: tWaterCenter }); } catch (e) { three.river = null; }
   }
   if (three && three.terrain3d) { try { three.terrain3d.dispose(); } catch (e) {} three.terrain3d = null; }
-  if (three && three.scene && S.terrain && S.terrain.kind && S.terrain.kind !== 'none' && S.terrain.kind !== 'water') {
+  if (three && three.scene && S.terrain) {
     try { three.terrain3d = createInkTerrain3D(three.scene, S.terrain.kind, { stageNo: S.stageNo }); } catch (e) { three.terrain3d = null; }
   }
    telemetry.event('stage_terrain', { stage: S.stageNo || 0, rule: S.terrain.kind });
@@ -2490,7 +2490,7 @@ function spawnBoss(opts) {
     marked: false, isBoss: true, seq: seq, seqI: 0, poise: (CFG.bossPat || {}).poise || 3, firstWalk: true,
     phase: 1, phase2: false, phase3: false
   };
-  e.maxHp=opts.hp ?? [18,21,28,32,37,42,47,52,60,63,71,80,88,96,106,120][S.stage.id-1] ?? 18;
+  e.maxHp=opts.hp ?? [28,34,42,50,56,64,72,82,92,102,114,128,140,155,172,195][S.stage.id-1] ?? 28;
   e.hp=e.maxHp; S.autoDmg=0; S.manualDmg=0;
   const vis = e.shape;
   /* §4.5 보스 개성: 장마다 외형 변주(머리 장신구·장기 4종, 무기 3종, 크기 0.9~1.15배) */
@@ -5257,7 +5257,8 @@ function hurtZombie(z, amount, why, rec) {
   if (z.isBoss) {
     if (!z.hp || z.hidden) return;
     const isWeak = (z.openUntil > S.elapsed) || z.state === 'groggy';
-    const mult = why === 'bang' ? 1 : (isWeak ? 1.3 : 0.7);
+    const isAuto = (why === 'bolt' || why === 'ward' || why === 'poison' || why === 'burn' || why === 'cloud' || why === 'ring' || why === 'inkstep');
+     const mult = why === 'bang' ? 1.6 : (isAuto ? (isWeak ? 0.45 : 0.15) : (isWeak ? 1.85 : 0.35));
     const dealt = Math.min(z.hp, amount * mult);
     z.hpTrail = Math.max(z.hpTrail || z.hp, z.hp);
     z.hp -= dealt;
