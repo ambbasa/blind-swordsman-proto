@@ -90,6 +90,7 @@ vec3 wfApply( vec3 col, vec2 uv, float rawDepth ) {
   } else {
     /* 깊이 버퍼가 없는 품질: 영웅 화면 좌표에서의 거리로 대신한다. */
     vec2 dv = ( uv * uRes - uHeroScreen ) / max( 1.0, uRes.y );
+    dv.x *= 0.78; dv.y *= 1.26;
     f = smoothstep( 0.16, 0.42, length( dv ) );
   }
   return mix( col, uWfColor, clamp( f * uWfPost * ( 1.0 - 0.70 * wfKeep( col ) ), 0.0, 1.0 ) );
