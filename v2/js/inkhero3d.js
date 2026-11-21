@@ -23,6 +23,7 @@
 import * as THREE from 'three';
 import { HERO } from './inkmodels3d.js';
 import { artTex, bakeBody, makeBones, SKIN_VERT, clothStep } from './inkbody3d.js';
+import { applyThemeToInkUniforms } from './modules/actTheme3d.js';
 import * as TEX from './inktex3d.js';
 
 export const HERO_H = 2.45;          /* 기존 주인공(파츠 리그 m=2.45)과 같은 키 — 그림자·HUD 기준이 맞는다 */
@@ -98,8 +99,8 @@ function gradMap() {
 /* ---------------------------------------------------------------- 수묵 툰 셰이더 */
 const FRAG = /* glsl */`
 uniform sampler2D uRamp;
-uniform vec3 uKeyDir, uKeyCol, uFillDir, uFillCol, uAmbCol, uRimCol;
-uniform float uRim, uWash, uGrain;
+uniform vec3 uKeyDir, uKeyCol, uFillDir, uFillCol, uAmbCol, uRimCol, uMistCol;
+uniform float uRim, uWash, uGrain, uMistAmt, uSpecAmt;
 uniform sampler2D uTex;
 uniform sampler2D uArt;
 uniform float uTexAmt;
@@ -151,9 +152,15 @@ void main() {
   /* 붓끝 먹 고임: 실루엣 가장자리로 갈수록 먹이 진해진다(먹그림의 가장자리 농도). */
   float edge = pow(1.0 - clamp(dot(N, normalize(vV)), 0.0, 1.0), 2.0);
   col *= mix(1.0, 0.80, edge);
-  /* 한지 역광 가장자리 — 검은 옷이 배경에서 떨어져 보이게 아주 얇게. */
-  float fres = pow(1.0 - clamp(dot(N, normalize(vV)), 0.0, 1.0), 4.0);
+  /* v0.50 상용화 표현: 달빛 하프벡터 미세 광택(칼날·기와·석등 모서리) + 1~4막 한지 림 역광 + 바닥 먹안개 그라데이션 */
+  vec3 V = normalize(vV);
+  vec3 H = normalize(uKeyDir + V);
+  float spec = pow(max(dot(N, H), 0.0), 28.0) * k * uSpecAmt;
+  col += uRimCol * spec;
+  float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 3.4);
   col += uRimCol * fres * uRim;
+  float groundMist = smoothstep(2.6, -0.35, vW.y) * uMistAmt;
+  col = mix(col, uMistCol, clamp(groundMist * 0.52, 0.0, 0.55));
   gl_FragColor = vec4(max(col, vec3(0.0)), 1.0);
 }`;
 
@@ -165,10 +172,13 @@ function inkUniforms() {
     uFillDir: { value: new THREE.Vector3(0.55, 0.42, -0.72).normalize() },
     uFillCol: { value: new THREE.Color(0.62, 0.68, 0.78).multiplyScalar(LIGHT.fill) },
     uAmbCol: { value: new THREE.Color(0.52, 0.48, 0.42).multiplyScalar(LIGHT.amb) },
-    uRimCol: { value: new THREE.Color(1.0, 0.93, 0.80) },
+    uRimCol: { value: new THREE.Color(0xffe4ad) },
     uRim: { value: LIGHT.rim },
     uWash: { value: LIGHT.wash },
     uGrain: { value: 0.16 },
+    uMistCol: { value: new THREE.Color(0x241f1a) },
+    uMistAmt: { value: 0.34 },
+    uSpecAmt: { value: 0.18 },
     /* v0.47 텍스처 아틀라스 — 전 재질이 한 장을 공유한다(샘플러 1개, 드로우콜 그대로). */
     uArt: { value: artTex() },
     uTex: { value: TEX.atlas() },
@@ -489,7 +499,7 @@ function applyCloth(H, dt, vxSpeed, vzSpeed, sp) {
 /* ---------------------------------------------------------------- v0.46 공용 먹 도구
    몬스터 3D 뼈대(v2/js/inkmonsters3d.js)가 주인공과 **같은** 계조·광원·먹선 규칙을 쓰도록
    셰이더 문자열과 형상 도구를 그대로 내보낸다. 톤이 갈라지지 않게 하는 것이 이 export 의 목적이다. */
-export const INK3D = { LIGHT, FRAG, inkUniforms, outlineMat };
+export const INK3D = { LIGHT, FRAG, inkUniforms, outlineMat, applyThemeToInkUniforms };
 
 export function kick(group, k) {
   const H = group && group.userData && group.userData.hero3d;

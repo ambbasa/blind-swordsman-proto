@@ -70,8 +70,24 @@ import { STAGES, ACT_NAMES, HANJI_TONE, actOf, stageOf, applyHanjiToneToStages }
 import { MODES, MODE_ORDER, MODE_NOTE, modeOf, CHALLENGES, challengeOf, RUN_UPGRADES, EVO_RECIPES } from './modules/upgrades.js';
 import { PAT_CODE } from './modules/bossCatalog.js';
 import { createInputQueue, createDashLatencyTracker } from './modules/inputQueue.js';
+import { createRunState, resetRunStateOnQuit } from './modules/state.js';
+import { createHudController } from './modules/hudController.js';
+import { createUiRouter } from './modules/uiRouter.js';
+import { syncSceneActTheme3D } from './modules/actTheme3d.js';
 /* v0.39 1단계: 팔레트 토큰을 CSS 변수로 내린다(빌드 없이 단일 소스). */
 installCssVars();
+const hudCtrl = createHudController(document);
+const uiRouter = createUiRouter({
+  doc: document,
+  hudCtrl,
+  isMuted: () => !!save.muted,
+  onEnableAudio: () => {
+    if (!save.muted && audio) {
+      audio.setQuiet(false, qa.noDelay);
+      hudCtrl.syncMuteUi(false);
+    }
+  }
+});
 const inkFx = new InkFx();
 const bossFx = new BossFx();
 const telemetry = createTelemetry({ version: '0.39' });
@@ -934,10 +950,17 @@ function showOv(id) {
   ['ov-title', 'ov-shop', 'ov-result', 'ov-idle', 'ov-level', 'ov-stage', 'ov-pause', 'ov-codex', 'ov-train'].forEach(function (k) {
     const el = $(k); if (el) el.classList.toggle('show', k === id);
   });
-  if (id === 'ov-title') refreshTitleHelp();
+  if (id === 'ov-title') {
+    hudCtrl.clearOnTitleReturn();
+    hudCtrl.syncActTheme(actOf(save.stage || 1));
+    refreshTitleHelp();
+  } else {
+    hudCtrl.syncOverlayVisibility(!!id);
+  }
 }
 function hideOvs() {
   ['ov-title', 'ov-shop', 'ov-result', 'ov-idle', 'ov-level', 'ov-stage', 'ov-pause', 'ov-codex', 'ov-train'].forEach(function (k) { if ($(k)) $(k).classList.remove('show'); });
+  hudCtrl.syncOverlayVisibility(false);
 }
 function toast(msg) {
   const el = $('toast');
@@ -1040,6 +1063,7 @@ function setMuted(m) {
     b.setAttribute('aria-label', m ? '소리 켜기' : '소리 끄기');
   }
   if (b2) b2.textContent = m ? '소리 켜기' : '소리 끄기';
+  hudCtrl.syncMuteUi(!!m);
   return save.muted;
 }
 function pauseRun() {
@@ -1064,11 +1088,8 @@ function quitRun() {
   const had = !!S;
   $('toast').hidden = true;
   toastT = 0;
-  if (S) {
-    S.playing = false; S.paused = null; S.dash = null; S.dashQueue = [];
-    if (S.inputQueue) S.inputQueue.clear();
-    S.inputBuf = null;
-  }
+  if (S) resetRunStateOnQuit(S);
+  hudCtrl.clearOnTitleReturn();
   closeQuickCards();
   const sk = $('btnSkip');
   if (sk) sk.hidden = true;
@@ -1133,7 +1154,8 @@ function switchMap(id, stageNo) {
       three.torches = [];
       /* v0.39: 장이 바뀌면 새 팔레트·새 종이 소품이 온다 — 같은 종이/안개 규칙으로 다시 칠한다. */
       try { if (m && m.group) paintCard(m.group, 'prop'); } catch (e) {}
-      if (three.atmo) { try { three.atmo.dispose(); } catch (e) {} }
+      if (three.chunks && three.chunks.arena && typeof three.chunks.arena.tickTheme === 'function') three.chunks.arena.tickTheme(performance.now() * 0.001);
+    if (three.atmo) { try { three.atmo.dispose(); } catch (e) {} }
       try { three.atmo = new StageAtmosphere(three.scene, st); } catch (e) { three.atmo = null; }
       const _t1 = performance.now();
       setupChunkWorld(st, m.id);
@@ -1821,51 +1843,20 @@ function startRun(opts) {
   /* 소개 카드를 거치지 않고 바로 시작하는 경로(QA·다시 버튼)도 예열은 반드시 거친다.
      다만 QA에서 소프트웨어 GL이라 셰이더 컴파일이 분 단위가 되는 환경이면 qa.skipWarm으로 빠진다. */
   if (!qa.skipWarm && !shadersWarmed()) warmShaders();
-  S = {
-    playing: true, paused: null, won: false, lost: false, sandbox: !!opts.sandbox,
-    stage: st, stageNo: opts.sandbox ? 0 : stageNo,
-    hp: CFG.hpBase + save.hpLv * CFG.hpStep, runHp: 0, runCoin: 0,
-    timeLeft: opts.time != null ? opts.time : st.time, elapsed: 0,
-    dashCount: CFG.dashCount, dashDmg: CFG.dashDmg, pathR: CFG.pathRadius,
-    xp: 0, level: 1, iframe: 0, boss: null, bossSpawned: false,
-    hero: { x: 0, z: 0 },
-    spirits: [], zombies: [], items: [],
-    zAcc: 0, sAcc: 0, _id: 0,
-    dash: null, dashQueue: [], lastDash: null, shake: 0,
-    cam: { x: 0, z: 0 },
-    dashElem: null, elemLv: {}, tempElem: null, dashQuality: 0, bellT: 0, bellShape: null, slowT: 0,
+  hudCtrl.syncActTheme(actOf(stageNo));
+  S = createRunState({
+    opts,
+    stageNo,
+    st,
+    runMode,
     mapId: mapIdOf(opts.stage != null ? opts : Object.assign({}, opts, { stage: stageNo })),
-    mapStage: stageNo,
-    runNo: 1, pool: SHAPE_UNLOCK.slice(), practiceT: 0, practiceShape: null, practiceSpawns: 0,
-    combo: 0, comboIdle: 0, comboMax: 0, kills: 0, coin0: save.coins,
-    bursts: [], lastBurst: 0,
-    sightWave: 0, lastStrokeDir: null,
-    hitstop: 0, hurtFlash: 0, aimTarget: null, bellPans: [], recoil: null,
-    ringR: 0, ringLv: 0, bounce: null, landRipple: null,
-    spiritCap: opts.sandbox ? CFG.spiritCapStart : Math.max(1, st.spiritCap || CFG.spiritCapStart),
-    /* v0.15~v0.17: 참 게이지·패링·선입력·웨이브·자석·진화 */
-    charge: 0, chargeLv: 0, magnetR: CFG.magnetR || 2.2,
-    parryCd: 0, parryFlash: 0, parryHits: [], cleaveFx: 0, cleaveCount: 0,
-    inputBuf: null, inputQueue: createInputQueue({ maxSize: 2 }), dashLatency: createDashLatencyTracker(60), comboGrace: 0,
-    waveDone: {}, waveIds: [], wavesFired: [], fogPulse: 0, noMarkT: 0,
-    evo: {}, evolved: [], preview: null, lastAxis: 'vline',
-    /* v0.22: 무한 청크·묵항아리·보스 결계·진화 레벨 */
-    upLv: {}, jarsBroken: 0, shots: [], hazards: [], arena: null, eliteDone: false, eliteAt: st.eliteAt || 0,
-    /* v0.29: 기물 역류·빈틈 선입력·공정성·연출 */
-    reflects: [], gapBuf: null, firstForcedHit: false, goldEdge: 0,
-    /* v0.30: 난이도·동적 보정·첫 경험 */
-    mode: runMode, bossShapeAdj: modeOf(runMode).bossShapes, teleMul: 1, streak: 0, help: [],
-    tutorial: null, tutSlow: 1, newShape: null, chargeGuide: 0, totemGuide: 0, bounceArrow: 0,
-    slowMul: 1, slowMulT: 0, noScore: !!opts.replay, goldStar: false, bossSeenAt: 0,
-    /* v0.31: 판 안 재미 — 콤보 단계·파훼·멈추지 않는 선택·새 카드·자동 피해 비중 */
-    pathWideN: 0, comboBreakN: 0, comboTierN: 0, comboFlash: 0, comboDrop: null,
-    boltT: 0, bolts: [], echoes: [], inkSteps: [], wardSpin: 0, wardTick: 0,
-    floorDash: 0, healMaxN: 0, forcePauseLv: false, quick: null,
-    autoDmg: 0, manualDmg: 0, stopT: 0, levelUps: 0,
-    elemOrder: [], elemSlots: [], elemSlotN: 1, elemIdx: 0,
-    /* v0.32: 지형 규칙 엔진 · 별 3 조건 카운터 · 막 보스 단계 */
-    terrain: null, hits: 0, goldReflectN: 0, clashWin: 0, shuffleLock: 0, phaseTele: 1
-  };
+    cfg: CFG,
+    save,
+    shapeUnlock: SHAPE_UNLOCK,
+    createInputQueue,
+    createDashLatencyTracker,
+    modeOf
+  });
   terrainInit();
   S.runNo = opts.sandbox ? SHAPE_UNLOCK.length : stageNo;
   S.pool = opts.sandbox ? SHAPE_UNLOCK.slice() : (st.shapes || SHAPE_UNLOCK.slice()).slice();
@@ -5508,7 +5499,7 @@ function makeSlash(from, to) {
   three.slashes.push(s);
   /* 3D 검기 아크: 바닥 궤적 위로 솟는 먹 리본 */
   try {
-    const arc = createSlashArc({
+    const arc = createSlashArc({ actNo: actOf((S && S.stageNo) || save.stage || 1),
       from: from, to: to, elem: elemNow,
       coreGain: q === 'off' ? 1.05 : 1.45,
       height: 0.5 + pathR() * 0.12,
@@ -5549,7 +5540,7 @@ function makeBossSlash(from, to, opts) {
     three.scene.add(s.mesh);
     three.slashes = three.slashes || [];
     three.slashes.push(s);
-    const arc = createSlashArc({
+    const arc = createSlashArc({ actNo: actOf((S && S.stageNo) || save.stage || 1),
       from: from, to: to, elem: elem,
       coreGain: q === 'off' ? 1.15 : 1.65,
       height: opts.height || 0.85,
@@ -9622,6 +9613,16 @@ function applyStageAtmo(st) {
   if (tint) tint.style.background = a.tint || 'transparent';
   const app = $('app');
   if (app) app.dataset.stage = String((st && st.id) || 1);
+  const actNo = actOf((st && st.id) || 1);
+  hudCtrl.syncActTheme(actNo);
+  syncSceneActTheme3D({
+    actNo,
+    scene: three && three.scene,
+    lights: three,
+    arena: three && three.chunks && three.chunks.arena,
+    paperFx: three && three.paper,
+    heroGroup: three && three.heroSpr
+  });
 }
 
 function applyFxinkAtmo(mapId) {
@@ -9955,13 +9956,18 @@ function bindUi() {
     else toast('내보내지 못했습니다');
   });
   syncRecBtn();
-  $('btnStart').addEventListener('click', function () { beginStage(upcomingRun()); });
+  uiRouter.mountAudioPill();
+  uiRouter.bindStartAndTrain({
+    onStart: function () { beginStage(upcomingRun()); },
+    onTrain: function () { openTrain(); }
+  });
+  hudCtrl.syncMuteUi(!!save.muted);
+  hudCtrl.syncActTheme(actOf(save.stage || 1));
   wireShopTabs();
   wireTrain();
   $('btnShop').addEventListener('click', function () { refreshShop(); showOv('ov-shop'); });
   if ($('btnCodex')) $('btnCodex').addEventListener('click', function () { renderCodex(); showOv('ov-codex'); });
   if ($('btnCodexClose')) $('btnCodexClose').addEventListener('click', function () { hideOvs(); showOv('ov-title'); });
-  if ($('btnTrain')) $('btnTrain').addEventListener('click', function () { openTrain(); });
   if ($('btnTrainClose')) $('btnTrainClose').addEventListener('click', function () { closeTrain(); });
   if ($('btnTrainTut')) $('btnTrainTut').addEventListener('click', function () { closeTrain(); startRun({ stage: 1, replay: true }); });
   $('btnShopClose').addEventListener('click', function () {

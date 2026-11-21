@@ -3,8 +3,9 @@
    화면 안에서 입체적으로 치솟는다. */
 import * as THREE from 'three';
 import { createInkSlashMaterial } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
+import { getActTheme3D } from './modules/actTheme3d.js';
 
-export function createSlashArc({ from, to, height = 1.55, width = 0.62, elem = null, coreGain = 1.8, life = 0.6, seed }) {
+export function createSlashArc({ from, to, height = 1.55, width = 0.62, elem = null, coreGain = 1.8, life = 0.6, seed, actNo = null }) {
   const dx = to.x - from.x, dz = to.z - from.z;
   const len = Math.max(0.2, Math.hypot(dx, dz));
   const ux = dx / len, uz = dz / len;
@@ -39,7 +40,11 @@ export function createSlashArc({ from, to, height = 1.55, width = 0.62, elem = n
   geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   geo.setIndex(idx);
-  const material = createInkSlashMaterial({ elem: elem, aspect: len / Math.max(0.2, width), coreGain: coreGain, seed: seed != null ? seed : Math.random() * 100 });
+  const actTheme = (!elem && actNo != null) ? getActTheme3D(actNo) : null;
+  const material = createInkSlashMaterial({ elem: elem, color: actTheme ? actTheme.slashCore : undefined, aspect: len / Math.max(0.2, width), coreGain: coreGain, seed: seed != null ? seed : Math.random() * 100 });
+  if (actTheme && material.uniforms && material.uniforms.uHot && material.uniforms.uHot.value) {
+    material.uniforms.uHot.value.set(actTheme.slashHot);
+  }
   const mesh = new THREE.Mesh(geo, material);
   mesh.renderOrder = 6;
   mesh.frustumCulled = false;

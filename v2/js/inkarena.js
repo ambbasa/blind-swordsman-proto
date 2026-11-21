@@ -20,6 +20,7 @@ import * as THREE from 'three';
 import * as TEX from './inktex3d.js';
 import { SKIN_VERT } from './inkbody3d.js';
 import { INK3D } from './inkhero3d.js';
+import { actFromStageId, getActTheme3D, applyThemeToInkUniforms } from './modules/actTheme3d.js';
 import { mulberry } from './inkbake.js';
 
 export const ARENA = {
@@ -756,12 +757,32 @@ export function buildArena(opts) {
 
   const tri = bodyGeo.getAttribute('position').count / 3;
 
+  let activeTheme = getActTheme3D(actFromStageId(stageId));
+  const lanternBaseCol = new THREE.Color(activeTheme.lanternHex);
+  function applyActTheme(actNo) {
+    activeTheme = applyThemeToInkUniforms(bodyMat.uniforms, actNo);
+    lanternBaseCol.setHex(activeTheme.lanternHex);
+    if (glowMesh && glowMesh.material && glowMesh.material.color) {
+      glowMesh.material.color.copy(lanternBaseCol);
+    }
+    return activeTheme;
+  }
+  function tickTheme(elapsedSec) {
+    if (!glowMesh || !glowMesh.material || !glowMesh.material.color) return;
+    const t = Number(elapsedSec || 0);
+    const flicker = 1.0 + activeTheme.lanternPulse * (0.65 * Math.sin(t * 3.1) + 0.35 * Math.sin(t * 7.4));
+    glowMesh.material.color.copy(lanternBaseCol).multiplyScalar(flicker);
+  }
+  applyActTheme(actFromStageId(stageId));
+
   return {
     group: group, body: body, hull: hullMesh, glow: glowMesh,
     props: props, spots: spots, bounds: { x: 0, z: 0, r: ARENA.R },
     materials: [bodyMat, hullMat].concat(glowMesh ? [glowMesh.material] : []),
     stats: { props: B.body.length + B.glow.length, tri: Math.round(tri + tri), bodies: B.body.length, glow: B.glow.length },
-    lightSpots: spots.filter(function (s) { return s.r > 3; }).slice(0, 8)
+    lightSpots: spots.filter(function (s) { return s.r > 3; }).slice(0, 8),
+    applyActTheme: applyActTheme,
+    tickTheme: tickTheme
   };
 }
 

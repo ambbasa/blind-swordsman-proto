@@ -6,6 +6,7 @@
    · 바닥에 눕는 효과(고리·부적 그림자)는 uGround=1 배치로 같은 시트를 눕혀 쓴다.
    · 에셋이 없으면 조용히 비활성(게임은 기존 이펙트만으로 돈다). */
 import * as THREE from 'three';
+import { getActTheme3D } from './modules/actTheme3d.js';
 
 const BASE = new URL('../assets/diorama/fx/', import.meta.url).href;
 const elementalSheets = new Set(['fire', 'ice', 'bolt', 'poison']);
@@ -160,6 +161,7 @@ export class PaperFx {
       this.batches[kind + (ground ? ':g' : '')] = b;
       return b;
     };
+    this._actTint = [1.0, 0.88, 0.64];
     mk('slash', 10, false, 7.2, true);
     mk('spark', 26, false, 7.4, true);
     mk('fire', 12, false, 7.0, true);
@@ -184,6 +186,12 @@ export class PaperFx {
     return best;
   }
 
+  setActTheme(actNo) {
+    const t = getActTheme3D(actNo);
+    this._actTint = [t.fxTint[0], t.fxTint[1], t.fxTint[2]];
+    return t;
+  }
+
   /** 시트 하나를 띄운다. o: {x,y,z, size, dur, tint, spin, drift, grow, ground, alpha} */
   emit(kind, o) {
     if (!this.enabled) return null;
@@ -201,7 +209,7 @@ export class PaperFx {
     batch.rot[slot] = o.rot || 0;
     batch.frame[slot] = 0;
     batch.alpha[slot] = o.alpha == null ? 1 : o.alpha;
-    const t = o.tint || [1, 1, 1];
+    const t = o.tint || this._actTint || [1, 1, 1];
     batch.tint[slot * 3] = t[0]; batch.tint[slot * 3 + 1] = t[1]; batch.tint[slot * 3 + 2] = t[2];
     const pl = new Play(batch, slot, {
       dur: o.dur == null ? 0.45 : o.dur, frames: FRAMES[kind],

@@ -144,3 +144,125 @@ assert.equal(rep.multiKill.count, 1);
 assert.equal(rep.last.tailCanceled, true);
 
 console.log('ALL SIMAN v0.49.2 MODULE TESTS PASSED (8/8 suites)');
+
+
+/* --- v0.49 추가 모듈 검증: state.js, hudController.js, uiRouter.js --- */
+import { createRunState, resetRunStateOnQuit } from '../../v2/js/modules/state.js';
+import { createHudController } from '../../v2/js/modules/hudController.js';
+import { createUiRouter } from '../../v2/js/modules/uiRouter.js';
+
+{
+  const S = createRunState({
+    opts: { stage: 2 },
+    stageNo: 2,
+    st: { time: 75, spiritCap: 2, eliteAt: 40 },
+    runMode: 'jeongseok',
+    mapId: 'arena',
+    cfg: { hpBase: 14, hpStep: 2, dashCount: 1, dashDmg: 2.5, pathRadius: 1.35 },
+    save: { hpLv: 3, coins: 250 },
+    shapeUnlock: ['hline', 'vline'],
+  });
+  assert.equal(S.hp, 20);
+  assert.equal(S.stageNo, 2);
+  assert.equal(S.lastAxis, 'vline');
+  assert.equal(S.phaseTele, 1);
+  resetRunStateOnQuit(S);
+  assert.equal(S.playing, false);
+  assert.equal(S.paused, null);
+
+  // Mock DOM for hudController & uiRouter
+  const makeEl = (id) => {
+    const attrs = {};
+    const classes = new Set();
+    const listeners = {};
+    return {
+      id,
+      hidden: false,
+      textContent: '',
+      parentNode: null,
+      nextSibling: null,
+      classList: {
+        toggle: (c, v) => (v ? classes.add(c) : classes.delete(c)),
+        remove: (c) => classes.delete(c),
+        has: (c) => classes.has(c),
+      },
+      setAttribute: (k, v) => { attrs[k] = v; },
+      getAttribute: (k) => attrs[k],
+      addEventListener: (ev, fn) => { (listeners[ev] = listeners[ev] || []).push(fn); },
+      click: () => (listeners.click || []).forEach((fn) => fn({ stopPropagation() {} })),
+    };
+  };
+  const nodes = {};
+  ['app', 'hud', 'comboLabel', 'bossCard', 'guide', 'toast', 'judgeFlash', 'goalLabel', 'btnMute', 'btnStart', 'btnTrain', 'titleTag'].forEach((id) => {
+    nodes[id] = makeEl(id);
+  });
+  nodes.titleTag.parentNode = { insertBefore: (el) => { nodes[el.id] = el; } };
+  const mockDoc = {
+    getElementById: (id) => nodes[id] || null,
+    createElement: () => makeEl(''),
+  };
+
+  const hud = createHudController(mockDoc);
+  assert.equal(hud.syncActTheme(4), 4);
+  assert.equal(nodes.app.getAttribute('data-act'), '4');
+  hud.clearOnTitleReturn();
+  assert.equal(nodes.comboLabel.textContent, '콤보 0');
+  assert.equal(nodes.bossCard.hidden, true);
+  assert.equal(nodes.hud.getAttribute('aria-hidden'), 'true');
+
+  let audioEnabled = 0, trainOpened = 0, runStarted = 0;
+  const router = createUiRouter({
+    doc: mockDoc,
+    hudCtrl: hud,
+    isMuted: () => true,
+    onEnableAudio: () => { audioEnabled++; },
+  });
+  const pill = router.mountAudioPill();
+  assert.ok(pill && pill.id === 'simanAudioPill');
+  router.bindStartAndTrain({
+    onStart: () => { runStarted++; },
+    onTrain: () => { trainOpened++; },
+  });
+  nodes.btnTrain.click();
+  assert.equal(trainOpened, 1);
+  assert.equal(runStarted, 0);
+  assert.equal(audioEnabled, 1);
+  assert.equal(nodes.btnMute.getAttribute('data-sound'), 'on');
+  console.log('EXTRA v0.49 MODULES (state, hudController, uiRouter) PASSED');
+}
+
+
+/* --- v0.50 1~4막 3D 테마 팔레트 동기화 검증: actTheme3d.js --- */
+import { ACT_THEMES_3D, actFromStageId, getActTheme3D, applyThemeToInkUniforms, syncSceneActTheme3D } from '../../v2/js/modules/actTheme3d.js';
+
+{
+  assert.equal(Object.keys(ACT_THEMES_3D).length, 4);
+  assert.equal(actFromStageId(1), 1);
+  assert.equal(actFromStageId(4), 2);
+  assert.equal(actFromStageId(9), 3);
+  assert.equal(actFromStageId(12), 4);
+  const t3 = getActTheme3D(3);
+  assert.equal(t3.uiAccent, '#f0957d');
+  assert.equal(t3.slashCore, '#ff523b');
+
+  const mkCol = () => ({ hex: 0, mul: 1, setHex(h) { this.hex = h; return this; }, multiplyScalar(s) { this.mul = s; return this; } });
+  const u = {
+    uKeyCol: { value: mkCol() }, uFillCol: { value: mkCol() }, uAmbCol: { value: mkCol() },
+    uRimCol: { value: mkCol() }, uRim: { value: 0 }, uMistCol: { value: mkCol() }, uMistAmt: { value: 0 }, uSpecAmt: { value: 0 }
+  };
+  applyThemeToInkUniforms(u, 4);
+  assert.equal(u.uRimCol.value.hex, 0xc9a6ff);
+  assert.equal(u.uMistAmt.value, 0.46);
+
+  let arenaAct = 0, fxAct = 0;
+  syncSceneActTheme3D({
+    actNo: 2,
+    scene: { fog: { color: mkCol(), density: 0 }, background: mkCol() },
+    lights: { moon: { color: mkCol() }, fill: { color: mkCol() }, amb: { color: mkCol() }, hemi: { color: mkCol() } },
+    arena: { applyActTheme: (a) => { arenaAct = a; } },
+    paperFx: { setActTheme: (a) => { fxAct = a; } },
+  });
+  assert.equal(arenaAct, 2);
+  assert.equal(fxAct, 2);
+  console.log('v0.50 ACT_THEME_3D SYNC TESTS PASSED');
+}
