@@ -440,6 +440,10 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
   /* v0.64: inkarena 기물 위치와 충돌하지 않도록 사전 등록 + 캐릭터 충돌용 colliders 배열 관리 */
   const placedPts = [];
   const colliders = [];
+  const bridges = [];
+  const addBridge = (x, z, rotY, length, width, archH) => {
+    bridges.push({ x, z, rotY: rotY || 0, halfL: (length || 7.2) * 0.5, halfW: (width || 2.3) * 0.55, archH: archH || 0.92 });
+  };
   const addCollider = (x, z, r) => {
     if (r > 0.15) colliders.push({ x, z, r });
   };
@@ -1124,6 +1128,7 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
         length: bLen, width: 2.3, archH: 0.96,
         railHex: stageNo === 14 ? 0x6e4494 : 0xb53226
       }), bx, bz, rotY, 3.6, 0, 5.8, true);
+      addBridge(bx, bz, rotY, bLen, 2.3, 0.96);
       /* 다리 양 끝단에도 겹침 금지 반경 등록하여 어떤 기물도 다리와 겹치지 않게 보장 */
       const fx = Math.sin(rotY), fz = Math.cos(rotY);
       placedPts.push({ x: bx + fx * (bLen * 0.45), z: bz + fz * (bLen * 0.45), r: 4.8 });
@@ -1163,6 +1168,10 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
         /* 4장 붉은 달: 카스미데라 정자 + 아치형 주홍 목교 + 한지 금줄문 + 월석 비석 3 + 조각 석등 2 */
         putStage(buildKasumideraPavilion3D({ lacquerHex, glowHex: talismanGlow }), -5.8, 12.4, 0.30, 2.5, 1.8);
         putStage(buildArchedBridge3D({ length: 6.8, width: 2.2, archH: 0.90, railHex: 0xb53226 }), 6.6, 2.4, -0.52, 3.2, 0);
+        {
+          const b4x = camWorldX(6.6, 2.4), b4z = camWorldZ(6.6, 2.4);
+          addBridge(b4x, b4z, -0.52, 6.8, 2.2, 0.90);
+        }
         putTalismanGate(-1.6, 13.0, 0.10);
         putLantern(6.0, 10.2); putLantern(-6.8, 2.2);
         break;
@@ -1337,10 +1346,30 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
   scene.add(group);
   let elapsed = 0;
 
+  function getGroundY(x, z) {
+    let bestY = 0;
+    for (let i = 0; i < bridges.length; i++) {
+      const b = bridges[i];
+      const dx = x - b.x, dz = z - b.z;
+      const c = Math.cos(b.rotY), s = Math.sin(b.rotY);
+      const lx = dx * c - dz * s;
+      const lz = dx * s + dz * c;
+      if (Math.abs(lx) <= b.halfL + 0.35 && Math.abs(lz) <= b.halfW + 0.25) {
+        const u = Math.max(0, Math.min(1, (lx + b.halfL) / (b.halfL * 2)));
+        const edgeFade = Math.abs(lx) > b.halfL ? Math.max(0, 1 - (Math.abs(lx) - b.halfL) / 0.35) : 1;
+        const deckY = (0.30 + Math.sin(u * Math.PI) * b.archH) * edgeFade;
+        if (deckY > bestY) bestY = deckY;
+      }
+    }
+    return bestY;
+  }
+
   return {
     group,
     kind: k,
     colliders,
+    bridges,
+    getGroundY,
     getStats() {
       return {
         kind: k,

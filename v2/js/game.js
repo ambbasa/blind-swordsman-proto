@@ -1625,9 +1625,13 @@ function disposeCharGeom(g) {
     });
   } catch (e) {}
 }
+function groundYAt(x, z) {
+  return (three && three.terrain3d && three.terrain3d.getGroundY) ? three.terrain3d.getGroundY(x, z) : 0;
+}
 function placeGroup(g, x, z, bob) {
   if (!g) return;   /* 그림 없는 판정용 개체(QA·임시 기물) — 위치를 옮길 몸이 없다 */
-  g.position.set(x, bob || 0, z);
+  const gy = groundYAt(x, z);
+  g.position.set(x, gy + (bob || 0), z);
 }
 
 /* ---------- v0.30 §11 접근성 · §8.2 '처음 보는 순간' · §7.3 동적 보정 · §8.1 몸통 튜토리얼 ----------
@@ -3521,10 +3525,9 @@ function elemCloudR() { return (CFG.poisonCloudR || 2) + (CFG.cloudRStep || 0.6)
 function triggerCinematic() {
   S.slowT = CFG.slowDur;
   if (S.lastDash) S.lastDash.cinematic = true;
-  const app = $('app');
-  if (app) {
-    app.classList.add('ink-burst');
-    setTimeout(function () { app.classList.remove('ink-burst'); }, 900);
+  if (S) S.goldEdge = Math.max(S.goldEdge || 0, 0.25);
+  if (three && three.shaderFx3d && S && S.hero) {
+    three.shaderFx3d.spawnShockwave(S.hero.x, S.hero.z, { r0: 0.9, r1: 5.2, colorHex: 0xffd66e, coreHex: 0xfffce8, dur: 0.42 });
   }
   onebellSlash();
 }
@@ -3561,9 +3564,7 @@ function onebellSlash() {
   const app = $('app'); if (!app || onebell.phase === 'off') return;
   onebell.phase = 'slash';
   setOnebellInk(3);
-  app.classList.add('onebell-paper', 'onebell-burst');
-  setTimeout(function () { app.classList.remove('onebell-paper'); }, 80);
-  setTimeout(function () { app.classList.remove('onebell-burst'); }, 350);
+  /* v0.74: 저화질 2D PNG(#onebellBurst/#onebellPaper) 제거 — 3D 충격파와 먹선 테두리만 깔끔하게 유지 */
   setTimeout(function () {
     if (onebell.phase === 'slash') { setOnebellInk(1); onebell.phase = 'hold'; }
   }, qa.noDelay ? 0 : 400);
@@ -5493,15 +5494,22 @@ function breakHit(z, rec, amount) {
     setEnemyShape(z, otherShape(shape), '금이 갔다 · ' + (CFG.crackStages || 2) + '단계 중 ' + z.cracks);
     return null;
   }
-  /* 정예: 머리 위 무늬 3개를 순서대로. 순서를 틀리면 일반 피해만. */
-  if (z.eliteSeq && z.seq && z.seq.length) {
-    if (shape !== z.seq[z.seqI]) return null;
+  /* v0.74 정예: 머리 위 무늬 3개를 순서대로 완성해야 처치(틀린 획은 15% 경감 & HP 1 하한 보호). */
+  if (z.eliteSeq && z.seq && z.seq.length && z.seqI < z.seq.length) {
+    if (shape !== z.seq[z.seqI]) {
+      const needMark = SHAPE_MARK[z.seq[z.seqI]] || z.seq[z.seqI];
+      showJudge('봉인 순서: ' + needMark);
+      if (audio && audio.whiff) audio.whiff(true);
+      if (three && three.shaderFx3d) three.shaderFx3d.spawnBarrierPulse(z.x, z.z, { r0: 0.75, r1: 1.45, colorHex: 0x6288d8, rimHex: 0xd8ecff, dur: 0.32 });
+      return { dmg: Math.min(amount * 0.15, Math.max(0, z.hp - 1)), why: 'seal-wrong' };
+    }
     z.seqI += 1;
     if (z.seqI >= z.seq.length) {
-      showJudge('봉인 순서 완성!');
+      showJudge('봉인 순서 완성 — 즉사!');
       addCharge(CFG.eliteSeqCharge || 20);
-      S.goldEdge = Math.max(S.goldEdge || 0, 0.2);
+      S.goldEdge = Math.max(S.goldEdge || 0, 0.24);
       if (audio && audio.bell) audio.bell(0, 'bolt');
+      if (three && three.shaderFx3d) three.shaderFx3d.spawnShockwave(z.x, z.z, { r0: 0.8, r1: 4.8, colorHex: 0xffd258, coreHex: 0xfffce8, dur: 0.42 });
       telemetry.event('break', { kind: 'elite', stage: S.stageNo, result: 'sealed' });
       return { dmg: 9999, why: 'seal-break' };
     }
@@ -5509,7 +5517,8 @@ function breakHit(z, rec, amount) {
     refreshEnemyShape(z);
     if (audio && audio.bell) audio.bell(0, shape);
     showJudge('봉인 ' + z.seqI + '/' + z.seq.length);
-    return null;
+    /* 1·2번째 봉인 단계에서는 HP 1 이상을 유지해 반드시 3번째 봉인까지 이어지게 보장 */
+    return { dmg: Math.min(amount * 0.4, Math.max(0, z.hp - 1)), why: 'seal-step' };
   }
   return null;
 }
@@ -5592,6 +5601,11 @@ function hurtZombie(z, amount, why, rec) {
   if (why === 'slash' || why === 'echo' || why === 'counter') {
     const rule = breakHit(z, rec, amount);
     if (rule) { amount = rule.dmg; why = rule.why; }
+  }
+  /* v0.74 정예 봉인 보호: 3봉인 순서가 남아 있으면 자동·광역·오답 피해로 HP 1 아래로 죽지 않는다. */
+  if (z.eliteSeq && z.seq && z.seq.length && z.seqI < z.seq.length && why !== 'seal-break') {
+    const capDmg = Math.max(0, z.hp - 1);
+    amount = Math.min(amount * (why === 'seal-step' || why === 'seal-wrong' ? 1 : 0.2), capDmg);
   }
   const effectiveDamage = Math.min(Math.max(0,z.hp),amount);
   z.hp -= amount;
@@ -9059,9 +9073,9 @@ function stepDash(dt) {
   d.t += dt;
   const u = clamp(d.t / d.dur, 0, 1);
   const k = u * u * (3 - 2 * u);
-  const hp = resolvePropCollision(d.from.x + (d.to.x - d.from.x) * k, d.from.z + (d.to.z - d.from.z) * k, 0.55);
-  S.hero.x = hp.x;
-  S.hero.z = hp.z;
+  /* v0.74: 일섬 돌진 중에는 먹그림자 영체로 기물을 통과하고, 최종 착지점(d.to)만 빈 바닥으로 보정(dashEndPoint) */
+  S.hero.x = d.from.x + (d.to.x - d.from.x) * k;
+  S.hero.z = d.from.z + (d.to.z - d.from.z) * k;
   if (three && three.heroSpr) placeGroup(three.heroSpr, S.hero.x, S.hero.z);
   if (u >= 0.85) resolveDash(d);
   /* v0.49.2 테일 캔슬: 판정이 끝난 뒤(u>=0.88) 예약된 후속 획이 대기 중이면 잔여 프레임을 생략하고 즉시 다음 일섬으로 연결 */
