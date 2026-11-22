@@ -1031,7 +1031,7 @@ function showOv(id) {
     hudCtrl.clearOnTitleReturn();
     hudCtrl.syncActTheme(actOf(save.stage || 1));
     refreshTitleHelp();
-    syncHeroCosmetic3D();
+    ensureLobbyHero3D();
     updateRetentionBadge();
     syncLobbyStatus();
     if (save._pendingRefundToast > 0) {
@@ -1044,7 +1044,7 @@ function showOv(id) {
   }
 }
 function hideOvs() {
-  ['ov-title', 'ov-shop', 'ov-result', 'ov-idle', 'ov-level', 'ov-stage', 'ov-pause', 'ov-codex', 'ov-train'].forEach(function (k) { if ($(k)) $(k).classList.remove('show'); });
+  ['ov-title', 'ov-stages', 'ov-shop', 'ov-cosmetic', 'ov-daily', 'ov-result', 'ov-idle', 'ov-level', 'ov-stage', 'ov-pause', 'ov-codex', 'ov-train'].forEach(function (k) { if ($(k)) $(k).classList.remove('show'); });
   hudCtrl.syncOverlayVisibility(false);
 }
 function toast(msg) {
@@ -9118,13 +9118,16 @@ function updateCam(dt) {
     return;
   }
   const targetX = S ? S.hero.x : 0, targetZ = S ? S.hero.z : 0;
-  if (!S) {
-    /* 타이틀: 무대를 천천히 도는 고정 시점 — 3D 무대를 보여 준다. */
+  const titleCam = !S || (!S.playing && $('ov-title') && $('ov-title').classList.contains('show'));
+  if (titleCam) {
+    /* v0.76.1 로비 쇼케이스 카메라: 3D 영웅과 착용 중인 도포·후광·오라를 중앙 클로즈업으로 선명하게 비춘다. */
     const t = now() * 0.001;
-    const a = Math.PI / 4 + Math.sin(t * 0.085) * 0.16;
-    const rad = 20.4;
-    three.camera.position.set(Math.cos(a) * rad, CFG.camOff.y, Math.sin(a) * rad);
-    three.camera.lookAt(0, CFG.camLookY, 0);
+    const a = Math.PI * 0.5 + Math.sin(t * 0.28) * 0.28;
+    const rad = 5.4;
+    const gy = groundYAt(0, 0);
+    if (three.heroSpr) placeGroup(three.heroSpr, 0, 0);
+    three.camera.position.set(Math.cos(a) * rad, gy + 2.65, Math.sin(a) * rad);
+    three.camera.lookAt(0, gy + 1.05, 0);
     return;
   }
   /* 1단계 — 따라갈 목표: 영웅 + 돌진 방향 1.1m 앞 + 보스 쪽 2.6m */
@@ -9585,6 +9588,20 @@ function syncLobbyStatus() {
   if ($('lobbyCoins')) $('lobbyCoins').textContent = (save.coins || 0).toLocaleString();
   if ($('lobbyInk')) $('lobbyInk').textContent = save.ink || 0;
   if ($('lobbyPower')) $('lobbyPower').textContent = '전투력 ' + computeCombatPower(save);
+}
+function ensureLobbyHero3D() {
+  if (!three || !three.scene || !art) return;
+  if (!three.heroSpr) {
+    three.heroSpr = addEntityVisual('hero');
+  }
+  if (three.heroSpr && three.heroSpr.parent !== three.scene) {
+    three.scene.add(three.heroSpr);
+  }
+  if (!S || !S.playing) {
+    placeGroup(three.heroSpr, 0, 0);
+    three.heroSpr.visible = true;
+  }
+  syncHeroCosmetic3D();
 }
 function syncHeroCosmetic3D() {
   if (!three || !three.heroSpr) return;
@@ -11026,6 +11043,7 @@ async function boot() {
   applyFxinkAtmo((three.map && three.map.id) || 'map1');
   applyStageAtmo(stageOf(titleSel || save.stage || 1));
   previewStageWorld(titleSel || save.stage || 1);
+  ensureLobbyHero3D();
   loadMarkImages();
   resizeInk();
   guardEvents();
