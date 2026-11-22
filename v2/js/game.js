@@ -4113,6 +4113,26 @@ function drawV31(ctx, r, hs, t) {
     ctx.fillText(hint, cx, py + ph + 13);
     ctx.restore();
   }
+  /* v0.67 수묵 2톤 임팩트 프레임 + 먹물 집중선 (lightning-energy-skill-vfx · WCAG 안전 0.085초) */
+  if (S && S.impactFrameT > 0) {
+    S.impactFrameT = Math.max(0, S.impactFrameT - 0.016);
+    const k = clamp(S.impactFrameT / 0.085, 0, 1);
+    ctx.save();
+    ctx.fillStyle = 'rgba(242,235,218,' + (0.24 * k).toFixed(3) + ')';
+    ctx.fillRect(0, 0, r.width, r.height);
+    const icx = r.width * 0.5, icy = r.height * 0.48, rad = Math.hypot(icx, icy);
+    ctx.strokeStyle = 'rgba(14,12,15,' + (0.62 * k).toFixed(3) + ')';
+    for (let i = 0; i < 36; i++) {
+      const a = (i / 36) * Math.PI * 2 + (i % 3) * 0.03;
+      const r0 = rad * (0.34 + (i % 5) * 0.06);
+      ctx.lineWidth = (i % 3 === 0) ? 2.4 : 1.1;
+      ctx.beginPath();
+      ctx.moveTo(icx + Math.cos(a) * r0, icy + Math.sin(a) * r0);
+      ctx.lineTo(icx + Math.cos(a) * rad, icy + Math.sin(a) * rad);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
   const wpp = worldPerCss();
   S.zombies.forEach(function (z) {
     if (!z.alive || z.isBoss) return;
@@ -7728,6 +7748,7 @@ function bossGroggy(z) {
     triggerGroundCrackHeat(z.x, z.z, 5.5, 0xffd26a);
   }
   if (audio && audio.bossBreak) audio.bossBreak();
+  if (S && (!save || save.shake !== false)) S.impactFrameT = 0.085;
   showJudge('자세 붕괴 — 일섬!');
   toast('귀물의 자세가 무너졌습니다 — 지금 일섬 피해 1.85배');
   telemetry.event('boss_poise_break', { stage: S.stageNo, seq: z.poiseBreakSeq || 1, phase: z.phase || 1 });
@@ -8066,6 +8087,7 @@ function triggerPhaseCut(z, nextPhase, invulnDur, title, msg) {
     triggerGroundCrackHeat(z.x, z.z, nextPhase === 3 ? 7.5 : 5.8, pCol);
   }
   if (audio && audio.gong) audio.gong();
+  if (S && (!save || save.shake !== false)) S.impactFrameT = 0.075;
   showJudge(title);
   toast(msg);
   telemetry.event('boss_phase', { stage: S.stageNo, phase: nextPhase, seqI: z.seqI, hpRatio: +(z.hp / Math.max(1, z.maxHp)).toFixed(2) });

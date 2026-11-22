@@ -24,7 +24,12 @@ import {
   buildDrapedClothStall3D,
   buildStoneFortressWall3D,
   buildKasumideraMoonStele3D,
-  buildRuinedMasonry3D
+  buildRuinedMasonry3D,
+  buildBronzeCenser3D,
+  buildMossyStoneSteps3D,
+  buildForestFloorFerns3D,
+  createFallingLeaves3D,
+  createSkyRays3D
 } from './skillAssets3d.js';
 
 const MIST_VERT = /* glsl */`
@@ -1283,6 +1288,47 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     totalInstances += b.items.length;
   });
 
+  /* v0.67 스킬 기반 지형지물(청동 향로·이끼 석계단·고사리 군락·3D 회전 낙엽·볼류메트릭 빛줄기) 배치 */
+  const v67Updaters = [];
+  const addV67Prop = (node, x, z, ry = 0) => {
+    node.position.set(x, 0, z);
+    node.rotation.y = ry;
+    group.add(node);
+    if (node.userData && node.userData.disposables) node.userData.disposables.forEach((dd) => disposables.push(dd));
+    if (node.userData && node.userData.shaderMat) shaderMats.push(node.userData.shaderMat);
+  };
+  if ([5, 6, 8, 13].includes(stageNo)) {
+    const smokeCol = stageNo === 13 ? 0xff7862 : (stageNo === 6 ? 0xcce8ff : 0xf0dfba);
+    addV67Prop(buildBronzeCenser3D({ scale: 1.05, smokeHex: smokeCol, emberHex: stageNo === 13 ? 0xff3b28 : 0xff8040 }), -7.6, -7.8, 0.4);
+    addV67Prop(buildBronzeCenser3D({ scale: 1.0, smokeHex: smokeCol, emberHex: stageNo === 13 ? 0xff3b28 : 0xff8040 }), 7.6, -7.8, -0.4);
+  }
+  if ([2, 5, 6, 8, 9, 13].includes(stageNo)) {
+    addV67Prop(buildMossyStoneSteps3D({ width: 3.1, mossHex: stageNo >= 9 ? 0x4f2c2a : 0x3b593c }), 0, -10.8, 0);
+  }
+  if ([3, 7, 10, 14].includes(stageNo)) {
+    const fHex = stageNo === 7 ? 0x6e5a36 : (stageNo === 14 ? 0x325666 : 0x3e7552);
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + 0.48, r = 9.4 + (i % 2) * 1.4;
+      addV67Prop(buildForestFloorFerns3D(rng, { leafHex: fHex, scale: 0.95 + (i % 2) * 0.25 }), Math.cos(a) * r, Math.sin(a) * r, a);
+    }
+  }
+  if (k === 'bamboo' || k === 'root' || k === 'none') {
+    const lOpts = k === 'bamboo'
+      ? { shape: 'bamboo', count: 64, colorHex: 0x6fd4a2, palette: [0x58c490, 0x7ee0b4, 0x3f9e70, 0x95f0c4] }
+      : k === 'root'
+        ? { shape: 'autumn', count: 60, colorHex: 0xd49b54, palette: [0xc98a42, 0xe0b46b, 0xa86832, 0x8f5028] }
+        : { shape: 'ash', count: 52, colorHex: 0xc9bfb0, palette: [0xd9cfc0, 0xff9a5c, 0x8c8278, 0xb8aea0] };
+    const fl = createFallingLeaves3D(rng, lOpts);
+    group.add(fl.mesh);
+    v67Updaters.push(fl);
+  }
+  if ([3, 4, 5, 6, 8, 12, 16].includes(stageNo)) {
+    const rayCol = stageNo === 3 ? 0xbef5d6 : (stageNo === 6 ? 0xcce8ff : (stageNo === 4 || stageNo === 12 ? 0xff7a66 : 0xffe6b3));
+    const sr = createSkyRays3D({ count: 3, colorHex: rayCol, opacity: 0.12 });
+    group.add(sr.group);
+    v67Updaters.push(sr);
+  }
+
   scene.add(group);
   let elapsed = 0;
 
@@ -1340,6 +1386,7 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       const d = Math.min(0.05, Number(dt || 0.016));
       elapsed += d;
       for (let i = 0; i < shaderMats.length; i++) shaderMats[i].uniforms.uTime.value = elapsed;
+      for (let i = 0; i < v67Updaters.length; i++) v67Updaters[i].update(d);
       for (let i = 0; i < floatLanterns.length; i++) {
         const fl = floatLanterns[i], u = fl.userData;
         const a = u.baseAngle + elapsed * u.speed;
@@ -1409,6 +1456,8 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
         activeWaves[i].dMat.dispose(); activeWaves[i].tMat1.dispose(); activeWaves[i].tMat2.dispose();
       }
       activeWaves.length = 0;
+      for (let i = 0; i < v67Updaters.length; i++) if (v67Updaters[i].dispose) v67Updaters[i].dispose();
+      v67Updaters.length = 0;
       dynamicPatchMap.clear();
       for (let i = 0; i < disposables.length; i++) if (disposables[i] && disposables[i].dispose) disposables[i].dispose();
     },

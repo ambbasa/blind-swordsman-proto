@@ -1115,3 +1115,292 @@ export function buildRuinedMasonry3D(rng, opts = {}) {
   group.userData.disposables = disposables;
   return group;
 }
+
+/* ============================================================================
+ * v0.67 스킬 기반 고퀄리티 지형지물 5종
+ * (3d-kasumidera-ultra-realism · 3d-metal-material · forest-floor-specimen · 3d-falling-leaves · 3d-sky-rays)
+ * ============================================================================ */
+
+const INCENSE_VERT = /* glsl */`
+varying vec2 vUv;
+void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+`;
+const INCENSE_FRAG = /* glsl */`
+uniform float uTime;
+uniform vec3 uCol;
+varying vec2 vUv;
+void main() {
+  float x = (vUv.x - 0.5) * 2.0;
+  float sway = sin(vUv.y * 5.2 - uTime * 1.9) * 0.24 * vUv.y;
+  float width = mix(0.22, 0.85, vUv.y);
+  float core = 1.0 - smoothstep(0.0, width, abs(x - sway));
+  float wisp = 0.65 + 0.35 * sin(vUv.y * 11.0 - uTime * 3.1 + x * 4.0);
+  float vFade = smoothstep(0.0, 0.14, vUv.y) * (1.0 - smoothstep(0.55, 1.0, vUv.y));
+  float a = core * wisp * vFade * 0.46;
+  if (a < 0.01) discard;
+  gl_FragColor = vec4(uCol, a);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}
+`;
+
+const SKYRAY_VERT = /* glsl */`
+varying vec2 vUv;
+varying vec3 vNormal;
+varying vec3 vViewDir;
+void main() {
+  vUv = uv;
+  vec4 wp = modelMatrix * vec4(position, 1.0);
+  vNormal = normalize(mat3(modelMatrix) * normal);
+  vViewDir = normalize(cameraPosition - wp.xyz);
+  gl_Position = projectionMatrix * viewMatrix * wp;
+}
+`;
+const SKYRAY_FRAG = /* glsl */`
+uniform float uTime;
+uniform vec3 uColor;
+uniform float uOpacity;
+varying vec2 vUv;
+varying vec3 vNormal;
+varying vec3 vViewDir;
+void main() {
+  float edge = pow(abs(dot(normalize(vNormal), normalize(vViewDir))), 1.45);
+  float vertical = smoothstep(0.0, 0.22, vUv.y) * (1.0 - smoothstep(0.62, 1.0, vUv.y));
+  float shimmer = 0.78 + 0.22 * sin(vUv.x * 18.84 + uTime * 0.85 + vUv.y * 3.2);
+  float alpha = edge * vertical * shimmer * uOpacity;
+  if (alpha < 0.005) discard;
+  gl_FragColor = vec4(uColor, alpha);
+  #include <tonemapping_fragment>
+  #include <colorspace_fragment>
+}
+`;
+
+/** 1) 청동 향로 + 국소 향연 플룸 (3d-kasumidera-ultra-realism + 3d-metal-material) */
+export function buildBronzeCenser3D(opts = {}) {
+  const group = new THREE.Group();
+  const disposables = [];
+  const scale = opts.scale || 1.0;
+  const smokeCol = opts.smokeHex || 0xe8dcc4;
+  const emberHex = opts.emberHex || 0xff6e3a;
+
+  const bronzeMat = new THREE.MeshStandardMaterial({
+    color: opts.bronzeHex || 0x7d6b47,
+    metalness: 0.86, roughness: 0.34,
+    emissive: 0x1c1810, emissiveIntensity: 0.25
+  });
+  const patinaMat = new THREE.MeshStandardMaterial({
+    color: 0x3b594e, metalness: 0.62, roughness: 0.56
+  });
+  const emberMat = new THREE.MeshStandardMaterial({
+    color: emberHex, emissive: emberHex, emissiveIntensity: 1.5, roughness: 0.3
+  });
+  disposables.push(bronzeMat, patinaMat, emberMat);
+
+  const bowlPts = [
+    new THREE.Vector2(0.02, 0.42), new THREE.Vector2(0.32, 0.44),
+    new THREE.Vector2(0.46, 0.62), new THREE.Vector2(0.44, 0.88),
+    new THREE.Vector2(0.50, 0.96), new THREE.Vector2(0.36, 0.96),
+    new THREE.Vector2(0.34, 0.82)
+  ];
+  const bowlG = new THREE.LatheGeometry(bowlPts, 14);
+  const legG = new THREE.CylinderGeometry(0.055, 0.04, 0.52, 6);
+  const baseG = new THREE.CylinderGeometry(0.44, 0.52, 0.14, 8);
+  const emberG = new THREE.CylinderGeometry(0.30, 0.26, 0.08, 10);
+  const plumeG = new THREE.PlaneGeometry(0.95, 2.85, 1, 8);
+  plumeG.translate(0, 1.42, 0);
+  const plumeMat = new THREE.ShaderMaterial({
+    vertexShader: INCENSE_VERT, fragmentShader: INCENSE_FRAG,
+    transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    uniforms: { uTime: { value: 0 }, uCol: { value: new THREE.Color(smokeCol) } }
+  });
+  disposables.push(bowlG, legG, baseG, emberG, plumeG, plumeMat);
+
+  const base = new THREE.Mesh(baseG, patinaMat); base.position.y = 0.07; group.add(base);
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2;
+    const leg = new THREE.Mesh(legG, bronzeMat);
+    leg.position.set(Math.cos(a) * 0.24, 0.32, Math.sin(a) * 0.24);
+    leg.rotation.set(Math.sin(a) * 0.18, 0, -Math.cos(a) * 0.18);
+    group.add(leg);
+  }
+  group.add(new THREE.Mesh(bowlG, bronzeMat));
+  const emb = new THREE.Mesh(emberG, emberMat); emb.position.y = 0.88; group.add(emb);
+
+  const p1 = new THREE.Mesh(plumeG, plumeMat); p1.position.y = 0.92; p1.renderOrder = 4; group.add(p1);
+  const p2 = new THREE.Mesh(plumeG, plumeMat); p2.position.y = 0.92; p2.rotation.y = Math.PI * 0.5; p2.renderOrder = 4; group.add(p2);
+
+  group.scale.setScalar(scale);
+  group.userData.disposables = disposables;
+  group.userData.shaderMat = plumeMat;
+  return group;
+}
+
+/** 2) 이끼 낀 닳은 조선 석계단 · 기단석 (3d-kasumidera-ultra-realism) */
+export function buildMossyStoneSteps3D(opts = {}) {
+  const group = new THREE.Group();
+  const disposables = [];
+  const w = opts.width || 2.8;
+  const stoneMat = new THREE.MeshStandardMaterial({ color: opts.stoneHex || 0x5c5952, roughness: 0.92, metalness: 0.04 });
+  const mossMat = new THREE.MeshStandardMaterial({ color: opts.mossHex || 0x3b573b, roughness: 0.96, metalness: 0.0 });
+  disposables.push(stoneMat, mossMat);
+
+  for (let i = 0; i < 3; i++) {
+    const sw = w - i * 0.22;
+    const stepG = new THREE.BoxGeometry(sw, 0.22, 0.56);
+    disposables.push(stepG);
+    const m = new THREE.Mesh(stepG, stoneMat);
+    m.position.set(0, 0.11 + i * 0.20, -i * 0.46);
+    m.receiveShadow = true;
+    group.add(m);
+    if (i < 2) {
+      const mG = new THREE.BoxGeometry(sw * 0.34, 0.04, 0.18);
+      disposables.push(mG);
+      const ms = new THREE.Mesh(mG, mossMat);
+      ms.position.set((i % 2 === 0 ? -1 : 1) * sw * 0.26, 0.23 + i * 0.20, -i * 0.46 + 0.12);
+      group.add(ms);
+    }
+  }
+  group.userData.disposables = disposables;
+  return group;
+}
+
+/** 3) 3D 고사리 · 이끼 수풀 군락 (forest-floor-specimen) */
+export function buildForestFloorFerns3D(rng, opts = {}) {
+  const group = new THREE.Group();
+  const disposables = [];
+  const count = opts.count || 7;
+  const frondMat = new THREE.MeshStandardMaterial({
+    color: opts.leafHex || 0x3f6e49, roughness: 0.78, metalness: 0.02, side: THREE.DoubleSide
+  });
+  const mossMat = new THREE.MeshStandardMaterial({ color: opts.mossHex || 0x2d4a32, roughness: 0.95 });
+  const cushionG = new THREE.SphereGeometry(0.46, 7, 5, 0, Math.PI * 2, 0, Math.PI * 0.5);
+  const frondG = new THREE.PlaneGeometry(0.24, 0.95, 1, 4);
+  const fp = frondG.attributes.position;
+  for (let i = 0; i < fp.count; i++) {
+    const y = fp.getY(i) + 0.475;
+    const t = y / 0.95;
+    fp.setX(i, fp.getX(i) * (1.0 - t * 0.72));
+    fp.setY(i, y);
+    fp.setZ(i, Math.sin(t * Math.PI * 0.85) * 0.28 + t * t * 0.22);
+  }
+  frondG.computeVertexNormals();
+  disposables.push(frondMat, mossMat, cushionG, frondG);
+
+  const cush = new THREE.Mesh(cushionG, mossMat); cush.scale.set(1.1, 0.32, 1.1); group.add(cush);
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * Math.PI * 2 + (rng() - 0.5) * 0.4;
+    const f = new THREE.Mesh(frondG, frondMat);
+    f.rotation.set(0.45 + rng() * 0.35, a, (rng() - 0.5) * 0.2);
+    f.scale.setScalar(0.78 + rng() * 0.42);
+    group.add(f);
+  }
+  group.scale.setScalar(opts.scale || 1.0);
+  group.userData.disposables = disposables;
+  return group;
+}
+
+/** 4) 3D 회전·팔랑 낙엽/댓잎 InstancedMesh (3d-falling-leaves) — 단일 드로우콜 */
+export function createFallingLeaves3D(rng, opts = {}) {
+  const count = opts.count || 64;
+  const leafShape = opts.shape || 'bamboo'; // 'bamboo' | 'autumn' | 'ash'
+  const w = leafShape === 'bamboo' ? 0.11 : (leafShape === 'ash' ? 0.13 : 0.20);
+  const h = leafShape === 'bamboo' ? 0.44 : (leafShape === 'ash' ? 0.16 : 0.26);
+  const geo = new THREE.PlaneGeometry(w, h, 1, 3);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i) / (h * 0.5);
+    pos.setX(i, pos.getX(i) * Math.max(0.18, 1.0 - Math.abs(y) * 0.72));
+    pos.setZ(i, (1.0 - y * y) * 0.04);
+  }
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshStandardMaterial({
+    color: opts.colorHex || 0x6fd4a2,
+    emissive: opts.emissiveHex || 0x163826,
+    emissiveIntensity: 0.32,
+    roughness: 0.65, metalness: 0.04, side: THREE.DoubleSide
+  });
+  const mesh = new THREE.InstancedMesh(geo, mat, count);
+  mesh.name = 'falling-leaves-3d';
+  mesh.frustumCulled = false;
+
+  const states = [];
+  const dummy = new THREE.Object3D();
+  const col = new THREE.Color();
+  const palette = opts.palette || [0x5ec796, 0x7be0b0, 0x459e74, 0x93ebb8];
+  for (let i = 0; i < count; i++) {
+    const st = {
+      x: (rng() - 0.5) * 28,
+      y: rng() * 9.5 + 0.5,
+      z: (rng() - 0.5) * 28,
+      vy: 0.85 + rng() * 0.95,
+      vx: 0.55 + rng() * 0.65,
+      phase: rng() * 6.28,
+      spinX: (rng() - 0.5) * 2.8,
+      spinY: (rng() - 0.5) * 2.4,
+      spinZ: (rng() - 0.5) * 2.2,
+      scale: 0.75 + rng() * 0.6
+    };
+    states.push(st);
+    col.setHex(palette[i % palette.length]);
+    mesh.setColorAt(i, col);
+  }
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+
+  let t = 0;
+  return {
+    mesh,
+    update(dt) {
+      const d = Math.min(0.05, Number(dt || 0.016));
+      t += d;
+      const gust = Math.sin(t * 0.65) * 0.45 + 0.55;
+      for (let i = 0; i < count; i++) {
+        const s = states[i];
+        s.y -= s.vy * d;
+        s.x += (s.vx * gust + Math.sin(t * 2.2 + s.phase) * 0.55) * d;
+        s.z += Math.cos(t * 1.7 + s.phase) * 0.35 * d;
+        if (s.y < 0.12) { s.y = 9.4; s.x = ((s.x + 14) % 28) - 14; }
+        if (s.x > 14.5) s.x = -14.5;
+        dummy.position.set(s.x, s.y, s.z);
+        dummy.rotation.set(t * s.spinX + s.phase, t * s.spinY, t * s.spinZ + Math.sin(t * 2.6 + s.phase) * 0.7);
+        dummy.scale.setScalar(s.scale);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+    },
+    dispose() { geo.dispose(); mat.dispose(); }
+  };
+}
+
+/** 5) 볼류메트릭 빛줄기(달빛·햇살 기둥) (3d-sky-rays + threejs-shaders) */
+export function createSkyRays3D(opts = {}) {
+  const group = new THREE.Group();
+  group.name = 'sky-rays-3d';
+  const count = opts.count || 3;
+  const geo = new THREE.CylinderGeometry(0.85, 2.35, 13.5, 12, 1, true);
+  const mat = new THREE.ShaderMaterial({
+    vertexShader: SKYRAY_VERT, fragmentShader: SKYRAY_FRAG,
+    transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    uniforms: {
+      uTime: { value: 0 },
+      uColor: { value: new THREE.Color(opts.colorHex || 0xffe4b5) },
+      uOpacity: { value: opts.opacity != null ? opts.opacity : 0.14 }
+    }
+  });
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * Math.PI * 2 + 0.55;
+    const r = 8.4 + (i % 2) * 2.2;
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(Math.cos(a) * r, 5.8, Math.sin(a) * r);
+    m.rotation.set(0.22, 0, -0.28);
+    m.renderOrder = 3;
+    group.add(m);
+  }
+  return {
+    group,
+    update(dt) { mat.uniforms.uTime.value += Math.min(0.05, Number(dt || 0.016)); },
+    dispose() { geo.dispose(); mat.dispose(); }
+  };
+}
