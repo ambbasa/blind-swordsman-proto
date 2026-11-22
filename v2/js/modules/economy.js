@@ -1,16 +1,15 @@
 /**
  * v2/js/modules/economy.js
- * 심안(SIMAN) v0.49 — 상점 탭 문구, 스탯 업그레이드 비용, 방치 보상 순수 계산 모듈.
- *
- * 실제 game.js 세이브 스키마(save.coins, save.atkLv, save.hpLv, save.coinLv, save.lastSeen)와
- * 100% 호환되도록 설계되었습니다.
+ * 심안(SIMAN) v0.70 — 상점 3탭(상점·무구·유물) + 별도 치장 문구, 5축 완만 비용 곡선(1.11^lv),
+ * 전투력 계산, 스탯 전액 환불(초기화), 방치 보상 순수 계산 모듈.
  */
+import { STAT_DEFS, FORGE_COSTS, swordForgeLv } from '../meta.js';
 
 export const SHOP_TAB_NOTES = Object.freeze({
-  stat: '전투로 모은 엽전으로 기본 기량(공격력·체력·엽전 획득)을 단련합니다. 현금으로 능력치를 팔지 않습니다.',
-  sword: '각 장을 처음 돌파해 도면을 열고, 고유한 일섬·콤보 효과를 지닌 무구를 제작·장착합니다.',
-  relic: '전투 규칙과 심안 감각을 바꾸는 유물입니다. 조합에 따라 공략 흐름이 달라집니다.',
-  skin: '외형·붓 자국은 능력치 변화 없는 순수 꾸미기·편의 항목입니다.'
+  stat: '엽전으로 5대 기량(공력·체력·빈틈·파세·심안)을 단련합니다. 언제든 무료 초기화로 배분을 바꿀 수 있습니다.',
+  sword: '각 장을 처음 돌파해 도면을 열고, 고유 규칙을 지닌 무구를 제작·벼림(먹묵+엽전)합니다.',
+  relic: '전투 규칙을 바꾸는 유물입니다. 8장 클리어 시 유물 2칸이 열립니다. (획고↔만획 인장 동시 장착 불가)',
+  cosmetic: '능력치 변화가 전혀 없는 순수 수묵·금박 치장(주인공 3D 도포 · 검기 궤적)입니다.'
 });
 
 export function getShopTabNote(tabKey) {
@@ -18,22 +17,79 @@ export function getShopTabNote(tabKey) {
 }
 
 /**
- * 스탯 업그레이드 비용 계산 (기존 costOf와 호환).
+ * v0.70 완만 지수 비용 곡선: round(25 * (lv + 1) * 1.11^lv)
+ * (구버전 cfg.upgradeBase 명시 테스트와도 하위 호환 유지)
  */
 export function statUpgradeCost(lv, cfg = {}) {
-  const base = Number(cfg.upgradeBase ?? 20);
   const safeLv = Math.max(0, Math.floor(Number(lv || 0)));
-  return base * (safeLv + 1);
+  if (cfg && cfg.linearLegacy) {
+    const base = Number(cfg.upgradeBase ?? 20);
+    return base * (safeLv + 1);
+  }
+  const base = Number(cfg.upgradeBase ?? 25);
+  return Math.round(base * (safeLv + 1) * Math.pow(1.11, safeLv));
 }
 
-/**
- * 경과 시간(ms) 기반 방치 보상 계산.
- * 기존 save.coinLv 배율을 반영하되, 방치 역전을 막기 위해 idleCoinMultCap(기본 2.0)으로 상한을 둡니다.
- */
+export function statTotalSpent(lvOrSave, cfg = {}) {
+  if (lvOrSave && typeof lvOrSave === 'object') {
+    let total = 0;
+    for (let i = 0; i < STAT_DEFS.length; i++) {
+      total += statTotalSpent(lvOrSave[STAT_DEFS[i].key] || 0, cfg);
+    }
+    return total;
+  }
+  let sum = 0;
+  const n = Math.max(0, Math.floor(Number(lvOrSave || 0)));
+  for (let i = 0; i < n; i++) sum += statUpgradeCost(i, cfg);
+  return sum;
+}
+
+/** 상점 5축 스탯 전액 환불(초기화) */
+export function resetAllStats(saveObj, cfg = {}) {
+  if (!saveObj) return { ok: false, refund: 0 };
+  let refund = 0;
+  for (let i = 0; i < STAT_DEFS.length; i++) {
+    const k = STAT_DEFS[i].key;
+    const lv = Math.max(0, Number(saveObj[k] || 0));
+    if (lv > 0) {
+      refund += statTotalSpent(lv, cfg);
+      saveObj[k] = 0;
+    }
+  }
+  if (refund <= 0) return { ok: false, refund: 0 };
+  saveObj.coins = Number(saveObj.coins || 0) + refund;
+  return { ok: true, refund, coins: saveObj.coins };
+}
+
+/** 현재 전투력 계산 (공력 · 체력 · 빈틈 · 파세 · 무구 벼림 단계 반영) */
+export function computeCombatPower(saveObj = {}) {
+  const atk = Math.max(0, Number(saveObj.atkLv || 0));
+  const hp = Math.max(0, Number(saveObj.hpLv || 0));
+  const gap = Math.max(0, Number(saveObj.gapLv || 0));
+  const poise = Math.max(0, Number(saveObj.poiseLv || 0));
+  const forge = swordForgeLv(saveObj);
+  const maxHp = 14 + hp * 2;
+  const val = 100 * (1 + atk * 0.05) * (maxHp / 14) * (1 + gap * 0.015 + poise * 0.018) * (1 + forge * 0.06);
+  return Math.round(val);
+}
+
+/** 스테이지별 권장 전투력 (1~16장: 5·10·16장 소프트 벽) */
+export function stageRecommendedPower(stageNo) {
+  const tbl = [80, 90, 100, 120, 150, 175, 200, 225, 260, 300, 335, 370, 410, 445, 480, 520];
+  const idx = Math.max(0, Math.min(tbl.length - 1, (Number(stageNo || 1) | 0) - 1));
+  return tbl[idx];
+}
+
+export function forgeCostOf(currentForgeLv) {
+  const idx = Math.max(0, Math.floor(Number(currentForgeLv || 0)));
+  return FORGE_COSTS[idx] || null;
+}
+
+/** 경과 시간(ms) 기반 방치 보상 계산 */
 export function computeIdleCoins(elapsedMs, saveObj = {}, cfg = {}) {
   const maxHours = Number(cfg.idleMaxHours ?? 6);
   const perMin = Number(cfg.idlePerMin ?? 1);
-  const coinStep = Number(cfg.coinStep ?? 0.18);
+  const coinStep = Number(cfg.coinStep ?? 0.08);
   const multCap = Number(cfg.idleCoinMultCap ?? 2.0);
   const capMs = maxHours * 3600 * 1000;
   const clampedMs = Math.min(Math.max(0, Number(elapsedMs || 0)), capMs);
@@ -42,26 +98,21 @@ export function computeIdleCoins(elapsedMs, saveObj = {}, cfg = {}) {
   return Math.floor((clampedMs / 60000) * perMin * mult);
 }
 
-/**
- * 스탯 업그레이드 구매(실제 save.atkLv / save.hpLv / save.coinLv 스키마 갱신).
- */
+/** 5축 스탯 구매 */
 export function purchaseStatUpgrade(saveObj, stat, cfg = {}) {
-  const key = stat === 'atk' ? 'atkLv' : stat === 'hp' ? 'hpLv' : stat === 'coin' ? 'coinLv' : null;
-  if (!key || !saveObj) return { ok: false, reason: 'invalid_stat' };
-  const maxLv = Number(cfg.maxLv ?? 10);
-  const lv = Math.max(0, Number(saveObj[key] || 0));
+  const def = STAT_DEFS.find((d) => d.id === stat);
+  if (!def || !saveObj) return { ok: false, reason: 'invalid_stat' };
+  const maxLv = Number(cfg.maxLv ?? def.maxLv);
+  const lv = Math.max(0, Number(saveObj[def.key] || 0));
   if (lv >= maxLv) return { ok: false, reason: 'max_level', lv };
   const cost = statUpgradeCost(lv, cfg);
   const coins = Number(saveObj.coins || 0);
   if (coins < cost) return { ok: false, reason: 'insufficient_coins', cost, coins };
   saveObj.coins = coins - cost;
-  saveObj[key] = lv + 1;
-  return { ok: true, key, lv: saveObj[key], cost, coins: saveObj.coins };
+  saveObj[def.key] = lv + 1;
+  return { ok: true, key: def.key, lv: saveObj[def.key], cost, coins: saveObj.coins };
 }
 
-/**
- * 방치 보상 안내 문구(미구현 광고 플레이스홀더 대체).
- */
 export function getIdleNotice(cfg = {}) {
   const maxHours = Number(cfg.idleMaxHours ?? 6);
   return '자리를 비운 동안 최대 ' + maxHours + '시간까지 엽전이 쌓입니다.';

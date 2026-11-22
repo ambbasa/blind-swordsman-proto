@@ -655,3 +655,47 @@ export function bounds(group) {
   }
   return { boneMinY: +minY.toFixed(3), boneMaxY: +maxY.toFixed(3), meshMinY: +meshMinY.toFixed(3), meshMaxY: +meshMaxY.toFixed(3), bones: bones };
 }
+
+
+/**
+ * v0.70 치장(도포) + 무구 벼림 단계를 3D 영웅 메시의 수묵 셰이더 유니폼에 실시간 적용한다.
+ * 능력치 변화 없음 — 순수 시각 효과.
+ */
+export function applyHeroCloak3D(group, cloak, forgeLv) {
+  if (!group || !cloak || !cloak.palette) return false;
+  const pal = cloak.palette;
+  const flv = Math.max(0, Math.min(3, forgeLv | 0));
+  let updated = 0;
+  group.traverse(function (o) {
+    if (!o || !o.material) return;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    for (let i = 0; i < mats.length; i++) {
+      const m = mats[i];
+      const u = m && m.userData && m.userData.inkUniforms;
+      if (!u) continue;
+      if (u.uKeyCol && u.uKeyCol.value && pal.keyCol != null) {
+        u.uKeyCol.value.setHex(pal.keyCol).multiplyScalar(LIGHT.key);
+      }
+      if (u.uFillCol && u.uFillCol.value && pal.fillCol != null) {
+        u.uFillCol.value.setHex(pal.fillCol).multiplyScalar(LIGHT.fill);
+      }
+      if (u.uAmbCol && u.uAmbCol.value && pal.ambCol != null) {
+        u.uAmbCol.value.setHex(pal.ambCol).multiplyScalar(LIGHT.amb);
+      }
+      if (u.uRimCol && u.uRimCol.value && pal.rimCol != null) {
+        u.uRimCol.value.setHex(pal.rimCol);
+      }
+      if (u.uRim) {
+        u.uRim.value = (pal.rim != null ? pal.rim : LIGHT.rim) + flv * 0.08;
+      }
+      if (u.uSpecAmt) {
+        u.uSpecAmt.value = (pal.specAmt != null ? pal.specAmt : 0.18) + flv * 0.05;
+      }
+      if (u.uMistCol && u.uMistCol.value && pal.mistCol != null) {
+        u.uMistCol.value.setHex(pal.mistCol);
+      }
+      updated++;
+    }
+  });
+  return updated > 0;
+}

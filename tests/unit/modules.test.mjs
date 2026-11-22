@@ -3,16 +3,29 @@ import { BALANCE_V049, applyBalanceV049 } from '../../v2/js/modules/balance.js';
 import {
   getShopTabNote,
   statUpgradeCost,
+  statTotalSpent,
+  resetAllStats,
+  computeCombatPower,
+  stageRecommendedPower,
+  forgeCostOf,
   computeIdleCoins,
   purchaseStatUpgrade,
   getIdleNotice
 } from '../../v2/js/modules/economy.js';
 import {
   computeAtkBonus,
+  computeGapBonus,
+  computePoiseBonus,
   computeComboMul,
   computeDashDmg,
   computeMaxHp
 } from '../../v2/js/modules/combat.js';
+import {
+  SAVE_VERSION, STAT_DEFS, SWORDS, RELICS, COSMETIC_CLOAKS, COSMETIC_TRAILS,
+  DAILY_QUESTS, ATTENDANCE_REWARDS, STAR_CHESTS, CODEX_MILESTONES,
+  newSaveMeta, migrateMetaV4, relicSlots, swordFx, swordForgeLv, cloakOf, trailOf
+} from '../../v2/js/meta.js';
+import { getSwordSvg, getRelicSvg, getCosmeticSvg } from '../../v2/js/modules/itemArt.js';
 import { STAGES, ACT_NAMES, HANJI_TONE, actOf, stageOf } from '../../v2/js/modules/stages.js';
 import { MODES, MODE_ORDER, CHALLENGES, RUN_UPGRADES, EVO_RECIPES, modeOf, challengeOf } from '../../v2/js/modules/upgrades.js';
 import { PAT_CODE, getPatternMeta } from '../../v2/js/modules/bossCatalog.js';
@@ -47,7 +60,10 @@ assert.equal(computeIdleCoins(-1000, { coinLv: 5 }, cfg), 0);
 
 const save = { coins: 100, atkLv: 0, hpLv: 0, coinLv: 0, lastSeen: Date.now() };
 assert.equal(statUpgradeCost(0, cfg), 20);
-assert.equal(statUpgradeCost(4, cfg), 100);
+assert.equal(statUpgradeCost(0), 25);
+assert.equal(statUpgradeCost(0, cfg), 20);
+assert.equal(statUpgradeCost(4), Math.round(25 * 5 * Math.pow(1.11, 4)));
+assert.equal(statUpgradeCost(4, cfg), Math.round(20 * 5 * Math.pow(1.11, 4)));
 const buy1 = purchaseStatUpgrade(save, 'hp', cfg);
 assert.equal(buy1.ok, true);
 assert.equal(save.hpLv, 1);
@@ -56,21 +72,68 @@ const buy2 = purchaseStatUpgrade(save, 'atk', cfg);
 assert.equal(buy2.ok, true);
 assert.equal(save.atkLv, 1);
 assert.equal(save.coins, 60);
+const buy3 = purchaseStatUpgrade(save, 'gap', cfg);
+assert.equal(buy3.ok, true);
+assert.equal(save.gapLv, 1);
+const buy4 = purchaseStatUpgrade(save, 'poise', cfg);
+assert.equal(buy4.ok, true);
+assert.equal(save.poiseLv, 1);
+assert.equal(statTotalSpent(save, cfg), 80);
+const rst = resetAllStats(save, cfg);
+assert.equal(rst.ok, true);
+assert.equal(rst.refund, 80);
+assert.equal(save.coins, 100);
+assert.equal(save.atkLv, 0);
 
-assert.match(getShopTabNote('stat'), /공격력·체력/);
-assert.match(getShopTabNote('skin'), /외형·붓 자국/);
+assert.match(getShopTabNote('stat'), /5대 기량/);
+assert.match(getShopTabNote('cosmetic'), /능력치 변화가 전혀 없는/);
 assert.match(getIdleNotice(cfg), /최대 6시간/);
 
 /* 3. 전투·체력 공식 검증 */
 assert.equal(computeMaxHp({ hpLv: 0, cfg }), 14);
 assert.equal(computeMaxHp({ hpLv: 10, cfg }), 34);
-assert.equal(computeMaxHp({ hpLv: 0, beadsRelicOn: true, cfg }), 10);
 assert.equal(computeAtkBonus(10, cfg), 0.6);
+assert.equal(computeAtkBonus(10), 0.5);
+assert.ok(Math.abs(computeGapBonus(10) - 0.3) < 1e-9);
+assert.ok(Math.abs(computePoiseBonus(10) - 0.4) < 1e-9);
 assert.equal(computeComboMul(0, cfg), 1);
 assert.equal(computeComboMul(10, cfg), 1.4);
 assert.equal(computeComboMul(25, cfg), 1.5);
 const dmg = computeDashDmg({ baseDashDmg: 2.5, combo: 10, atkLv: 5, bloodRelicActive: true, cfg });
 assert.ok(Math.abs(dmg - 5.6875) < 1e-9);
+const dmgNeedle = computeDashDmg({ baseDashDmg: 2.5, combo: 0, atkLv: 0, needleRelicActive: true, monoSealStacks: 2, cfg });
+assert.ok(Math.abs(dmgNeedle - 2.5 * 1.15 * 1.2) < 1e-9);
+
+/* 3b. v0.70 메타·무구8·유물10·치장8·자동환불·SVG 아트 검증 */
+assert.equal(SAVE_VERSION, 4);
+assert.equal(STAT_DEFS.length, 5);
+assert.equal(SWORDS.length, 8);
+assert.equal(RELICS.length, 10);
+assert.equal(COSMETIC_CLOAKS.length, 4);
+assert.equal(COSMETIC_TRAILS.length, 4);
+assert.equal(DAILY_QUESTS.length, 3);
+assert.equal(ATTENDANCE_REWARDS.length, 7);
+assert.equal(STAR_CHESTS.length, 3);
+assert.equal(CODEX_MILESTONES.length, 4);
+assert.ok(forgeCostOf(0).ink > 0 && forgeCostOf(0).coins > 0);
+assert.equal(forgeCostOf(3), null);
+const oldV3 = {
+  version: 3, coins: 100, stage: 8, stars: { 8: 2 },
+  skins: { owned: { base: 1, crimson: 1 }, equipped: 'crimson' },
+  brush: { owned: { ink: 1, gold: 1 }, equipped: 'gold' },
+  relics: { owned: { jar: 1, beads: 1, mirror: 1 }, equipped: ['beads', 'mirror'] },
+  swords: { owned: { base: 1, crescent: 1, star: 1 }, equipped: 'crescent' }
+};
+const mig = migrateMetaV4(oldV3);
+assert.ok(mig > 0, 'legacy skins/brush/relics must refund coins');
+assert.equal(oldV3.swords.equipped, 'thunder', 'legacy crescent migrates to thunder');
+assert.equal(oldV3.swords.owned.breaker, 1, 'legacy star migrates to breaker');
+assert.equal(relicSlots(oldV3), 2, 'stage 8 clear unlocks 2 relic slots');
+assert.ok(computeCombatPower(oldV3) > 0 && stageRecommendedPower(8) > stageRecommendedPower(1));
+assert.ok(getSwordSvg('thunder').includes('<svg'));
+assert.ok(getRelicSvg('sheath').includes('<svg'));
+assert.ok(getCosmeticSvg('cloak', 'gilded_eclipse').includes('<svg'));
+assert.ok(getCosmeticSvg('trail', 'gold_leaf').includes('<svg'));
 
 /* 4. 3막 12장 스테이지 무결성 검증 */
 assert.equal(STAGES.length, 16);

@@ -62,7 +62,6 @@
       <h3 id="bossCardName"></h3>
       <p id="bossCardLine" class="bc-line"></p>
     </div>
-    <!-- v0.31 §5.2 멈추지 않는 레벨업: 화면 아래 22% 카드 3장 -->
 
     <div id="ov-title" class="ov show">
       <div class="card title-card">
@@ -76,8 +75,10 @@
         <p class="stage-note" id="titleStageNote"></p>
         <button type="button" id="btnStart" class="btn primary">출전</button>
         <div class="title-foot">
-          <button type="button" id="btnTrain" class="btn small">수련장</button>
           <button type="button" id="btnShop" class="btn">성장</button>
+          <button type="button" id="btnCosmetic" class="btn btn-cosmetic">치장</button>
+          <button type="button" id="btnDaily" class="btn small btn-daily">수련표<span class="badge-dot" id="dailyDot" hidden></span></button>
+          <button type="button" id="btnTrain" class="btn small">수련장</button>
           <button type="button" id="btnCodex" class="btn small">도감</button>
           <button type="button" id="btnA11y" class="btn small">설정</button>
         </div>
@@ -91,30 +92,71 @@
         </div>
       </div>
     </div>
+
     <div id="ov-shop" class="ov">
       <div class="card shop-card">
         <h2>성장</h2>
-        <p class="shop-coins">엽전 <strong id="shopCoins">0</strong></p>
+        <div class="shop-res-bar">
+          <span class="res-pill">엽전 <strong id="shopCoins">0</strong></span>
+          <span class="res-pill ink-pill">먹묵 <strong id="shopInk">0</strong></span>
+        </div>
+        <div class="shop-power-bar" id="shopPower"></div>
         <div class="shop-tabs" id="shopTabs" role="tablist" aria-label="성장 항목">
           <button type="button" data-tab="stat" class="on">상점</button>
           <button type="button" data-tab="sword">무구</button>
           <button type="button" data-tab="relic">유물</button>
-          <button type="button" data-tab="skin">외형</button>
         </div>
         <div class="shop-list" id="shopStatList">
           <button type="button" class="btn shop-item" data-buy="atk" id="buyAtk"></button>
           <button type="button" class="btn shop-item" data-buy="hp" id="buyHp"></button>
+          <button type="button" class="btn shop-item" data-buy="gap" id="buyGap"></button>
+          <button type="button" class="btn shop-item" data-buy="poise" id="buyPoise"></button>
           <button type="button" class="btn shop-item" data-buy="coin" id="buyCoin"></button>
+          <button type="button" class="btn small btn-reset-stats" id="btnStatReset">기량 초기화 (엽전 전액 환불)</button>
         </div>
         <div class="shop-list" id="shopBody" hidden></div>
-        <p class="shop-note" id="shopNote">전투로 모은 엽전으로 기본 기량(공격력·체력·엽전 획득)을 단련합니다. 현금으로 능력치를 팔지 않습니다.</p>
+        <p class="shop-note" id="shopNote">엽전으로 5대 기량(공력·체력·빈틈·파세·심안)을 단련합니다. 언제든 무료 초기화로 배분을 바꿀 수 있습니다.</p>
         <button type="button" id="btnShopClose" class="btn primary">닫기</button>
       </div>
     </div>
+
+    <div id="ov-cosmetic" class="ov">
+      <div class="card cosmetic-card">
+        <div class="cosmetic-head">
+          <h2>치장</h2>
+          <span class="non-p2w-badge">능력치 없음 · 순수 외형</span>
+        </div>
+        <div class="shop-res-bar">
+          <span class="res-pill">엽전 <strong id="cosCoins">0</strong></span>
+          <span class="res-pill cos-eq-pill" id="cosEquippedSummary"></span>
+        </div>
+        <div class="shop-tabs" id="cosTabs" role="tablist" aria-label="치장 항목">
+          <button type="button" data-ctab="cloak" class="on">도포</button>
+          <button type="button" data-ctab="trail">검기</button>
+        </div>
+        <div class="cosmetic-grid" id="cosmeticGrid"></div>
+        <p class="shop-note" id="cosNote">도포와 검기는 타이틀과 전장의 3D 영웅·일섬에 즉시 반영됩니다.</p>
+        <button type="button" id="btnCosClose" class="btn primary">닫기</button>
+      </div>
+    </div>
+
+    <div id="ov-daily" class="ov">
+      <div class="card daily-card">
+        <h2>수련표</h2>
+        <div class="shop-res-bar">
+          <span class="res-pill">엽전 <strong id="dailyCoins">0</strong></span>
+          <span class="res-pill ink-pill">먹묵 <strong id="dailyInk">0</strong></span>
+        </div>
+        <div class="daily-body" id="dailyBody"></div>
+        <button type="button" id="btnDailyClose" class="btn primary">닫기</button>
+      </div>
+    </div>
+
     <div id="ov-codex" class="ov">
       <div class="card codex-card">
         <h2>도감</h2>
         <p class="shop-coins" id="codexBonus"></p>
+        <div class="codex-milestones" id="codexMilestones"></div>
         <div class="codex-body" id="codexBody"></div>
         <button type="button" id="btnCodexClose" class="btn primary">닫기</button>
       </div>
@@ -154,6 +196,7 @@
         <ul class="result-stats" id="resultStats"></ul>
         <p class="result-next" id="resultNext"></p>
         <p class="result-help" id="resultHelp" hidden></p>
+        <button type="button" id="btnResultUpgrade" class="btn btn-quick-up" hidden></button>
         <button type="button" id="btnTrainOffer" class="btn" hidden>수련 모드로 한 판</button>
         <button type="button" id="btnResultShop" class="btn">성장</button>
         <button type="button" id="btnResultGo" class="btn primary">다시</button>
@@ -198,6 +241,6 @@
   <script src="js/gestures.js"></script>
   <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
   <script>if(location.search.includes('debug=1')){const b=document.createElement('pre');b.id='dbgErr';b.style.cssText='position:fixed;top:4px;left:4px;z-index:99999;max-width:95vw;max-height:45vh;overflow:auto;background:rgba(120,0,0,.92);color:#fff;font:11px/1.35 monospace;padding:6px;white-space:pre-wrap;pointer-events:auto';const log=m=>{if(!b.parentNode)document.body.appendChild(b);b.textContent+=m+'\n';};addEventListener('error',e=>log('ERR: '+e.message+' @ '+(e.filename||'')+':'+e.lineno+':'+e.colno));addEventListener('unhandledrejection',e=>log('REJ: '+(e.reason&&e.reason.stack||e.reason)));}</script>
-  <script type="module" src="js/game.js?v=v068"></script>
+  <script type="module" src="js/game.js?v=v070"></script>
 </body>
 </html>

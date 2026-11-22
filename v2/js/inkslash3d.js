@@ -1,11 +1,12 @@
 /* 일섬 검기: 바닥 궤적 위에 세운 3D 먹 리본 아크.
    같은 먹 셰이더(inkSlashMaterial)를 쓰되 정점을 호로 휘어 세워, 돌진 궤적이
-   화면 안에서 입체적으로 치솟는다. */
+   화면 안에서 입체적으로 치솟는다.
+   v0.70: 치장 검기 색조(trailColor/trailHot) 및 무구 벼림 단계(forgeLv) 광도 연동. */
 import * as THREE from 'three';
 import { createInkSlashMaterial } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { getActTheme3D } from './modules/actTheme3d.js';
 
-export function createSlashArc({ from, to, height = 1.55, width = 0.62, elem = null, coreGain = 1.8, life = 0.6, seed, actNo = null }) {
+export function createSlashArc({ from, to, height = 1.55, width = 0.62, elem = null, coreGain = 1.8, life = 0.6, seed, actNo = null, trailColor = null, trailHot = null, forgeLv = 0 }) {
   const dx = to.x - from.x, dz = to.z - from.z;
   const len = Math.max(0.2, Math.hypot(dx, dz));
   const ux = dx / len, uz = dz / len;
@@ -43,9 +44,18 @@ export function createSlashArc({ from, to, height = 1.55, width = 0.62, elem = n
   geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   geo.setIndex(idx);
   const actTheme = (!elem && actNo != null) ? getActTheme3D(actNo) : null;
-  const material = createInkSlashMaterial({ elem: elem, color: actTheme ? actTheme.slashCore : undefined, aspect: len / Math.max(0.2, width), coreGain: coreGain, seed: seed != null ? seed : Math.random() * 100 });
-  if (actTheme && material.uniforms && material.uniforms.uHot && material.uniforms.uHot.value) {
-    material.uniforms.uHot.value.set(actTheme.slashHot);
+  const resolvedColor = (!elem && trailColor != null) ? trailColor : (actTheme ? actTheme.slashCore : undefined);
+  const resolvedGain = coreGain * (1 + Math.max(0, Math.min(3, forgeLv | 0)) * 0.14);
+  const material = createInkSlashMaterial({
+    elem: elem,
+    color: resolvedColor,
+    aspect: len / Math.max(0.2, width),
+    coreGain: resolvedGain,
+    seed: seed != null ? seed : Math.random() * 100
+  });
+  if (material.uniforms && material.uniforms.uHot && material.uniforms.uHot.value) {
+    if (!elem && trailHot != null) material.uniforms.uHot.value.set(trailHot);
+    else if (actTheme) material.uniforms.uHot.value.set(actTheme.slashHot);
   }
   const mesh = new THREE.Mesh(geo, material);
   mesh.renderOrder = 6;

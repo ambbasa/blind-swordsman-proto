@@ -55,17 +55,29 @@ import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariant
 import { InkFx, FX_COLORS } from './inkfx.js';
 import { BossFx } from './bossFx.js';
 import { createTelemetry } from './telemetry.js';
+import { applyHeroCloak3D } from './inkhero3d.js';
 import {
-  SAVE_VERSION, SWORDS, RELICS, SKINS, BRUSHES, MON_CODE, CODEX_GROUPS, EVO_SLOTS, PAT_SLOTS,
-  newSaveMeta, swordFx, swordOf, equippedRelics, relicOn, relicSlots, skinOf, brushOf, codexCounts, codexBonus, isBasePat
+  SAVE_VERSION, STAT_DEFS, FORGE_COSTS, SWORDS, RELICS, COSMETIC_CLOAKS, COSMETIC_TRAILS,
+  DAILY_QUESTS, ATTENDANCE_REWARDS, STAR_CHESTS, CODEX_MILESTONES,
+  SKINS, BRUSHES, MON_CODE, CODEX_GROUPS, EVO_SLOTS, PAT_SLOTS,
+  newSaveMeta, migrateMetaV4, swordForgeLv, swordFx, swordOf, equippedRelics, relicOn, relicSlots,
+  cloakOf, trailOf, skinOf, brushOf, codexCounts, codexBonus, codexTotalPct, todayKey, isBasePat
 } from './meta.js';
+import { getSwordSvg, getRelicSvg, getCosmeticSvg } from './modules/itemArt.js';
 import { InkLightPool, createWorldInkUniforms, attachGroundInkShader } from './inklights.js';
 import { initOverlayShell } from './ui/overlayShell.js';
 import { installCssVars, color as palColor, hex as palHex } from './palette.js';
 import { WF, paint as paintCard, updateFade as updateWorldFade, stats as cardStats } from './cardstock.js';
 import { applyBalanceV049 } from './modules/balance.js';
-import { getShopTabNote, statUpgradeCost, computeIdleCoins, purchaseStatUpgrade, getIdleNotice } from './modules/economy.js';
-import { computeAtkBonus, computeComboMul, computeDashDmg, computeMaxHp } from './modules/combat.js';
+import {
+  getShopTabNote, statUpgradeCost, statTotalSpent, resetAllStats,
+  computeCombatPower, stageRecommendedPower, forgeCostOf,
+  computeIdleCoins, purchaseStatUpgrade, getIdleNotice
+} from './modules/economy.js';
+import {
+  computeAtkBonus, computeGapBonus, computePoiseBonus,
+  computeComboMul, computeDashDmg, computeMaxHp
+} from './modules/combat.js';
 import { STAGES, ACT_NAMES, HANJI_TONE, actOf, stageOf, applyHanjiToneToStages } from './modules/stages.js';
 import { MODES, MODE_ORDER, MODE_NOTE, modeOf, CHALLENGES, challengeOf, RUN_UPGRADES, EVO_RECIPES } from './modules/upgrades.js';
 import { PAT_CODE } from './modules/bossCatalog.js';
@@ -874,7 +886,7 @@ function nearestTo(items, origin) {
 }
 function now() { return performance.now(); }
 
-const save = { coins: 0, atkLv: 0, hpLv: 0, coinLv: 0, lastSeen: Date.now(), runs: 0, stage: 1, stars: {}, bestScore: 0, totemTip: false, muted: false,  /* v0.30: 난이도 모드 · 첫 경험 기록(저장 단위) · 접근성 · 같은 장 연패 · 수련 권유 기록 */
+const save = { coins: 0, ink: 0, atkLv: 0, hpLv: 0, gapLv: 0, poiseLv: 0, coinLv: 0, lastSeen: Date.now(), runs: 0, stage: 1, stars: {}, bestScore: 0, totemTip: false, muted: false,  /* v0.30: 난이도 모드 · 첫 경험 기록(저장 단위) · 접근성 · 같은 장 연패 · 수련 권유 기록 */
   mode: 'jeongseok', tutorialDone: 0, moments: {}, a11y: { colorblind: 0, shake: 0 }, streak: null, trainOffered: null,
   /* v0.31: 레벨업 방식(quick = 멈추지 않는 선택, pause = 멈추고 고르기) */
   levelMode: 'pause',
@@ -894,21 +906,24 @@ let lastStroke = null, inkFade = 0;
 
 function costOf(lv) { return statUpgradeCost(lv, CFG); }
 function atkBonus() { return computeAtkBonus(save.atkLv, CFG); }
+function gapBonus() { return computeGapBonus(save.gapLv); }
+function poiseBonus() { return computePoiseBonus(save.poiseLv); }
 function maxHp() {
-  return computeMaxHp({ hpLv: save.hpLv, runHp: (S && S.runHp) || 0, beadsRelicOn: relicOn(save, 'beads'), cfg: CFG });
+  return computeMaxHp({ hpLv: save.hpLv, runHp: (S && S.runHp) || 0, beadsRelicOn: false, cfg: CFG });
 }
-/* 엽전 배율 = 상점 × 지형 · 유물(안개 바늘) · 도감 보너스(§9.3) */
+/* v0.70 엽전 배율 = 상점(심안) × 런 강화 × 도감 보너스 (안개 바늘은 링 안 피해 +15%로 이관) */
 function coinMult() {
-  const needle = relicOn(save, 'needle') ? 1.3 : 1;
-  return (1 + save.coinLv * CFG.coinStep + (S && S.runCoin || 0)) * needle * (1 + codexBonus(save));
+  return (1 + (save.coinLv || 0) * CFG.coinStep + (S && S.runCoin || 0)) * (1 + codexBonus(save));
 }
-/* Dash damage = (base + upgrades) x combo x meta attack x 혈월 부적. */
+/* Dash damage = (base + upgrades) x combo x meta attack x 혈월 부적 x 안개 바늘 x 획고 인장. */
 function dashDmg() {
   return computeDashDmg({
     baseDashDmg: (S && S.dashDmg) || CFG.dashDmg,
     combo: (S && S.combo) || 0,
     atkLv: save.atkLv,
     bloodRelicActive: !!(relicOn(save, 'blood') && S && S.hp < maxHp() * 0.5),
+    needleRelicActive: !!(relicOn(save, 'needle') && S && S.lastTargetInRing),
+    monoSealStacks: (S && S.monoSealStacks) || 0,
     cfg: CFG
   });
 }
@@ -992,7 +1007,11 @@ function migrateSave(o) {
   META_KEYS.forEach(function (k) { if (save[k] == null && o[k] != null) save[k] = o[k]; });
   if (!save.codex.boss) save.codex.boss = {};
   if (!save.codex.pat) save.codex.pat = {};
-  if (!save.relics || !Array.isArray(save.relics.equipped)) save.relics = Object.assign(newSaveMeta().relics, save.relics || {});
+  const v4Refund = migrateMetaV4(save);
+  if (v4Refund > 0) {
+    save._pendingRefundToast = v4Refund;
+    telemetry.event('save_v4_refund', { refund: v4Refund });
+  }
 }
 function persist(touch) {
   if (touch !== false) save.lastSeen = Date.now();
@@ -1000,13 +1019,20 @@ function persist(touch) {
 }
 
 function showOv(id) {
-  ['ov-title', 'ov-shop', 'ov-result', 'ov-idle', 'ov-level', 'ov-stage', 'ov-pause', 'ov-codex', 'ov-train'].forEach(function (k) {
+  ['ov-title', 'ov-shop', 'ov-cosmetic', 'ov-daily', 'ov-result', 'ov-idle', 'ov-level', 'ov-stage', 'ov-pause', 'ov-codex', 'ov-train'].forEach(function (k) {
     const el = $(k); if (el) el.classList.toggle('show', k === id);
   });
   if (id === 'ov-title') {
     hudCtrl.clearOnTitleReturn();
     hudCtrl.syncActTheme(actOf(save.stage || 1));
     refreshTitleHelp();
+    syncHeroCosmetic3D();
+    updateRetentionBadge();
+    if (save._pendingRefundToast > 0) {
+      const rf = save._pendingRefundToast;
+      save._pendingRefundToast = 0;
+      toast('성장 개편: 기존 외형·유물 ' + rf + '엽전 전액 환불!');
+    }
   } else {
     hudCtrl.syncOverlayVisibility(!!id);
   }
@@ -1975,6 +2001,7 @@ function startRun(opts) {
   if (three && three.heroSpr) { three.scene.remove(three.heroSpr); }
   three.heroSpr = addEntityVisual('hero');
   placeGroup(three.heroSpr, 0, 0);
+  syncHeroCosmetic3D();
   three.camera.position.set(CFG.camOff.x, CFG.camOff.y, CFG.camOff.z);
   three.camera.lookAt(0, CFG.camLookY, 0);
   applyCameraLens();
@@ -2545,7 +2572,7 @@ function spawnBoss(opts) {
     frozen: 0, burn: 0, burnTick: 0, poison: 0, poisonT: 0, poisonTick: 0, stun: 0,
     marked: false, isBoss: true, seq: seq, seqI: 0, firstWalk: true,
     phase: 1, phase2: false, phase3: false,
-    poiseMax: [6, 8, 10, 12][Math.min(3, Math.floor((((S && S.stage && S.stage.id) || 1) - 1) / 4))] || 6,
+    poiseMax: Math.max(3.5, ([6, 8, 10, 12][Math.min(3, Math.floor((((S && S.stage && S.stage.id) || 1) - 1) / 4))] || 6) - (relicOn(save, 'sheath') ? 0.8 : 0)),
     poise: 6, poiseLastHit: 0, poiseBreakSeq: 0, phaseCutInvulnUntil: 0
   };
   e.poise = e.poiseMax;
@@ -4442,6 +4469,12 @@ function ringSpiritBell(sp) {
   const pan = Math.max(-1, Math.min(1, (scr.x / Math.max(1, w)) * 2 - 1));
   const darkBell = !!(S && S.goal && S.goal.id === 'dark' && goalWindowOn());
   audio.bell(pan, spiritShape(sp), (relicOn(save, 'oldbell') ? 1.5 : 1) * (darkBell ? 2 : 1));
+  if (sp && sp.target && sp.target.alive) sp.target.bellMarked = true;
+  if (S) {
+    if (relicOn(save, 'echo_bell')) S.echoBellUntil = (S.elapsed || 0) + 2.5;
+    const bc = swordFx(save).bellCharge || 0;
+    if (bc > 0) S.charge = Math.min(CFG.cleaveCharge || 100, (S.charge || 0) + bc);
+  }
   S.bellPans = [{ id: sp.id, pan: pan, x: sp.x, z: sp.z, shape: spiritShape(sp) }];
   if (audio.setLastPans) audio.setLastPans(S.bellPans);
 }
@@ -4552,8 +4585,9 @@ function scoreDash(rec) {
       if (dist(z, S.hero) > 3.2) return;
       applyBurn(z, S.lastDash);
     });
+    if (S) S.emberBuff = true;
     inkFx.ring(3.2, FX_COLORS.fire || FX_COLORS.red, 0.5);
-    showJudge('화살검 — 불꽃');
+    showJudge('화살검 — 잔화 일섬 +30%');
     telemetry.event('sword', { id: 'hwa', combo: S.combo });
   }
 }
@@ -5291,7 +5325,24 @@ function applyPath(from, to, rec, skip) {
   const quality = (rec && rec.quality != null) ? rec.quality : (S.dashQuality || 0);
   const thresh = (CFG.perfectThresh || 0.80) - (CFG.perfectThreshStep || 0.05) * Math.max(0, pLv - 1) - (relicOn(save, 'brush') ? 0.05 : 0);
   const perfect = pLv > 0 && quality >= thresh;
-  const mul = perfect ? ((CFG.perfectDmgMul || 1.5) + (CFG.perfectStep || 0.15) * Math.max(0, pLv - 1)) : 1;
+  bumpDaily('q_slash', 1);
+  const shNow = (rec && (rec.shape || rec.type)) || (S && S.lastStroke) || null;
+  let sealMul = 1;
+  if (shNow && S) {
+    if (relicOn(save, 'mono_seal')) {
+      S.monoSealStacks = (S.prevSealShape === shNow) ? Math.min(3, (S.monoSealStacks || 0) + 1) : 1;
+    } else {
+      S.monoSealStacks = 0;
+    }
+    if (relicOn(save, 'multi_seal') && S.prevSealShape && S.prevSealShape !== shNow) {
+      sealMul *= 1.12;
+      S.charge = Math.min(CFG.cleaveCharge || 100, (S.charge || 0) + 6);
+    }
+    S.prevSealShape = shNow;
+  }
+  const echoMul = (relicOn(save, 'echo_bell') && S && (S.echoBellUntil || 0) > (S.elapsed || 0)) ? 1.15 : 1;
+  const emberMul = (S && S.emberBuff) ? (S.emberBuff = false, 1.3) : 1;
+  const mul = (perfect ? ((CFG.perfectDmgMul || 1.5) + (CFG.perfectStep || 0.15) * Math.max(0, pLv - 1)) : 1) * sealMul * echoMul * emberMul;
   const dmg = dashDmg() * mul * ((rec && rec.dmgMul) || 1);
   if (perfect && rec) { rec.perfect = true; showJudge('정확한 획'); }
   const dx = to.x - from.x, dz = to.z - from.z, L2 = dx * dx + dz * dz || 1;
@@ -5301,10 +5352,25 @@ function applyPath(from, to, rec, skip) {
   /* Nearest along the cut takes full damage; each one after it a little less. */
   hit.sort(function (a, b) { return ((a.x - from.x) * dx + (a.z - from.z) * dz) / L2 - ((b.x - from.x) * dx + (b.z - from.z) * dz) / L2; });
   const swordF = swordFx(save);
+  if (swordF.dashInvuln && S) S.iframe = Math.max(S.iframe || 0, swordF.dashInvuln);
   hit.forEach(function (z, k) {
-    hurtZombie(z, dmg * Math.pow(CFG.pierceFalloff || 1, k), 'slash', rec);
-    /* §9.2 서릿검: 일섬의 첫 원귀를 얼린다. */
-    if (k === 0 && z.alive && !z.isBoss && swordF.freeze) z.frozen = Math.max(z.frozen || 0, swordF.freeze);
+    const inRing = S && S.hero && dist(z, S.hero) <= ringR() * 1.05;
+    if (S) S.lastTargetInRing = !!inRing;
+    const bellBonus = (relicOn(save, 'oldbell') && z.bellMarked) ? 1.1 : 1;
+    hurtZombie(z, dmg * bellBonus * Math.pow(CFG.pierceFalloff || 1, k), 'slash', rec);
+    /* v0.70 서릿검: 일반 원귀 빙결 + 보스 한기 감속 */
+    if (k === 0 && z.alive && swordF.freeze) {
+      if (!z.isBoss) z.frozen = Math.max(z.frozen || 0, swordF.freeze);
+      else z.chillT = Math.max(z.chillT || 0, swordF.freeze * 1.4);
+    }
+    /* v0.70 뇌전검: 번개 획 명중 시 주변 1체 연쇄 낙뢰 */
+    if (k === 0 && swordF.boltChain && shNow === 'bolt') {
+      const near = S.zombies.filter(function (o) { return o.alive && o !== z && !o.isClone && dist(o, z) <= 4.5; })[0];
+      if (near) {
+        hurtZombie(near, dmg * 0.55, 'bolt', rec);
+        if (three && three.vfx3d) three.vfx3d.spawnLightning({ x: z.x, y: 0.9, z: z.z }, { x: near.x, y: 0.5, z: near.z }, { color: 0x7ab4ff, core: 0xf4f9ff, hold: 0.12, fade: 0.16, sparks: 6 });
+      }
+    }
     if (z.alive) applyElement(z, curElem(), rec);
     else spreadElement(z, curElem(), rec);
   });
@@ -5424,10 +5490,16 @@ function hurtZombie(z, amount, why, rec) {
       }
       return;
     }
+    const swordF = swordFx(save);
     const isWeak = (z.openUntil > nowT) || z.state === 'groggy';
     const isAuto = (why === 'bolt' || why === 'ward' || why === 'poison' || why === 'burn' || why === 'cloud' || why === 'ring' || why === 'inkstep');
-    const mult = why === 'bang' ? 1.6 : (isAuto ? (isWeak ? 0.45 : 0.15) : (isWeak ? 1.85 : 0.35));
+    const weakBoost = isWeak ? ((1 + gapBonus()) * (1 + (swordF.gapDmgMul || 0))) : 1;
+    const mult = why === 'bang' ? 1.6 : (isAuto ? (isWeak ? 0.45 : 0.15) : (isWeak ? 1.85 * weakBoost : 0.35));
     let dealt = Math.min(z.hp, amount * mult);
+    /* v0.70 귀문검(gapCharge): 보스 빈틈·그로기 타격 시 참 게이지 즉시 충전 */
+    if (isWeak && !isAuto && swordF.gapCharge > 0 && S) {
+      S.charge = Math.min(CFG.cleaveCharge || 100, (S.charge || 0) + swordF.gapCharge);
+    }
     const B0 = bossCfg();
     const hasP3 = !!(B0.phase3 || (S.stageNo || 1) >= 12);
     const p2Cut = z.maxHp * 0.60, p3Cut = z.maxHp * 0.30;
@@ -5439,8 +5511,10 @@ function hurtZombie(z, amount, why, rec) {
     z.hpTrail = Math.max(z.hpTrail || z.hp, z.hp);
     z.hp -= dealt;
     if (!isAuto && !isWeak) {
-      const sh = rec && rec.shape;
-      const pDmg = why === 'bang' ? 3.5 : ((sh && sh !== 'hline' && sh !== 'vline') ? 1.8 : 0.7);
+      const sh = rec && (rec.shape || rec.type);
+      let pDmg = why === 'bang' ? 3.5 : ((sh && sh !== 'hline' && sh !== 'vline') ? 1.8 : 0.7);
+      pDmg *= (1 + poiseBonus());
+      if (sh === 'bolt' && swordF.boltPoiseMul) pDmg *= (1 + swordF.boltPoiseMul);
       bossPoise(z, pDmg);
     }
     const meter = why === 'bolt' || why === 'ward' ? 'autoDmg' : 'manualDmg';
@@ -5690,12 +5764,20 @@ function makeSlash(from, to) {
   const q = (three && three.bloom && three.bloom.quality) || fxQ;
   /* The cut shows the element it actually applies: a ground charm (12 s) over the engraved one. */
   const elemNow = S ? curElem() : null;
+  const tr = trailOf(save);
+  const flv = swordForgeLv(save);
+  const customCore = (!elemNow && tr && tr.coreHex != null) ? tr.coreHex : undefined;
+  const customHot = (!elemNow && tr && tr.hotHex != null) ? tr.hotHex : undefined;
   const s = createInkSlash({
     from: from, to: to,
     width: pathR() * 1.6 * 1.2,
     elem: elemNow,
-    coreGain: q === 'off' ? 1.2 : 1.6
+    color: customCore,
+    coreGain: (q === 'off' ? 1.2 : 1.6) * (1 + flv * 0.12)
   });
+  if (customHot != null && s.material && s.material.uniforms && s.material.uniforms.uHot && s.material.uniforms.uHot.value) {
+    s.material.uniforms.uHot.value.set(customHot);
+  }
   three.scene.add(s.mesh);
   three.slashes = three.slashes || [];
   three.slashes.push(s);
@@ -5703,6 +5785,7 @@ function makeSlash(from, to) {
   try {
     const arc = createSlashArc({ actNo: actOf((S && S.stageNo) || save.stage || 1),
       from: from, to: to, elem: elemNow,
+      trailColor: customCore, trailHot: customHot, forgeLv: flv,
       coreGain: q === 'off' ? 1.05 : 1.45,
       height: 0.5 + pathR() * 0.12,
       width: Math.max(0.9, pathR() * 0.95)
@@ -5711,11 +5794,13 @@ function makeSlash(from, to) {
     three.slashes.push(arc);
   } catch (e) {}
   if (three.ink) three.ink.slash(from, to);
-  /* v0.60: 마른 붓 먹물 잔상 + 속도 스파크 + 번개 원소/일섬 시 계층 분기 번개 */
+  /* v0.60/v0.70: 마른 붓 먹물 잔상 + 치장/원소 스파크 + 번개 원소/일섬 시 계층 분기 번개 */
   if (three.vfx3d) {
-    three.vfx3d.spawnInkTrail(from, to, 4);
-    three.vfx3d.spawnSparks(to.x, to.z, 9, {
-      color: elemNow === 'ice' ? 0x98ecff : elemNow === 'poison' ? 0xc27aff : elemNow === 'fire' ? 0xff7038 : 0xffb85c,
+    three.vfx3d.spawnInkTrail(from, to, 4 + (flv > 0 ? 1 : 0));
+    const sparkCol = elemNow === 'ice' ? 0x98ecff : elemNow === 'poison' ? 0xc27aff : elemNow === 'fire' ? 0xff7038
+      : (tr && tr.hotHex != null ? tr.hotHex : 0xffb85c);
+    three.vfx3d.spawnSparks(to.x, to.z, 9 + flv * 2, {
+      color: sparkCol,
       speed: 6.2
     });
     if (elemNow === 'lightning' || (S && S.lastStroke === 'bolt')) {
@@ -7062,7 +7147,7 @@ function notePatSeen(id, how) {
 }
 function bossPat() { return CFG.bossPat || {}; }
 /* §9.4 금실 칼집: 기모으기 금빛 칸 +0.1초 */
-function kiaiWin(K) { return (K && K.win || 0) + (relicOn(save, 'sheath') ? 0.1 : 0); }
+function kiaiWin(K) { return (K && K.win || 0) + (relicOn(save, 'sheath') ? 0.12 : 0); }
 /** Spirits on the clones and on the boss among them stay bound for the whole pattern, wherever the hero dashes. */
 function cloneHeld(s) { const t = s && s.target; return !!(t && (t.isClone || t.isTotem || t.isPillar || (t.isBoss && t.state === 'clones'))); }
 function ensureCloneSpirits(z) {
@@ -7719,7 +7804,7 @@ function bossJustDodge(z) {
   showJudge('간발 회피 — 자세 타격!');
   if (z.pat) notePatSeen(z.pat, 'dodge');
   telemetry.event('boss_pattern', { p: z.pat || null, result: 'dodge', t: +(z.stateT || 0).toFixed(2) });
-  bossPoise(z, 2.2);
+  bossPoise(z, (2.2 + (swordFx(save).parryPoiseAdd || 0)) * (1 + poiseBonus()));
 }
 /** Deterministic poise pool decrement with idempotent single-event stagger transition. */
 function bossPoise(z, n) {
@@ -7735,7 +7820,8 @@ function bossPoise(z, n) {
 }
 function bossGroggy(z) {
   endBossSide(z);
-  const gt = (bossPat() && bossPat().groggyT) || 3.4;
+  bumpDaily('q_poise', 1);
+  const gt = ((bossPat() && bossPat().groggyT) || 3.4) + (swordFx(save).groggyAdd || 0) + (relicOn(save, 'eye') ? 0.25 : 0);
   z.state = 'groggy'; z.stateT = 0; z.leapY = 0; z.poise = 0;
   z.openUntil = Math.max(z.openUntil || 0, (S.elapsed || 0) + gt);
   S.shake = Math.max(S.shake || 0, 0.72);
@@ -8343,6 +8429,11 @@ function endRun(win, msg) {
   if (win && !S.noScore && !S.challenge) {
     save.stars = save.stars || {};
     save.stars[st.id] = Math.max(save.stars[st.id] || 0, stars);
+    /* v0.70 먹묵(벼림 재료) 지급 + 일일 수련 클리어 카운트 */
+    const inkGain = 1 + actOf(st.id) + (stars >= 3 ? 1 : 0);
+    save.ink = (save.ink || 0) + inkGain;
+    S.inkGain = inkGain;
+    bumpDaily('q_clear', 1);
     const next = Math.min(STAGES.length, (S.stageNo || st.id) + 1);
     save.stage = Math.max(save.stage || 1, S.stageNo >= STAGES.length ? STAGES.length : next);
     /* v0.23: 막의 마지막 장을 깨면 다음 막이 열린다. 마지막 장이면 올 클리어. */
@@ -8389,7 +8480,7 @@ function endRun(win, msg) {
   } else {
     starsEl.classList.add('defeat-seal');
     starsEl.setAttribute('aria-label', '전투 패배 · 획득 별 0/3');
-    starsEl.textContent = '敗 · 다시 일어서라';
+    starsEl.textContent = '패배 · 다시 일어서라';
   }
   $('resultBody').textContent = win ? (msg || '') : (msg || '') + ' 다시 한 번.';
   const hpPct = Math.round((S.hp / Math.max(1, maxHp())) * 100);
@@ -8397,6 +8488,7 @@ function endRun(win, msg) {
     ['처치', (S.kills || 0) + '기'],
     ['최대 콤보', (S.comboMax || 0)],
     ['획득 엽전', '+' + coinsGain],
+    ['획득 먹묵', '+' + (S.inkGain || 0)],
     ['부순 항아리', (S.jarsBroken || 0) + '개'],
     ['남은 체력', Math.max(0, hpPct) + '%']
   ].map(function (r) {
@@ -8436,6 +8528,22 @@ function endRun(win, msg) {
     const offer = !win && (S.streakAfter || 0) >= 3 && curMode().id === 'jeongseok' && save.trainOffered !== offerKey;
     offerBox.hidden = !offer;
     if (offer) offerBox.textContent = '수련 모드로 한 판';
+  }
+  /* v0.70 패배 화면 1탭 강화 추천 */
+  const qBtn = $('btnResultUpgrade');
+  if (qBtn) {
+    if (!win) {
+      const cand = pickAffordableStatUpgrade();
+      if (cand) {
+        qBtn.hidden = false;
+        qBtn.dataset.stat = cand.id;
+        qBtn.textContent = cand.name + ' Lv ' + (cand.lv + 1) + ' 바로 단련 (' + cand.cost + '엽전)';
+      } else {
+        qBtn.hidden = true;
+      }
+    } else {
+      qBtn.hidden = true;
+    }
   }
   if (win && nextSt) {
     $('btnResultGo').textContent = '다음 장 — ' + nextSt.name;
@@ -9363,22 +9471,80 @@ function collectIdle(double) {
   hideOvs(); showOv('ov-title'); renderHud();
   return n;
 }
-function refreshShop() {
-  $('shopCoins').textContent = save.coins;
-  try { renderShopTab(); } catch (e) {}
-  function label(btn, name, lv, desc) {
-    const c = costOf(lv), max = lv >= CFG.maxLv;
-    btn.disabled = max || save.coins < c;
-    btn.innerHTML = name + ' Lv ' + lv + (max ? ' (최대)' : ' · ' + c + '엽전') + '<br>' + desc;
+function syncHeroCosmetic3D() {
+  if (!three || !three.heroSpr) return;
+  try { applyHeroCloak3D(three.heroSpr, cloakOf(save), swordForgeLv(save)); } catch (e) {}
+}
+function statUnlocked(def) {
+  return !def.unlockStage || ((save.stage || 1) >= def.unlockStage) || Object.keys(save.stars || {}).some(function (k) { return (+k >= def.unlockStage - 1) && (save.stars[k] > 0); });
+}
+function pickAffordableStatUpgrade() {
+  const order = ['atk', 'hp', 'gap', 'poise', 'coin'];
+  let best = null;
+  for (let i = 0; i < order.length; i++) {
+    const def = STAT_DEFS.filter(function (d) { return d.id === order[i]; })[0];
+    if (!def || !statUnlocked(def)) continue;
+    const lv = save[def.key] || 0;
+    if (lv >= def.maxLv) continue;
+    const cost = statUpgradeCost(lv, CFG);
+    if ((save.coins || 0) >= cost && (!best || cost < best.cost)) {
+      best = { id: def.id, name: def.name, lv: lv, cost: cost };
+    }
   }
-  label($('buyAtk'), '공격력', save.atkLv, '일섬 피해 +' + Math.round(atkBonus() * 100) + '%');
-  label($('buyHp'), '영웅 체력', save.hpLv, '최대 체력 ' + (CFG.hpBase + save.hpLv * CFG.hpStep));
-  label($('buyCoin'), '엽전 획득', save.coinLv, '획득량 ×' + (1 + save.coinLv * CFG.coinStep).toFixed(2));
+  return best;
+}
+function refreshShop() {
+  if ($('shopCoins')) $('shopCoins').textContent = save.coins || 0;
+  if ($('shopInk')) $('shopInk').textContent = save.ink || 0;
+  const pwEl = $('shopPower');
+  if (pwEl) {
+    const curStage = (S && S.stageNo) || save.stage || 1;
+    const myPw = computeCombatPower(save);
+    const recPw = stageRecommendedPower(curStage);
+    const ratio = myPw / Math.max(1, recPw);
+    const cls = ratio >= 1.05 ? 'ok' : (ratio >= 0.85 ? 'warn' : 'hard');
+    const tag = ratio >= 1.05 ? '여유' : (ratio >= 0.85 ? '적정' : '도전');
+    pwEl.innerHTML = '<span>현재 전투력 <b>' + myPw + '</b> · ' + curStage + '장 권장 <b>' + recPw + '</b></span><span class="pw-badge ' + cls + '">' + tag + '</span>';
+  }
+  try { renderShopTab(); } catch (e) {}
+  function label(btn, def, desc) {
+    if (!btn || !def) return;
+    const lv = save[def.key] || 0;
+    const open = statUnlocked(def);
+    const c = statUpgradeCost(lv, CFG), max = lv >= def.maxLv;
+    btn.disabled = !open || max || (save.coins || 0) < c;
+    btn.classList.toggle('locked', !open);
+    btn.innerHTML = '<b>' + def.name + '</b> Lv ' + lv + '/' + def.maxLv +
+      (max ? ' (최대)' : (!open ? ' (' + def.unlockStage + '장 해금)' : ' · ' + c + '엽전')) +
+      '<br><span class="meta-desc">' + desc + '</span>';
+  }
+  const byId = function (id) { return STAT_DEFS.filter(function (d) { return d.id === id; })[0]; };
+  label($('buyAtk'), byId('atk'), '일섬 기본 피해 +' + Math.round(atkBonus() * 100) + '%');
+  label($('buyHp'), byId('hp'), '최대 체력 ' + (CFG.hpBase + (save.hpLv || 0) * CFG.hpStep));
+  label($('buyGap'), byId('gap'), '보스 빈틈·그로기 피해 +' + Math.round(gapBonus() * 100) + '%');
+  label($('buyPoise'), byId('poise'), '보스 자세 깎기 효율 +' + Math.round(poiseBonus() * 100) + '%');
+  label($('buyCoin'), byId('coin'), '엽전 획득 ×' + (1 + (save.coinLv || 0) * CFG.coinStep).toFixed(2));
+  const rBtn = $('btnStatReset');
+  if (rBtn) {
+    const spent = statTotalSpent(save, CFG);
+    rBtn.disabled = spent <= 0;
+    rBtn.textContent = spent > 0 ? ('기량 초기화 (엽전 +' + spent + ' 전액 환불)') : '기량 초기화 (투자된 엽전 없음)';
+  }
 }
 function buy(stat) {
+  const def = STAT_DEFS.filter(function (d) { return d.id === stat; })[0];
+  if (def && !statUnlocked(def)) { toast(def.unlockStage + '장에 도달하면 열립니다'); return false; }
   const res = purchaseStatUpgrade(save, stat, CFG);
   if (!res.ok) return false;
   persist(); refreshShop(); renderHud();
+  return true;
+}
+function doResetStats() {
+  const res = resetAllStats(save, CFG);
+  if (!res.ok) { toast('초기화할 기량이 없습니다'); return false; }
+  persist(); refreshShop(); renderHud();
+  toast('기량 초기화 완료 — ' + res.refund + '엽전 전액 환불');
+  telemetry.event('stat_reset', { refund: res.refund });
   return true;
 }
 
@@ -9512,24 +9678,49 @@ function renderChallenges() {
   });
 }
 let shopTab = 'stat';
+let cosTab = 'cloak';
 function swordBlueprint(stageNo) { return !stageNo || ((save.stars || {})[stageNo] || 0) > 0; }
 function buySword(id) {
   const sw = SWORDS.filter(function (s) { return s.id === id; })[0];
-  if (!sw || save.swords.owned[id] || !swordBlueprint(sw.unlock) || save.coins < sw.price) return false;
-  save.coins -= sw.price; save.swords.owned[id] = 1; persist(); refreshShop(); renderHud();
-  toast('무구 · ' + sw.name + '을 얻었습니다');
+  if (!sw || save.swords.owned[id] || !swordBlueprint(sw.unlock) || (save.coins || 0) < sw.price) return false;
+  save.coins -= sw.price; save.swords.owned[id] = 1;
+  save.swords.forge = save.swords.forge || {};
+  save.swords.equipped = id;
+  persist(); refreshShop(); renderHud(); syncHeroCosmetic3D();
+  toast('무구 · ' + sw.name + ' 제작 및 장착 완료');
   telemetry.event('meta_buy', { kind: 'sword', id: id, price: sw.price });
   return true;
 }
 function equipSword(id) {
   if (!save.swords.owned[id]) return false;
-  save.swords.equipped = id; persist(); refreshShop();
+  save.swords.equipped = id; persist(); refreshShop(); syncHeroCosmetic3D();
   toast('무구 · ' + swordOf(save).name + ' 장착');
+  return true;
+}
+function forgeSword(id) {
+  if (!save.swords.owned[id]) return false;
+  const lv = swordForgeLv(save, id);
+  const fc = forgeCostOf(lv);
+  if (!fc) { toast('이미 최고 벼림(3단)입니다'); return false; }
+  if ((save.coins || 0) < fc.coins || (save.ink || 0) < fc.ink) {
+    toast('재화가 부족합니다 (엽전 ' + fc.coins + ' · 먹묵 ' + fc.ink + ')');
+    return false;
+  }
+  save.coins -= fc.coins;
+  save.ink -= fc.ink;
+  save.swords.forge = save.swords.forge || {};
+  save.swords.forge[id] = lv + 1;
+  persist(); refreshShop(); renderHud(); syncHeroCosmetic3D();
+  const sw = SWORDS.filter(function (s) { return s.id === id; })[0];
+  toast((sw ? sw.name : '무구') + ' 벼림 +' + (lv + 1) + ' 성공!');
+  telemetry.event('sword_forge', { id: id, lv: lv + 1, coins: fc.coins, ink: fc.ink });
   return true;
 }
 function buyRelic(id) {
   const r = RELICS.filter(function (x) { return x.id === id; })[0];
-  if (!r || save.relics.owned[id] || save.coins < r.price) return false;
+  if (!r || save.relics.owned[id]) return false;
+  if (r.unlock && !swordBlueprint(r.unlock)) { toast(r.unlock + '장 첫 클리어로 해금됩니다'); return false; }
+  if ((save.coins || 0) < r.price) return false;
   save.coins -= r.price; save.relics.owned[id] = 1; persist(); refreshShop(); renderHud();
   toast('유물 · ' + r.name + '을 얻었습니다');
   telemetry.event('meta_buy', { kind: 'relic', id: id, price: r.price });
@@ -9537,10 +9728,15 @@ function buyRelic(id) {
 }
 function toggleRelic(id) {
   if (!save.relics.owned[id]) return false;
-  const eq = (save.relics.equipped || []).slice();
+  const r = RELICS.filter(function (x) { return x.id === id; })[0];
+  let eq = (save.relics.equipped || []).slice();
   const i = eq.indexOf(id);
-  if (i >= 0) eq.splice(i, 1);
-  else {
+  if (i >= 0) {
+    eq.splice(i, 1);
+  } else {
+    if (r && r.mutex) {
+      eq = eq.filter(function (x) { return x !== r.mutex; });
+    }
     eq.push(id);
     const slots = relicSlots(save);
     while (eq.length > slots) eq.shift();
@@ -9548,24 +9744,36 @@ function toggleRelic(id) {
   save.relics.equipped = eq; persist(); refreshShop(); renderHud();
   return true;
 }
-function buySkin(id, kind) {
-  const list = kind === 'brush' ? BRUSHES : SKINS;
-  const box = kind === 'brush' ? save.brush : save.skins;
+function buyCosmetic(kind, id) {
+  const list = kind === 'trail' ? COSMETIC_TRAILS : COSMETIC_CLOAKS;
   const it = list.filter(function (x) { return x.id === id; })[0];
-  if (!it || box.owned[id] || save.coins < it.price) return false;
-  save.coins -= it.price; box.owned[id] = 1; persist(); refreshShop(); renderHud();
-  toast((kind === 'brush' ? '붓 자국' : '외형') + ' · ' + it.name + '을 얻었습니다');
-  telemetry.event('meta_buy', { kind: kind, id: id, price: it.price });
+  if (!it) return false;
+  if (!save.cloaks) save.cloaks = { owned: { ink: 1 }, equipped: 'ink' };
+  if (!save.trails) save.trails = { owned: { ink: 1 }, equipped: 'ink' };
+  const box = kind === 'trail' ? save.trails : save.cloaks;
+  if (box.owned[id]) return equipCosmetic(kind, id);
+  if ((save.coins || 0) < it.price) { toast('엽전이 부족합니다'); return false; }
+  save.coins -= it.price;
+  box.owned[id] = 1;
+  box.equipped = id;
+  persist(); renderCosmeticOverlay(); renderHud(); syncHeroCosmetic3D();
+  toast('치장 · ' + it.name + ' 획득 및 착용!');
+  telemetry.event('cosmetic_buy', { kind: kind, id: id, price: it.price });
   return true;
 }
-function equipSkin(id, kind) {
-  const box = kind === 'brush' ? save.brush : save.skins;
+function equipCosmetic(kind, id) {
+  if (!save.cloaks) save.cloaks = { owned: { ink: 1 }, equipped: 'ink' };
+  if (!save.trails) save.trails = { owned: { ink: 1 }, equipped: 'ink' };
+  const box = kind === 'trail' ? save.trails : save.cloaks;
   if (!box.owned[id]) return false;
-  box.equipped = id; persist(); refreshShop();
-  if (kind === 'brush') showJudge('붓 자국 · ' + brushOf(save).name);
+  box.equipped = id;
+  persist(); renderCosmeticOverlay(); syncHeroCosmetic3D();
+  const it = kind === 'trail' ? trailOf(save) : cloakOf(save);
+  toast((kind === 'trail' ? '검기 · ' : '도포 · ') + it.name + ' 착용');
   return true;
 }
 function renderShopTab() {
+  if (shopTab === 'skin') shopTab = 'stat';
   const tabs = $('shopTabs'), statList = $('shopStatList'), body = $('shopBody'), noteEl = $('shopNote') || document.querySelector('#ov-shop .shop-note');
   if (tabs) Array.prototype.forEach.call(tabs.querySelectorAll('button'), function (b) {
     b.classList.toggle('on', b.getAttribute('data-tab') === shopTab);
@@ -9576,37 +9784,50 @@ function renderShopTab() {
   body.hidden = shopTab === 'stat';
   if (shopTab === 'stat') { body.innerHTML = ''; return; }
   const rows = [];
-  const coins = save.coins;
+  const coins = save.coins || 0;
+  const ink = save.ink || 0;
   if (shopTab === 'sword') {
     SWORDS.forEach(function (s) {
       const owned = !!save.swords.owned[s.id], eq = save.swords.equipped === s.id;
       const open = swordBlueprint(s.unlock);
-      const can = !owned && open && coins >= s.price;
-      rows.push('<button type="button" class="btn shop-item' + (owned ? ' owned' : '') + (eq ? ' equipped' : '') + (open ? '' : ' locked') + '" data-act="' + (owned ? 'equip-sword' : 'buy-sword') + '" data-id="' + s.id + '"' + (owned || can ? '' : ' disabled') + '>' +
-        '<b>' + s.name + '</b><span class="meta-price">' + (owned ? (eq ? '장착' : '보유') : (open ? s.price + '엽전' : '도면 잠김 — ' + s.unlock + '장 첫 클리어')) + '</span><br>' + s.desc + '</button>');
+      const flv = swordForgeLv(save, s.id);
+      const fc = owned ? forgeCostOf(flv) : null;
+      const canBuy = !owned && open && coins >= s.price;
+      const canForge = !!(owned && fc && coins >= fc.coins && ink >= fc.ink);
+      const pips = owned ? '<span class="forge-pips">' + [1, 2, 3].map(function (n) { return '<i class="' + (flv >= n ? 'on' : '') + '"></i>'; }).join('') + '</span>' : '';
+      let actions = '';
+      if (!owned) {
+        actions = '<button type="button" class="btn mini" data-act="buy-sword" data-id="' + s.id + '"' + (canBuy ? '' : ' disabled') + '>' +
+          (open ? (s.price + '엽전 제작') : (s.unlock + '장 클리어 도면')) + '</button>';
+      } else {
+        actions = '<button type="button" class="btn mini' + (eq ? ' primary' : '') + '" data-act="equip-sword" data-id="' + s.id + '">' + (eq ? '장착 중' : '장착') + '</button>';
+        if (fc) {
+          actions += '<button type="button" class="btn mini" data-act="forge-sword" data-id="' + s.id + '"' + (canForge ? '' : ' disabled') + '>벼림 +' + (flv + 1) + ' (' + fc.coins + '엽전·먹묵' + fc.ink + ')</button>';
+        } else {
+          actions += '<span class="meta-price">벼림 완료</span>';
+        }
+      }
+      rows.push('<div class="meta-card' + (owned ? ' owned' : '') + (eq ? ' equipped' : '') + (open ? '' : ' locked') + '">' +
+        '<div class="meta-art">' + getSwordSvg(s.id) + '</div>' +
+        '<div class="meta-info"><div class="meta-top"><b>' + s.name + pips + '</b><span class="meta-price">' + (owned ? (flv > 0 ? '+' + flv + '강' : '보유') : (open ? s.price + '엽전' : '잠김')) + '</span></div>' +
+        '<div class="meta-desc">' + s.desc + '</div><div class="meta-actions">' + actions + '</div></div></div>');
     });
   } else if (shopTab === 'relic') {
-    rows.push('<p class="shop-note">판 시작에 장착한 유물 하나가 규칙을 바꿉니다. 지금 칸: ' + relicSlots(save) + '개</p>');
+    const slots = relicSlots(save);
+    const eqN = (save.relics.equipped || []).length;
+    rows.push('<p class="shop-note">장착 칸: ' + eqN + '/' + slots + (slots < 2 ? ' (8장 클리어 시 2칸 해금)' : ' (최대 2칸 해금 완료)') + '</p>');
     RELICS.forEach(function (r) {
-      const owned = !!save.relics.owned[r.id], eq = relicOn(save, r.id); const open = !r.unlock || swordBlueprint(r.unlock);
+      const owned = !!save.relics.owned[r.id], eq = relicOn(save, r.id);
+      const open = !r.unlock || swordBlueprint(r.unlock);
       const can = !owned && open && coins >= r.price;
-      rows.push('<button type="button" class="btn shop-item' + (owned ? ' owned' : '') + (eq ? ' equipped' : '') + (open ? '' : ' locked') + '" data-act="' + (owned ? 'equip-relic' : 'buy-relic') + '" data-id="' + r.id + '"' + (owned || can ? '' : ' disabled') + '>' +
-        '<b>' + r.name + '</b><span class="meta-price">' + (owned ? (eq ? '장착됨' : '보유') : (open ? r.price + '엽전' : r.unlock + '장 클리어 해금')) + '</span><br>' + r.desc + '</button>');
-    });
-  } else {
-    rows.push('<p class="shop-note">보스·기물 색조 — 능력은 없습니다.</p>');
-    SKINS.forEach(function (s) {
-      const owned = !!save.skins.owned[s.id], eq = save.skins.equipped === s.id;
-      const can = !owned && coins >= s.price;
-      rows.push('<button type="button" class="btn shop-item' + (owned ? ' owned' : '') + (eq ? ' equipped' : '') + '" data-act="' + (owned ? 'equip-skin' : 'buy-skin') + '" data-id="' + s.id + '"' + (owned || can ? '' : ' disabled') + '>' +
-        '<b>' + s.name + '</b><span class="meta-price">' + (owned ? (eq ? '장착됨' : '보유') : s.price + '엽전') + '</span></button>');
-    });
-    rows.push('<p class="shop-note">수련장 붓 자국 — 획의 색과 굵기뿐입니다.</p>');
-    BRUSHES.forEach(function (s) {
-      const owned = !!save.brush.owned[s.id], eq = save.brush.equipped === s.id;
-      const can = !owned && coins >= s.price;
-      rows.push('<button type="button" class="btn shop-item' + (owned ? ' owned' : '') + (eq ? ' equipped' : '') + '" data-act="' + (owned ? 'equip-brush' : 'buy-brush') + '" data-id="' + s.id + '"' + (owned || can ? '' : ' disabled') + '>' +
-        '<b>' + s.name + '</b><span class="meta-price">' + (owned ? (eq ? '장착됨' : '보유') : s.price + '엽전') + '</span></button>');
+      const mx = r.mutex ? '<span class="mutex-tag">상호배타</span>' : '';
+      const actBtn = owned
+        ? '<button type="button" class="btn mini' + (eq ? ' primary' : '') + '" data-act="equip-relic" data-id="' + r.id + '">' + (eq ? '장착 해제' : '장착') + '</button>'
+        : '<button type="button" class="btn mini" data-act="buy-relic" data-id="' + r.id + '"' + (can ? '' : ' disabled') + '>' + (open ? (r.price + '엽전 구매') : (r.unlock + '장 클리어 해금')) + '</button>';
+      rows.push('<div class="meta-card' + (owned ? ' owned' : '') + (eq ? ' equipped' : '') + (open ? '' : ' locked') + '">' +
+        '<div class="meta-art">' + getRelicSvg(r.id) + '</div>' +
+        '<div class="meta-info"><div class="meta-top"><b>' + r.name + mx + '</b><span class="meta-price">' + (owned ? (eq ? '장착됨' : '보유') : (open ? r.price + '엽전' : '잠김')) + '</span></div>' +
+        '<div class="meta-desc">' + r.desc + '</div><div class="meta-actions">' + actBtn + '</div></div></div>');
     });
   }
   body.innerHTML = rows.join('');
@@ -9615,30 +9836,234 @@ function renderShopTab() {
       const act = b.getAttribute('data-act'), id = b.getAttribute('data-id');
       if (act === 'buy-sword') buySword(id);
       else if (act === 'equip-sword') equipSword(id);
+      else if (act === 'forge-sword') forgeSword(id);
       else if (act === 'buy-relic') buyRelic(id);
       else if (act === 'equip-relic') toggleRelic(id);
-      else if (act === 'buy-skin') buySkin(id, 'skin');
-      else if (act === 'equip-skin') equipSkin(id, 'skin');
-      else if (act === 'buy-brush') buySkin(id, 'brush');
-      else if (act === 'equip-brush') equipSkin(id, 'brush');
+    });
+  });
+}
+function renderCosmeticOverlay() {
+  if ($('cosCoins')) $('cosCoins').textContent = save.coins || 0;
+  const eqEl = $('cosEquippedSummary');
+  if (eqEl) eqEl.textContent = cloakOf(save).name + ' · ' + trailOf(save).name;
+  const tabs = $('cosTabs');
+  if (tabs) Array.prototype.forEach.call(tabs.querySelectorAll('button'), function (b) {
+    b.classList.toggle('on', b.getAttribute('data-ctab') === cosTab);
+  });
+  const grid = $('cosmeticGrid');
+  if (!grid) return;
+  const list = cosTab === 'trail' ? COSMETIC_TRAILS : COSMETIC_CLOAKS;
+  const box = cosTab === 'trail' ? (save.trails || { owned: { ink: 1 }, equipped: 'ink' })
+    : (save.cloaks || { owned: { ink: 1 }, equipped: 'ink' });
+  const rarCls = { '기본': 'common', '희귀': 'rare', '영웅': 'epic', '전설': 'legend' };
+  const coins = save.coins || 0;
+  grid.innerHTML = list.map(function (it) {
+    const owned = !!(box.owned && box.owned[it.id]);
+    const eq = box.equipped === it.id;
+    const rc = rarCls[it.rarity] || 'common';
+    let foot = '';
+    if (eq) foot = '<span class="state-eq">착용 중</span><span>3D 반영</span>';
+    else if (owned) foot = '<span class="state-own">보유 중</span><span>터치해 착용</span>';
+    else if (it.eventOnly) foot = '<span class="state-lock">7일 출석 무료</span><span>수련표</span>';
+    else foot = '<span class="' + (coins >= it.price ? 'state-buy' : 'state-lock') + '">' + it.price + '엽전</span><span>' + (coins >= it.price ? '즉시 구매' : '엽전 부족') + '</span>';
+    return '<button type="button" class="cos-tile rar-' + rc + (eq ? ' equipped' : '') + '" data-ckind="' + cosTab + '" data-cid="' + it.id + '">' +
+      '<div class="cos-art">' + getCosmeticSvg(cosTab, it.id) + '</div>' +
+      '<span class="cos-rar ' + rc + '">' + it.rarity + '</span>' +
+      '<div class="cos-name">' + it.name + '</div>' +
+      '<div class="cos-desc">' + it.desc + '</div>' +
+      '<div class="cos-foot">' + foot + '</div></button>';
+  }).join('');
+  Array.prototype.forEach.call(grid.querySelectorAll('button[data-cid]'), function (b) {
+    b.addEventListener('click', function () {
+      buyCosmetic(b.getAttribute('data-ckind'), b.getAttribute('data-cid'));
+    });
+  });
+}
+
+/* ---------- v0.70 리텐션: 오늘의 수련 · 7일 출석 · 막별 별 상자 · 도감 마일스톤 ---------- */
+function ensureDailyFresh() {
+  const tk = todayKey();
+  save.daily = save.daily || { date: tk, prog: {}, claimed: {} };
+  if (!save.daily.prog) save.daily.prog = {};
+  if (!save.daily.claimed) save.daily.claimed = {};
+  if (save.daily.date !== tk) {
+    save.daily = { date: tk, prog: {}, claimed: {} };
+  }
+  save.attend = save.attend || { days: 0, lastDate: '' };
+  save.starChests = save.starChests || {};
+  save.codexClaimed = save.codexClaimed || {};
+}
+function bumpDaily(qid, delta) {
+  ensureDailyFresh();
+  save.daily.prog[qid] = (save.daily.prog[qid] || 0) + (delta || 1);
+}
+function actStarTotal(actNo) {
+  let sum = 0;
+  for (let s = (actNo - 1) * 4 + 1; s <= actNo * 4; s++) sum += (save.stars && save.stars[s]) || 0;
+  return sum;
+}
+function hasClaimableRetention() {
+  ensureDailyFresh();
+  if ((save.attend.days || 0) < 7 && save.attend.lastDate !== todayKey()) return true;
+  for (let i = 0; i < DAILY_QUESTS.length; i++) {
+    const q = DAILY_QUESTS[i];
+    if (!save.daily.claimed[q.id] && (save.daily.prog[q.id] || 0) >= q.goal) return true;
+  }
+  for (let a = 1; a <= 4; a++) {
+    const st = actStarTotal(a);
+    for (let j = 0; j < STAR_CHESTS.length; j++) {
+      const k = a + ':' + STAR_CHESTS[j].stars;
+      if (!save.starChests[k] && st >= STAR_CHESTS[j].stars) return true;
+    }
+  }
+  return false;
+}
+function updateRetentionBadge() {
+  const dot = $('dailyDot');
+  if (dot) dot.hidden = !hasClaimableRetention();
+}
+function claimAttendance() {
+  ensureDailyFresh();
+  const tk = todayKey();
+  if (save.attend.lastDate === tk || (save.attend.days || 0) >= 7) return false;
+  const nextDay = (save.attend.days || 0) + 1;
+  const rw = ATTENDANCE_REWARDS[nextDay - 1];
+  if (!rw) return false;
+  save.attend.days = nextDay;
+  save.attend.lastDate = tk;
+  if (rw.coins) save.coins = (save.coins || 0) + rw.coins;
+  if (rw.ink) save.ink = (save.ink || 0) + rw.ink;
+  if (rw.trail) {
+    if (!save.trails) save.trails = { owned: { ink: 1 }, equipped: 'ink' };
+    save.trails.owned[rw.trail] = 1;
+    save.trails.equipped = rw.trail;
+  }
+  persist(); renderDailyOverlay(); renderHud(); updateRetentionBadge();
+  toast(nextDay + '일차 출석 완료 — ' + rw.label + ' 획득!');
+  return true;
+}
+function claimDailyQuest(qid) {
+  ensureDailyFresh();
+  const q = DAILY_QUESTS.filter(function (x) { return x.id === qid; })[0];
+  if (!q || save.daily.claimed[qid] || (save.daily.prog[qid] || 0) < q.goal) return false;
+  save.daily.claimed[qid] = 1;
+  save.coins = (save.coins || 0) + (q.coins || 0);
+  save.ink = (save.ink || 0) + (q.ink || 0);
+  persist(); renderDailyOverlay(); renderHud(); updateRetentionBadge();
+  toast(q.name + ' 보상: +' + q.coins + '엽전 · 먹묵 +' + q.ink);
+  return true;
+}
+function claimStarChest(actNo, reqStars) {
+  ensureDailyFresh();
+  const key = actNo + ':' + reqStars;
+  const ch = STAR_CHESTS.filter(function (x) { return x.stars === reqStars; })[0];
+  if (!ch || save.starChests[key] || actStarTotal(actNo) < reqStars) return false;
+  save.starChests[key] = 1;
+  save.coins = (save.coins || 0) + (ch.coins || 0);
+  save.ink = (save.ink || 0) + (ch.ink || 0);
+  persist(); renderDailyOverlay(); renderHud(); updateRetentionBadge();
+  toast('제' + actNo + '막 ' + reqStars + '별 상자: +' + ch.coins + '엽전 · 먹묵 +' + ch.ink);
+  return true;
+}
+function claimCodexMilestone(pct) {
+  ensureDailyFresh();
+  const ms = CODEX_MILESTONES.filter(function (x) { return x.pct === pct; })[0];
+  if (!ms || save.codexClaimed[pct] || codexTotalPct(save) < pct) return false;
+  save.codexClaimed[pct] = 1;
+  save.coins = (save.coins || 0) + (ms.coins || 0);
+  save.ink = (save.ink || 0) + (ms.ink || 0);
+  persist(); renderCodex(); renderHud();
+  toast('도감 ' + pct + '% 달성 보상: +' + ms.coins + '엽전 · 먹묵 +' + ms.ink);
+  return true;
+}
+function renderDailyOverlay() {
+  ensureDailyFresh();
+  if ($('dailyCoins')) $('dailyCoins').textContent = save.coins || 0;
+  if ($('dailyInk')) $('dailyInk').textContent = save.ink || 0;
+  const body = $('dailyBody');
+  if (!body) return;
+  const tk = todayKey();
+  const attDays = save.attend.days || 0;
+  const canAtt = attDays < 7 && save.attend.lastDate !== tk;
+  const out = [];
+  out.push('<div class="daily-sec"><h3>7일 출석 수련표 (' + attDays + '/7일)</h3><div class="daily-strip">');
+  ATTENDANCE_REWARDS.forEach(function (rw) {
+    const done = rw.day <= attDays;
+    const isNext = canAtt && rw.day === attDays + 1;
+    out.push('<div class="att-day' + (done ? ' claimed' : '') + (isNext ? ' today' : '') + (rw.day === 7 ? ' day7' : '') + '"><b>' + rw.day + '일</b><span>' + (done ? '완료' : rw.label) + '</span></div>');
+  });
+  out.push('</div>' + (canAtt ? '<button type="button" class="btn primary" style="margin-top:7px;width:100%" data-dact="att">오늘 출석 도장 찍기 (' + ATTENDANCE_REWARDS[attDays].label + ')</button>' : '<p class="shop-note" style="margin:6px 0 0">' + (attDays >= 7 ? '7일 출석 수련을 모두 마쳤습니다.' : '오늘 출석 보상을 받았습니다. 내일 이어서 받으세요.') + '</p>') + '</div>');
+
+  out.push('<div class="daily-sec"><h3>오늘의 수련</h3>');
+  DAILY_QUESTS.forEach(function (q) {
+    const cur = Math.min(q.goal, save.daily.prog[q.id] || 0);
+    const done = !!save.daily.claimed[q.id];
+    const ready = !done && cur >= q.goal;
+    out.push('<div class="daily-row"><div class="d-meta"><b>' + q.name + '</b> (' + cur + '/' + q.goal + ')<div class="d-sub">보상: ' + q.coins + '엽전 · 먹묵 ' + q.ink + '</div></div>' +
+      '<button type="button" class="btn mini' + (ready ? ' primary' : '') + '" data-dact="quest" data-qid="' + q.id + '"' + (ready ? '' : ' disabled') + '>' + (done ? '수령됨' : (ready ? '받기' : '진행 중')) + '</button></div>');
+  });
+  out.push('</div>');
+
+  out.push('<div class="daily-sec"><h3>막별 별 누적 상자</h3>');
+  for (let a = 1; a <= 4; a++) {
+    const st = actStarTotal(a);
+    const btns = STAR_CHESTS.map(function (ch) {
+      const key = a + ':' + ch.stars;
+      const done = !!save.starChests[key];
+      const ready = !done && st >= ch.stars;
+      return '<button type="button" class="btn mini' + (ready ? ' primary' : '') + '" data-dact="chest" data-actno="' + a + '" data-stars="' + ch.stars + '"' + (ready ? '' : ' disabled') + '>' +
+        ch.stars + '★ ' + (done ? '완료' : (ready ? '열기' : (ch.coins + '엽전'))) + '</button>';
+    }).join(' ');
+    out.push('<div class="daily-row"><div class="d-meta"><b>제' + a + '막 · ' + (ACT_NAMES[a] || '') + '</b><div class="d-sub">누적 별 ' + st + '/12★</div></div><div style="display:flex;gap:4px;flex-wrap:wrap">' + btns + '</div></div>');
+  }
+  out.push('</div>');
+  body.innerHTML = out.join('');
+  Array.prototype.forEach.call(body.querySelectorAll('button[data-dact]'), function (b) {
+    b.addEventListener('click', function () {
+      const a = b.getAttribute('data-dact');
+      if (a === 'att') claimAttendance();
+      else if (a === 'quest') claimDailyQuest(b.getAttribute('data-qid'));
+      else if (a === 'chest') claimStarChest(+b.getAttribute('data-actno'), +b.getAttribute('data-stars'));
     });
   });
 }
 function wireShopTabs() {
   const tabs = $('shopTabs');
-  if (!tabs) return;
-  Array.prototype.forEach.call(tabs.querySelectorAll('button'), function (b) {
-    b.addEventListener('click', function () { shopTab = b.getAttribute('data-tab'); renderShopTab(); });
-  });
+  if (tabs) {
+    Array.prototype.forEach.call(tabs.querySelectorAll('button'), function (b) {
+      b.addEventListener('click', function () { shopTab = b.getAttribute('data-tab'); renderShopTab(); });
+    });
+  }
+  const ctabs = $('cosTabs');
+  if (ctabs) {
+    Array.prototype.forEach.call(ctabs.querySelectorAll('button'), function (b) {
+      b.addEventListener('click', function () { cosTab = b.getAttribute('data-ctab'); renderCosmeticOverlay(); });
+    });
+  }
+  if ($('btnStatReset')) $('btnStatReset').addEventListener('click', function () { doResetStats(); });
 }
 
 /* §9.3 도감 화면: 귀물 8 · 보스 12 · 진화 10 · 패턴 9칸 */
 function renderCodex() {
   const body = $('codexBody'), bonus = $('codexBonus');
   if (!body) return;
+  ensureDailyFresh();
   const n = codexCounts(save);
   const b = Math.round(codexBonus(save) * 100);
-  if (bonus) bonus.innerHTML = '귀물 ' + n.mon + '/8 · 보스 ' + n.boss + '/12 · 진화 ' + n.evo + '/' + EVO_SLOTS + ' · 패턴 ' + n.pat + '/' + PAT_SLOTS + '<br>묶음 보너스: 엽전 +' + b + '%';
+  const pct = codexTotalPct(save);
+  if (bonus) bonus.innerHTML = '달성도 ' + pct + '% · 귀물 ' + n.mon + '/8 · 보스 ' + n.boss + '/12 · 진화 ' + n.evo + '/' + EVO_SLOTS + ' · 패턴 ' + n.pat + '/' + PAT_SLOTS + '<br>묶음 보너스: 엽전 +' + b + '%';
+  const msBox = $('codexMilestones');
+  if (msBox) {
+    msBox.innerHTML = CODEX_MILESTONES.map(function (ms) {
+      const done = !!(save.codexClaimed && save.codexClaimed[ms.pct]);
+      const ready = !done && pct >= ms.pct;
+      return '<button type="button" class="codex-ms-btn' + (done ? ' done' : (ready ? ' ready' : '')) + '" data-cmspct="' + ms.pct + '"' + (ready ? '' : ' disabled') + '>' +
+        ms.pct + '% ' + (done ? '수령됨' : (ready ? '받기 (+' + ms.coins + '엽전·먹묵' + ms.ink + ')' : (ms.coins + '엽전'))) + '</button>';
+    }).join('');
+    Array.prototype.forEach.call(msBox.querySelectorAll('button[data-cmspct]'), function (btn) {
+      btn.addEventListener('click', function () { claimCodexMilestone(+btn.getAttribute('data-cmspct')); });
+    });
+  }
   const out = [];
   out.push('<div class="codex-group"><h3>귀물 ' + n.mon + '/8</h3><div class="codex-grid">');
   MON_CODE.forEach(function (m) {
@@ -10261,6 +10686,23 @@ function bindUi() {
   wireShopTabs();
   wireTrain();
   $('btnShop').addEventListener('click', function () { refreshShop(); showOv('ov-shop'); });
+  if ($('btnCosmetic')) $('btnCosmetic').addEventListener('click', function () { renderCosmeticOverlay(); showOv('ov-cosmetic'); });
+  if ($('btnCosClose')) $('btnCosClose').addEventListener('click', function () { hideOvs(); showOv('ov-title'); });
+  if ($('btnDaily')) $('btnDaily').addEventListener('click', function () { renderDailyOverlay(); showOv('ov-daily'); });
+  if ($('btnDailyClose')) $('btnDailyClose').addEventListener('click', function () { hideOvs(); showOv('ov-title'); });
+  if ($('btnResultUpgrade')) $('btnResultUpgrade').addEventListener('click', function () {
+    const st = this.dataset.stat;
+    if (st && buy(st)) {
+      toast('강화 완료 — 다시 도전해 보세요!');
+      const next = pickAffordableStatUpgrade();
+      if (next) {
+        this.dataset.stat = next.id;
+        this.textContent = next.name + ' Lv ' + (next.lv + 1) + ' 바로 단련 (' + next.cost + '엽전)';
+      } else {
+        this.hidden = true;
+      }
+    }
+  });
   if ($('btnCodex')) $('btnCodex').addEventListener('click', function () { renderCodex(); showOv('ov-codex'); });
   if ($('btnCodexClose')) $('btnCodexClose').addEventListener('click', function () { hideOvs(); showOv('ov-title'); });
   if ($('btnTrainClose')) $('btnTrainClose').addEventListener('click', function () { closeTrain(); });
