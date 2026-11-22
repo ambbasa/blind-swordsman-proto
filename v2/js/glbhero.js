@@ -75,13 +75,15 @@ export function makeHeroGlb(height) {
         }
         swordMeshes.push(o);
       } else {
-        /* 하데스풍 일러스트 텍스처가 어두운 밤·신전 무대에서도 선명히 읽히도록 자체 발광 보정 */
-        mat.roughness = 0.78;
+        /* 무대 위 등불 점광원(강도 30)에 검은 머리와 흑의가 하얗게 타지 않도록
+           확산 반사는 32%로 억제하고, 하데스풍 1024px 페인팅 텍스처 색감을 자체 발광으로 선명히 유지 */
+        mat.roughness = 0.92;
         mat.metalness = 0.0;
+        if (mat.color) mat.color.setHex(0x545250);
         if (mat.map) {
           mat.emissiveMap = mat.map;
           mat.emissive = new THREE.Color(0xffffff);
-          mat.emissiveIntensity = 0.46;
+          mat.emissiveIntensity = 0.78;
         }
         bodyMeshes.push(o);
       }
