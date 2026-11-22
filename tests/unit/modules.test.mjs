@@ -78,6 +78,14 @@ assert.equal(save.gapLv, 1);
 const buy4 = purchaseStatUpgrade(save, 'poise', cfg);
 assert.equal(buy4.ok, true);
 assert.equal(save.poiseLv, 1);
+// v0.75 regression: atk/hp must upgrade past Lv 10 even when cfg.maxLv=10
+const lv10Save = { coins: 10000, atkLv: 10, hpLv: 10, coinLv: 10 };
+assert.equal(purchaseStatUpgrade(lv10Save, 'atk', cfg).ok, true);
+assert.equal(lv10Save.atkLv, 11);
+assert.equal(purchaseStatUpgrade(lv10Save, 'hp', cfg).ok, true);
+assert.equal(lv10Save.hpLv, 11);
+assert.equal(purchaseStatUpgrade(lv10Save, 'coin', cfg).ok, true);
+assert.equal(lv10Save.coinLv, 11);
 assert.equal(statTotalSpent(save, cfg), 80);
 const rst = resetAllStats(save, cfg);
 assert.equal(rst.ok, true);

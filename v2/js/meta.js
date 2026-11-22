@@ -12,7 +12,7 @@ export const STAT_DEFS = [
   { id: 'hp',    key: 'hpLv',    name: '체력', maxLv: 20, step: 2,    unlock: 0, unit: '',  desc: '최대 체력 +2/레벨 (14 → 54)' },
   { id: 'gap',   key: 'gapLv',   name: '빈틈', maxLv: 10, step: 0.03, unlock: 4, unit: '%', desc: '보스 자세 붕괴·약점 일섬 피해 +3%/레벨 (최대 +30%)' },
   { id: 'poise', key: 'poiseLv', name: '파세', maxLv: 10, step: 0.04, unlock: 5, unit: '%', desc: '보스 강인도(자세) 타격량 +4%/레벨 (최대 +40%)' },
-  { id: 'coin',  key: 'coinLv',  name: '심안', maxLv: 15, step: 0.08, unlock: 3, unit: '%', desc: '전투 엽전 획득 +8%/레벨 (전투 상한 ×2.5)' }
+  { id: 'coin',  key: 'coinLv',  name: '재물운', maxLv: 15, step: 0.08, unlock: 3, unit: '%', desc: '전투 엽전 획득 +8%/레벨 (전투 상한 ×2.5)' }
 ];
 
 /* 무구 벼림 3단계 비용 (먹묵 + 엽전) */

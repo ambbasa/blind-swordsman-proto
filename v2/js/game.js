@@ -1033,6 +1033,7 @@ function showOv(id) {
     refreshTitleHelp();
     syncHeroCosmetic3D();
     updateRetentionBadge();
+    syncLobbyStatus();
     if (save._pendingRefundToast > 0) {
       const rf = save._pendingRefundToast;
       save._pendingRefundToast = 0;
@@ -9567,6 +9568,11 @@ function collectIdle(double) {
   hideOvs(); showOv('ov-title'); renderHud();
   return n;
 }
+function syncLobbyStatus() {
+  if ($('lobbyCoins')) $('lobbyCoins').textContent = (save.coins || 0).toLocaleString();
+  if ($('lobbyInk')) $('lobbyInk').textContent = save.ink || 0;
+  if ($('lobbyPower')) $('lobbyPower').textContent = '전투력 ' + computeCombatPower(save);
+}
 function syncHeroCosmetic3D() {
   if (!three || !three.heroSpr) return;
   try { applyHeroCloak3D(three.heroSpr, cloakOf(save), swordForgeLv(save)); } catch (e) {}
@@ -9619,7 +9625,7 @@ function refreshShop() {
   label($('buyHp'), byId('hp'), '최대 체력 ' + (CFG.hpBase + (save.hpLv || 0) * CFG.hpStep));
   label($('buyGap'), byId('gap'), '보스 빈틈·그로기 피해 +' + Math.round(gapBonus() * 100) + '%');
   label($('buyPoise'), byId('poise'), '보스 자세 깎기 효율 +' + Math.round(poiseBonus() * 100) + '%');
-  label($('buyCoin'), byId('coin'), '엽전 획득 ×' + (1 + (save.coinLv || 0) * CFG.coinStep).toFixed(2));
+  label($('buyCoin'), byId('coin'), '전투 엽전 획득 ×' + (1 + (save.coinLv || 0) * CFG.coinStep).toFixed(2));
   const rBtn = $('btnStatReset');
   if (rBtn) {
     const spent = statTotalSpent(save, CFG);
@@ -10851,6 +10857,12 @@ function bindUi() {
   if ($('btnA11y')) $('btnA11y').addEventListener('click', function () {
     const r = $('titleA11y');
     if (r) r.hidden = !r.hidden;
+  });
+  if ($('btnToggleChal')) $('btnToggleChal').addEventListener('click', function () {
+    const c = $('titleChallenges');
+    if (!c) return;
+    c.hidden = !c.hidden;
+    this.textContent = c.hidden ? '도전 모드 펼치기 ▾' : '도전 모드 접기 ▴';
   });
   function applyGfxPreset(mode) {
     save.a11y = save.a11y || { colorblind: 0, shake: 0 };

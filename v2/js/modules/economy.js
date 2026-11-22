@@ -6,7 +6,7 @@
 import { STAT_DEFS, FORGE_COSTS, swordForgeLv } from '../meta.js';
 
 export const SHOP_TAB_NOTES = Object.freeze({
-  stat: '엽전으로 5대 기량(공력·체력·빈틈·파세·심안)을 단련합니다. 언제든 무료 초기화로 배분을 바꿀 수 있습니다.',
+  stat: '엽전으로 5대 기량(공력·체력·빈틈·파세·재물운)을 단련합니다. 언제든 무료 초기화로 배분을 바꿀 수 있습니다.',
   sword: '각 장을 처음 돌파해 도면을 열고, 고유 규칙을 지닌 무구를 제작·벼림(먹묵+엽전)합니다.',
   relic: '전투 규칙을 바꾸는 유물입니다. 8장 클리어 시 유물 2칸이 열립니다. (획고↔만획 인장 동시 장착 불가)',
   cosmetic: '능력치 변화가 전혀 없는 순수 수묵·금박 치장(주인공 3D 도포 · 검기 궤적)입니다.'
@@ -102,7 +102,7 @@ export function computeIdleCoins(elapsedMs, saveObj = {}, cfg = {}) {
 export function purchaseStatUpgrade(saveObj, stat, cfg = {}) {
   const def = STAT_DEFS.find((d) => d.id === stat);
   if (!def || !saveObj) return { ok: false, reason: 'invalid_stat' };
-  const maxLv = Number(cfg.maxLv ?? def.maxLv);
+  const maxLv = Number(def.maxLv ?? cfg.maxLv ?? 20);
   const lv = Math.max(0, Number(saveObj[def.key] || 0));
   if (lv >= maxLv) return { ok: false, reason: 'max_level', lv };
   const cost = statUpgradeCost(lv, cfg);

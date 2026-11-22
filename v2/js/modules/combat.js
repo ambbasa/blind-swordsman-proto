@@ -4,7 +4,7 @@
  */
 
 export function computeAtkBonus(atkLv, cfg = {}) {
-  const maxLv = Number(cfg.maxLv ?? 20);
+  const maxLv = Math.max(20, Number(cfg.maxLv ?? 20));
   const step = Number(cfg.atkStep ?? 0.05);
   const lv = Math.max(0, Math.min(maxLv, Number(atkLv || 0)));
   return lv * step;
