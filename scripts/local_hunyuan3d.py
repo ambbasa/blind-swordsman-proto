@@ -18,6 +18,97 @@ import torch
 from PIL import Image
 
 
+def install_numba_rasterizer_fallback():
+    """Bit-exact @numba.njit replacement for custom_rasterizer.rasterize (immune to CUDA sm_XX mismatch!)."""
+    import numba
+    import custom_rasterizer
+
+    @numba.njit(cache=True)
+    def _rasterize_cpu(V, F, width, height):
+        findices = np.zeros((height, width), dtype=np.int32)
+        zbuf = np.full((height, width), 1e9, dtype=np.float32)
+        bary_map = np.zeros((height, width, 3), dtype=np.float32)
+        n_faces = F.shape[0]
+        wm1 = float(width - 1)
+        hm1 = float(height - 1)
+        for f in range(n_faces):
+            i0 = F[f, 0]
+            i1 = F[f, 1]
+            i2 = F[f, 2]
+            w0 = V[i0, 3]
+            w1 = V[i1, 3]
+            w2 = V[i2, 3]
+            if abs(w0) < 1e-8 or abs(w1) < 1e-8 or abs(w2) < 1e-8:
+                continue
+            x0 = (V[i0, 0] / w0 * 0.5 + 0.5) * wm1 + 0.5
+            y0 = (V[i0, 1] / w0 * 0.5 + 0.5) * hm1 + 0.5
+            z0 = (V[i0, 2] / w0) * 0.49999 + 0.5
+            x1 = (V[i1, 0] / w1 * 0.5 + 0.5) * wm1 + 0.5
+            y1 = (V[i1, 1] / w1 * 0.5 + 0.5) * hm1 + 0.5
+            z1 = (V[i1, 2] / w1) * 0.49999 + 0.5
+            x2 = (V[i2, 0] / w2 * 0.5 + 0.5) * wm1 + 0.5
+            y2 = (V[i2, 1] / w2 * 0.5 + 0.5) * hm1 + 0.5
+            z2 = (V[i2, 2] / w2) * 0.49999 + 0.5
+
+            denom = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
+            if abs(denom) < 1e-10:
+                continue
+            inv_d = 1.0 / denom
+
+            xmin = int(min(x0, min(x1, x2)))
+            xmax = int(max(x0, max(x1, x2))) + 1
+            ymin = int(min(y0, min(y1, y2)))
+            ymax = int(max(y0, max(y1, y2))) + 1
+            if xmin < 0: xmin = 0
+            if ymin < 0: ymin = 0
+            if xmax > width: xmax = width
+            if ymax > height: ymax = height
+
+            for py in range(ymin, ymax):
+                cy = py + 0.5
+                for px in range(xmin, xmax):
+                    cx = px + 0.5
+                    b0 = ((y1 - y2) * (cx - x2) + (x2 - x1) * (cy - y2)) * inv_d
+                    if b0 < -1e-5:
+                        continue
+                    b1 = ((y2 - y0) * (cx - x2) + (x0 - x2) * (cy - y2)) * inv_d
+                    if b1 < -1e-5:
+                        continue
+                    b2 = 1.0 - b0 - b1
+                    if b2 < -1e-5:
+                        continue
+                    depth = b0 * z0 + b1 * z1 + b2 * z2
+                    if depth < 0.0 or depth >= zbuf[py, px]:
+                        continue
+                    zbuf[py, px] = depth
+                    findices[py, px] = f + 1
+                    pb0 = b0 / w0
+                    pb1 = b1 / w1
+                    pb2 = b2 / w2
+                    sw = pb0 + pb1 + pb2
+                    if abs(sw) > 1e-10:
+                        inv_sw = 1.0 / sw
+                        bary_map[py, px, 0] = pb0 * inv_sw
+                        bary_map[py, px, 1] = pb1 * inv_sw
+                        bary_map[py, px, 2] = pb2 * inv_sw
+        return findices, bary_map
+
+    def _safe_rasterize(pos, tri, resolution, clamp_depth=torch.zeros(0), use_depth_prior=0):
+        dev = pos.device
+        V_np = np.ascontiguousarray(pos[0].detach().cpu().numpy(), dtype=np.float32)
+        F_np = np.ascontiguousarray(tri.detach().cpu().numpy(), dtype=np.int32)
+        fi_np, ba_np = _rasterize_cpu(V_np, F_np, int(resolution[1]), int(resolution[0]))
+        return torch.from_numpy(fi_np).to(dev), torch.from_numpy(ba_np).to(dev)
+
+    custom_rasterizer.rasterize = _safe_rasterize
+    try:
+        import custom_rasterizer.render as _cr_render
+        _cr_render.rasterize = _safe_rasterize
+    except Exception:
+        pass
+    print("[Local3D] Enabled bit-exact Numba rasterizer (RTX 3070 sm_86 safe!)")
+
+
 def patch_windows_hf_symlinks():
     os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
     try:
@@ -133,6 +224,7 @@ def resolve_paint_paths(subfolder="hunyuan3d-paint-v2-0-turbo"):
 @torch.no_grad()
 def run_paint(in_img: str, shape_glb: str, out_glb: str, tex_res: int):
     import trimesh
+    install_numba_rasterizer_fallback()
     from hy3dgen.texgen.pipelines import Hunyuan3DTexGenConfig
     from hy3dgen.texgen.differentiable_renderer.mesh_render import MeshRender
     from hy3dgen.texgen.utils.dehighlight_utils import Light_Shadow_Remover
