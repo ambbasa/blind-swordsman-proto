@@ -417,6 +417,7 @@ def run_blender_postprocess(raw_glb: Path, out_glb: Path, args):
     cmd = [
         blender,
         "--background",
+        "--factory-startup",
         "--python", str(BLENDER_POST),
         "--",
         "--in", str(raw_glb),
