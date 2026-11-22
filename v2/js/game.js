@@ -5766,15 +5766,20 @@ function makeSlash(from, to) {
   /* The cut shows the element it actually applies: a ground charm (12 s) over the engraved one. */
   const elemNow = S ? curElem() : null;
   const tr = trailOf(save);
+  const trId = (tr && tr.id) || 'ink';
+  const isCustomTrail = trId !== 'ink';
   const flv = swordForgeLv(save);
-  const customCore = (!elemNow && tr && tr.coreHex != null) ? tr.coreHex : undefined;
-  const customHot = (!elemNow && tr && tr.hotHex != null) ? tr.hotHex : undefined;
+  /* v0.71: 유료/전설 치장 검기 착용 시 원소 유무와 상관없이 화려한 전용 3D 검기 색조·광도·충격파가 즉시 발현 */
+  const trailGainBoost = trId === 'gold_leaf' ? 1.55 : (trId === 'crimson_moon' ? 1.42 : (trId === 'jade_bamboo' ? 1.32 : 1.0));
+  const customCore = isCustomTrail ? tr.coreHex : undefined;
+  const customHot = isCustomTrail ? tr.hotHex : undefined;
+  const slashElem = isCustomTrail ? null : elemNow;
   const s = createInkSlash({
     from: from, to: to,
-    width: pathR() * 1.6 * 1.2,
-    elem: elemNow,
+    width: pathR() * (isCustomTrail ? 2.15 : 1.92),
+    elem: slashElem,
     color: customCore,
-    coreGain: (q === 'off' ? 1.2 : 1.6) * (1 + flv * 0.12)
+    coreGain: (q === 'off' ? 1.25 : 1.65) * trailGainBoost * (1 + flv * 0.12)
   });
   if (customHot != null && s.material && s.material.uniforms && s.material.uniforms.uHot && s.material.uniforms.uHot.value) {
     s.material.uniforms.uHot.value.set(customHot);
@@ -5782,28 +5787,44 @@ function makeSlash(from, to) {
   three.scene.add(s.mesh);
   three.slashes = three.slashes || [];
   three.slashes.push(s);
-  /* 3D 검기 아크: 바닥 궤적 위로 솟는 먹 리본 */
+  /* 3D 검기 아크: 바닥 궤적 위로 솟는 입체 먹 리본 */
   try {
     const arc = createSlashArc({ actNo: actOf((S && S.stageNo) || save.stage || 1),
-      from: from, to: to, elem: elemNow,
+      from: from, to: to, elem: slashElem,
       trailColor: customCore, trailHot: customHot, forgeLv: flv,
-      coreGain: q === 'off' ? 1.05 : 1.45,
-      height: 0.5 + pathR() * 0.12,
-      width: Math.max(0.9, pathR() * 0.95)
+      coreGain: (q === 'off' ? 1.15 : 1.55) * trailGainBoost,
+      height: (trId === 'gold_leaf' ? 0.85 : (isCustomTrail ? 0.70 : 0.50)) + pathR() * 0.14,
+      width: Math.max(isCustomTrail ? 1.25 : 0.9, pathR() * (isCustomTrail ? 1.18 : 0.95))
     });
     three.scene.add(arc.mesh);
     three.slashes.push(arc);
   } catch (e) {}
   if (three.ink) three.ink.slash(from, to);
-  /* v0.60/v0.70: 마른 붓 먹물 잔상 + 치장/원소 스파크 + 번개 원소/일섬 시 계층 분기 번개 */
+  /* v0.71: 치장 검기별 전용 3D VFX (비취 풍압·혈월 충격파·금박 묵선 황금 번개) */
   if (three.vfx3d) {
-    three.vfx3d.spawnInkTrail(from, to, 4 + (flv > 0 ? 1 : 0));
-    const sparkCol = elemNow === 'ice' ? 0x98ecff : elemNow === 'poison' ? 0xc27aff : elemNow === 'fire' ? 0xff7038
-      : (tr && tr.hotHex != null ? tr.hotHex : 0xffb85c);
-    three.vfx3d.spawnSparks(to.x, to.z, 9 + flv * 2, {
+    three.vfx3d.spawnInkTrail(from, to, (isCustomTrail ? 6 : 4) + (flv > 0 ? 1 : 0));
+    const sparkCol = isCustomTrail ? tr.coreHex
+      : (elemNow === 'ice' ? 0x98ecff : elemNow === 'poison' ? 0xc27aff : elemNow === 'fire' ? 0xff7038 : 0xffb85c);
+    const sparkCnt = trId === 'gold_leaf' ? 22 : (trId === 'crimson_moon' ? 18 : (trId === 'jade_bamboo' ? 15 : 9));
+    three.vfx3d.spawnSparks(to.x, to.z, sparkCnt + flv * 2, {
       color: sparkCol,
-      speed: 6.2
+      speed: isCustomTrail ? 7.6 : 6.2
     });
+    if (trId === 'jade_bamboo') {
+      three.vfx3d.spawnSwirl(to.x, to.z, { r0: 0.9, r1: 3.4, accentHex: 0x4ef0b6, dur: 0.36 });
+      triggerGroundCrackHeat(to.x, to.z, 3.2, 0x42e8a8);
+    } else if (trId === 'crimson_moon') {
+      three.vfx3d.spawnSwirl(to.x, to.z, { r0: 1.0, r1: 4.0, accentHex: 0xff3b2c, dur: 0.42 });
+      triggerGroundCrackHeat(to.x, to.z, 3.9, 0xff3b28);
+    } else if (trId === 'gold_leaf') {
+      three.vfx3d.spawnLightning(
+        { x: from.x, y: 1.15, z: from.z },
+        { x: to.x, y: 0.25, z: to.z },
+        { color: 0xffca42, core: 0xfffce4, hold: 0.14, fade: 0.22, sparks: 14 }
+      );
+      three.vfx3d.spawnSwirl(to.x, to.z, { r0: 1.1, r1: 4.4, accentHex: 0xffd24a, dur: 0.46 });
+      triggerGroundCrackHeat(to.x, to.z, 4.4, 0xffcc44);
+    }
     if (elemNow === 'lightning' || (S && S.lastStroke === 'bolt')) {
       three.vfx3d.spawnLightning(
         { x: from.x, y: 1.05, z: from.z },
@@ -5817,7 +5838,11 @@ function makeSlash(from, to) {
   if (three.paper) three.paper.slash(from, to, elemNow);
   /* v0.41: 베기 자세 프레임 — 주인공 팔·몸통이 베는 그림으로 빠르게 넘어간다 */
   if (three.heroSpr && art.slashChar) art.slashChar(three.heroSpr, 1.0);
-  if (three.lights) three.lights.burst((from.x + to.x) * 0.5, 1.2, (from.z + to.z) * 0.5, { color: palColor('jade'), intensity: 4.5, duration: 0.28 });
+  if (three.lights) {
+    const burstCol = isCustomTrail ? tr.coreHex : palColor('jade');
+    const burstInt = trId === 'gold_leaf' ? 8.5 : (trId === 'crimson_moon' ? 7.2 : (trId === 'jade_bamboo' ? 6.4 : 4.5));
+    three.lights.burst((from.x + to.x) * 0.5, 1.35, (from.z + to.z) * 0.5, { color: burstCol, intensity: burstInt, duration: isCustomTrail ? 0.36 : 0.28 });
+  }
   fxinkStat.slashes++;
   if (elemNow === 'fire' && art.trailTex) {
     const tgeo = new THREE.PlaneGeometry(pathR() * 2.2, len);
@@ -9816,7 +9841,7 @@ function renderShopTab() {
   } else if (shopTab === 'relic') {
     const slots = relicSlots(save);
     const eqN = (save.relics.equipped || []).length;
-    rows.push('<p class="shop-note">장착 칸: ' + eqN + '/' + slots + (slots < 2 ? ' (8장 클리어 시 2칸 해금)' : ' (최대 2칸 해금 완료)') + '</p>');
+    rows.push('<div class="slot-banner">장착 칸: <b>' + eqN + '/' + slots + '</b>' + (slots < 2 ? ' · 8장 클리어 시 2칸 해금' : ' · 최대 2칸 해금 완료') + '</div>');
     RELICS.forEach(function (r) {
       const owned = !!save.relics.owned[r.id], eq = relicOn(save, r.id);
       const open = !r.unlock || swordBlueprint(r.unlock);
@@ -9991,9 +10016,13 @@ function renderDailyOverlay() {
   ATTENDANCE_REWARDS.forEach(function (rw) {
     const done = rw.day <= attDays;
     const isNext = canAtt && rw.day === attDays + 1;
-    out.push('<div class="att-day' + (done ? ' claimed' : '') + (isNext ? ' today' : '') + (rw.day === 7 ? ' day7' : '') + '"><b>' + rw.day + '일</b><span>' + (done ? '완료' : rw.label) + '</span></div>');
+    if (rw.day === 7) {
+      out.push('<div class="att-day day7' + (done ? ' claimed' : '') + (isNext ? ' today' : '') + '"><div class="att7-thumb">' + getCosmeticSvg('trail', 'gold_leaf') + '</div><div><b>7일차 특별 보상</b><div>' + (done ? '수령 완료' : '전설 검기 「금박 묵선」') + '</div></div></div>');
+    } else {
+      out.push('<div class="att-day' + (done ? ' claimed' : '') + (isNext ? ' today' : '') + '"><b>' + rw.day + '일</b><span>' + (done ? '완료' : rw.label) + '</span></div>');
+    }
   });
-  out.push('</div>' + (canAtt ? '<button type="button" class="btn primary" style="margin-top:7px;width:100%" data-dact="att">오늘 출석 도장 찍기 (' + ATTENDANCE_REWARDS[attDays].label + ')</button>' : '<p class="shop-note" style="margin:6px 0 0">' + (attDays >= 7 ? '7일 출석 수련을 모두 마쳤습니다.' : '오늘 출석 보상을 받았습니다. 내일 이어서 받으세요.') + '</p>') + '</div>');
+  out.push('</div>' + (canAtt ? '<button type="button" class="btn primary att-claim-btn" data-dact="att">오늘 출석 도장 찍기 (' + ATTENDANCE_REWARDS[attDays].label + ')</button>' : '<p class="shop-note" style="margin-top:6px">' + (attDays >= 7 ? '7일 출석 수련을 모두 마쳤습니다.' : '오늘 출석 보상을 받았습니다. 내일 이어서 받으세요.') + '</p>') + '</div>');
 
   out.push('<div class="daily-sec"><h3>오늘의 수련</h3>');
   DAILY_QUESTS.forEach(function (q) {
@@ -10015,7 +10044,7 @@ function renderDailyOverlay() {
       return '<button type="button" class="btn mini' + (ready ? ' primary' : '') + '" data-dact="chest" data-actno="' + a + '" data-stars="' + ch.stars + '"' + (ready ? '' : ' disabled') + '>' +
         ch.stars + '★ ' + (done ? '완료' : (ready ? '열기' : (ch.coins + '엽전'))) + '</button>';
     }).join(' ');
-    out.push('<div class="daily-row"><div class="d-meta"><b>제' + a + '막 · ' + (ACT_NAMES[a] || '') + '</b><div class="d-sub">누적 별 ' + st + '/12★</div></div><div style="display:flex;gap:4px;flex-wrap:wrap">' + btns + '</div></div>');
+    out.push('<div class="daily-row chest-row"><div class="d-meta"><b>제' + a + '막 · ' + (ACT_NAMES[a] || '') + '</b> <span class="d-sub">(누적 별 ' + st + '/12★)</span></div><div class="chest-btns">' + btns + '</div></div>');
   }
   out.push('</div>');
   body.innerHTML = out.join('');

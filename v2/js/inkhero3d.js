@@ -102,6 +102,8 @@ uniform sampler2D uRamp;
 uniform vec3 uKeyDir, uKeyCol, uFillDir, uFillCol, uAmbCol, uRimCol, uMistCol;
 uniform float uRim, uWash, uGrain;
 uniform float uMistAmt, uSpecAmt;
+uniform vec3 uCloakTint, uCloakEmissive;
+uniform float uCloakMix;
 uniform sampler2D uTex;
 uniform sampler2D uArt;
 uniform float uTexAmt;
@@ -146,7 +148,8 @@ void main() {
   float wash = mix(1.0 + uWash, 1.0 - uWash * 0.55, vH);
   /* 마른 붓 그레인 — 넓은 얼룩과 잔 결 두 겹. 플라스틱 면을 종이로 바꾼다. */
   float grain = 1.0 + uGrain * ((vnoise(vW * 7.0) - 0.5) * 0.7 + (vnoise(vW * 23.0) - 0.5) * 0.5);
-  vec3 col = vAlb * light * wash * grain;
+  vec3 baseAlb = mix(vAlb, mix(uCloakTint * 0.62, uCloakTint, clamp(vH, 0.0, 1.0)), clamp(uCloakMix, 0.0, 0.92));
+  vec3 col = baseAlb * light * wash * grain;
   /* v0.47 동양 수묵 텍스처 — 한지 섬유·먹 붓질·비늘·부적 같은 '결'만 1.0 근처로 곱한다.
      색은 버텍스가 내고(uColor), 텍스처는 종이와 붓의 질감만 얹는다(?notex=1 이면 uTexAmt 0). */
   col *= mix(vec3(1.0), inkTexAtlas(), uTexAmt);
@@ -158,8 +161,9 @@ void main() {
   vec3 H = normalize(uKeyDir + V);
   float spec = pow(max(dot(N, H), 0.0), 28.0) * k * uSpecAmt;
   col += uRimCol * spec;
-  float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 3.4);
+  float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 2.8);
   col += uRimCol * fres * uRim;
+  col += uCloakEmissive * (0.22 + 0.78 * fres);
   float groundMist = smoothstep(2.6, -0.35, vW.y) * uMistAmt;
   col = mix(col, uMistCol, clamp(groundMist * 0.52, 0.0, 0.55));
   gl_FragColor = vec4(max(col, vec3(0.0)), 1.0);
@@ -180,6 +184,9 @@ function inkUniforms() {
     uMistCol: { value: new THREE.Color(0x241f1a) },
     uMistAmt: { value: 0.34 },
     uSpecAmt: { value: 0.18 },
+    uCloakTint: { value: new THREE.Color(0xffffff) },
+    uCloakEmissive: { value: new THREE.Color(0x000000) },
+    uCloakMix: { value: 0.0 },
     /* v0.47 텍스처 아틀라스 — 전 재질이 한 장을 공유한다(샘플러 1개, 드로우콜 그대로). */
     uArt: { value: artTex() },
     uTex: { value: TEX.atlas() },
@@ -499,6 +506,7 @@ export function tick(group, kind, state, dt, vx, vz) {
 
   H.t += dt;
   applyCloth(H, dt, dx / Math.max(dt, 1e-4), dz / Math.max(dt, 1e-4), sp);
+  tickHeroCosmeticRig(group, H.t);
   return true;
 }
 
@@ -661,10 +669,177 @@ export function bounds(group) {
  * v0.70 치장(도포) + 무구 벼림 단계를 3D 영웅 메시의 수묵 셰이더 유니폼에 실시간 적용한다.
  * 능력치 변화 없음 — 순수 시각 효과.
  */
-export function applyHeroCloak3D(group, cloak, forgeLv) {
-  if (!group || !cloak || !cloak.palette) return false;
-  const pal = cloak.palette;
+const CLOAK_SHADER_PROFILES = {
+  ink:            { tint: 0xffffff, mix: 0.00, emissive: 0x000000, rimCol: 0xffe4ad, rim: 0.42, spec: 0.18 },
+  snow_sage:      { tint: 0xeef9ff, mix: 0.82, emissive: 0x1d6878, rimCol: 0x8ef4ff, rim: 1.25, spec: 0.42 },
+  crimson_guard:  { tint: 0xc21e1a, mix: 0.80, emissive: 0x540d0a, rimCol: 0xff6a45, rim: 1.40, spec: 0.48 },
+  gilded_eclipse: { tint: 0x2a1f0e, mix: 0.68, emissive: 0x6b4c0e, rimCol: 0xffe066, rim: 1.75, spec: 0.72 }
+};
+
+function disposeCosmeticRig(group) {
+  const old = group && group.userData && group.userData.cosmeticRig;
+  if (!old) return;
+  if (old.parent) old.parent.remove(old);
+  old.traverse(function (o) {
+    if (o.geometry) o.geometry.dispose();
+    if (o.material) {
+      if (Array.isArray(o.material)) o.material.forEach(function (m) { m.dispose(); });
+      else o.material.dispose();
+    }
+  });
+  group.userData.cosmeticRig = null;
+}
+
+function buildHeroCosmeticRig(cloakId, forgeLv) {
   const flv = Math.max(0, Math.min(3, forgeLv | 0));
+  if (cloakId === 'ink' && flv <= 0) return null;
+  const rig = new THREE.Group();
+  rig.name = 'heroCosmeticRig';
+  rig.userData.cloakId = cloakId;
+  rig.userData.forgeLv = flv;
+  const orbiters = [];
+  let halo = null, floorRing = null, floorRing2 = null;
+
+  const mkRing = function (rIn, rOut, color, op, y) {
+    const geo = new THREE.RingGeometry(rIn, rOut, 40);
+    const mat = new THREE.MeshBasicMaterial({
+      color: color, transparent: true, opacity: op,
+      side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.x = -Math.PI * 0.5;
+    mesh.position.y = y || 0.05;
+    mesh.renderOrder = 4;
+    rig.add(mesh);
+    return mesh;
+  };
+
+  if (cloakId === 'snow_sage') {
+    floorRing = mkRing(0.58, 0.78, 0x7ef2ff, 0.42, 0.05);
+    floorRing2 = mkRing(0.84, 0.92, 0xd4fcff, 0.28, 0.06);
+    const shardGeo = new THREE.OctahedronGeometry(0.085, 0);
+    const shardMat = new THREE.MeshBasicMaterial({
+      color: 0xbef8ff, transparent: true, opacity: 0.88,
+      blending: THREE.AdditiveBlending, depthWrite: false
+    });
+    for (let i = 0; i < 6; i++) {
+      const m = new THREE.Mesh(shardGeo, shardMat);
+      m.scale.set(0.65, 1.45, 0.35);
+      m.renderOrder = 9;
+      rig.add(m);
+      orbiters.push({ mesh: m, a0: (i / 6) * Math.PI * 2, r: 0.68 + (i % 2) * 0.16, y0: 0.55 + (i % 3) * 0.36, spd: 1.55, bob: 0.18 });
+    }
+  } else if (cloakId === 'crimson_guard') {
+    floorRing = mkRing(0.60, 0.84, 0xff422e, 0.48, 0.05);
+    floorRing2 = mkRing(0.88, 0.97, 0xffb454, 0.32, 0.06);
+    halo = new THREE.Group();
+    halo.position.set(0, 1.48, -0.26);
+    const moonDisc = new THREE.Mesh(
+      new THREE.CircleGeometry(0.42, 32),
+      new THREE.MeshBasicMaterial({ color: 0xb81614, transparent: true, opacity: 0.36, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    const moonRim = new THREE.Mesh(
+      new THREE.TorusGeometry(0.45, 0.032, 10, 42),
+      new THREE.MeshBasicMaterial({ color: 0xff5a3c, transparent: true, opacity: 0.88, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    halo.add(moonDisc); halo.add(moonRim);
+    halo.renderOrder = 9;
+    rig.add(halo);
+    const emberGeo = new THREE.OctahedronGeometry(0.07, 0);
+    const emberMat = new THREE.MeshBasicMaterial({ color: 0xff7042, transparent: true, opacity: 0.92, blending: THREE.AdditiveBlending, depthWrite: false });
+    for (let i = 0; i < 8; i++) {
+      const m = new THREE.Mesh(emberGeo, emberMat);
+      m.scale.set(0.6, 1.6, 0.6);
+      m.renderOrder = 9;
+      rig.add(m);
+      orbiters.push({ mesh: m, a0: (i / 8) * Math.PI * 2, r: 0.62 + (i % 2) * 0.18, y0: 0.35 + (i % 4) * 0.32, spd: 2.05, bob: 0.25, rise: true });
+    }
+  } else if (cloakId === 'gilded_eclipse') {
+    floorRing = mkRing(0.62, 0.88, 0xffcf48, 0.56, 0.05);
+    floorRing2 = mkRing(0.94, 1.06, 0xfff0a8, 0.38, 0.06);
+    halo = new THREE.Group();
+    halo.position.set(0, 1.52, -0.28);
+    const eclipseCore = new THREE.Mesh(
+      new THREE.CircleGeometry(0.44, 36),
+      new THREE.MeshBasicMaterial({ color: 0x0a0704, transparent: true, opacity: 0.68, side: THREE.DoubleSide, depthWrite: false })
+    );
+    const outerGold = new THREE.Mesh(
+      new THREE.TorusGeometry(0.50, 0.042, 12, 48),
+      new THREE.MeshBasicMaterial({ color: 0xffd858, transparent: true, opacity: 0.96, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    const innerGold = new THREE.Mesh(
+      new THREE.TorusGeometry(0.62, 0.018, 8, 48),
+      new THREE.MeshBasicMaterial({ color: 0xfff2b2, transparent: true, opacity: 0.65, blending: THREE.AdditiveBlending, depthWrite: false })
+    );
+    halo.add(eclipseCore); halo.add(outerGold); halo.add(innerGold);
+    const finialGeo = new THREE.OctahedronGeometry(0.075, 0);
+    const finialMat = new THREE.MeshBasicMaterial({ color: 0xffe888, transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false });
+    for (let k = 0; k < 4; k++) {
+      const ang = (k / 4) * Math.PI * 2;
+      const fin = new THREE.Mesh(finialGeo, finialMat);
+      fin.position.set(Math.cos(ang) * 0.62, Math.sin(ang) * 0.62, 0);
+      fin.scale.set(0.65, 1.4, 0.5);
+      halo.add(fin);
+    }
+    rig.add(halo);
+    const leafGeo = new THREE.PlaneGeometry(0.11, 0.22);
+    const leafMat = new THREE.MeshBasicMaterial({ color: 0xffdf70, transparent: true, opacity: 0.92, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
+    for (let i = 0; i < 10; i++) {
+      const m = new THREE.Mesh(leafGeo, leafMat);
+      m.renderOrder = 9;
+      rig.add(m);
+      orbiters.push({ mesh: m, a0: (i / 10) * Math.PI * 2, r: 0.72 + (i % 3) * 0.14, y0: 0.42 + (i % 4) * 0.34, spd: 1.85, bob: 0.22, spin: true });
+    }
+  } else if (flv > 0) {
+    /* 기본 도포라도 벼림 단계가 있으면 은은한 금빛 발밑 파문 표시 */
+    floorRing = mkRing(0.55, 0.66 + flv * 0.04, 0xf2c864, 0.18 + flv * 0.09, 0.05);
+  }
+
+  rig.userData.anim = { halo: halo, floorRing: floorRing, floorRing2: floorRing2, orbiters: orbiters };
+  return rig;
+}
+
+function tickHeroCosmeticRig(group, t) {
+  const rig = group && group.userData && group.userData.cosmeticRig;
+  if (!rig || !rig.userData.anim) return;
+  const A = rig.userData.anim;
+  if (A.floorRing) {
+    const s = 1 + Math.sin(t * 2.8) * 0.06;
+    A.floorRing.scale.set(s, s, 1);
+    A.floorRing.rotation.z = t * 0.55;
+  }
+  if (A.floorRing2) {
+    const s2 = 1 + Math.cos(t * 2.2) * 0.05;
+    A.floorRing2.scale.set(s2, s2, 1);
+    A.floorRing2.rotation.z = -t * 0.42;
+  }
+  if (A.halo) {
+    A.halo.rotation.z = t * 0.65;
+    A.halo.position.y = 1.48 + Math.sin(t * 2.4) * 0.05;
+  }
+  for (let i = 0; i < A.orbiters.length; i++) {
+    const o = A.orbiters[i];
+    const ang = o.a0 + t * o.spd;
+    o.mesh.position.set(
+      Math.cos(ang) * o.r,
+      o.rise ? (0.2 + ((o.y0 + t * 0.55) % 1.45)) : (o.y0 + Math.sin(t * 2.6 + o.a0) * o.bob),
+      Math.sin(ang) * o.r
+    );
+    o.mesh.rotation.y = -ang;
+    if (o.spin) o.mesh.rotation.z = t * 2.2 + o.a0;
+  }
+}
+
+/**
+ * v0.71 치장(도포) + 무구 벼림 단계를 3D 영웅 메시의 수묵 셰이더와 전용 3D 후광·오라·파티클 리그에 실시간 적용한다.
+ * 능력치 변화 없음 — 순수 시각 효과.
+ */
+export function applyHeroCloak3D(group, cloak, forgeLv) {
+  if (!group || !cloak) return false;
+  const cloakId = cloak.id || 'ink';
+  const flv = Math.max(0, Math.min(3, forgeLv | 0));
+  const prof = CLOAK_SHADER_PROFILES[cloakId] || CLOAK_SHADER_PROFILES.ink;
+  const pal = cloak.palette || {};
   let updated = 0;
   group.traverse(function (o) {
     if (!o || !o.material) return;
@@ -673,29 +848,27 @@ export function applyHeroCloak3D(group, cloak, forgeLv) {
       const m = mats[i];
       const u = m && m.userData && m.userData.inkUniforms;
       if (!u) continue;
-      if (u.uKeyCol && u.uKeyCol.value && pal.keyCol != null) {
-        u.uKeyCol.value.setHex(pal.keyCol).multiplyScalar(LIGHT.key);
-      }
-      if (u.uFillCol && u.uFillCol.value && pal.fillCol != null) {
-        u.uFillCol.value.setHex(pal.fillCol).multiplyScalar(LIGHT.fill);
-      }
-      if (u.uAmbCol && u.uAmbCol.value && pal.ambCol != null) {
-        u.uAmbCol.value.setHex(pal.ambCol).multiplyScalar(LIGHT.amb);
-      }
-      if (u.uRimCol && u.uRimCol.value && pal.rimCol != null) {
-        u.uRimCol.value.setHex(pal.rimCol);
-      }
-      if (u.uRim) {
-        u.uRim.value = (pal.rim != null ? pal.rim : LIGHT.rim) + flv * 0.08;
-      }
-      if (u.uSpecAmt) {
-        u.uSpecAmt.value = (pal.specAmt != null ? pal.specAmt : 0.18) + flv * 0.05;
-      }
-      if (u.uMistCol && u.uMistCol.value && pal.mistCol != null) {
-        u.uMistCol.value.setHex(pal.mistCol);
-      }
+      if (u.uKeyCol && u.uKeyCol.value && pal.keyCol != null) u.uKeyCol.value.setHex(pal.keyCol).multiplyScalar(LIGHT.key);
+      if (u.uFillCol && u.uFillCol.value && pal.fillCol != null) u.uFillCol.value.setHex(pal.fillCol).multiplyScalar(LIGHT.fill);
+      if (u.uAmbCol && u.uAmbCol.value && pal.ambCol != null) u.uAmbCol.value.setHex(pal.ambCol).multiplyScalar(LIGHT.amb);
+      if (u.uRimCol && u.uRimCol.value) u.uRimCol.value.setHex(prof.rimCol);
+      if (u.uRim) u.uRim.value = prof.rim + flv * 0.12;
+      if (u.uSpecAmt) u.uSpecAmt.value = prof.spec + flv * 0.06;
+      if (u.uMistCol && u.uMistCol.value && pal.mistCol != null) u.uMistCol.value.setHex(pal.mistCol);
+      if (u.uCloakTint && u.uCloakTint.value) u.uCloakTint.value.setHex(prof.tint);
+      if (u.uCloakEmissive && u.uCloakEmissive.value) u.uCloakEmissive.value.setHex(prof.emissive);
+      if (u.uCloakMix) u.uCloakMix.value = prof.mix;
       updated++;
     }
   });
+  const curRig = group.userData && group.userData.cosmeticRig;
+  if (!curRig || curRig.userData.cloakId !== cloakId || curRig.userData.forgeLv !== flv) {
+    disposeCosmeticRig(group);
+    const nextRig = buildHeroCosmeticRig(cloakId, flv);
+    if (nextRig) {
+      group.add(nextRig);
+      group.userData.cosmeticRig = nextRig;
+    }
+  }
   return updated > 0;
 }

@@ -130,10 +130,10 @@ assert.equal(oldV3.swords.equipped, 'thunder', 'legacy crescent migrates to thun
 assert.equal(oldV3.swords.owned.breaker, 1, 'legacy star migrates to breaker');
 assert.equal(relicSlots(oldV3), 2, 'stage 8 clear unlocks 2 relic slots');
 assert.ok(computeCombatPower(oldV3) > 0 && stageRecommendedPower(8) > stageRecommendedPower(1));
-assert.ok(getSwordSvg('thunder').includes('<svg'));
-assert.ok(getRelicSvg('sheath').includes('<svg'));
-assert.ok(getCosmeticSvg('cloak', 'gilded_eclipse').includes('<svg'));
-assert.ok(getCosmeticSvg('trail', 'gold_leaf').includes('<svg'));
+assert.ok(getSwordSvg('thunder').includes('sword_thunder.webp'));
+assert.ok(getRelicSvg('sheath').includes('relic_sheath.webp'));
+assert.ok(getCosmeticSvg('cloak', 'gilded_eclipse').includes('cloak_gilded_eclipse.webp'));
+assert.ok(getCosmeticSvg('trail', 'gold_leaf').includes('trail_gold_leaf.webp'));
 
 /* 4. 3막 12장 스테이지 무결성 검증 */
 assert.equal(STAGES.length, 16);
