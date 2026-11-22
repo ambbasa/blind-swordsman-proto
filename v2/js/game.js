@@ -9592,7 +9592,7 @@ function syncLobbyStatus() {
   if ($('lobbyPower')) $('lobbyPower').textContent = '전투력 ' + computeCombatPower(save);
 }
 const LOBBY_HERO_ART = {
-  ink: 'assets/hero/lobby_hades_b.webp?v=v078',
+  ink: 'assets/hero/lobby_ink.webp?v=v0781',
   snow_sage: 'assets/hero/lobby_snow_sage.webp?v=v077',
   crimson_guard: 'assets/hero/lobby_crimson_guard.webp?v=v077',
   gilded_eclipse: 'assets/hero/lobby_gilded_eclipse.webp?v=v077'
@@ -9611,7 +9611,8 @@ function syncLobbyHeroVisual() {
 function ensureLobbyHero3D() {
   syncLobbyHeroVisual();
   if (!three || !three.scene || !art) return;
-  if (three.heroSpr && (!S || !S.playing)) {
+  const onTitle = $('ov-title') && $('ov-title').classList.contains('show');
+  if (three.heroSpr && (onTitle || !S || !S.playing)) {
     three.heroSpr.visible = false;
   }
   syncHeroCosmetic3D();
@@ -10722,7 +10723,8 @@ function loop(ts) {
         if (three.heroSpr.userData.rig) art.setCharOrder(three.heroSpr, 8);
         else { spr.renderOrder = 8; if (spr.material) spr.material.depthTest = false; }
       }
-      three.heroSpr.visible = true;
+      const onTitle = $('ov-title') && $('ov-title').classList.contains('show');
+      three.heroSpr.visible = !onTitle;
     }
     (three.fx || []).forEach(function (f) {
       if (!f.sheet || !f.spr || !f.spr.material || !f.spr.material.map) return;
