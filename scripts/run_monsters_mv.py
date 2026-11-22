@@ -48,8 +48,8 @@ MONSTERS = [
         "raw_glb": "scripts/blender/_raw/boss_mv_raw.glb",
         "out_glb": "v2/assets/models/boss.glb",
         "height": 2.8,
-        "tris": 15000,
-        "outline": 0.0052,
+        "tris": 16000,
+        "outline": 0.0050,
     },
 ]
 
