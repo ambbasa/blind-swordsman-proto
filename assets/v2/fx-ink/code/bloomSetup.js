@@ -70,7 +70,7 @@ export function setupBloom(renderer, scene, camera, { quality = 'high', override
     setQuality(nq) {
       if (nq === q || !(nq in BLOOM_PRESETS)) return;
       q = nq; P = preset(q);
-      if (!composer || (!bloom && P)) { build(); return; }
+      if (!composer || !P || (!bloom && P)) { build(); return; }
       if (bloom) { bloom.strength = P.strength; bloom.radius = P.radius; bloom.threshold = P.threshold; }
       composer.setSize(size.x, size.y);   // the wrapped bloom.setSize applies P.res
     },

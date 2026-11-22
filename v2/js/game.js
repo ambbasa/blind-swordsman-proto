@@ -10822,15 +10822,20 @@ function bindUi() {
     persist();
     syncA11yUi();
     if (!three) return;
-    const dprMax = mode === 'light' ? 1.0 : (mode === 'high' ? Math.min(window.devicePixelRatio || 1, 2) : Math.min(window.devicePixelRatio || 1, IS_MOBILE ? 1.5 : 2));
-    three.dprCap = DPR_QUERY || dprMax;
-    three.dprNow = three.dprCap;
-    if (three.renderer) { three.renderer.setPixelRatio(three.dprCap); onResize(); }
-    if (three.moon) three.moon.castShadow = mode !== 'light';
-    const wantFx = mode === 'light' ? 'off' : (mode === 'high' ? 'high' : 'low');
-    fxQ = wantFx;
-    if (three.bloom && three.bloom.setQuality) three.bloom.setQuality(wantFx);
-    if (three.ink && three.ink.setQuality) three.ink.setQuality(wantFx === 'high' ? 'high' : 'low');
+    try {
+      const dprMax = mode === 'light' ? 1.0 : (mode === 'high' ? Math.min(window.devicePixelRatio || 1, 2) : Math.min(window.devicePixelRatio || 1, IS_MOBILE ? 1.5 : 2));
+      three.dprCap = DPR_QUERY || dprMax;
+      three.dprNow = three.dprCap;
+      if (three.renderer) { three.renderer.setPixelRatio(three.dprCap); onResize(); }
+      if (three.moon) three.moon.castShadow = mode !== 'light';
+      const wantFx = mode === 'light' ? 'off' : (mode === 'high' ? 'high' : 'low');
+      fxQ = wantFx;
+      if (three.bloom && three.bloom.setQuality) three.bloom.setQuality(wantFx);
+      if (three.ink && three.ink.setQuality) three.ink.setQuality(wantFx === 'high' ? 'high' : 'low');
+      wireFadeSource();
+    } catch (err) {
+      if (window.console && console.warn) console.warn('[심안] 그래픽 전환 중 경고:', err);
+    }
   }
   if (save.a11y && save.a11y.gfx && save.a11y.gfx !== 'normal') applyGfxPreset(save.a11y.gfx);
   ['btnGfx', 'btnGfx1'].forEach(function (id) {

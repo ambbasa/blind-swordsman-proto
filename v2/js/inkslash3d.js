@@ -95,7 +95,7 @@ export function createSlashArc({ from, to, height = 1.55, width = 0.62, elem = n
 
   const u = slot.material.uniforms;
   if (u) {
-    if (u.uColor && u.uColor.value) u.uColor.value.set(resolvedColor);
+    if (u.uCoreColor && u.uCoreColor.value) u.uCoreColor.value.set(resolvedColor);
     if (u.uHot && u.uHot.value) u.uHot.value.set(resolvedHot);
     if (u.uAspect) u.uAspect.value = len / Math.max(0.2, width);
     if (u.uCoreGain) u.uCoreGain.value = resolvedGain;
