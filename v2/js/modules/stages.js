@@ -215,7 +215,7 @@ export const STAGES = [
     spawn: { ms: 520, max: 54, earlyMax: 14, earlyMinMs: 900 },
     boss: { telegraph: 0.92, charge: 23, adds: 0, hazard: 4, patterns: ['chant', 'slam', 'clones', 'charge', 'kiai'], phase2: ['volley'], seal: true },
     starCombo: 50, star3: { kind: 'goal', text: '어둠 60초 버티기' }, subgoal: { id: 'dark', t: 60, label: '어둠 60초 버티기' }, bossVisual: { var: 3, scale: 1.06 }, bossName: '뼈의 뱃사공', bossLine: '마른 강에서 삯을 받는 자',
-    atmo: { clear: 0x18100f, fogCol: [28, 20, 16], fog: 0.036, moon: 18.0, amb: 6.0, hemiI: 6.0, fill: 4.2, hemi: 0x9a8a76, ground: 0x151010, moonCol: 0xe8c8a8, tint: 'linear-gradient(180deg, rgba(120,88,58,0.22) 0%, rgba(34,18,12,0.32) 100%)' }
+    atmo: { clear: 0x221714, fogCol: [38, 28, 22], fog: 0.026, moon: 22.5, amb: 7.4, hemiI: 6.8, fill: 4.8, hemi: 0xb4a088, ground: 0x241a16, moonCol: 0xf4d8b8, tint: 'linear-gradient(180deg, rgba(120,88,58,0.14) 0%, rgba(34,18,12,0.18) 100%)' }
   },
   {
     id: 11, act: 3, name: '혈월 성채', sub: '달이 가장 가까운 성벽', map: 'map11', tag: '정예 셋',

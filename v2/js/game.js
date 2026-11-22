@@ -618,7 +618,7 @@ function tickGoal(dt) {
     if (g.t >= g.at && !g.announced) { g.announced = true; toast('한 무늬 구간 — ' + (SHAPE_MARK[g.shape] || '') + '만 쓸 수 있습니다'); }
     if (g.t >= g.at + g.win) goalPass('한 무늬로 버텼습니다');
   } else if (g.id === 'dark') {
-    g.ringMul = g.t < g.win ? 0.7 : 1;
+    g.ringMul = g.t < g.win ? 0.78 : 1;
     if (g.t >= g.win) goalPass('어둠을 버텼습니다');
   }
   renderGoalHud();
@@ -3963,7 +3963,15 @@ function drawGoal(ctx, r, hs, t) {
     ctx.restore();
   } else if (g.id === 'dark' && goalWindowOn()) {
     ctx.save();
-    ctx.fillStyle = 'rgba(2,2,6,0.34)';
+    /* v0.71.2: 뼈의 강 어둠 구간 — 중앙 심안 원 안쪽은 선명하게 유지하고 바깥 둘레만 은은하게 어둡힌다. */
+    const hc = (S && S.hero) ? screenOf(S.hero) : { x: r.width * 0.5, y: r.height * 0.52 };
+    const innerR = Math.min(r.width, r.height) * 0.24;
+    const outerR = Math.max(r.width, r.height) * 0.68;
+    const vg = ctx.createRadialGradient(hc.x, hc.y, innerR, hc.x, hc.y, outerR);
+    vg.addColorStop(0, 'rgba(4,4,10,0)');
+    vg.addColorStop(0.55, 'rgba(4,4,10,0.08)');
+    vg.addColorStop(1, 'rgba(4,4,10,0.26)');
+    ctx.fillStyle = vg;
     ctx.fillRect(0, 0, r.width, r.height);
     ctx.font = '700 13px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     ctx.fillStyle = 'rgba(210,200,240,0.8)';
