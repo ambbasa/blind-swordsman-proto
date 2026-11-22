@@ -10657,7 +10657,8 @@ function guardEvents() {
   function stop(e) { e.preventDefault(); }
   /* v1 교훈: 버튼 위 터치를 preventDefault하면 모바일에서 click이 사라진다. */
   function stopTouch(e) {
-    if (e.target && e.target.closest && e.target.closest('button,a,input,label')) return;
+    /* v0.71.1: 버튼 및 스크롤 가능한 오버레이 내부(무구·유물·치장·수련표·도감)에서는 터치 스크롤을 막지 않는다. */
+    if (e.target && e.target.closest && e.target.closest('button,a,input,label,.shop-list,.cosmetic-grid,.daily-body,.codex-body,.ov.show .card')) return;
     e.preventDefault();
   }
   ['touchstart', 'touchmove', 'touchend', 'gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
@@ -10676,7 +10677,7 @@ function guardEvents() {
     if (e.key !== 'Escape') return;
     /* 상점·도감·수련장 같은 메뉴 오버레이가 열려 있으면 ESC는 그 오버레이 닿기(overlayShell)만 맡는다.
        예전에는 같은 ESC가 상점을 닫은 뒤 일시정지까지 열어, 메뉴를 닫을 때 판이 멈춰 있었다. */
-    const menus = ['ov-shop', 'ov-codex', 'ov-train', 'ov-level', 'ov-stage', 'ov-result', 'ov-idle', 'ov-title'];
+    const menus = ['ov-shop', 'ov-cosmetic', 'ov-daily', 'ov-codex', 'ov-train', 'ov-level', 'ov-stage', 'ov-result', 'ov-idle', 'ov-title'];
     for (let i = 0; i < menus.length; i++) {
       const el = $(menus[i]);
       if (el && el.classList.contains('show')) return;

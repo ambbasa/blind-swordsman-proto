@@ -399,3 +399,23 @@ h1, h2, h3, #timer, #titleName, #bossCardName, #resultTitle { font-family: var(-
   background: linear-gradient(135deg, rgba(58, 42, 18, 0.94), rgba(30, 22, 14, 0.96)) !important;
   color: #ffe9b3 !important;
 }
+
+/* v0.71.1 모바일 오버레이 터치 스크롤 전면 허용 (#app touch-action: none 오버라이드) */
+#ov-shop .shop-list,
+.cosmetic-grid,
+.daily-body,
+.codex-body {
+  touch-action: pan-y !important;
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior: contain !important;
+}
+#ov-shop .meta-card,
+#ov-shop .meta-card *,
+#ov-cosmetic .cos-tile,
+#ov-cosmetic .cos-tile *,
+#ov-daily .daily-row,
+#ov-daily .daily-row *,
+#ov-daily .daily-strip,
+#ov-daily .daily-strip * {
+  touch-action: pan-y !important;
+}
