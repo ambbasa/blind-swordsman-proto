@@ -1000,7 +1000,7 @@ export async function buildArt(THREE) {
     night: hexColor(pal.night || pal.ground, 0x1e1c1a),
     makeChar: makeChar, tickChar: tickChar, buildStage3D: buildStage3D,
     /* v0.38 파츠 리그 훅: 카메라·피격 반동·틴트·투명도·그리기 순서 */
-    setCamera: function (cam) { rigSetCamera(cam); try { MON3D.setCamera(cam); } catch (e) {} },
+    setCamera: function (cam, renderer) { rigSetCamera(cam); try { MON3D.setCamera(cam, renderer); } catch (e) {} },
     /* v0.42 QA: 포즈 고정·동작 목록 */
     debugPose: function (g, a, f) { return rigDebugPose(g, a, f); },
     actsOf: function (n) { return rigActsOf(n); },

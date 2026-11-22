@@ -1,4 +1,4 @@
-import {buildPaintedBoss} from './paintedboss.js';
+import { preloadBossGlb, bossGlbReady, makeBossGlb, hookBossGlb, tickBossGlb } from './glbboss.js';
 /* v2/js/inkmonsters3d.js — v0.47 몬스터·보스 전종 **3D 관절 뼈대 + 수묵 툰 셰이더 + 동양 수묵 텍스처**.
 
    v0.45에서 주인공만 3D 관절 뼈대(inkhero3d.js)로 세웠다. v0.46은 원귀(조선 좀비)·거한(장정)·
@@ -52,7 +52,10 @@ function getMonShadow() {
   _monShadowMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 0.85 });
   return { geo: _monShadowGeo, mat: _monShadowMat };
 }
-export function setCamera(c) { CAM = c; }
+export function setCamera(c, renderer) {
+  CAM = c;
+  if (renderer) { const p = preloadBossGlb(renderer); if (p) p.catch(function (e) { console.warn('[심안] 보스 GLB 로드 실패 — 3D 수묵 보스 유지', e); }); }
+}
 export function stats() {
   const g = {};
   Object.keys(GEO).forEach(function (k) { g[k] = { verts: GEO[k].verts, tris: GEO[k].tris, hull: GEO[k].hullVerts }; });
@@ -258,31 +261,21 @@ export function build(species, opt) {
     backToBase(H, 0.16);
   };
   mixer.addEventListener('finished', finished);
-  /* v0.50: 주인공·몬스터와 완벽히 통일된 3단 수묵 툰 셰이더+먹선 헐 보스(SPECS.boss)를 기본 사용.
-     실험용 종이 래핑 보스(paintedboss.js)는 ?boss=painted 명시 시에만 활성화. */
-  let usePaintedBoss = false;
-  try { usePaintedBoss = new URLSearchParams(location.search).get('boss') === 'painted'; } catch (e) {}
-  if (species === 'boss' && usePaintedBoss) {
-    buildPaintedBoss().then(model => {
-      const painted = model.body;
-      painted.scale.setScalar(C.h / 1.976);
-      root.add(painted);
-      painted.traverse(part => {
-        if (!part.isMesh) return;
-        part.castShadow = mesh.castShadow;
-        part.material.opacity = H.opacity;
-        part.material.transparent = H.opacity < .999;
-        H.mats.push(part.material);
-        part.onBeforeRender = () => {
-          part.material.color.setRGB(...H.tint);
-          part.material.emissive.copy(H.rimCol).multiplyScalar(Math.max(0, H.rimOp - .20) * .28);
-        };
-      });
+  const glbReady = species === 'boss' ? bossGlbReady() : null;
+  if (glbReady) {
+    glbReady.then(function () {
+      const G = makeBossGlb(C.h);
+      root.add(G.root);
+      G.body.castShadow = mesh.castShadow;
+      G.mats.forEach(function (m) { m.opacity = H.opacity; m.transparent = H.opacity < 0.999; H.mats.push(m); });
+      hookBossGlb(G, H);
       mesh.visible = false;
       if (hull) hull.visible = false;
-      H.painted = model;
-      group.userData.poseSource = 'paintedBoss';
-    }).catch(error => console.warn('[심안] paintedBoss 로드 실패 — 3D 수묵 보스 유지', error));
+      H.body = G.root;
+      H.hull = null;
+      H.glb = G;
+      group.userData.poseSource = 'glbBoss';
+    }).catch(function (e) { console.warn('[심안] 보스 GLB 연결 실패 — 3D 수묵 보스 유지', e); });
   }
   LIVE++;
   return group;
@@ -417,6 +410,7 @@ export function tick(group, kind, state, dt, vx, vz) {
   if (dt > 0.12) dt = 0.12;
   FRAME++;
   const st = String(state || 'walk');
+  H.st = st;
 
   /* 이동 속도는 놓인 위치의 차분에서 잰다(게임은 방향만 준다). */
   const gx = group.position.x, gz = group.position.z;
@@ -533,12 +527,7 @@ export function tick(group, kind, state, dt, vx, vz) {
     if (H.bones.chest) H.bones.chest.rotateX(-wind * 0.10 + hit * 0.13);
     if (H.bones.spine) H.bones.spine.rotateX(-wind * 0.06 + hit * 0.08);
   }
-  if(H.painted){
-    const action=H.actions[H.burst || H.held];
-    const combat=action ? {bones:H.bones,base:SPECS.boss.base,weight:action.getEffectiveWeight()} : null;
-    const walking=H.speed>.12 && !combat;
-    H.painted.update(dt,walking,Math.max(.6,Math.min(2,H.speed/(1.25*H.root.scale.x))),combat);
-  }
+  if (H.glb) tickBossGlb(H.glb, H, dt);
   H.t += dt;
   return true;
 }
@@ -560,6 +549,7 @@ export function kick(group, k) {
   H.hitFlash = 1.0;
   H.squash = -0.15;
   H.squashV = 2.8;
+  H.glbKick = true;
   startBurst(H, 'hit', 0.05);
 }
 export function slashPose(group, k) {

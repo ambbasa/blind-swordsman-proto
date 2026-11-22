@@ -31,6 +31,7 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
+import { makeBossGlb } from './glbboss.js';
 import * as THREE from 'three';
 import { probeAssets, buildArt } from './art.js';
 import * as Anim from './anim.js';
@@ -2763,6 +2764,7 @@ function prewarmRecipes() {
   for (let bv = 0; bv < 4; bv++) {
     (function (k) { add('boss:' + k, function () { return art.makeChar('boss', 'hline', { bossVar: k }); }); })(bv);
   }
+  add('boss:glb', function () { const G = makeBossGlb(6.2); return G && G.root; });
   /* 아이템 12종 */
   ['xp', 'heal', 'coin', 'elem-ice', 'elem-fire', 'elem-poison', 'one-bell', 'dash-plus', 'herb', 'magnet', 'bang', 'charm']
     .forEach(function (k) { add('item:' + k, function () { return art.makeChar(k); }); });
@@ -11050,7 +11052,7 @@ async function boot() {
   art = await buildArt(THREE);
   three = await makeWorld();
   bossFx.attachScene(THREE, three.scene);
-  try { art.setCamera(three.camera); } catch (e) {}
+  try { art.setCamera(three.camera, three.renderer); } catch (e) {}
   setupChunkWorld((three.map && three.map.stageId) || 1, (three.map && three.map.id) || 'map1');
   applyFxinkAtmo((three.map && three.map.id) || 'map1');
   applyStageAtmo(stageOf(titleSel || save.stage || 1));
