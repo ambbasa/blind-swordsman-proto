@@ -200,10 +200,9 @@ def run_shape(in_img: str, shape_glb: str, seed: int, steps: int, octree: int, m
             use_safetensors=True,
             device="cuda",
         )
-        try:
-            shape_pipe.enable_model_cpu_offload()
-        except Exception:
-            pass
+        # NOTE: Do NOT call shape_pipe.enable_model_cpu_offload() on Hunyuan3D-2mv —
+        # its implementation moves inference to CPU (485s/it instead of 0.5s/it on RTX 3070!).
+        # fp16 weights (~6.1 GB) fit directly in 8GB VRAM with chunked octree decoding.
     else:
         image_input = prepare_rgba(in_img)
         print(f"[Local3D:Shape] Loading Hunyuan3D-2mini (fp16, CUDA={torch.cuda.is_available()})...")
@@ -215,7 +214,7 @@ def run_shape(in_img: str, shape_glb: str, seed: int, steps: int, octree: int, m
             device="cuda",
         )
 
-    chunks = 6000 if octree >= 320 else 8000
+    chunks = 4000 if octree >= 320 else 8000
     print(f"[Local3D:Shape] Generating 3D shape (mv={use_mv}, steps={steps}, octree={octree}, chunks={chunks}, seed={seed})...")
     gen = torch.Generator(device="cuda").manual_seed(seed)
     mesh = shape_pipe(
