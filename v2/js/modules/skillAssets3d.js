@@ -325,7 +325,7 @@ export function buildArchedBridge3D(opts = {}) {
     const p = new THREE.Mesh(plankGeo, woodMat);
     p.position.set(x, y, 0);
     p.rotation.z = Math.atan(slope);
-    p.castShadow = true; p.receiveShadow = true;
+    p.castShadow = false; p.receiveShadow = true;
     group.add(p);
   }
 
@@ -408,7 +408,7 @@ export function buildTalismanGateLine3D(opts = {}) {
   for (const side of [-1, 1]) {
     const p = new THREE.Mesh(postGeo, woodMat);
     p.position.set(side * span * 0.5, height * 0.5, 0);
-    p.castShadow = true;
+    p.castShadow = false;
     group.add(p);
   }
   const beam = new THREE.Mesh(capGeo, woodMat);
@@ -516,8 +516,8 @@ export function buildCarvedLantern3D(opts = {}) {
   const finialGeo = new THREE.SphereGeometry(0.09, 8, 6);
   disposables.push(baseGeo, shaftGeo, trayGeo, boxGeo, ribGeo, roofGeo, finialGeo);
 
-  const base = new THREE.Mesh(baseGeo, stoneMat); base.position.y = 0.17; base.castShadow = true; group.add(base);
-  const shaft = new THREE.Mesh(shaftGeo, stoneMat); shaft.position.y = 0.86; shaft.castShadow = true; group.add(shaft);
+  const base = new THREE.Mesh(baseGeo, stoneMat); base.position.y = 0.17; base.castShadow = false; group.add(base);
+  const shaft = new THREE.Mesh(shaftGeo, stoneMat); shaft.position.y = 0.86; shaft.castShadow = false; group.add(shaft);
   const tray = new THREE.Mesh(trayGeo, stoneMat); tray.position.y = 1.45; group.add(tray);
   const fireBox = new THREE.Mesh(boxGeo, paperMat); fireBox.position.y = 1.74; group.add(fireBox);
   for (let i = 0; i < 6; i++) {
@@ -526,7 +526,7 @@ export function buildCarvedLantern3D(opts = {}) {
     rib.position.set(Math.cos(a) * 0.25, 1.74, Math.sin(a) * 0.25);
     group.add(rib);
   }
-  const roof = new THREE.Mesh(roofGeo, roofMat); roof.position.y = 2.18; roof.castShadow = true; group.add(roof);
+  const roof = new THREE.Mesh(roofGeo, roofMat); roof.position.y = 2.18; roof.castShadow = false; group.add(roof);
   const fin = new THREE.Mesh(finialGeo, roofMat); fin.position.y = 2.44; group.add(fin);
 
   group.scale.setScalar(scale);
@@ -644,7 +644,7 @@ export function buildFracturedBasaltRocks3D(rng, opts = {}) {
     m.scale.set(r * (0.95 + rng() * 0.25), r * (0.88 + rng() * 0.32), r * (0.9 + rng() * 0.22));
     m.position.set(Math.cos(a) * dist, r * 0.38, Math.sin(a) * dist);
     m.rotation.set((rng() - 0.5) * 0.32, rng() * 6.28, (rng() - 0.5) * 0.32);
-    m.castShadow = true; m.receiveShadow = true;
+    m.castShadow = false; m.receiveShadow = true;
     group.add(m);
   }
   group.userData.disposables = disposables;
@@ -682,7 +682,7 @@ export function buildFracturedCragMonolith3D(rng, opts = {}) {
     m.position.set(sp.ox, sp.y, sp.oz);
     m.scale.set(sp.sx, sp.sy, sp.sz);
     m.rotation.set(0, yaw + i * 1.15, tilt * (0.5 + i * 0.4));
-    m.castShadow = true; m.receiveShadow = true;
+    m.castShadow = false; m.receiveShadow = true;
     group.add(m);
   }
   group.userData.disposables = disposables;
@@ -768,7 +768,7 @@ export function buildKasumideraGatehouse3D(opts = {}) {
     const sl = new THREE.Mesh(roofGeo, tileMat);
     sl.position.set(0, (eaveY + ridgeY) * 0.5, s * halfD * 0.5);
     sl.rotation.x = s * ang;
-    sl.castShadow = true;
+    sl.castShadow = false;
     group.add(sl);
     for (let r = -3; r <= 3; r++) {
       const rb = new THREE.Mesh(ribGeo, tileMat);
@@ -949,7 +949,7 @@ export function buildDrapedClothStall3D(opts = {}) {
   poleG.rotateZ(Math.PI / 2);
   disposables.push(topG, legG, poleG);
 
-  const tbl = new THREE.Mesh(topG, woodMat); tbl.position.set(0, 0.78, 0); tbl.castShadow = true; group.add(tbl);
+  const tbl = new THREE.Mesh(topG, woodMat); tbl.position.set(0, 0.78, 0); tbl.castShadow = false; group.add(tbl);
   for (const sx of [-0.95, 0.95]) for (const sz of [-0.52, 0.52]) {
     const ph = sz < 0 ? 2.38 : 2.06;
     const leg = new THREE.Mesh(legG, woodMat);

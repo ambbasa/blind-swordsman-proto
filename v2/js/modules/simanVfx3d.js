@@ -344,7 +344,8 @@ export class SimanVfx3D {
 
   /** 속도 궤적 불꽃 스파크 (중력 + 바닥 바운스) */
   spawnSparks(x, z, count = 12, opts = {}) {
-    const col = new THREE.Color(opts.color != null ? opts.color : 0xffaa44);
+    if (!this._tmpCol) this._tmpCol = new THREE.Color();
+    const col = this._tmpCol.set(opts.color != null ? opts.color : 0xffaa44);
     const y0 = opts.y != null ? opts.y : 0.65;
     const spd = opts.speed || 6.0;
     let spawned = 0;

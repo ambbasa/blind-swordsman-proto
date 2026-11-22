@@ -122,12 +122,15 @@ function perfMark(name, ms, extra) {
     if (PERF_LOG.length > 40) PERF_LOG.shift();
   } catch (e) {}
 }
+const IS_MOBILE = (typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent))
+  || (typeof window !== 'undefined' && Math.min(window.innerWidth || 999, window.innerHeight || 999) <= 768);
 function fxQualityFromUrl() {
   try {
     const q = new URLSearchParams(location.search).get('fx');
     if (q === 'low' || q === 'off' || q === 'high') return q;
   } catch (e) {}
-  return 'high';
+  /* v0.72: 모바일은 기본 'low'(DPR 1.5·512 그림자·DoF 생략)로 60fps 확보, 데스크톱은 'high' */
+  return IS_MOBILE ? 'low' : 'high';
 }
 const fxQForced = (function () {
   try { return ['high', 'low', 'off'].indexOf(new URLSearchParams(location.search).get('fx')) >= 0; } catch (e) { return false; }
@@ -1300,7 +1303,7 @@ try {
 
 async function makeWorld() {
   const view = $('view');
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+  const renderer = new THREE.WebGLRenderer({ antialias: !IS_MOBILE, alpha: false, powerPreference: 'high-performance' });
   // On the RTX 3050 ANGLE/D3D11 path, enabling parallel link-status queries
   // produces GL_INVALID_VALUE at startup. Keep Three's ordinary link path on
   // that backend only; do not change the WebGL context or silence its errors.
@@ -1312,7 +1315,7 @@ async function makeWorld() {
     renderer.extensions.has = name => name !== 'KHR_parallel_shader_compile' && hasExtension(name);
   }
   /* 모바일 60fps: 기기 DPR을 2까지만 쓰고, 프레임이 무너지면 1까지 내린다. */
-  const dprCap = DPR_QUERY || Math.min(window.devicePixelRatio || 1, 2);
+  const dprCap = DPR_QUERY || Math.min(window.devicePixelRatio || 1, IS_MOBILE ? 1.5 : 2);
   renderer.setPixelRatio(dprCap);
   renderer.setSize(view.clientWidth, view.clientHeight);
   renderer.shadowMap.enabled = true;
@@ -1343,7 +1346,8 @@ async function makeWorld() {
   const moon = new THREE.DirectionalLight(palColor('rigMoonlight'), 1.25);
   moon.position.set(-18, 28, 10);
   moon.castShadow = true;
-  moon.shadow.mapSize.set(fxQ === 'high' ? 2048 : 1024, fxQ === 'high' ? 2048 : 1024);
+  const initShadowSz = IS_MOBILE ? (fxQ === 'high' ? 1024 : 512) : (fxQ === 'high' ? 2048 : 1024);
+  moon.shadow.mapSize.set(initShadowSz, initShadowSz);
   /* 프러스텀은 fitShadowFrustum() 이 매 프레임 카메라가 보는 바닥에 맞춘다(초기값만 넉넉히). */
   moon.shadow.camera.left = -30; moon.shadow.camera.right = 30;
   moon.shadow.camera.top = 30; moon.shadow.camera.bottom = -30;
@@ -1390,9 +1394,11 @@ async function makeWorld() {
           return [createCinematicPass(), px];
         }
         const wash = createInkWashPass();
+        /* v0.72: 모바일에서는 DepthCapture + TiltShift(DoF) 2패스를 생략해 GPU 필레이트 25~30% 절감 */
+        if (IS_MOBILE && fxQ !== 'high') {
+          return [wash, createCinematicPass()];
+        }
         wash.enableDepth(camera.near, camera.far);
-        /* v0.40 4단계: 마지막에 틸트시프트 심도 — 디오라마를 접사로 찍은 룩. 저사양은 레더가 끈다.
-           깊이는 RenderPass 직후에 따로 떠 둔다(체인 끝에서는 readBuffer 깊이가 이미 비어 있다). */
         const dof = createTiltShiftPass({ amount: 0.72, band: 6.5, soft: 14.0 });
         const dep = createDepthCapture(dof);
         dof.setCamera(camera);
@@ -1552,7 +1558,7 @@ function applyQuality(level) {
      1024 로도 충분히 선명하다 — 한 단계 내려가면 바로 1024 로 떨어뜨린다.
      (맵 크기를 바꿀 때는 기존 맵을 버려야 three 가 다시 굽는다.) */
   if (w.moon) {
-    const want = level < 1 && fxQ === 'high' ? 2048 : 1024;
+    const want = IS_MOBILE ? (level < 1 && fxQ === 'high' ? 1024 : 512) : (level < 1 && fxQ === 'high' ? 2048 : 1024);
     const ms = w.moon.shadow.mapSize;
     if (ms.x !== want) {
       ms.set(want, want);
@@ -1570,7 +1576,7 @@ function applyQuality(level) {
     if (w.ink) w.ink.setQuality(bq === 'high' ? 'high' : 'low');
     wireFadeSource();
   }
-  const dprSteps = [w.dprCap, w.dprCap, w.dprCap, Math.max(1, w.dprCap - 0.5), Math.max(1, w.dprCap - 1)];
+  const dprSteps = [w.dprCap, w.dprCap, Math.max(1, w.dprCap - 0.25), Math.max(1, w.dprCap - 0.5), 1];
   const d = Math.round(dprSteps[Math.min(level, QL_LEVELS - 1)] * 10) / 10;
   if (Math.abs((w.dprNow || 0) - d) > 0.01) { w.dprNow = d; w.renderer.setPixelRatio(d); onResize(); }
 }
@@ -1640,6 +1646,13 @@ function syncA11yUi() {
   });
   [['btnShake', '화면 흔들림'], ['btnShake1', '화면 흔들림']].forEach(function (p) {
     const b = $(p[0]); if (b) { b.textContent = p[1] + ': ' + (sh ? '줄임' : '켬'); b.classList.toggle('on', sh); }
+  });
+  const gfxMode = (save.a11y && save.a11y.gfx) || 'normal';
+  const gfxTxt = gfxMode === 'light' ? '가볍게' : (gfxMode === 'high' ? '높음' : '보통');
+  ['btnGfx', 'btnGfx1'].forEach(function (id) {
+    const b = $(id); if (!b) return;
+    b.textContent = '그래픽: ' + gfxTxt;
+    b.classList.toggle('on', gfxMode === 'light');
   });
 
 }
@@ -10802,6 +10815,33 @@ function bindUi() {
   if ($('btnA11y')) $('btnA11y').addEventListener('click', function () {
     const r = $('titleA11y');
     if (r) r.hidden = !r.hidden;
+  });
+  function applyGfxPreset(mode) {
+    save.a11y = save.a11y || { colorblind: 0, shake: 0 };
+    save.a11y.gfx = mode;
+    persist();
+    syncA11yUi();
+    if (!three) return;
+    const dprMax = mode === 'light' ? 1.0 : (mode === 'high' ? Math.min(window.devicePixelRatio || 1, 2) : Math.min(window.devicePixelRatio || 1, IS_MOBILE ? 1.5 : 2));
+    three.dprCap = DPR_QUERY || dprMax;
+    three.dprNow = three.dprCap;
+    if (three.renderer) { three.renderer.setPixelRatio(three.dprCap); onResize(); }
+    if (three.moon) three.moon.castShadow = mode !== 'light';
+    const wantFx = mode === 'light' ? 'off' : (mode === 'high' ? 'high' : 'low');
+    fxQ = wantFx;
+    if (three.bloom && three.bloom.setQuality) three.bloom.setQuality(wantFx);
+    if (three.ink && three.ink.setQuality) three.ink.setQuality(wantFx === 'high' ? 'high' : 'low');
+  }
+  if (save.a11y && save.a11y.gfx && save.a11y.gfx !== 'normal') applyGfxPreset(save.a11y.gfx);
+  ['btnGfx', 'btnGfx1'].forEach(function (id) {
+    const b = $(id); if (!b) return;
+    b.addEventListener('click', function (e) {
+      e.stopPropagation();
+      const cur = (save.a11y && save.a11y.gfx) || 'normal';
+      const next = cur === 'normal' ? 'light' : (cur === 'light' ? 'high' : 'normal');
+      applyGfxPreset(next);
+      toast(next === 'light' ? '그래픽: 가볍게 (최고 프레임 · 그림자/블룸 끔)' : (next === 'high' ? '그래픽: 높음 (고해상도 · 풀 이펙트)' : '그래픽: 보통 (모바일 권장 균형)'));
+    });
   });
   [['btnCb', 'colorblind'], ['btnCb1', 'colorblind'], ['btnShake', 'shake'], ['btnShake1', 'shake']].forEach(function (p) {
     const b = $(p[0]);
