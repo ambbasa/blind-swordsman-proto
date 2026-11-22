@@ -982,15 +982,16 @@ function loadSave() {
 }
 /* v2 → v3 이전: 예전 세이브에 메타 칸이 없으면 기본값으로 메우고, 도감 구조도 맞춘다. */
 function migrateSave(o) {
-  const META_KEYS = ['coins', 'atkLv', 'hpLv', 'coinLv', 'lastSeen', 'runs', 'stage', 'stars', 'bestScore', 'totemTip', 'muted',
+  const META_KEYS = ['coins', 'ink', 'atkLv', 'hpLv', 'gapLv', 'poiseLv', 'coinLv', 'lastSeen', 'runs', 'stage', 'stars', 'bestScore', 'totemTip', 'muted',
     'mode', 'tutorialDone', 'moments', 'a11y', 'streak', 'trainOffered', 'levelMode', 'codex',
-    'version', 'swords', 'relics', 'skins', 'brush', 'train', 'records', 'challenge'];
+    'version', 'swords', 'relics', 'cloaks', 'trails', 'starChests', 'codexClaimed', 'daily', 'attend', 'train', 'records', 'challenge'];
   const from = o.version | 0;
   Object.keys(o).forEach(function (k) { if (o[k] != null) save[k] = o[k]; });
   if (from < SAVE_VERSION) {
     const base = newSaveMeta();
-    /* 무구·유물·외형·붓 자국은 보유분만 보존하며 보충 */
-    ['swords', 'relics', 'skins', 'brush'].forEach(function (k) {
+    /* v0.70: 무구·유물·도포·검기는 보유분만 보존하며 보충 (구 skins/brush는 migrateMetaV4에서 환불 후 정리) */
+    ['swords', 'relics', 'cloaks', 'trails'].forEach(function (k) {
+      if (!base[k]) return;
       if (!save[k] || typeof save[k] !== 'object') save[k] = base[k];
       save[k].owned = Object.assign({}, base[k].owned, save[k].owned || {});
       if (typeof save[k].equipped !== 'object' && save[k].equipped == null) save[k].equipped = base[k].equipped;
@@ -11251,8 +11252,10 @@ const GPv2 = {
       version: save.version, coins: save.coins,
       sword: { equipped: save.swords.equipped, owned: Object.keys(save.swords.owned || {}), fx: swordFx(save), name: swordOf(save).name },
       relics: { equipped: equippedRelics(save).slice(), owned: Object.keys(save.relics.owned || {}), slots: relicSlots(save) },
-      skins: { equipped: save.skins.equipped, owned: Object.keys(save.skins.owned || {}) },
-      brush: { equipped: save.brush.equipped, owned: Object.keys(save.brush.owned || {}) },
+      cloaks: { equipped: (save.cloaks && save.cloaks.equipped) || 'ink', owned: Object.keys((save.cloaks && save.cloaks.owned) || {}) },
+      trails: { equipped: (save.trails && save.trails.equipped) || 'ink', owned: Object.keys((save.trails && save.trails.owned) || {}) },
+      skins: { equipped: (save.skins && save.skins.equipped) || 'none', owned: Object.keys((save.skins && save.skins.owned) || {}) },
+      brush: { equipped: (save.brush && save.brush.equipped) || 'none', owned: Object.keys((save.brush && save.brush.owned) || {}) },
       codex: codexCounts(save), codexBonus: codexBonus(save),
       train: { seen: (save.train && save.train.seen) || 0, stats: JSON.parse(JSON.stringify((save.train && save.train.stats) || {})) },
       relicFlags: { mirror: relicOn(save, 'mirror'), jar: relicOn(save, 'jar'), blood: relicOn(save, 'blood'), tower: relicOn(save, 'tower'), needle: relicOn(save, 'needle'), eye: relicOn(save, 'eye'), totem: relicOn(save, 'totem'), brush: relicOn(save, 'brush'), lantern: relicOn(save, 'lantern'), oldbell: relicOn(save, 'oldbell'), sheath: relicOn(save, 'sheath'), beads: relicOn(save, 'beads') },
@@ -11264,8 +11267,10 @@ const GPv2 = {
   equipSword: function (id) { return equipSword(id); },
   buyRelic: function (id) { return buyRelic(id); },
   equipRelic: function (id) { return toggleRelic(id); },
-  buySkin: function (kind, id) { return buySkin(id, kind); },
-  equipSkin: function (kind, id) { return equipSkin(id, kind); },
+  buySkin: function (kind, id) { return buyCosmetic(kind === 'brush' ? 'trail' : 'cloak', id); },
+  equipSkin: function (kind, id) { return equipCosmetic(kind === 'brush' ? 'trail' : 'cloak', id); },
+  buyCosmetic: function (kind, id) { return buyCosmetic(kind, id); },
+  equipCosmetic: function (kind, id) { return equipCosmetic(kind, id); },
   unlockBlueprint: function (stageNo) { save.stars = save.stars || {}; save.stars[stageNo] = Math.max(save.stars[stageNo] || 0, 1); persist(); return save.stars; },
   codexRecord: function (kind, id) {
     if (kind === 'mon') codexMon(id);
