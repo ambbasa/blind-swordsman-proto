@@ -38,6 +38,7 @@ def parse_args():
     p.add_argument("--tex-size", type=int, default=1024, help="Max texture dimension (0 = keep original)")
     p.add_argument("--outline", type=float, default=0.0045, help="Sumi-ink outline thickness in meters (0 = none)")
     p.add_argument("--rig", choices=["none", "humanoid"], default="humanoid", help="Auto-rig mode")
+    p.add_argument("--attach-sword", action="store_true", help="Attach a clean sculpted Korean Hwando sword to hand_R")
     p.add_argument("--render-dir", default="", help="Directory for 4-angle studio turnaround PNGs")
     p.add_argument("--samples", type=int, default=32, help="Cycles samples for turnaround preview")
     return p.parse_args(argv)
@@ -144,13 +145,17 @@ def optimize_materials_and_textures(body, max_tex_size):
                     node.inputs["Specular IOR Level"].default_value = min(0.32, node.inputs["Specular IOR Level"].default_value)
 
 
-def remove_floating_islands(body, min_ratio=0.008):
-    """Remove tiny disconnected AI artifacts (floating crumbs/noise) while keeping the main character."""
+def remove_floating_islands(body, min_ratio=0.003):
+    """Weld UV-split vertices (preserving loop UVs!), then remove only tiny disconnected debris."""
     bm = bmesh.new()
     bm.from_mesh(body.data)
+    # CRITICAL: xatlas/glTF splits vertices along UV seams; weld coincident positions first
+    # (bmesh stores UVs on face loops, so remove_doubles preserves every UV seam 100% intact!)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
     bm.verts.ensure_lookup_table()
     total_v = len(bm.verts)
     if total_v < 100:
+        bm.to_mesh(body.data)
         bm.free()
         return
     visited = set()
@@ -170,20 +175,18 @@ def remove_floating_islands(body, min_ratio=0.008):
                     visited.add(ov.index)
                     stack.append(ov)
         islands.append(comp)
-    if len(islands) <= 1:
-        bm.free()
-        return
-    islands.sort(key=len, reverse=True)
-    keep_thresh = max(30, int(total_v * min_ratio))
-    to_del = []
-    for comp in islands[1:]:
-        if len(comp) < keep_thresh:
-            to_del.extend(comp)
-    if to_del:
-        bmesh.ops.delete(bm, geom=to_del, context="VERTS")
-        bm.to_mesh(body.data)
-        body.data.update()
-        print(f"CLEANED_ISLANDS: removed {len(to_del)} floating debris verts")
+    if len(islands) > 1:
+        islands.sort(key=len, reverse=True)
+        keep_thresh = max(25, int(total_v * min_ratio))
+        to_del = []
+        for comp in islands[1:]:
+            if len(comp) < keep_thresh:
+                to_del.extend(comp)
+        if to_del:
+            bmesh.ops.delete(bm, geom=to_del, context="VERTS")
+            print(f"CLEANED_ISLANDS: removed {len(to_del)} tiny debris verts (kept {len(islands) - 1} sub-parts)")
+    bm.to_mesh(body.data)
+    body.data.update()
     bm.free()
 
 
@@ -279,14 +282,23 @@ def build_sumi_outline(body, base_name, thick, outline_mat):
 
 
 def create_fitted_humanoid_rig(body, base_name):
-    """Build a 16-bone humanoid armature proportionally fitted to the mesh's exact bounding box."""
+    """Build a 16-bone humanoid armature fitted to the mesh's REAL arm & leg silhouette (A-pose aware!)."""
     bmin, bmax = get_mesh_bounds_world(body)
     h = max(0.5, bmax.z - bmin.z)
+    verts = [v.co for v in body.data.vertices]
 
-    # Estimate torso shoulder width from vertices in upper-chest band (z in 0.68..0.78 * h)
-    chest_xs = [abs(v.co.x) for v in body.data.vertices if 0.68 * h <= v.co.z <= 0.78 * h]
-    sh_x = max(0.14 * h, min(0.24 * h, (sorted(chest_xs)[int(len(chest_xs) * 0.65)] if chest_xs else 0.16 * h)))
-    hip_x = 0.065 * h
+    # Detect actual arm span (A-pose arms reach further in |X| than arms-at-side!)
+    max_abs_x = max((abs(p.x) for p in verts if 0.35 * h <= p.z <= 0.80 * h), default=0.28 * h)
+    is_a_pose = max_abs_x > 0.28 * h
+    sh_x = 0.115 * h
+    hip_x = 0.068 * h
+
+    def find_hand_center(side_sign):
+        # Outer 12% of arm reach on that side
+        cands = [p for p in verts if p.x * side_sign > max_abs_x * 0.84 and 0.34 * h <= p.z <= 0.72 * h]
+        if cands:
+            return sum(cands, Vector((0, 0, 0))) / len(cands)
+        return Vector((side_sign * (0.34 * h if is_a_pose else 0.19 * h), -0.01 * h, 0.48 * h))
 
     arm_data = bpy.data.armatures.new(f"{base_name}_Armature")
     arm_obj = bpy.data.objects.new(f"{base_name}_Armature", arm_data)
@@ -310,17 +322,153 @@ def create_fitted_humanoid_rig(body, base_name):
     add_bone("neck",  (0, 0, 0.80 * h), (0, 0, 0.85 * h), "chest", True)
     add_bone("head",  (0, 0, 0.85 * h), (0, 0, 0.99 * h), "neck", True)
 
+    hand_positions = {}
     for s in (-1, 1):
         suf = "L" if s > 0 else "R"
-        add_bone(f"upperArm_{suf}", (s * sh_x * 0.72, 0.0, 0.75 * h), (s * sh_x * 1.12, 0.0, 0.61 * h), "chest")
-        add_bone(f"forearm_{suf}",  (s * sh_x * 1.12, 0.0, 0.61 * h), (s * sh_x * 1.25, -0.02 * h, 0.48 * h), f"upperArm_{suf}", True)
-        add_bone(f"hand_{suf}",     (s * sh_x * 1.25, -0.02 * h, 0.48 * h), (s * sh_x * 1.32, -0.03 * h, 0.41 * h), f"forearm_{suf}", True)
+        sh = Vector((s * sh_x, 0.0, 0.75 * h))
+        hc = find_hand_center(s)
+        wr = sh.lerp(hc, 0.88)
+        el = sh.lerp(wr, 0.50) + Vector((0.0, 0.012 * h, 0.0))
+        htip = wr + (hc - wr).normalized() * (0.065 * h)
+        hand_positions[suf] = (wr, htip, (hc - sh).normalized())
+
+        add_bone(f"upperArm_{suf}", sh, el, "chest")
+        add_bone(f"forearm_{suf}",  el, wr, f"upperArm_{suf}", True)
+        add_bone(f"hand_{suf}",     wr, htip, f"forearm_{suf}", True)
         add_bone(f"thigh_{suf}",    (s * hip_x, 0.0, 0.50 * h), (s * hip_x * 1.12, 0.0, 0.27 * h), "hips")
         add_bone(f"shin_{suf}",     (s * hip_x * 1.12, 0.0, 0.27 * h), (s * hip_x * 1.18, 0.01 * h, 0.06 * h), f"thigh_{suf}", True)
         add_bone(f"foot_{suf}",     (s * hip_x * 1.18, 0.01 * h, 0.06 * h), (s * hip_x * 1.18, -0.08 * h, 0.01 * h), f"shin_{suf}", True)
 
     bpy.ops.object.mode_set(mode="OBJECT")
-    return arm_obj
+    print(f"RIG_FIT: is_a_pose={is_a_pose}, max_arm_x={max_abs_x:.3f}, hand_R={hand_positions['R'][0]}")
+    return arm_obj, hand_positions
+
+
+def build_hwando_sword(base_name, hand_pos_r, arm_obj, outline_thick, outline_mat):
+    """Build a crisp stylized Korean Hwando sword + sumi-ink outline weighted 100% to hand_R."""
+    wr, htip, arm_dir = hand_pos_r
+    grip = wr.lerp(htip, 0.55)
+    # Blade points cleanly forward-downward-outward along natural sword-ready angle
+    b_dir = Vector((-0.42, -0.68, -0.60)).normalized()
+    b_hint = Vector((0.0, -0.60, 0.80)).normalized()
+    bx = b_dir.cross(b_hint).normalized()
+    by = bx.cross(b_dir).normalized()
+    xf = Matrix.Translation(grip) @ Matrix((
+        (bx.x, by.x, b_dir.x, 0.0),
+        (bx.y, by.y, b_dir.y, 0.0),
+        (bx.z, by.z, b_dir.z, 0.0),
+        (0.0,  0.0,  0.0,     1.0),
+    ))
+
+    def make_simple_mat(name, rgba, rough, metal):
+        m = bpy.data.materials.new(name)
+        bsdf = m.node_tree.nodes.get("Principled BSDF")
+        bsdf.inputs["Base Color"].default_value = rgba
+        bsdf.inputs["Roughness"].default_value = rough
+        bsdf.inputs["Metallic"].default_value = metal
+        return m
+
+    m_hilt = make_simple_mat("Mat_SwordHilt", (0.04, 0.015, 0.015, 1.0), 0.72, 0.0)
+    m_iron = make_simple_mat("Mat_SwordIron", (0.09, 0.09, 0.11, 1.0), 0.34, 0.88)
+    m_steel = make_simple_mat("Mat_SwordSteel", (0.86, 0.89, 0.94, 1.0), 0.16, 0.95)
+
+    def loft_part(name, rings, mat, smooth=True):
+        mesh = bpy.data.meshes.new(name)
+        bm = bmesh.new()
+        bm_r = [[bm.verts.new(p) for p in r] for r in rings]
+        ns = len(bm_r[0])
+        for ri in range(len(bm_r) - 1):
+            for i in range(ns):
+                j = (i + 1) % ns
+                bm.faces.new((bm_r[ri][i], bm_r[ri][j], bm_r[ri + 1][j], bm_r[ri + 1][i]))
+        for ring_v, rev in [(bm_r[0], True), (bm_r[-1], False)]:
+            c = bm.verts.new(sum((v.co for v in ring_v), Vector((0, 0, 0))) / len(ring_v))
+            for i in range(len(ring_v)):
+                v0, v1 = ring_v[i], ring_v[(i + 1) % len(ring_v)]
+                bm.faces.new((c, v1, v0) if rev else (c, v0, v1))
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        bm.to_mesh(mesh)
+        bm.free()
+        mesh.validate(verbose=False)
+        o = bpy.data.objects.new(name, mesh)
+        bpy.context.collection.objects.link(o)
+        o.data.materials.append(mat)
+        if smooth:
+            set_smooth(o)
+        return o
+
+    # Hilt
+    h_rings = []
+    for k in range(8):
+        u = k / 7.0
+        z = -0.16 + u * 0.28
+        rg = 0.0025 * abs(math.sin(u * math.pi * 7.0))
+        h_rings.append([xf @ Vector((math.sin(i / 10 * math.tau) * (0.014 + rg), -math.cos(i / 10 * math.tau) * (0.020 + rg), z)) for i in range(10)])
+    o_hilt = loft_part("Sword_Hilt", h_rings, m_hilt, True)
+
+    # Guard (코등이)
+    bpy.ops.mesh.primitive_cylinder_add(vertices=20, radius=0.048, depth=0.013)
+    o_guard = bpy.context.active_object
+    o_guard.name = "Sword_Guard"
+    o_guard.matrix_world = xf @ Matrix.Translation((0.0, 0.0, 0.126))
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    set_smooth(o_guard)
+    o_guard.data.materials.append(m_iron)
+
+    # Curved steel Hwando blade (0.98m)
+    b_rings = []
+    for k in range(15):
+        u = k / 14.0
+        z = 0.132 + u * 0.98
+        cy = 0.055 * (u ** 2.15)
+        tp = 1.0 - 0.16 * u
+        if u > 0.87:
+            tp *= max(0.05, (1.0 - u) / 0.13)
+        we, wt = 0.026 * tp, 0.006 * tp
+        pts = [
+            Vector((0.0, cy - we, z)),
+            Vector((wt, cy - we * 0.18, z)),
+            Vector((wt * 0.82, cy + we * 0.52, z)),
+            Vector((-wt * 0.82, cy + we * 0.52, z)),
+            Vector((-wt, cy - we * 0.18, z)),
+        ]
+        b_rings.append([xf @ p for p in pts])
+    o_blade = loft_part("Sword_Blade", b_rings, m_steel, False)
+
+    bpy.ops.object.select_all(action="DESELECT")
+    for o in (o_hilt, o_guard, o_blade):
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = o_blade
+    bpy.ops.object.join()
+    sword = bpy.context.active_object
+    sword.name = f"{base_name}_Sword"
+    sword.data.name = f"{base_name}_Sword"
+    vg = sword.vertex_groups.new(name="hand_R")
+    vg.add([v.index for v in sword.data.vertices], 1.0, "REPLACE")
+    sword.parent = arm_obj
+    mod = sword.modifiers.new(name="Armature", type="ARMATURE")
+    mod.object = arm_obj
+
+    sword_out = None
+    if outline_thick > 0.0 and outline_mat is not None:
+        sword_out = sword.copy()
+        sword_out.data = sword.data.copy()
+        sword_out.name = f"{base_name}_Sword_Outline"
+        sword_out.data.name = f"{base_name}_Sword_Outline"
+        bpy.context.collection.objects.link(sword_out)
+        sword_out.data.materials.clear()
+        sword_out.data.materials.append(outline_mat)
+        bm = bmesh.new()
+        bm.from_mesh(sword_out.data)
+        bm.verts.ensure_lookup_table()
+        bm.normal_update()
+        for v in bm.verts:
+            v.co += v.normal * (outline_thick * 0.65)
+        bmesh.ops.reverse_faces(bm, faces=bm.faces)
+        bm.to_mesh(sword_out.data)
+        bm.free()
+        sword_out.data.validate(verbose=False)
+    return sword, sword_out
 
 
 def point_seg_dist(p, a, b):
@@ -578,10 +726,14 @@ def main():
         outline = build_sumi_outline(body, args.name, args.outline, outline_mat)
 
     arm_obj = None
+    sword = None
+    sword_out = None
     if args.rig == "humanoid":
-        arm_obj = create_fitted_humanoid_rig(body, args.name)
+        arm_obj, hand_positions = create_fitted_humanoid_rig(body, args.name)
         skin_meshes_to_armature(body, outline, arm_obj)
         bake_humanoid_clips(arm_obj)
+        if args.attach_sword:
+            sword, sword_out = build_hwando_sword(args.name, hand_positions["R"], arm_obj, args.outline, outline_mat)
 
     out_tris = sum(max(1, len(p.vertices) - 2) for p in outline.data.polygons) if outline else 0
     print(f"FINAL_TRIS: body={body_tris}, outline={out_tris}, total={body_tris + out_tris}")
@@ -592,6 +744,10 @@ def main():
     body.select_set(True)
     if outline:
         outline.select_set(True)
+    if sword:
+        sword.select_set(True)
+    if sword_out:
+        sword_out.select_set(True)
     if arm_obj:
         arm_obj.select_set(True)
     bpy.ops.export_scene.gltf(
@@ -608,6 +764,10 @@ def main():
     print("EXPORTED_GLB:", args.out_glb, "BYTES:", os.path.getsize(args.out_glb))
 
     if args.render_dir:
+        if sword_out is not None:
+            sword_out.visible_shadow = False
+            sword_out.visible_diffuse = False
+            sword_out.visible_glossy = False
         render_turnaround(body, outline, outline_mat, args.render_dir, args.name, args.samples)
 
 

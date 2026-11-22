@@ -430,6 +430,8 @@ def run_blender_postprocess(raw_glb: Path, out_glb: Path, args):
         "--rig", args.rig,
         "--samples", str(args.samples),
     ]
+    if args.attach_sword:
+        cmd.append("--attach-sword")
     if args.render_dir:
         cmd.extend(["--render-dir", str(args.render_dir)])
 
@@ -458,6 +460,7 @@ def main():
     p.add_argument("--tex-size", type=int, default=1024, help="Max embedded texture size (default 1024)")
     p.add_argument("--outline", type=float, default=0.0045, help="Sumi-ink outline thickness in meters (0 = off)")
     p.add_argument("--rig", choices=["humanoid", "none"], default="humanoid", help="Auto-rig mode")
+    p.add_argument("--attach-sword", action="store_true", help="Attach clean sculpted Korean Hwando sword to hand_R")
     p.add_argument("--render-dir", default="", help="Optional output folder for 4-angle studio turnaround PNGs")
     p.add_argument("--samples", type=int, default=32, help="Cycles render samples for turnaround")
     args = p.parse_args()
