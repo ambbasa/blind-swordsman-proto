@@ -592,3 +592,126 @@ h1, h2, h3, #timer, #titleName, #bossCardName, #resultTitle { font-family: var(-
 .dock-btn.dock-cosmetic {
   border-color: rgba(238, 196, 108, 0.48); color: #ffe6ae;
 }
+
+/* ========== v0.76 상용 세로형 오픈 3D 로비 + ◀ 장 선택 바 ▶ + 수묵 아이콘 4탭 + 스탯 게이지 카드 ========== */
+#ov-title.lobby-ov {
+  background: linear-gradient(180deg,
+    rgba(10, 8, 7, 0.84) 0%,
+    rgba(10, 8, 7, 0.16) 22%,
+    rgba(10, 8, 7, 0.04) 52%,
+    rgba(10, 8, 7, 0.86) 80%,
+    rgba(10, 8, 7, 0.97) 100%) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.lobby-top-group {
+  display: flex; flex-direction: column; gap: 7px; flex: 0 0 auto;
+}
+.lobby-hero-stage {
+  flex: 1 1 auto; min-height: 120px; pointer-events: none;
+}
+.mini-ico { flex-shrink: 0; vertical-align: middle; }
+
+/* ◀ 챕터 전환 바 ▶ */
+.lobby-chapter-bar {
+  display: flex; align-items: stretch; gap: 6px; width: 100%;
+}
+.chap-arrow {
+  flex: 0 0 42px; width: 42px; min-height: 52px; border-radius: 10px;
+  background: rgba(20, 16, 14, 0.92); border: 1px solid rgba(217, 185, 126, 0.42);
+  color: #f6d58b; font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.chap-arrow:disabled { opacity: 0.32; cursor: default; }
+.chap-arrow:active:not(:disabled) { background: rgba(58, 42, 20, 0.95); }
+.chap-center {
+  flex: 1 1 auto; min-width: 0; padding: 7px 10px; border-radius: 10px;
+  background: linear-gradient(180deg, rgba(28, 22, 18, 0.94), rgba(16, 13, 11, 0.96));
+  border: 1px solid rgba(236, 198, 122, 0.52);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.48);
+  color: #fff5e0; text-align: center; cursor: pointer;
+  display: flex; flex-direction: column; justify-content: center; gap: 2px;
+}
+.chap-title-row {
+  display: flex; justify-content: center; align-items: center; gap: 6px;
+}
+.chap-title-row strong {
+  font-size: 15px; color: #fff6e4; letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.chap-mode-tag {
+  font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px;
+  background: rgba(168, 38, 28, 0.36); border: 1px solid rgba(240, 140, 112, 0.55); color: #ffd4c4;
+  flex-shrink: 0;
+}
+.chap-sub-row {
+  font-size: 11px; color: #d8caa8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* 아이콘 + 라벨 4탭 고정 바 */
+.dock-btn {
+  flex-direction: column !important; gap: 3px !important;
+  min-height: 52px !important; padding: 5px 2px !important;
+  font-size: 11.5px !important;
+}
+.dock-ico { display: block; opacity: 0.92; }
+.dock-btn.active .dock-ico { color: #ffe294; }
+
+/* 전용 출전 장 선택 모달 (#ov-stages) */
+#ov-stages .stages-modal-card {
+  width: min(94vw, 432px) !important;
+  max-height: 88vh !important;
+  display: flex !important; flex-direction: column !important; gap: 8px !important;
+  overflow-y: auto !important; touch-action: pan-y !important;
+  padding: 14px !important;
+}
+#ov-stages .stages-modal-card h2 { margin: 0 !important; }
+
+/* 상점 5축 스탯 게이지 카드 (Vampire Survivors / Halls of Torment 스타일) */
+#ov-shop .shop-list .shop-item.stat-card-v76 {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 9px 10px !important;
+  border-radius: 10px !important;
+  background: linear-gradient(155deg, rgba(28, 23, 19, 0.94), rgba(16, 13, 12, 0.97)) !important;
+  border: 1px solid rgba(217, 185, 126, 0.30) !important;
+  text-align: left !important;
+}
+#ov-shop .shop-list .shop-item.stat-card-v76:not(:disabled) {
+  border-color: rgba(240, 200, 114, 0.56) !important;
+}
+#ov-shop .shop-list .shop-item.stat-card-v76.maxed {
+  border-color: rgba(112, 208, 176, 0.45) !important;
+  opacity: 0.85 !important;
+}
+.stat-ico {
+  flex: 0 0 40px; width: 40px; height: 40px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(14, 11, 10, 0.92); border: 1px solid rgba(217, 185, 126, 0.32);
+}
+.stat-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.stat-head { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+.stat-head b { font-size: 14px; color: #fff6e4; }
+.stat-lv { font-size: 11.5px; font-weight: 700; color: #f6d58b; }
+.stat-bar {
+  width: 100%; height: 6px; border-radius: 999px; overflow: hidden;
+  background: rgba(255, 240, 210, 0.12); border: 1px solid rgba(217, 185, 126, 0.2);
+}
+.stat-bar i {
+  display: block; height: 100%; border-radius: 999px;
+  background: linear-gradient(90deg, #b87e28, #f8d878);
+  transition: width 0.2s ease;
+}
+.stat-desc { font-size: 11px; color: #cabca4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat-pill {
+  flex: 0 0 auto; padding: 5px 9px; border-radius: 8px; font-size: 11.5px; font-weight: 700;
+  background: rgba(34, 28, 22, 0.9); border: 1px solid rgba(217, 185, 126, 0.26); color: #a89c88;
+  white-space: nowrap;
+}
+.stat-pill.can {
+  background: linear-gradient(135deg, rgba(84, 58, 20, 0.96), rgba(44, 30, 12, 0.96));
+  border-color: rgba(246, 204, 108, 0.8); color: #ffe8a6;
+}
+.stat-pill.maxed {
+  background: rgba(46, 118, 94, 0.26); border-color: rgba(112, 208, 176, 0.5); color: #9cf0d4;
+}

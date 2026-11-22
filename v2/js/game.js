@@ -1024,7 +1024,7 @@ function persist(touch) {
 }
 
 function showOv(id) {
-  ['ov-title', 'ov-shop', 'ov-cosmetic', 'ov-daily', 'ov-result', 'ov-idle', 'ov-level', 'ov-stage', 'ov-pause', 'ov-codex', 'ov-train'].forEach(function (k) {
+  ['ov-title', 'ov-stages', 'ov-shop', 'ov-cosmetic', 'ov-daily', 'ov-result', 'ov-idle', 'ov-level', 'ov-stage', 'ov-pause', 'ov-codex', 'ov-train'].forEach(function (k) {
     const el = $(k); if (el) el.classList.toggle('show', k === id);
   });
   if (id === 'ov-title') {
@@ -3082,6 +3082,19 @@ function refreshTitleHelp() {
   if (sub) sub.textContent = st.sub + ' — 먹안개 안쪽 혼령의 종 모양을 그려, 그 혼령 방향으로 일섬 돌진하세요';
   const btn = $('btnStart');
   if (btn) btn.textContent = sel + '장 출전';
+  const chTitle = $('lobbyChapterTitle');
+  const chSub = $('lobbyChapterSub');
+  const chMode = $('lobbyModeTag');
+  if (chTitle) chTitle.textContent = '제 ' + st.id + ' 장 · ' + st.name;
+  if (chMode) chMode.textContent = curMode().name;
+  if (chSub) {
+    const stars = (save.stars || {})[st.id] || 0;
+    const recPw = stageRecommendedPower(st.id);
+    chSub.textContent = '★'.repeat(stars) + '☆'.repeat(Math.max(0, 3 - stars)) + ' · 제' + actOf(st.id) + '막 · 권장 전투력 ' + recPw + ' · 변경 ▾';
+  }
+  const maxU = unlockedMax();
+  if ($('btnStagePrev')) $('btnStagePrev').disabled = sel <= 1;
+  if ($('btnStageNext')) $('btnStageNext').disabled = sel >= maxU;
   const note = $('titleStageNote');
   if (note) {
     const stars = (save.stars || {})[st.id] || 0;
@@ -9609,16 +9622,35 @@ function refreshShop() {
     pwEl.innerHTML = '<span>현재 전투력 <b>' + myPw + '</b> · ' + curStage + '장 권장 <b>' + recPw + '</b></span><span class="pw-badge ' + cls + '">' + tag + '</span>';
   }
   try { renderShopTab(); } catch (e) {}
+  const STAT_ICONS = {
+    atk: '<svg viewBox="0 0 28 28" width="24" height="24" aria-hidden="true"><path d="M21 5L7 19M17 5H21V9M6 16L12 22M5 23L8.5 19.5" fill="none" stroke="#ffd882" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    hp: '<svg viewBox="0 0 28 28" width="24" height="24" aria-hidden="true"><path d="M14 23C14 23 5 17.2 5 10.6C5 7.4 7.5 5 10.4 5C12.2 5 13.4 5.9 14 7.1C14.6 5.9 15.8 5 17.6 5C20.5 5 23 7.4 23 10.6C23 17.2 14 23 14 23Z" fill="none" stroke="#ff7a6b" stroke-width="2" stroke-linejoin="round"/></svg>',
+    gap: '<svg viewBox="0 0 28 28" width="24" height="24" aria-hidden="true"><path d="M4 14C6.8 9.2 10.2 7 14 7C17.8 7 21.2 9.2 24 14C21.2 18.8 17.8 21 14 21C10.2 21 6.8 18.8 4 14Z" fill="none" stroke="#f6cf74" stroke-width="2"/><circle cx="14" cy="14" r="3" fill="#f6cf74"/></svg>',
+    poise: '<svg viewBox="0 0 28 28" width="24" height="24" aria-hidden="true"><path d="M14 4L22 7.5V14.5C22 19 18.5 22.4 14 24C9.5 22.4 6 19 6 14.5V7.5L14 4ZM12 9L15.5 13.5L12.5 16L16 20" fill="none" stroke="#8ef0d4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    coin: '<svg viewBox="0 0 28 28" width="24" height="24" aria-hidden="true"><circle cx="14" cy="14" r="9.5" fill="none" stroke="#ffd874" stroke-width="2"/><rect x="10.5" y="10.5" width="7" height="7" fill="none" stroke="#ffd874" stroke-width="1.8"/></svg>'
+  };
   function label(btn, def, desc) {
     if (!btn || !def) return;
     const lv = save[def.key] || 0;
     const open = statUnlocked(def);
     const c = statUpgradeCost(lv, CFG), max = lv >= def.maxLv;
-    btn.disabled = !open || max || (save.coins || 0) < c;
+    const pct = Math.min(100, Math.round((lv / Math.max(1, def.maxLv)) * 100));
+    const can = open && !max && (save.coins || 0) >= c;
+    btn.disabled = !can;
     btn.classList.toggle('locked', !open);
-    btn.innerHTML = '<b>' + def.name + '</b> Lv ' + lv + '/' + def.maxLv +
-      (max ? ' (최대)' : (!open ? ' (' + def.unlockStage + '장 해금)' : ' · ' + c + '엽전')) +
-      '<br><span class="meta-desc">' + desc + '</span>';
+    btn.classList.toggle('maxed', max);
+    btn.classList.add('stat-card-v76');
+    const pill = max ? '<span class="stat-pill maxed">최대</span>'
+      : (!open ? '<span class="stat-pill lock">' + def.unlockStage + '장 해금</span>'
+        : '<span class="stat-pill' + (can ? ' can' : '') + '">' + c.toLocaleString() + '엽전</span>');
+    btn.innerHTML =
+      '<div class="stat-ico">' + (STAT_ICONS[def.id] || '') + '</div>' +
+      '<div class="stat-main">' +
+        '<div class="stat-head"><b>' + def.name + '</b><span class="stat-lv">Lv ' + lv + '/' + def.maxLv + '</span></div>' +
+        '<div class="stat-bar"><i style="width:' + pct + '%"></i></div>' +
+        '<div class="stat-desc">' + desc + '</div>' +
+      '</div>' +
+      pill;
   }
   const byId = function (id) { return STAT_DEFS.filter(function (d) { return d.id === id; })[0]; };
   label($('buyAtk'), byId('atk'), '일섬 기본 피해 +' + Math.round(atkBonus() * 100) + '%');
@@ -10758,7 +10790,7 @@ function guardEvents() {
     if (e.key !== 'Escape') return;
     /* 상점·도감·수련장 같은 메뉴 오버레이가 열려 있으면 ESC는 그 오버레이 닿기(overlayShell)만 맡는다.
        예전에는 같은 ESC가 상점을 닫은 뒤 일시정지까지 열어, 메뉴를 닫을 때 판이 멈춰 있었다. */
-    const menus = ['ov-shop', 'ov-cosmetic', 'ov-daily', 'ov-codex', 'ov-train', 'ov-level', 'ov-stage', 'ov-result', 'ov-idle', 'ov-title'];
+    const menus = ['ov-stages', 'ov-shop', 'ov-cosmetic', 'ov-daily', 'ov-codex', 'ov-train', 'ov-level', 'ov-stage', 'ov-result', 'ov-idle', 'ov-title'];
     for (let i = 0; i < menus.length; i++) {
       const el = $(menus[i]);
       if (el && el.classList.contains('show')) return;
@@ -10857,6 +10889,30 @@ function bindUi() {
   if ($('btnA11y')) $('btnA11y').addEventListener('click', function () {
     const r = $('titleA11y');
     if (r) r.hidden = !r.hidden;
+  });
+  if ($('btnStagePrev')) $('btnStagePrev').addEventListener('click', function () {
+    const cur = clamp((titleSel != null ? titleSel : (save.stage || 1)) | 0, 1, STAGES.length);
+    if (cur <= 1) return;
+    titleSel = cur - 1;
+    if (audio && audio.bell) audio.bell(0, 'hline');
+    refreshTitleHelp();
+    previewStageWorld(titleSel);
+  });
+  if ($('btnStageNext')) $('btnStageNext').addEventListener('click', function () {
+    const maxU = unlockedMax();
+    const cur = clamp((titleSel != null ? titleSel : (save.stage || 1)) | 0, 1, STAGES.length);
+    if (cur >= maxU) return;
+    titleSel = cur + 1;
+    if (audio && audio.bell) audio.bell(0, 'hline');
+    refreshTitleHelp();
+    previewStageWorld(titleSel);
+  });
+  if ($('btnStagePicker')) $('btnStagePicker').addEventListener('click', function () {
+    refreshTitleHelp();
+    showOv('ov-stages');
+  });
+  if ($('btnStagesClose')) $('btnStagesClose').addEventListener('click', function () {
+    hideOvs(); showOv('ov-title');
   });
   if ($('btnToggleChal')) $('btnToggleChal').addEventListener('click', function () {
     const c = $('titleChallenges');
