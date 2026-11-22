@@ -14,7 +14,7 @@
   <link rel="stylesheet" href="css/ux-upgrade.css">
   <link rel="stylesheet" href="css/v043.css">
   <link rel="stylesheet" href="css/v049-theme-overhaul.css">
-  <link rel="stylesheet" href="css/v052-oriental-theme.css?v=v076">
+  <link rel="stylesheet" href="css/v052-oriental-theme.css?v=v077">
 </head>
 <body>
   <div id="app">
@@ -95,8 +95,17 @@
           </div>
         </div>
 
-        <!-- 중앙 개방 뷰포트: 3D 영웅·치장 도포·후광·배경이 가림 없이 그대로 노출 -->
-        <div class="lobby-hero-stage" aria-hidden="true"></div>
+        <!-- 중앙 영웅 쇼케이스: 3D 전장 배경 위 도포별 수묵 전신 일러스트 + 라이브 연출 -->
+        <div class="lobby-hero-stage" id="lobbyHeroStage" data-cloak="ink" aria-hidden="true">
+          <div class="lobby-hero-aura"></div>
+          <div class="lobby-hero-ring"></div>
+          <div class="lobby-hero-motes">
+            <span class="mote m1"></span><span class="mote m2"></span><span class="mote m3"></span>
+            <span class="mote m4"></span><span class="mote m5"></span><span class="mote m6"></span>
+          </div>
+          <img id="lobbyHeroImg" class="lobby-hero-img" src="assets/hero/lobby_ink.webp?v=v077" alt="심안 검객" decoding="async" draggable="false">
+          <div class="lobby-hero-mist"></div>
+        </div>
 
         <!-- 숨김 호환 요소 -->
         <p class="sub" id="titleSub" hidden>먹안개 안쪽 혼령의 종 모양을 그려 일섬 돌진하세요</p>
@@ -316,6 +325,6 @@
   <script src="js/gestures.js"></script>
   <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
   <script>if(location.search.includes('debug=1')){const b=document.createElement('pre');b.id='dbgErr';b.style.cssText='position:fixed;top:4px;left:4px;z-index:99999;max-width:95vw;max-height:45vh;overflow:auto;background:rgba(120,0,0,.92);color:#fff;font:11px/1.35 monospace;padding:6px;white-space:pre-wrap;pointer-events:auto';const log=m=>{if(!b.parentNode)document.body.appendChild(b);b.textContent+=m+'\n';};addEventListener('error',e=>log('ERR: '+e.message+' @ '+(e.filename||'')+':'+e.lineno+':'+e.colno));addEventListener('unhandledrejection',e=>log('REJ: '+(e.reason&&e.reason.stack||e.reason)));}</script>
-  <script type="module" src="js/game.js?v=v0761"></script>
+  <script type="module" src="js/game.js?v=v077"></script>
 </body>
 </html>

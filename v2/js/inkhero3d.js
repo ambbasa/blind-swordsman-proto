@@ -148,7 +148,11 @@ void main() {
   float wash = mix(1.0 + uWash, 1.0 - uWash * 0.55, vH);
   /* 마른 붓 그레인 — 넓은 얼룩과 잔 결 두 겹. 플라스틱 면을 종이로 바꾼다. */
   float grain = 1.0 + uGrain * ((vnoise(vW * 7.0) - 0.5) * 0.7 + (vnoise(vW * 23.0) - 0.5) * 0.5);
-  vec3 baseAlb = mix(vAlb, mix(uCloakTint * 0.62, uCloakTint, clamp(vH, 0.0, 1.0)), clamp(uCloakMix, 0.0, 0.92));
+  /* v0.77 도포 틴트 마스크: 피부·검날·붉은 허리띠는 원본 색을 보존하고 어두운 도포 천에만 치장 색상을 입힌다. */
+  float albLum = dot(vAlb, vec3(0.299, 0.587, 0.114));
+  float albSat = max(vAlb.r, max(vAlb.g, vAlb.b)) - min(vAlb.r, min(vAlb.g, vAlb.b));
+  float clothMask = smoothstep(0.32, 0.14, albLum) * smoothstep(0.18, 0.06, albSat);
+  vec3 baseAlb = mix(vAlb, mix(uCloakTint * 0.62, uCloakTint, clamp(vH, 0.0, 1.0)), clamp(uCloakMix, 0.0, 0.92) * clothMask);
   vec3 col = baseAlb * light * wash * grain;
   /* v0.47 동양 수묵 텍스처 — 한지 섬유·먹 붓질·비늘·부적 같은 '결'만 1.0 근처로 곱한다.
      색은 버텍스가 내고(uColor), 텍스처는 종이와 붓의 질감만 얹는다(?notex=1 이면 uTexAmt 0). */
@@ -163,7 +167,7 @@ void main() {
   col += uRimCol * spec;
   float fres = pow(1.0 - clamp(dot(N, V), 0.0, 1.0), 2.8);
   col += uRimCol * fres * uRim;
-  col += uCloakEmissive * (0.22 + 0.78 * fres);
+  col += uCloakEmissive * (0.18 + 0.82 * fres) * (0.22 + 0.78 * clothMask);
   float groundMist = smoothstep(2.6, -0.35, vW.y) * uMistAmt;
   col = mix(col, uMistCol, clamp(groundMist * 0.52, 0.0, 0.55));
   gl_FragColor = vec4(max(col, vec3(0.0)), 1.0);

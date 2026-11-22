@@ -9120,14 +9120,14 @@ function updateCam(dt) {
   const targetX = S ? S.hero.x : 0, targetZ = S ? S.hero.z : 0;
   const titleCam = !S || (!S.playing && $('ov-title') && $('ov-title').classList.contains('show'));
   if (titleCam) {
-    /* v0.76.1 로비 쇼케이스 카메라: 3D 영웅과 착용 중인 도포·후광·오라를 중앙 클로즈업으로 선명하게 비춘다. */
+    /* v0.77 로비 배경 카메라: 중앙 2D 수묵 영웅 쇼케이스 뒤로 현재 장의 3D 전장이 은은하게 회전한다. */
     const t = now() * 0.001;
-    const a = Math.PI * 0.5 + Math.sin(t * 0.28) * 0.28;
-    const rad = 5.4;
+    const a = Math.PI * 0.5 + Math.sin(t * 0.14) * 0.42;
+    const rad = 18.8;
     const gy = groundYAt(0, 0);
-    if (three.heroSpr) placeGroup(three.heroSpr, 0, 0);
-    three.camera.position.set(Math.cos(a) * rad, gy + 2.65, Math.sin(a) * rad);
-    three.camera.lookAt(0, gy + 1.05, 0);
+    if (three.heroSpr) three.heroSpr.visible = false;
+    three.camera.position.set(Math.cos(a) * rad, gy + CFG.camOff.y * 0.90, Math.sin(a) * rad);
+    three.camera.lookAt(0, gy + 1.1, 0);
     return;
   }
   /* 1단계 — 따라갈 목표: 영웅 + 돌진 방향 1.1m 앞 + 보스 쪽 2.6m */
@@ -9589,21 +9589,33 @@ function syncLobbyStatus() {
   if ($('lobbyInk')) $('lobbyInk').textContent = save.ink || 0;
   if ($('lobbyPower')) $('lobbyPower').textContent = '전투력 ' + computeCombatPower(save);
 }
+const LOBBY_HERO_ART = {
+  ink: 'assets/hero/lobby_ink.webp?v=v077',
+  snow_sage: 'assets/hero/lobby_snow_sage.webp?v=v077',
+  crimson_guard: 'assets/hero/lobby_crimson_guard.webp?v=v077',
+  gilded_eclipse: 'assets/hero/lobby_gilded_eclipse.webp?v=v077'
+};
+function syncLobbyHeroVisual() {
+  const cloak = cloakOf(save);
+  const cid = (cloak && cloak.id) || 'ink';
+  const stage = $('lobbyHeroStage');
+  if (stage) stage.dataset.cloak = cid;
+  const img = $('lobbyHeroImg');
+  const nextSrc = LOBBY_HERO_ART[cid] || LOBBY_HERO_ART.ink;
+  if (img && img.getAttribute('src') !== nextSrc) {
+    img.src = nextSrc;
+  }
+}
 function ensureLobbyHero3D() {
+  syncLobbyHeroVisual();
   if (!three || !three.scene || !art) return;
-  if (!three.heroSpr) {
-    three.heroSpr = addEntityVisual('hero');
-  }
-  if (three.heroSpr && three.heroSpr.parent !== three.scene) {
-    three.scene.add(three.heroSpr);
-  }
-  if (!S || !S.playing) {
-    placeGroup(three.heroSpr, 0, 0);
-    three.heroSpr.visible = true;
+  if (three.heroSpr && (!S || !S.playing)) {
+    three.heroSpr.visible = false;
   }
   syncHeroCosmetic3D();
 }
 function syncHeroCosmetic3D() {
+  syncLobbyHeroVisual();
   if (!three || !three.heroSpr) return;
   try { applyHeroCloak3D(three.heroSpr, cloakOf(save), swordForgeLv(save)); } catch (e) {}
 }
