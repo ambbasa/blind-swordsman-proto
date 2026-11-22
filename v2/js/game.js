@@ -3129,25 +3129,42 @@ function setChapterArt(st) {
   app.style.setProperty('--chapter-art', 'url("' + new URL('../assets/ink-edition/stage-' + artId + '.webp', import.meta.url).href + '")');
   app.dataset.act = st.act;
 }
+function subgoalExplain(sg) {
+  if (!sg || !sg.id) return '';
+  if (sg.id === 'dark') return '특수 기믹 · 어둠 ' + (sg.t || 60) + '초 — 초반 동안 외곽 시야가 좁아지고 혼령 방울 소리가 2배 커집니다.';
+  if (sg.id === 'guard') return '특수 기믹 · 석등 지키기 — 전장의 석등이 부서지지 않게 주변 원귀를 먼저 베어내세요.';
+  if (sg.id === 'hunt') return '특수 기믹 · 정예 사냥 — 제한 시간 안에 정예 원귀를 모두 찾아 처치하세요.';
+  if (sg.id === 'shapeLock') return '특수 기믹 · 한 무늬 구간 — 지정된 시간 동안 한 가지 획만 유효합니다.';
+  if (sg.id === 'timed') return '특수 기믹 · 시간 사냥 — 기본 시간이 짧고, 원귀를 벨 때마다 남은 시간이 늘어납니다.';
+  return sg.label ? ('특수 기믹 · ' + sg.label) : '';
+}
 function fillStageIntro(st) {
   setChapterArt(st);
   $('stageKicker').textContent = '제 ' + st.id + ' 장 · ' + curMode().name;
   $('stageName').textContent = st.name;
   $('stageSub').textContent = st.sub;
   $('stageGoal').textContent = st.goal;
-  /* §6.1 수용 기준: 장 소개 카드에 지형 규칙 한 줄 */
+  const T = st.terrain;
+  const hasT = !!(T && T.kind !== 'none');
+  const sgTxt = subgoalExplain(st.subgoal);
+  const gBox = $('stageGimmickBox');
   const te = $('stageTerrain');
+  const se = $('stageSubgoal');
   if (te) {
-    const T = st.terrain;
-    te.textContent = (T && T.kind !== 'none') ? ('지형 · ' + T.name + ' — ' + T.line) : '지형 효과 없음';
-    te.hidden = !T || T.kind === 'none';
+    te.textContent = hasT ? ('지형 기믹 · ' + T.name + ' — ' + T.line) : '';
+    te.hidden = !hasT;
   }
+  if (se) {
+    se.textContent = sgTxt;
+    se.hidden = !sgTxt;
+  }
+  if (gBox) gBox.hidden = !(hasT || sgTxt);
   $('stageChips').innerHTML = (st.shapes || []).map(function (sh) {
     return titleChip(sh);
   }).join('');
   $('stageTip').textContent = st.tip || '';
   const b = $('btnStageGo');
-  if (b) b.textContent = '일섬';
+  if (b) b.textContent = '일섬 (시작)';
 }
 function beginStage(n) {
   const _t0 = performance.now();
@@ -3155,7 +3172,8 @@ function beginStage(n) {
   titleSel = st.id;
   fillStageIntro(st);
   showOv('ov-stage');
-  const ps = pendingStage = { no: st.id, until: now() + (qa.noDelay ? 0 : 2600), at: now(), ready: false };
+  const hasGim = !!((st.terrain && st.terrain.kind !== 'none') || (st.subgoal && st.subgoal.id));
+  const ps = pendingStage = { no: st.id, until: now() + (qa.noDelay ? 0 : (hasGim ? 3800 : 2600)), at: now(), ready: false };
   // Give the intro card a paint before opening the audio device. Only start
   // the beat clock in startRun, even when the player skips the card early.
   const audioReady = new Promise(resolve => {
@@ -8579,15 +8597,15 @@ function endRun(win, msg) {
       qBtn.hidden = true;
     }
   }
+  const retrySub = $('btnResultRetry');
   if (win && nextSt) {
     $('btnResultGo').textContent = '다음 장 — ' + nextSt.name;
     S.nextStage = nextSt.id;
-  } else if (win) {
-    $('btnResultGo').textContent = '다시 도전';
-    S.nextStage = null;
+    if (retrySub) retrySub.hidden = false;
   } else {
-    $('btnResultGo').textContent = '다시 도전';
+    $('btnResultGo').textContent = '다시하기';
     S.nextStage = null;
+    if (retrySub) retrySub.hidden = true;
   }
   $('btnResultGo').classList.toggle('long', $('btnResultGo').textContent.length > 8);
   showOv('ov-result');
@@ -10751,6 +10769,13 @@ function bindUi() {
     else showOv('ov-title');
   });
   $('btnResultShop').addEventListener('click', function () { refreshShop(); showOv('ov-shop'); });
+  if ($('btnResultRetry')) $('btnResultRetry').addEventListener('click', function () {
+    const n = (S && S.stageNo) || save.stage || 1;
+    startRun({ stage: n });
+  });
+  if ($('btnResultTitle')) $('btnResultTitle').addEventListener('click', function () {
+    hideOvs(); showOv('ov-title');
+  });
   $('btnResultGo').addEventListener('click', function () {
     const n = (S && S.won && S.nextStage) ? S.nextStage : ((S && S.stageNo) || save.stage || 1);
     if (S && !S.noScore) telemetry.event('result_choice', { stage: S.stageNo, next: n, won: S.won, action: n === S.stageNo ? 'retry' : 'advance' });

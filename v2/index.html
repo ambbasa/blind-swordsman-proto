@@ -14,7 +14,7 @@
   <link rel="stylesheet" href="css/ux-upgrade.css">
   <link rel="stylesheet" href="css/v043.css">
   <link rel="stylesheet" href="css/v049-theme-overhaul.css">
-  <link rel="stylesheet" href="css/v052-oriental-theme.css?v=v0711">
+  <link rel="stylesheet" href="css/v052-oriental-theme.css?v=v0713">
 </head>
 <body>
   <div id="app">
@@ -181,7 +181,10 @@
         <p class="stage-sub" id="stageSub">불탄 기와집, 첫 번째 획</p>
         <div class="stage-rule" aria-hidden="true"></div>
         <p class="stage-goal" id="stageGoal"></p>
-        <p class="stage-terrain" id="stageTerrain"></p>
+        <div class="stage-gimmick-box" id="stageGimmickBox" hidden>
+          <p class="stage-terrain" id="stageTerrain"></p>
+          <p class="stage-subgoal" id="stageSubgoal"></p>
+        </div>
         <p class="stage-tip" id="stageTip"></p>
         <div class="stage-chips" id="stageChips" aria-hidden="true"></div>
         <button type="button" id="btnStageGo" class="btn primary">일섬</button>
@@ -198,8 +201,14 @@
         <p class="result-help" id="resultHelp" hidden></p>
         <button type="button" id="btnResultUpgrade" class="btn btn-quick-up" hidden></button>
         <button type="button" id="btnTrainOffer" class="btn" hidden>수련 모드로 한 판</button>
-        <button type="button" id="btnResultShop" class="btn">성장</button>
-        <button type="button" id="btnResultGo" class="btn primary">다시</button>
+        <div class="result-actions">
+          <button type="button" id="btnResultGo" class="btn primary">다시하기</button>
+          <div class="result-sub-actions">
+            <button type="button" id="btnResultRetry" class="btn small" hidden>다시하기</button>
+            <button type="button" id="btnResultShop" class="btn small">성장</button>
+            <button type="button" id="btnResultTitle" class="btn small">타이틀로</button>
+          </div>
+        </div>
       </div>
     </div>
     <div id="ov-idle" class="ov">
@@ -241,6 +250,6 @@
   <script src="js/gestures.js"></script>
   <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
   <script>if(location.search.includes('debug=1')){const b=document.createElement('pre');b.id='dbgErr';b.style.cssText='position:fixed;top:4px;left:4px;z-index:99999;max-width:95vw;max-height:45vh;overflow:auto;background:rgba(120,0,0,.92);color:#fff;font:11px/1.35 monospace;padding:6px;white-space:pre-wrap;pointer-events:auto';const log=m=>{if(!b.parentNode)document.body.appendChild(b);b.textContent+=m+'\n';};addEventListener('error',e=>log('ERR: '+e.message+' @ '+(e.filename||'')+':'+e.lineno+':'+e.colno));addEventListener('unhandledrejection',e=>log('REJ: '+(e.reason&&e.reason.stack||e.reason)));}</script>
-  <script type="module" src="js/game.js?v=v0712"></script>
+  <script type="module" src="js/game.js?v=v0713"></script>
 </body>
 </html>

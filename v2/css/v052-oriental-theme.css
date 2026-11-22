@@ -419,3 +419,74 @@ h1, h2, h3, #timer, #titleName, #bossCardName, #resultTitle { font-family: var(-
 #ov-daily .daily-strip * {
   touch-action: pan-y !important;
 }
+
+/* v0.71.3 스테이지 기믹 안내 박스 및 패배/결과 팝업 다시하기 버튼 레이아웃 */
+.stage-gimmick-box {
+  margin: 8px auto 6px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: rgba(20, 15, 13, 0.84);
+  border: 1px solid rgba(240, 198, 110, 0.52);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  max-width: min(90vw, 380px);
+  text-align: left;
+}
+.stage-gimmick-box .stage-terrain,
+.stage-gimmick-box .stage-subgoal {
+  margin: 0 !important;
+  font-size: 12.5px !important;
+  line-height: 1.45 !important;
+  word-break: keep-all !important;
+}
+.stage-gimmick-box .stage-terrain { color: #9cf0d4 !important; }
+.stage-gimmick-box .stage-subgoal { color: #ffe094 !important; margin-top: 4px !important; }
+.stage-gimmick-box .stage-terrain[hidden] + .stage-subgoal { margin-top: 0 !important; }
+
+#ov-result .result-card {
+  width: min(92vw, 410px) !important;
+  max-height: 90vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  padding: 14px 14px 12px !important;
+  overflow-y: auto !important;
+  touch-action: pan-y !important;
+}
+#ov-result .result-stats {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 5px 10px !important;
+  margin: 4px 0 !important;
+  padding: 8px 10px !important;
+}
+#ov-result .result-stats li {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  font-size: 12px !important;
+}
+.result-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+  width: 100%;
+}
+.result-actions #btnResultGo {
+  width: 100% !important;
+  margin: 0 !important;
+  min-height: 46px !important;
+  font-size: 18px !important;
+}
+.result-sub-actions {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+.result-sub-actions .btn.small {
+  flex: 1 1 0 !important;
+  width: auto !important;
+  margin: 0 !important;
+  min-height: 38px !important;
+  font-size: 13px !important;
+}
