@@ -605,24 +605,25 @@ def bake_humanoid_clips(arm_obj, is_a_pose=True):
         track.mute = True
         arm_obj.animation_data.action = None
 
-    # 1) idle — poised Joseon martial ready stance (natural dropped arms, subtle breathing, 32f @ 24fps)
+    # 1) idle — dynamic Hades-style martial combat-ready stance (grounded knees, 3/4 torso coil, poised blade, 36f @ 24fps)
     arm_obj.animation_data.action = bpy.data.actions.new("idle")
     reset_all()
-    for f, k in [(1, 0.0), (17, 1.0), (33, 0.0)]:
-        set_loc("hips", 0, 0, -0.012 + 0.012 * k, f)
-        set_rot("spine", 4.0 + 1.2 * k, -8.0, 0.0, f)
-        set_rot("chest", 3.0 + 1.8 * k, -8.0, 0.0, f)
-        set_rot("head", -4.0 - 1.0 * k, 14.0, 0.0, f)
-        # Right sword arm: dropped naturally toward hip (+drop), low-ready guard with bent elbow!
-        set_rot("upperArm_R", 12.0 + 2.5 * k, -10.0, drop + 2.0 * k, f)
-        set_rot("forearm_R", 28.0 + 3.0 * k, 0.0, 0.0, f)
-        # Left guard arm: dropped naturally toward hip (-drop), relaxed forward balance!
-        set_rot("upperArm_L", -14.0 - 2.0 * k, 8.0, -drop - 2.0 * k, f)
-        set_rot("forearm_L", -30.0 - 3.0 * k, 0.0, 0.0, f)
-        set_rot("thigh_R", 4.0, 0.0, 0.0, f)
-        set_rot("shin_R", 6.0, 0.0, 0.0, f)
-        set_rot("thigh_L", -6.0, 0.0, 0.0, f)
-        set_rot("shin_L", 8.0, 0.0, 0.0, f)
+    for f, k in [(1, 0.0), (10, 0.65), (19, 1.0), (28, 0.35), (37, 0.0)]:
+        set_loc("hips", 0, 0, -0.032 + 0.016 * k, f)
+        set_rot("spine", 7.0 + 2.2 * k, -16.0 - 1.5 * k, 0.0, f)
+        set_rot("chest", 5.0 + 2.6 * k, -12.0 - 1.5 * k, 0.0, f)
+        set_rot("head", -7.0 - 1.8 * k, 26.0 + 2.0 * k, 0.0, f)
+        # Right sword arm: poised diagonal low-forward combat guard with living wrist/elbow sway
+        set_rot("upperArm_R", 18.0 + 4.5 * k, -14.0 - 2.0 * k, drop - 4.0 + 2.5 * k, f)
+        set_rot("forearm_R", 38.0 + 5.0 * k, 6.0, 0.0, f)
+        # Left guard arm: forward martial balance guard
+        set_rot("upperArm_L", -20.0 - 3.5 * k, 12.0 + 2.0 * k, -drop + 3.0 - 2.0 * k, f)
+        set_rot("forearm_L", -44.0 - 4.5 * k, 0.0, 0.0, f)
+        # Grounded martial footwork (front left knee bent, back right leg braced)
+        set_rot("thigh_L", -14.0 + 1.5 * k, 0.0, 3.0, f)
+        set_rot("shin_L", 18.0 - 2.0 * k, 0.0, 0.0, f)
+        set_rot("thigh_R", 10.0 - 1.0 * k, 0.0, -3.0, f)
+        set_rot("shin_R", 14.0 - 1.5 * k, 0.0, 0.0, f)
     finish_action("idle")
 
     # 2) walk — athletic martial dash-stride (24f @ 24fps = 1.0s loop)
@@ -677,13 +678,13 @@ def bake_humanoid_clips(arm_obj, is_a_pose=True):
     set_rot("upperArm_R", 38.0, 32.0, drop + 6.0, 14);  set_rot("forearm_R", 52.0, -18.0, 0.0, 14)
     set_rot("upperArm_L", 16.0, -10.0, -drop - 2.0, 14);set_rot("forearm_L", -34.0, 0.0, 0.0, 14)
 
-    # f=21: Smooth recovery back to martial ready stance
-    set_loc("hips", 0, 0, -0.012, 21)
-    set_rot("spine", 4.0, -8.0, 0.0, 21);   set_rot("chest", 3.0, -8.0, 0.0, 21); set_rot("head", -4.0, 14.0, 0.0, 21)
-    set_rot("upperArm_R", 12.0, -10.0, drop, 21);       set_rot("forearm_R", 28.0, 0.0, 0.0, 21)
-    set_rot("upperArm_L", -14.0, 8.0, -drop, 21);       set_rot("forearm_L", -30.0, 0.0, 0.0, 21)
-    set_rot("thigh_L", -6.0, 0.0, 0.0, 21); set_rot("shin_L", 8.0, 0.0, 0.0, 21)
-    set_rot("thigh_R", 4.0, 0.0, 0.0, 21);  set_rot("shin_R", 6.0, 0.0, 0.0, 21)
+    # f=21: Smooth recovery back to dynamic martial combat-ready stance
+    set_loc("hips", 0, 0, -0.032, 21)
+    set_rot("spine", 7.0, -16.0, 0.0, 21);  set_rot("chest", 5.0, -12.0, 0.0, 21); set_rot("head", -7.0, 26.0, 0.0, 21)
+    set_rot("upperArm_R", 18.0, -14.0, drop - 4.0, 21); set_rot("forearm_R", 38.0, 6.0, 0.0, 21)
+    set_rot("upperArm_L", -20.0, 12.0, -drop + 3.0, 21); set_rot("forearm_L", -44.0, 0.0, 0.0, 21)
+    set_rot("thigh_L", -14.0, 0.0, 3.0, 21); set_rot("shin_L", 18.0, 0.0, 0.0, 21)
+    set_rot("thigh_R", 10.0, 0.0, -3.0, 21); set_rot("shin_R", 14.0, 0.0, 0.0, 21)
     finish_action("slash")
 
     # 4) hit — crisp guard stagger recoil (14f @ 24fps)

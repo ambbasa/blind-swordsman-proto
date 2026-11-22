@@ -166,10 +166,22 @@ def recenter_rgba(image: Image.Image, border_ratio: float = 0.2) -> Image.Image:
     return canvas
 
 
-def run_shape(in_img: str, shape_glb: str, seed: int, steps: int, octree: int, max_faces: int):
-    t0 = time.time()
-    image = prepare_rgba(in_img)
+def load_mv_images(mv_dir: str):
+    """Load front/left/right/back RGBA images from mv_dir for Hunyuan3D-2mv."""
+    views = {}
+    for k in ("front", "left", "right", "back"):
+        for ext in (".png", ".webp", ".jpg"):
+            cand = os.path.join(mv_dir, k + ext)
+            if os.path.isfile(cand):
+                views[k] = prepare_rgba(cand)
+                break
+    if "front" not in views or len(views) < 2:
+        raise FileNotFoundError(f"Multi-view folder {mv_dir} must contain front.png and at least one side/back view.")
+    return views
 
+
+def run_shape(in_img: str, shape_glb: str, seed: int, steps: int, octree: int, max_faces: int, mv_dir: str = ""):
+    t0 = time.time()
     from hy3dgen.shapegen import (
         FaceReducer,
         FloaterRemover,
@@ -177,21 +189,40 @@ def run_shape(in_img: str, shape_glb: str, seed: int, steps: int, octree: int, m
         Hunyuan3DDiTFlowMatchingPipeline,
     )
 
-    print(f"[Local3D:Shape] Loading Hunyuan3D-2mini (fp16, CUDA={torch.cuda.is_available()})...")
-    shape_pipe = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(
-        "tencent/Hunyuan3D-2mini",
-        subfolder="hunyuan3d-dit-v2-mini",
-        variant="fp16",
-        use_safetensors=True,
-        device="cuda",
-    )
-    print(f"[Local3D:Shape] Generating 3D shape (steps={steps}, octree={octree}, seed={seed})...")
+    use_mv = bool(mv_dir)
+    if use_mv:
+        image_input = load_mv_images(mv_dir)
+        print(f"[Local3D:Shape] Loading Hunyuan3D-2mv ({list(image_input.keys())}, fp16, CUDA={torch.cuda.is_available()})...")
+        shape_pipe = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(
+            "tencent/Hunyuan3D-2mv",
+            subfolder="hunyuan3d-dit-v2-mv",
+            variant="fp16",
+            use_safetensors=True,
+            device="cuda",
+        )
+        try:
+            shape_pipe.enable_model_cpu_offload()
+        except Exception:
+            pass
+    else:
+        image_input = prepare_rgba(in_img)
+        print(f"[Local3D:Shape] Loading Hunyuan3D-2mini (fp16, CUDA={torch.cuda.is_available()})...")
+        shape_pipe = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(
+            "tencent/Hunyuan3D-2mini",
+            subfolder="hunyuan3d-dit-v2-mini",
+            variant="fp16",
+            use_safetensors=True,
+            device="cuda",
+        )
+
+    chunks = 6000 if octree >= 320 else 8000
+    print(f"[Local3D:Shape] Generating 3D shape (mv={use_mv}, steps={steps}, octree={octree}, chunks={chunks}, seed={seed})...")
     gen = torch.Generator(device="cuda").manual_seed(seed)
     mesh = shape_pipe(
-        image=image,
+        image=image_input,
         num_inference_steps=steps,
         octree_resolution=octree,
-        num_chunks=8000,
+        num_chunks=chunks,
         generator=gen,
         output_type="trimesh",
     )[0]
@@ -222,7 +253,7 @@ def resolve_paint_paths(subfolder="hunyuan3d-paint-v2-0-turbo"):
 
 
 @torch.no_grad()
-def run_paint(in_img: str, shape_glb: str, out_glb: str, tex_res: int):
+def run_paint(in_img: str, shape_glb: str, out_glb: str, tex_res: int, skip_delight: bool = False):
     import trimesh
     install_numba_rasterizer_fallback()
     from hy3dgen.texgen.pipelines import Hunyuan3DTexGenConfig
@@ -240,22 +271,26 @@ def run_paint(in_img: str, shape_glb: str, out_glb: str, tex_res: int):
     cfg.texture_size = tex_res
 
     # ----------------------------------------------------------
-    # 2A. Delight model ONLY (load on CPU -> sequential offload -> run -> FREE!)
+    # 2A. Delight model ONLY (skipped when --skip-delight keeps crisp cel-shaded facial contrast)
     # ----------------------------------------------------------
-    print("[Local3D:Paint 1/3] Delighting concept art (low-VRAM sequential)...")
-    cfg.device = "cpu"
-    delight_model = Light_Shadow_Remover(cfg)
-    delight_model.pipeline.enable_model_cpu_offload()
-    try:
-        delight_model.pipeline.enable_attention_slicing("max")
-        delight_model.pipeline.enable_vae_slicing()
-    except Exception:
-        pass
-    delighted_img = delight_model(image)
-    del delight_model
-    gc.collect()
-    torch.cuda.empty_cache()
-    print(f"[Local3D:Paint 1/3] Delight complete ({time.time() - t0:.1f}s)")
+    if skip_delight:
+        print("[Local3D:Paint 1/3] Skipping delight (--skip-delight) to preserve crisp comic-ink facial shading...")
+        delighted_img = image
+    else:
+        print("[Local3D:Paint 1/3] Delighting concept art (low-VRAM sequential)...")
+        cfg.device = "cpu"
+        delight_model = Light_Shadow_Remover(cfg)
+        delight_model.pipeline.enable_model_cpu_offload()
+        try:
+            delight_model.pipeline.enable_attention_slicing("max")
+            delight_model.pipeline.enable_vae_slicing()
+        except Exception:
+            pass
+        delighted_img = delight_model(image)
+        del delight_model
+        gc.collect()
+        torch.cuda.empty_cache()
+        print(f"[Local3D:Paint 1/3] Delight complete ({time.time() - t0:.1f}s)")
 
     # ----------------------------------------------------------
     # 2B. UV Unwrap + Normal/Position Render
@@ -316,17 +351,27 @@ def run_paint(in_img: str, shape_glb: str, out_glb: str, tex_res: int):
 
 def main():
     p = argparse.ArgumentParser(description="Local RTX 3070 8GB Hunyuan3D-2mini + Paint Worker")
-    p.add_argument("--in", dest="in_img", required=True)
+    p.add_argument("--in", dest="in_img", default="", help="Single front image (optional if --mv-dir has front.png)")
+    p.add_argument("--mv-dir", default="", help="Folder containing front.png, left.png, right.png, back.png for Hunyuan3D-2mv")
     p.add_argument("--out", dest="out_glb", required=True)
     p.add_argument("--shape-glb", default="", help="Intermediate shape GLB path")
     p.add_argument("--phase", choices=["all", "shape", "paint"], default="all")
     p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--steps", type=int, default=20)
-    p.add_argument("--octree", type=int, default=256)
-    p.add_argument("--max-faces", type=int, default=40000)
+    p.add_argument("--steps", type=int, default=30)
+    p.add_argument("--octree", type=int, default=384)
+    p.add_argument("--max-faces", type=int, default=50000)
     p.add_argument("--tex-res", type=int, default=1024)
+    p.add_argument("--skip-delight", action="store_true", help="Keep crisp cel-shaded facial contrast without delighting")
     p.add_argument("--no-paint", action="store_true")
     args = p.parse_args()
+
+    in_img = args.in_img
+    if not in_img and args.mv_dir:
+        cand = os.path.join(args.mv_dir, "front.png")
+        if os.path.isfile(cand):
+            in_img = cand
+    if not in_img:
+        p.error("Either --in or --mv-dir (with front.png) is required.")
 
     patch_windows_hf_symlinks()
     load_hf_token()
@@ -334,12 +379,14 @@ def main():
     shape_glb = args.shape_glb or str(Path(args.out_glb).with_name(Path(args.out_glb).stem + "_shape.glb"))
 
     if args.phase == "shape":
-        run_shape(args.in_img, shape_glb, args.seed, args.steps, args.octree, args.max_faces)
+        run_shape(in_img, shape_glb, args.seed, args.steps, args.octree, args.max_faces, mv_dir=args.mv_dir)
     elif args.phase == "paint":
-        run_paint(args.in_img, shape_glb, args.out_glb, args.tex_res)
+        run_paint(in_img, shape_glb, args.out_glb, args.tex_res, skip_delight=args.skip_delight)
     else:
         # Run shape and paint in isolated child processes so Windows reclaims 100% RAM/VRAM between phases!
-        base_cmd = [sys.executable, __file__, "--in", args.in_img, "--out", args.out_glb, "--shape-glb", shape_glb]
+        base_cmd = [sys.executable, __file__, "--in", in_img, "--out", args.out_glb, "--shape-glb", shape_glb]
+        if args.mv_dir:
+            base_cmd += ["--mv-dir", args.mv_dir]
         rc1 = subprocess.run(
             base_cmd + ["--phase", "shape", "--seed", str(args.seed), "--steps", str(args.steps),
                         "--octree", str(args.octree), "--max-faces", str(args.max_faces)],
@@ -351,10 +398,10 @@ def main():
             import shutil
             shutil.copy2(shape_glb, args.out_glb)
             return
-        rc2 = subprocess.run(
-            base_cmd + ["--phase", "paint", "--tex-res", str(args.tex_res)],
-            check=False,
-        ).returncode
+        paint_cmd = base_cmd + ["--phase", "paint", "--tex-res", str(args.tex_res)]
+        if args.skip_delight:
+            paint_cmd.append("--skip-delight")
+        rc2 = subprocess.run(paint_cmd, check=False).returncode
         if rc2 != 0:
             sys.exit(rc2)
 
