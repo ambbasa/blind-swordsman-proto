@@ -1,0 +1,42 @@
+{
+  "items": [
+    {
+      "name": "hero_crimson",
+      "preset": "hero",
+      "image": "scripts/blender/_concepts/hero_crimson.png",
+      "prompt": "Korean blind swordsman, NO hat, sangtu topknot with crimson cord, black blindfold, charcoal sleeveless martial coat with white V-collar, bold vermilion-crimson wide layered waist sash with hanging tails, black forearm wraps, dark trousers and sleek angular black boots with red trim",
+      "out": "v2/assets/models/hero_crimson.glb",
+      "attach_sword": true,
+      "tris": 15000,
+      "outline": 0.004
+    },
+    {
+      "name": "enemy_ash_bandit",
+      "preset": "enemy",
+      "image": "scripts/blender/_concepts/enemy_ash_bandit.png",
+      "prompt": "Joseon dark-fantasy ash bandit foot soldier, tattered dark charcoal martial tunic, ragged dark hood-scarf, leather belt with iron buckle, wrapped shins and dark boots",
+      "out": "v2/assets/models/enemy_ash_bandit.glb",
+      "tris": 9000,
+      "outline": 0.004
+    },
+    {
+      "name": "boss_corrupted_monk",
+      "preset": "boss",
+      "image": "scripts/blender/_concepts/boss_corrupted_monk.png",
+      "prompt": "Towering Joseon dark-fantasy corrupted ink monk boss, dark obsidian ceremonial robe with crimson prayer beads and pale tattered talisman strips, imposing broad shoulders",
+      "out": "v2/assets/models/boss_corrupted_monk.glb",
+      "height": 2.6,
+      "tris": 16000,
+      "outline": 0.0055
+    },
+    {
+      "name": "prop_stone_lantern",
+      "preset": "prop",
+      "image": "scripts/blender/_concepts/prop_stone_lantern.png",
+      "prompt": "Stylized Hades-inspired Joseon weathered stone temple lantern (seokdeung), clean bold ink lines, warm glowing paper window core, isolated on flat warm grey background",
+      "out": "v2/assets/models/prop_stone_lantern.glb",
+      "height": 2.1,
+      "tris": 3500
+    }
+  ]
+}

@@ -9592,7 +9592,7 @@ function syncLobbyStatus() {
   if ($('lobbyPower')) $('lobbyPower').textContent = '전투력 ' + computeCombatPower(save);
 }
 const LOBBY_HERO_ART = {
-  ink: 'assets/hero/lobby_ink.webp?v=v077',
+  ink: 'assets/hero/lobby_hades_b.webp?v=v078',
   snow_sage: 'assets/hero/lobby_snow_sage.webp?v=v077',
   crimson_guard: 'assets/hero/lobby_crimson_guard.webp?v=v077',
   gilded_eclipse: 'assets/hero/lobby_gilded_eclipse.webp?v=v077'

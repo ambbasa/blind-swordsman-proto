@@ -40,6 +40,7 @@ def parse_args():
     p.add_argument("--rig", choices=["none", "humanoid"], default="humanoid", help="Auto-rig mode")
     p.add_argument("--attach-sword", action="store_true", help="Attach a clean sculpted Korean Hwando sword to hand_R")
     p.add_argument("--render-dir", default="", help="Directory for 4-angle studio turnaround PNGs")
+    p.add_argument("--render-actions", action="store_true", help="Render 4-pose action contact strip + transparent lobby portrait")
     p.add_argument("--samples", type=int, default=32, help="Cycles samples for turnaround preview")
     return p.parse_args(argv)
 
@@ -311,6 +312,8 @@ def create_fitted_humanoid_rig(body, base_name):
         b = eb.new(name)
         b.head = Vector(head)
         b.tail = Vector(tail)
+        # Align local +Z toward world -Y (character front) for 100% deterministic anatomical axes!
+        b.align_roll(Vector((0.0, -1.0, 0.0)))
         if parent:
             b.parent = eb[parent]
             b.use_connect = connected
@@ -552,11 +555,26 @@ def skin_meshes_to_armature(body, outline, arm_obj):
                 outline.vertex_groups[g.group].add([v.index], g.weight, "REPLACE")
 
 
-def bake_humanoid_clips(arm_obj):
+def bake_humanoid_clips(arm_obj, is_a_pose=True):
+    """
+    Anatomical combat animation clips following `game-dev-combat-animation` rules:
+      - Local bone +Z = world forward (-Y), +Y = along bone:
+        * Spine/chest/head (+Y = UP): +rx leans forward, +ry twists CCW (left), -ry twists CW (right)
+        * upperArm_R (+Y = down-right): +rx swings arm forward, -rx chambers back, -rz drops arm toward hip
+        * upperArm_L (+Y = down-left):  -rx swings arm forward, +rx chambers back, +rz drops arm toward hip
+        * forearm_R: +rx flexes elbow forward (anatomical hinge, kept >= 22 deg during strike!)
+        * forearm_L: -rx flexes elbow forward
+        * thigh_L/R (+Y = DOWN): -rx swings leg forward, +rx swings leg back
+        * shin_L/R  (+Y = DOWN): +rx bends knee backward (anatomical hinge!)
+      - All joints stay well inside safe skinning limits (raise <= 95 deg, elbow 20..125 deg, twist <= 48 deg).
+    """
     arm_obj.animation_data_create()
     pb = arm_obj.pose.bones
     for b in pb:
         b.rotation_mode = "XYZ"
+
+    # Drop A-pose 35 deg arms cleanly into natural martial swordsman stance!
+    drop = 22.0 if is_a_pose else 4.0
 
     def set_rot(bone_name, rx, ry, rz, frame):
         if bone_name not in pb:
@@ -587,50 +605,210 @@ def bake_humanoid_clips(arm_obj):
         track.mute = True
         arm_obj.animation_data.action = None
 
-    # 1) idle
+    # 1) idle — poised Joseon martial ready stance (natural dropped arms, subtle breathing, 32f @ 24fps)
     arm_obj.animation_data.action = bpy.data.actions.new("idle")
     reset_all()
-    for f, k in [(1, 0.0), (16, 1.0), (31, 0.0)]:
-        set_loc("hips", 0, 0, 0.010 * k, f)
-        set_rot("chest", 1.8 * k, 0, 0, f)
-        set_rot("upperArm_R", -2.5 * k, 0, -1.5 * k, f)
-        set_rot("upperArm_L", 2.0 * k, 0, 1.5 * k, f)
+    for f, k in [(1, 0.0), (17, 1.0), (33, 0.0)]:
+        set_loc("hips", 0, 0, -0.012 + 0.012 * k, f)
+        set_rot("spine", 4.0 + 1.2 * k, -8.0, 0.0, f)
+        set_rot("chest", 3.0 + 1.8 * k, -8.0, 0.0, f)
+        set_rot("head", -4.0 - 1.0 * k, 14.0, 0.0, f)
+        # Right sword arm: dropped naturally toward hip (+drop), low-ready guard with bent elbow!
+        set_rot("upperArm_R", 12.0 + 2.5 * k, -10.0, drop + 2.0 * k, f)
+        set_rot("forearm_R", 28.0 + 3.0 * k, 0.0, 0.0, f)
+        # Left guard arm: dropped naturally toward hip (-drop), relaxed forward balance!
+        set_rot("upperArm_L", -14.0 - 2.0 * k, 8.0, -drop - 2.0 * k, f)
+        set_rot("forearm_L", -30.0 - 3.0 * k, 0.0, 0.0, f)
+        set_rot("thigh_R", 4.0, 0.0, 0.0, f)
+        set_rot("shin_R", 6.0, 0.0, 0.0, f)
+        set_rot("thigh_L", -6.0, 0.0, 0.0, f)
+        set_rot("shin_L", 8.0, 0.0, 0.0, f)
     finish_action("idle")
 
-    # 2) walk
+    # 2) walk — athletic martial dash-stride (24f @ 24fps = 1.0s loop)
     arm_obj.animation_data.action = bpy.data.actions.new("walk")
     reset_all()
     for f, s in [(1, 0.0), (7, 1.0), (13, 0.0), (19, -1.0), (25, 0.0)]:
-        set_loc("hips", 0, 0, 0.018 * abs(s), f)
-        set_rot("spine", 5.0, 0, 5.0 * s, f)
-        set_rot("thigh_L", 20.0 * s, 0, 0, f)
-        set_rot("shin_L", -14.0 * max(0.0, -s) - 4.0, 0, 0, f)
-        set_rot("thigh_R", -20.0 * s, 0, 0, f)
-        set_rot("shin_R", -14.0 * max(0.0, s) - 4.0, 0, 0, f)
-        set_rot("upperArm_L", -14.0 * s, 0, 0, f)
-        set_rot("upperArm_R", 10.0 * s - 5.0, 0, 0, f)
+        bob = 0.024 * abs(s) - 0.018
+        set_loc("hips", 0, 0, bob, f)
+        set_rot("spine", 9.0, 7.0 * s, 0.0, f)
+        set_rot("chest", 5.0, 8.0 * s, 0.0, f)
+        set_rot("head", -9.0, -10.0 * s, 0.0, f)
+        set_rot("thigh_L", -26.0 * s, 0.0, 0.0, f)
+        set_rot("shin_L", 28.0 * max(0.0, -s) + 8.0, 0.0, 0.0, f)
+        set_rot("thigh_R", 26.0 * s, 0.0, 0.0, f)
+        set_rot("shin_R", 28.0 * max(0.0, s) + 8.0, 0.0, 0.0, f)
+        # Right sword arm dropped (+drop) & held sleekly trailing low-back-ready!
+        set_rot("upperArm_R", -16.0 + 10.0 * s, -12.0, drop + 4.0, f)
+        set_rot("forearm_R", 34.0 + 6.0 * abs(s), 0.0, 0.0, f)
+        # Left arm dropped (-drop) & counter-swings naturally!
+        set_rot("upperArm_L", -14.0 + 18.0 * s, 8.0, -drop - 2.0, f)
+        set_rot("forearm_L", -36.0 - 8.0 * max(0.0, -s), 0.0, 0.0, f)
     finish_action("walk")
 
-    # 3) slash (일섬)
+    # 3) slash (일섬) — kinetic-chain horizontal/diagonal flash cut (21f @ 24fps; peak contact at f=9!)
     arm_obj.animation_data.action = bpy.data.actions.new("slash")
     reset_all()
-    set_rot("spine", 10, 0, -24, 1); set_rot("chest", 6, 0, -18, 1)
-    set_rot("upperArm_R", -32, 14, -22, 1); set_rot("forearm_R", -20, 0, 0, 1)
-    set_rot("spine", 14, 0, 28, 7); set_rot("chest", 8, 0, 22, 7)
-    set_rot("upperArm_R", 42, -18, 36, 7); set_rot("forearm_R", -8, 0, 0, 7)
-    set_rot("spine", 4, 0, 6, 16); set_rot("chest", 2, 0, 5, 16)
-    set_rot("upperArm_R", 5, -4, 8, 16); set_rot("forearm_R", -6, 0, 0, 16)
+    # f=1: Anticipation / Chamber coil
+    set_loc("hips", 0, 0, -0.045, 1)
+    set_rot("spine", 10.0, -24.0, 0.0, 1);  set_rot("chest", 6.0, -20.0, 0.0, 1); set_rot("head", -6.0, 34.0, 0.0, 1)
+    set_rot("upperArm_R", -32.0, -22.0, drop - 6.0, 1); set_rot("forearm_R", 64.0, 18.0, 0.0, 1)
+    set_rot("upperArm_L", -28.0, 16.0, -drop + 4.0, 1); set_rot("forearm_L", -52.0, 0.0, 0.0, 1)
+    set_rot("thigh_L", -14.0, 0.0, 0.0, 1); set_rot("shin_L", 20.0, 0.0, 0.0, 1)
+    set_rot("thigh_R", 12.0, 0.0, 0.0, 1);  set_rot("shin_R", 18.0, 0.0, 0.0, 1)
+
+    # f=5: Hips & chest snap forward FIRST
+    set_loc("hips", 0, -0.025, -0.035, 5)
+    set_rot("spine", 14.0, 12.0, 0.0, 5);   set_rot("chest", 8.0, 8.0, 0.0, 5);   set_rot("head", -8.0, -14.0, 0.0, 5)
+    set_rot("upperArm_R", 12.0, 6.0, drop - 14.0, 5);   set_rot("forearm_R", 42.0, 8.0, 0.0, 5)
+    set_rot("upperArm_L", 10.0, -10.0, -drop, 5);       set_rot("forearm_L", -36.0, 0.0, 0.0, 5)
+
+    # f=9: PEAK CONTACT — wide sweeping cut across front! Elbow stays bent 26 deg!
+    set_loc("hips", 0, -0.045, -0.025, 9)
+    set_rot("spine", 16.0, 28.0, 0.0, 9);   set_rot("chest", 10.0, 26.0, 0.0, 9); set_rot("head", -10.0, -38.0, 0.0, 9)
+    set_rot("upperArm_R", 58.0, 24.0, drop - 18.0, 9);  set_rot("forearm_R", 26.0, -24.0, 0.0, 9)
+    set_rot("upperArm_L", 28.0, -18.0, -drop - 4.0, 9); set_rot("forearm_L", -28.0, 0.0, 0.0, 9)
+    set_rot("thigh_L", -22.0, 0.0, 0.0, 9); set_rot("shin_L", 24.0, 0.0, 0.0, 9)
+    set_rot("thigh_R", 18.0, 0.0, 0.0, 9);  set_rot("shin_R", 16.0, 0.0, 0.0, 9)
+
+    # f=14: Moving follow-through
+    set_loc("hips", 0, -0.028, -0.018, 14)
+    set_rot("spine", 10.0, 22.0, 0.0, 14);  set_rot("chest", 6.0, 18.0, 0.0, 14); set_rot("head", -6.0, -28.0, 0.0, 14)
+    set_rot("upperArm_R", 38.0, 32.0, drop + 6.0, 14);  set_rot("forearm_R", 52.0, -18.0, 0.0, 14)
+    set_rot("upperArm_L", 16.0, -10.0, -drop - 2.0, 14);set_rot("forearm_L", -34.0, 0.0, 0.0, 14)
+
+    # f=21: Smooth recovery back to martial ready stance
+    set_loc("hips", 0, 0, -0.012, 21)
+    set_rot("spine", 4.0, -8.0, 0.0, 21);   set_rot("chest", 3.0, -8.0, 0.0, 21); set_rot("head", -4.0, 14.0, 0.0, 21)
+    set_rot("upperArm_R", 12.0, -10.0, drop, 21);       set_rot("forearm_R", 28.0, 0.0, 0.0, 21)
+    set_rot("upperArm_L", -14.0, 8.0, -drop, 21);       set_rot("forearm_L", -30.0, 0.0, 0.0, 21)
+    set_rot("thigh_L", -6.0, 0.0, 0.0, 21); set_rot("shin_L", 8.0, 0.0, 0.0, 21)
+    set_rot("thigh_R", 4.0, 0.0, 0.0, 21);  set_rot("shin_R", 6.0, 0.0, 0.0, 21)
     finish_action("slash")
 
-    # 4) hit
+    # 4) hit — crisp guard stagger recoil (14f @ 24fps)
     arm_obj.animation_data.action = bpy.data.actions.new("hit")
     reset_all()
-    set_rot("spine", -12, 0, 10, 1); set_rot("head", -8, 0, 0, 1)
-    set_rot("spine", -16, 0, 14, 5); set_rot("head", -12, 0, 0, 5)
-    set_rot("spine", 0, 0, 0, 12); set_rot("head", 0, 0, 0, 12)
+    set_loc("hips", 0, 0.015, -0.020, 1)
+    set_rot("spine", -12.0, 10.0, 0.0, 1);  set_rot("chest", -10.0, 8.0, 0.0, 1);  set_rot("head", -10.0, -6.0, 0.0, 1)
+    set_rot("upperArm_R", -8.0, -10.0, drop - 8.0, 1);  set_rot("forearm_R", 46.0, 0.0, 0.0, 1)
+    set_rot("upperArm_L", -26.0, 12.0, -drop + 8.0, 1); set_rot("forearm_L", -56.0, 0.0, 0.0, 1)
+
+    set_loc("hips", 0, 0.045, -0.035, 5)
+    set_rot("spine", -18.0, 14.0, 0.0, 5);  set_rot("chest", -14.0, 12.0, 0.0, 5); set_rot("head", -14.0, -8.0, 0.0, 5)
+    set_rot("upperArm_R", -14.0, -14.0, drop - 12.0, 5);set_rot("forearm_R", 54.0, 0.0, 0.0, 5)
+    set_rot("upperArm_L", -32.0, 16.0, -drop + 10.0, 5);set_rot("forearm_L", -64.0, 0.0, 0.0, 5)
+
+    set_loc("hips", 0, 0, -0.012, 14)
+    set_rot("spine", 4.0, -8.0, 0.0, 14);   set_rot("chest", 3.0, -8.0, 0.0, 14);  set_rot("head", -4.0, 14.0, 0.0, 14)
+    set_rot("upperArm_R", 12.0, -10.0, drop, 14);       set_rot("forearm_R", 28.0, 0.0, 0.0, 14)
+    set_rot("upperArm_L", -14.0, 8.0, -drop, 14);       set_rot("forearm_L", -30.0, 0.0, 0.0, 14)
     finish_action("hit")
 
     reset_all()
+
+
+def render_actions_and_lobby(body, outline, outline_mat, arm_obj, sword_out, render_dir, base_name, samples):
+    """Render 4-pose action contact strip (in-game top-down) + transparent-bg lobby showcase render."""
+    os.makedirs(render_dir, exist_ok=True)
+    if outline is not None and outline_mat is not None:
+        upgrade_outline_mat_for_cycles(outline_mat)
+        outline.visible_shadow = False
+        outline.visible_diffuse = False
+        outline.visible_glossy = False
+    if sword_out is not None:
+        sword_out.visible_shadow = False
+        sword_out.visible_diffuse = False
+        sword_out.visible_glossy = False
+
+    bmin, bmax = get_mesh_bounds_world(body)
+    center = (bmin + bmax) * 0.5
+    h = max(0.5, bmax.z - bmin.z)
+    rad = max((bmax.x - bmin.x), (bmax.y - bmin.y), h) * 0.55
+
+    scene = bpy.context.scene
+    scene.render.engine = "CYCLES"
+    scene.cycles.device = "CPU"
+    scene.cycles.samples = samples
+    scene.cycles.use_denoising = True
+    scene.render.resolution_x = 520
+    scene.render.resolution_y = 740
+    scene.view_settings.view_transform = "AgX"
+    scene.view_settings.look = "AgX - Medium High Contrast"
+
+    world = bpy.data.worlds.new("ActionWorld")
+    scene.world = world
+    bg = world.node_tree.nodes.get("Background")
+    if bg:
+        bg.inputs["Color"].default_value = (0.85, 0.82, 0.76, 1.0)
+        bg.inputs["Strength"].default_value = 0.78
+
+    bpy.ops.mesh.primitive_cylinder_add(vertices=64, radius=rad * 1.9, depth=0.04, location=(0, 0, -0.02))
+    floor = bpy.context.active_object
+    fmat = bpy.data.materials.new("Mat_ActionFloor")
+    bsdf = fmat.node_tree.nodes.get("Principled BSDF")
+    if bsdf:
+        bsdf.inputs["Base Color"].default_value = (0.78, 0.74, 0.67, 1.0)
+        bsdf.inputs["Roughness"].default_value = 0.92
+    floor.data.materials.append(fmat)
+
+    def add_area(name, loc, target, energy, size, col):
+        ldata = bpy.data.lights.new(name=name, type="AREA")
+        ldata.energy = energy
+        ldata.size = size
+        ldata.color = col
+        lobj = bpy.data.objects.new(name, ldata)
+        bpy.context.collection.objects.link(lobj)
+        lobj.location = Vector(loc)
+        lobj.rotation_euler = (Vector(target) - lobj.location).to_track_quat("-Z", "Y").to_euler()
+
+    add_area("KeyLight", (-2.2 * rad, -2.6 * rad, 2.4 * h), center, 250 * rad, 1.6 * rad, (1.0, 0.95, 0.88))
+    add_area("FillLight", (2.4 * rad, -1.8 * rad, 1.4 * h), center, 115 * rad, 2.2 * rad, (0.82, 0.88, 1.0))
+    add_area("RimLight", (0.8 * rad, 2.5 * rad, 2.0 * h), center, 230 * rad, 1.4 * rad, (1.0, 0.96, 0.88))
+
+    cam_data = bpy.data.cameras.new("ActionCam")
+    cam = bpy.data.objects.new("ActionCam", cam_data)
+    bpy.context.collection.objects.link(cam)
+    scene.camera = cam
+
+    d = max(h * 2.25, rad * 3.3)
+    prefix = base_name.lower()
+
+    # 1) Render 4 action keyframes from In-Game Top-Down 46 deg view!
+    scene.render.film_transparent = False
+    cam.data.lens = 46
+    cam.location = Vector((-d * 0.56, -d * 0.68, h * 1.78))
+    cam.rotation_euler = (Vector((center.x, center.y, center.z * 0.92)) - cam.location).to_track_quat("-Z", "Y").to_euler()
+
+    poses = [("idle", 17), ("walk", 7), ("slash", 9), ("hit", 5)]
+    for act_name, frame_no in poses:
+        act = bpy.data.actions.get(act_name)
+        if arm_obj and act:
+            arm_obj.animation_data.action = act
+            scene.frame_set(frame_no)
+            bpy.context.view_layer.update()
+        path = os.path.join(render_dir, f"{prefix}_act_{act_name}.png")
+        scene.render.filepath = path
+        bpy.ops.render.render(write_still=True)
+        print("RENDERED_ACTION:", path)
+
+    # 2) Render crisp transparent-background 3/4 Hero Lobby Portrait in poised 'idle' martial stance!
+    act_idle = bpy.data.actions.get("idle")
+    if arm_obj and act_idle:
+        arm_obj.animation_data.action = act_idle
+        scene.frame_set(17)
+        bpy.context.view_layer.update()
+    floor.hide_render = True
+    scene.render.film_transparent = True
+    scene.render.resolution_x = 640
+    scene.render.resolution_y = 920
+    cam.data.lens = 58
+    cam.location = Vector((-d * 0.42, -d * 0.92, center.z * 1.06))
+    cam.rotation_euler = (Vector((center.x - 0.04, center.y, center.z * 0.98)) - cam.location).to_track_quat("-Z", "Y").to_euler()
+    lobby_path = os.path.join(render_dir, f"{prefix}_lobby_transparent.png")
+    scene.render.filepath = lobby_path
+    bpy.ops.render.render(write_still=True)
+    print("RENDERED_LOBBY:", lobby_path)
 
 
 def render_turnaround(body, outline, outline_mat, render_dir, base_name, samples):
@@ -768,7 +946,10 @@ def main():
             sword_out.visible_shadow = False
             sword_out.visible_diffuse = False
             sword_out.visible_glossy = False
-        render_turnaround(body, outline, outline_mat, args.render_dir, args.name, args.samples)
+        if args.render_actions:
+            render_actions_and_lobby(body, outline, outline_mat, arm_obj, sword_out, args.render_dir, args.name, args.samples)
+        else:
+            render_turnaround(body, outline, outline_mat, args.render_dir, args.name, args.samples)
 
 
 if __name__ == "__main__":

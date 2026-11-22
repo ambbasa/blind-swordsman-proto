@@ -25,6 +25,10 @@ import { HERO } from './inkmodels3d.js';
 import { artTex, bakeBody, makeBones, SKIN_VERT, clothStep } from './inkbody3d.js';
 import { applyThemeToInkUniforms } from './modules/actTheme3d.js';
 import * as TEX from './inktex3d.js';
+import {
+  heroGlbEnabled, preloadHeroGlb, makeHeroGlb,
+  tickHeroGlb, triggerHeroGlbBurst, setHeroGlbOpacity, setHeroGlbTint, applyHeroGlbCloak
+} from './glbhero.js';
 
 export const HERO_H = 2.45;          /* 기존 주인공(파츠 리그 m=2.45)과 같은 키 — 그림자·HUD 기준이 맞는다 */
 const WALK_SPEED = 1.7;              /* 걷기 위상의 기준 속도(m/s) */
@@ -295,8 +299,28 @@ export function build(opt) {
     px: 0, pz: 0, first: true, lean: 0, t: Math.random() * 4,
     cloth: {}, freeze: false, meshes: meshes, mats: [bodyMat, outMat],
     shadow: shadow, opacity: 1, tint: [1, 1, 1], phase: 'idle', lights: null,
-    uniforms: [bodyMat.userData.inkUniforms]
+    uniforms: [bodyMat.userData.inkUniforms],
+    glb: null, procMeshes: []
   };
+  root.children.forEach(function (ch) {
+    if (ch !== shadow && (ch.isMesh || ch.isBone)) H.procMeshes.push(ch);
+  });
+
+  function attachGlbHero() {
+    if (H.glb || !heroGlbEnabled()) return;
+    const G = makeHeroGlb(HERO_H);
+    if (!G) return;
+    H.glb = G;
+    for (let i = 0; i < H.procMeshes.length; i++) H.procMeshes[i].visible = false;
+    root.add(G.fit);
+    if (H.opacity < 0.999) setHeroGlbOpacity(G, H.opacity);
+    if (H.lastCloakProf) applyHeroGlbCloak(G, H.lastCloakProf, H.lastForgeLv || 0);
+    setHeroGlbTint(G, H.tint[0], H.tint[1], H.tint[2]);
+  }
+  if (heroGlbEnabled()) {
+    const pGlb = preloadHeroGlb();
+    if (pGlb && pGlb.then) pGlb.then(attachGlbHero);
+  }
 
   const finished = function (e) {
     if (e.action !== actions.slash && e.action !== actions.hit) return;
@@ -509,6 +533,7 @@ export function tick(group, kind, state, dt, vx, vz) {
   if (H.armTrail > 0.004 && H.bones.weapon) H.bones.weapon.rotateX(-H.armTrail * 0.55);
 
   H.t += dt;
+  if (H.glb) tickHeroGlb(H.glb, H, dt);
   applyCloth(H, dt, dx / Math.max(dt, 1e-4), dz / Math.max(dt, 1e-4), sp);
   tickHeroCosmeticRig(group, H.t);
   return true;
@@ -528,12 +553,14 @@ export function kick(group, k) {
   const H = group && group.userData && group.userData.hero3d;
   if (!H) return;
   startBurst(H, 'hit', 0.05);
+  if (H.glb) triggerHeroGlbBurst(H.glb, 'hit');
 }
 export function slashPose(group, k) {
   const H = group && group.userData && group.userData.hero3d;
   if (!H) return;
   H.squash = 0.09; H.squashV = -1.9;
   startBurst(H, 'slash', 0.06);
+  if (H.glb) triggerHeroGlbBurst(H.glb, 'slash');
 }
 export function setOpacity(group, o) {
   const H = group && group.userData && group.userData.hero3d;
@@ -543,6 +570,7 @@ export function setOpacity(group, o) {
     group.userData.sprite.material.opacity = o;
     return;
   }
+  if (H.glb) setHeroGlbOpacity(H.glb, o);
   for (let i = 0; i < H.meshes.length; i++) {
     const m = H.meshes[i].material;
     if (!m) continue;
@@ -554,6 +582,7 @@ export function setTint(group, r, g, b) {
   const H = group && group.userData && group.userData.hero3d;
   if (!H) return;
   H.tint = [r, g, b];
+  if (H.glb) setHeroGlbTint(H.glb, r, g, b);
   for (let i = 0; i < H.uniforms.length; i++) {
     if (H.uniforms[i].uEnv) H.uniforms[i].uEnv.value.setRGB(r, g, b);
   }
@@ -571,7 +600,8 @@ export function info(group) {
     w[k] = { w: +a.getEffectiveWeight().toFixed(3), t: +a.time.toFixed(3), run: a.isRunning(), on: a.enabled };
   });
   return {
-    mode: '3d', bones: Object.keys(H.bones).length, meshes: H.meshes.length,
+    mode: H.glb ? 'glb3d' : '3d', glb: !!H.glb, glbTris: H.glb ? H.glb.tris : 0,
+    bones: Object.keys(H.bones).length, meshes: H.meshes.length,
     clips: Object.keys(H.clips), base: H.base, burst: H.burst,
     yawDeg: +(H.yaw * 180 / Math.PI).toFixed(1), speed: +H.speed.toFixed(2),
     mixerTime: +H.mixer.time.toFixed(2), actions: w,
@@ -865,6 +895,12 @@ export function applyHeroCloak3D(group, cloak, forgeLv) {
       updated++;
     }
   });
+  const H = group.userData && group.userData.hero3d;
+  if (H) {
+    H.lastCloakProf = prof;
+    H.lastForgeLv = flv;
+    if (H.glb) { applyHeroGlbCloak(H.glb, prof, flv); updated++; }
+  }
   const curRig = group.userData && group.userData.cosmeticRig;
   if (!curRig || curRig.userData.cloakId !== cloakId || curRig.userData.forgeLv !== flv) {
     disposeCosmeticRig(group);
