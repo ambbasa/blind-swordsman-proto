@@ -1045,7 +1045,18 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     const bannerHex = [0xb53226, 0xb53226, 0x3b7a64, 0xb82c2a, 0x724298][actIdx] || 0xb53226;
 
     const toStageXZ = (side, depth) => [(side - depth) * Math.SQRT1_2, (-side - depth) * Math.SQRT1_2];
-    const registerLandmark = (node, x, z, rotY = Math.PI / 4, shadowR = 1.6, colR = 0, minSep = 3.8) => {
+    const registerLandmark = (node, x, z, rotY = Math.PI / 4, shadowR = 1.6, colR = 0, minSep = 3.8, force = false) => {
+      if (!force) {
+        for (let i = 0; i < placedPts.length; i++) {
+          const pp = placedPts[i];
+          if (Math.hypot(x - pp.x, z - pp.z) < Math.max(minSep, pp.r)) {
+            if (node.userData && node.userData.disposables) {
+              node.userData.disposables.forEach((d) => { if (d && d.dispose) d.dispose(); });
+            }
+            return false;
+          }
+        }
+      }
       node.position.set(x, 0, z);
       node.rotation.y = rotY;
       try { paintCard(node, 'prop'); } catch (e) {}
@@ -1112,7 +1123,11 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       registerLandmark(buildArchedBridge3D({
         length: bLen, width: 2.3, archH: 0.96,
         railHex: stageNo === 14 ? 0x6e4494 : 0xb53226
-      }), bx, bz, rotY, 3.6, 0, 5.0);
+      }), bx, bz, rotY, 3.6, 0, 5.8, true);
+      /* 다리 양 끝단에도 겹침 금지 반경 등록하여 어떤 기물도 다리와 겹치지 않게 보장 */
+      const fx = Math.sin(rotY), fz = Math.cos(rotY);
+      placedPts.push({ x: bx + fx * (bLen * 0.45), z: bz + fz * (bLen * 0.45), r: 4.8 });
+      placedPts.push({ x: bx - fx * (bLen * 0.45), z: bz - fz * (bLen * 0.45), r: 4.8 });
     };
 
     /* v0.66: 모바일 세로(390×844) 실화면 시야(side ∈ [-7.4, +7.4], depth ∈ [-12, +15]) 안에
@@ -1139,8 +1154,7 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
         putLantern(-6.2, 9.6); putLantern(6.8, -3.4);
         break;
       case 3:
-        /* 3장 대나무 골: 10군락 청죽(상단) + 대숲 카스미데라 정자 + 한지 금줄문 + 파쇄 바위 2 + 조각 석등 2 */
-        putStage(buildKasumideraPavilion3D({ lacquerHex: 0x7c4a30, glowHex: 0x8ef2cc }), 5.4, 12.6, -0.28, 2.5, 1.8);
+        /* 3장 대나무 골: 청죽 군락 + 한지 금줄문 + 파쇄 바위 2 + 조각 석등 2 (정자 제거로 대숲 본연의 여백 유지) */
         putTalismanGate(-5.4, 12.2, 0.25);
         putRocks(-6.6, -4.8, 0.92); putRocks(6.6, 6.8, 0.90);
         putLantern(-5.6, 7.6); putLantern(5.8, -5.2);
@@ -1162,10 +1176,8 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
         putLantern(-6.4, -7.2); putLantern(6.4, -7.2); putLantern(0, -11.4);
         break;
       case 6:
-        /* 6장 눈보라 안마당: 설원 누각 + 좌우 정자 2 + 산문 + 파쇄 설암 2 + 조각 석등 2 */
+        /* 6장 눈보라 안마당: 설원 누각 + 산문 + 파쇄 설암 2 + 조각 석등 2 */
         putStage(buildKasumideraGatehouse3D({ fortress: false, lacquerHex: 0x7c3e36, tileHex: 0x627382, glowHex: 0xbce6ff }), 0, 14.8, 0, 3.2, 2.2);
-        putStage(buildKasumideraPavilion3D({ lacquerHex: 0x7c3e36, tileHex: 0x627382, glowHex: 0xbce6ff }), -7.2, 4.8, 0.35, 2.5, 1.8);
-        putStage(buildKasumideraPavilion3D({ lacquerHex: 0x7c3e36, tileHex: 0x627382, glowHex: 0xbce6ff }), 7.2, -5.2, -0.35, 2.5, 1.8);
         putTorii(5.6, 10.6, -0.32);
         putRocks(-6.6, -8.2, 0.95); putRocks(6.8, 3.4, 0.95);
         putLantern(-6.0, 9.6); putLantern(6.0, -10.2);
@@ -1184,18 +1196,14 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
         putLantern(-6.2, 6.8); putLantern(6.2, -9.2);
         break;
       case 8:
-        /* 8장 사당 앞: 성소 대문 + 좌우 사당 2 + 금줄 산문 + 석등 3 */
+        /* 8장 무명 산문: 성소 대문 + 금줄 산문 + 석등 3 (+ 3D 범종각) */
         putStage(buildKasumideraGatehouse3D({ fortress: true, lacquerHex, glowHex: 0xffd27a }), 0, 14.8, 0, 3.2, 2.2);
-        putStage(buildKasumideraPavilion3D({ lacquerHex, glowHex: 0xffd27a }), -7.2, 4.6, 0.32, 2.5, 1.8);
-        putStage(buildKasumideraPavilion3D({ lacquerHex, glowHex: 0xffd27a }), 7.2, 4.6, -0.32, 2.5, 1.8);
         putTorii(5.6, 10.4, -0.30);
         putLantern(-6.4, -8.0); putLantern(6.4, -8.0); putLantern(-5.6, 10.2);
         break;
       case 9:
-        /* 9장 혈석 제단: 사당 3 + 붉은 금줄 홍살문 + 시야 안 16-평면 현무암 암봉 4 + 석등 2 */
-        putStage(buildKasumideraPavilion3D({ lacquerHex: 0xa82824, glowHex: 0xff5a42 }), 0, 14.4, 0, 2.6, 1.9);
-        putStage(buildKasumideraPavilion3D({ lacquerHex: 0xa82824, glowHex: 0xff5a42 }), -7.4, 3.6, 0.38, 2.4, 1.8);
-        putStage(buildKasumideraPavilion3D({ lacquerHex: 0xa82824, glowHex: 0xff5a42 }), 7.4, 3.6, -0.38, 2.4, 1.8);
+        /* 9장 혈석 제단: 중앙 제단 정자 1 + 붉은 금줄 홍살문 + 현무암 암봉 4 + 석등 2 */
+        putStage(buildKasumideraPavilion3D({ lacquerHex: 0xa82824, glowHex: 0xff5a42 }), 0, 14.8, 0, 2.6, 1.9);
         putTorii(5.6, 10.2, -0.34);
         putCrag(-6.6, 10.0, 4.2); putCrag(-6.8, -8.4, 3.9); putCrag(6.8, -8.4, 4.1); putCrag(0, -12.0, 3.8);
         putLantern(-5.6, 7.6); putLantern(5.6, 7.6);
@@ -1226,20 +1234,17 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
         putLantern(-5.8, 11.4); putLantern(5.8, 11.4);
         break;
       case 13:
-        /* 13장 붉은 회랑: 성소 대문 + 좌우 사당 2 + 암봉 2 + 조각 석등 2 (+ 붉은 회랑 기둥) */
+        /* 13장 무간의 회랑: 성소 대문 + 암봉 2 + 조각 석등 2 (+ 붉은 회랑 열주·향로) */
         putStage(buildKasumideraGatehouse3D({ fortress: true, lacquerHex: 0x9c2024, glowHex: 0xff5442 }), 0, 15.0, 0, 3.2, 2.2);
-        putStage(buildKasumideraPavilion3D({ lacquerHex: 0x9c2024, glowHex: 0xff5442 }), -7.2, 4.8, 0.32, 2.4, 1.8);
-        putStage(buildKasumideraPavilion3D({ lacquerHex: 0x9c2024, glowHex: 0xff5442 }), 7.2, 4.8, -0.32, 2.4, 1.8);
         putCrag(-6.8, -8.8, 4.4); putCrag(6.8, -8.8, 4.4);
         putLantern(-6.0, 10.4); putLantern(6.0, 10.4);
         break;
       case 14:
-        /* 14장 망각의 나루: 강 정중앙 자색 아치 목교 + 사당 2 + 파쇄 바위 2 + 석등 2 */
+        /* 14장 망각의 나루: 자색 아치 목교(겹침 금지) + 반대편 원경 산문 + 파쇄 바위 2 + 조각 석등 2 */
         putBridgeRiver();
-        putStage(buildKasumideraPavilion3D({ lacquerHex: 0x6b458c, tileHex: 0x3b445c, glowHex: 0x8fd8ff }), -6.8, 9.2, 0.32, 2.5, 1.8);
-        putStage(buildKasumideraPavilion3D({ lacquerHex: 0x6b458c, tileHex: 0x3b445c, glowHex: 0x8fd8ff }), 6.8, -8.6, -0.32, 2.5, 1.8);
-        putRocks(6.8, 7.6, 1.0); putRocks(-6.8, -7.8, 1.0);
-        putLantern(-5.6, 12.2); putLantern(5.6, -11.6);
+        putTorii(6.4, 11.4, -0.35);
+        putRocks(6.8, 5.8, 0.95); putRocks(-6.8, -9.2, 0.95);
+        putLantern(5.4, 13.0); putLantern(-5.6, -11.8);
         break;
       case 15:
         /* 15장 검은 누각: 자흑색 성채 대문 + 좌우 성벽 2 + 자색 금줄 산문 + 금줄문 + 파쇄 바위 2 + 석등 2 */
