@@ -89,6 +89,7 @@ import { syncSceneActTheme3D } from './modules/actTheme3d.js';
 import { createInkRiver3D } from './modules/inkWater3d.js';
 import { createInkTerrain3D } from './modules/inkTerrain3d.js';
 import { SimanVfx3D } from './modules/simanVfx3d.js';
+import { SimanShaderFx3D } from './modules/simanShaderFx3d.js';
 /* v0.39 1단계: 팔레트 토큰을 CSS 변수로 내린다(빌드 없이 단일 소스). */
 installCssVars();
 const hudCtrl = createHudController(document);
@@ -1421,6 +1422,8 @@ async function makeWorld() {
     try { world.traces = new TraceField(scene, { cap: fxQ === 'high' ? 10 : 6 }); } catch (e) { world.traces = null; }
     /* v0.60: 스킬 기반 3D 번개·먹소용돌이·잔상빌로우·스파크·임팩트 프레임 통합 엔진 */
     try { world.vfx3d = new SimanVfx3D(scene, { quality: fxQ === 'high' ? 'high' : 'low' }); } catch (e) { world.vfx3d = null; }
+    /* v0.73: godot-shaders 3종(3D Dissolve · 3D Shockwave · Force Field) 제로-GC 풀링 엔진 */
+    try { world.shaderFx3d = new SimanShaderFx3D(scene, { quality: fxQ === 'high' ? 'high' : 'low' }); } catch (e) { world.shaderFx3d = null; }
     /* 바닥 먹 데칼은 밝아진 2.5D 바닥에서 검은 사각형으로 읽혀 끈다. 튐·터짐은 유지. */
     if (world.ink.decals) world.ink.decals.mesh.visible = false;
   } catch (e) { world.ink = null; }
@@ -5245,6 +5248,7 @@ function castCleave(rec) {
   inkFx.ring(R, FX_COLORS.jade, 0.7);
   if (three && three.vfx3d && S.hero) {
     three.vfx3d.spawnSwirl(S.hero.x, S.hero.z, { r0: 1.8, r1: R * 1.15, accentHex: 0x4be8bc, dur: 0.52 });
+    if (three.shaderFx3d) three.shaderFx3d.spawnShockwave(S.hero.x, S.hero.z, { r0: 1.2, r1: R * 1.25, colorHex: 0x5cf2c8, coreHex: 0xfffce8, dur: 0.48 });
     three.vfx3d.spawnSparks(S.hero.x, S.hero.z, 26, { color: 0xffc85a, speed: 8.5 });
     for (let li = 0; li < 2; li++) {
       const la = Math.random() * Math.PI * 2;
@@ -5527,6 +5531,7 @@ function hurtZombie(z, amount, why, rec) {
       if (why === 'slash' || why === 'bang') {
         if (audio && audio.whiff) audio.whiff(true);
         showJudge('기합 방어');
+        if (three && three.shaderFx3d) three.shaderFx3d.spawnBarrierPulse(z.x, z.z, { r0: 1.35, r1: 2.5, colorHex: 0xd83830, rimHex: 0xffd272, dur: 0.46 });
       }
       return;
     }
@@ -6040,6 +6045,11 @@ function killZombie(z, rec) {
     telemetry.event('elite_attr', { attr: 'split', stage: S.stageNo });
   }
   if (S && !z.isBoss) goalOnKill(z);
+  if (three && three.shaderFx3d) {
+    const tr = trailOf(save);
+    const edgeHex = z.isBoss ? 0xffd65a : (tr && tr.id !== 'ink' ? tr.coreHex : (z.burning ? 0xff6e38 : (z.frozen ? 0x86ecff : (z.poison ? 0xc27aff : 0xff9a44))));
+    three.shaderFx3d.spawnDissolve(z.x, z.z, { scale: z.isBoss ? 2.1 : 1.05, edgeHex: edgeHex, dur: z.isBoss ? 0.85 : 0.50 });
+  }
   if (S) S.kills = (S.kills || 0) + 1;
   if (S && S.spirits) S.spirits.forEach(function (s) { if (s.target === z) s.target = null; });
   assignSpiritTargets();
@@ -6893,6 +6903,10 @@ function mirrorSave(why) {
   S.iframe = Math.max(S.iframe || 0, CFG.iframeMs / 1000);
   S.goldEdge = Math.max(S.goldEdge || 0, 0.2);
   showJudge('거울이 막았다');
+  if (three && three.shaderFx3d && S && S.hero) {
+    three.shaderFx3d.syncHeroShield(S.hero.x, S.hero.z, false, true);
+    three.shaderFx3d.spawnShockwave(S.hero.x, S.hero.z, { r0: 0.8, r1: 4.4, colorHex: 0x62e8c8, coreHex: 0xfff8dc, dur: 0.40 });
+  }
   if (audio && audio.parry) audio.parry();
   telemetry.event('relic', { id: 'mirror', stage: S.stageNo, why: why || null });
   return true;
@@ -7869,6 +7883,7 @@ function bossJustDodge(z) {
   showJudge('간발 회피 — 자세 타격!');
   if (z.pat) notePatSeen(z.pat, 'dodge');
   telemetry.event('boss_pattern', { p: z.pat || null, result: 'dodge', t: +(z.stateT || 0).toFixed(2) });
+  if (three && three.shaderFx3d && S && S.hero) three.shaderFx3d.spawnShockwave(S.hero.x, S.hero.z, { r0: 0.7, r1: 4.6, colorHex: 0x7ef2d0, coreHex: 0xf4fffc, dur: 0.36 });
   bossPoise(z, (2.2 + (swordFx(save).parryPoiseAdd || 0)) * (1 + poiseBonus()));
 }
 /** Deterministic poise pool decrement with idempotent single-event stagger transition. */
@@ -7892,6 +7907,7 @@ function bossGroggy(z) {
   S.shake = Math.max(S.shake || 0, 0.72);
   S.hitstop = Math.max(S.hitstop || 0, 0.085);
   bossFx.triggerGroggyBreak(z.x, z.z);
+  if (three && three.shaderFx3d) three.shaderFx3d.spawnShockwave(z.x, z.z, { r0: 1.2, r1: 7.4, colorHex: 0xffd258, coreHex: 0xfffdf0, dur: 0.56 });
   if (three && three.vfx3d) {
     three.vfx3d.spawnLightning({ x: z.x, y: 8.5, z: z.z }, { x: z.x, y: 0.2, z: z.z }, { color: 0xffd26a, core: 0xfffdf2, hold: 0.18, fade: 0.24, sparks: 22 });
     three.vfx3d.spawnSwirl(z.x, z.z, { r0: 1.6, r1: 5.4, accentHex: 0xf0c258, dur: 0.52 });
@@ -7933,6 +7949,7 @@ function kiaiTap() {
   telemetry.event('parry', { target: 'kiai', errMs: Math.round((z.stateT - (z.kiai.t - kiaiWin(K))) * 1000), result: 'parry' });
   S.parryFlash = 0.25;
   S.iframe = Math.max(S.iframe || 0, 0.5);
+  if (three && three.shaderFx3d && S && S.hero) three.shaderFx3d.spawnShockwave(S.hero.x, S.hero.z, { r0: 0.9, r1: 5.5, colorHex: 0xffe07a, coreHex: 0xffffff, dur: 0.42 });
   addHitstop(0.15);
   /* §3.1: 받아치기에는 화면 가장자리 금빛 번쩍임 0.2초. */
   S.goldEdge = Math.max(S.goldEdge || 0, 0.2);
@@ -10647,6 +10664,11 @@ function loop(ts) {
     if (three.traces) three.traces.update(dt);
     if (three.lights) three.lights.update(dt);
     if (three.vfx3d) three.vfx3d.update(dt);
+    if (three.shaderFx3d) {
+      if (S && S.hero) three.shaderFx3d.syncHeroShield(S.hero.x, S.hero.z, !!(S.playing && relicOn(save, 'mirror') && !S.mirrorUsed), false);
+      else three.shaderFx3d.syncHeroShield(0, 0, false, false);
+      three.shaderFx3d.update(dt, three.camera);
+    }
     /* v0.40 4단계: 초점 거리 = 주인공 가슴. 디오라마의 접사 초점 밴드가 주인공에 고정된다. */
     try {
       const dp = dofPassOf();
