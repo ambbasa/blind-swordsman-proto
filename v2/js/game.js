@@ -31,12 +31,12 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v104';
+import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v105';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v104';
+import { probeAssets, buildArt } from './art.js?v=v105';
 import * as Anim from './anim.js';
 import { createAudio } from './audio.js?v=v103';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v104';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v105';
 import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v103';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';

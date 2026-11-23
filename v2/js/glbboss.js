@@ -5,13 +5,13 @@ import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v103';
 import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v103';
 
 const MODEL_URLS = {
-  boss:      new URL('../assets/models/boss.glb?v=v104', import.meta.url).href,
-  boss_act2: new URL('../assets/models/boss_act2.glb?v=v104', import.meta.url).href,
-  boss_act3: new URL('../assets/models/boss_act3.glb?v=v104', import.meta.url).href,
-  boss_act4: new URL('../assets/models/boss_act4.glb?v=v104', import.meta.url).href,
-  minion:    new URL('../assets/models/minion.glb?v=v104', import.meta.url).href,
-  heavy:     new URL('../assets/models/heavy.glb?v=v104', import.meta.url).href,
-  stone:     new URL('../assets/models/stone.glb?v=v104', import.meta.url).href
+  boss:      new URL('../assets/models/boss.glb?v=v105', import.meta.url).href,
+  boss_act2: new URL('../assets/models/boss_act2.glb?v=v105', import.meta.url).href,
+  boss_act3: new URL('../assets/models/boss_act3.glb?v=v105', import.meta.url).href,
+  boss_act4: new URL('../assets/models/boss_act4.glb?v=v105', import.meta.url).href,
+  minion:    new URL('../assets/models/minion.glb?v=v105', import.meta.url).href,
+  heavy:     new URL('../assets/models/heavy.glb?v=v105', import.meta.url).href,
+  stone:     new URL('../assets/models/stone.glb?v=v105', import.meta.url).href
 };
 function isBossSp(sp) { return sp === 'boss' || sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4'; }
 const BOSS_WEAPON_FX = {
@@ -160,14 +160,15 @@ export function makeBossGlb(height, species) {
   let handR = null;
   scene.traverse(function (o) { if (o.isBone && o.name === 'hand_r') handR = o; });
   const isBossModel = isBossSp(sp);
+  const isUnarmedBoss = (sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4');
   const wfx = BOSS_WEAPON_FX[sp] || BOSS_WEAPON_FX.boss;
   const trail = (handR && (isBossModel || sp === 'heavy')) ? createWeaponTrail(holder, handR, {
-    baseLocal: new THREE.Vector3(0, isBossModel ? 0.55 : 0.30, 0),
-    tipLocal: new THREE.Vector3(0, isBossModel ? 1.65 : 1.20, 0),
+    baseLocal: new THREE.Vector3(0, isUnarmedBoss ? 0.02 : (isBossModel ? 0.55 : 0.30), 0),
+    tipLocal: new THREE.Vector3(0, isUnarmedBoss ? 0.28 : (isBossModel ? 1.65 : 1.20), 0),
     color: isBossModel ? wfx.col : 0xe8d5b8,
     tailColor: isBossModel ? wfx.tail : 0x7c5840,
     glintColor: isBossModel ? wfx.glint : 0xffc864,
-    glintScale: isBossModel ? 1.45 : 1.05
+    glintScale: isUnarmedBoss ? 0.72 : (isBossModel ? 1.45 : 1.05)
   }) : null;
 
   return {

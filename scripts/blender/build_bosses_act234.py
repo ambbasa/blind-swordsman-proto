@@ -1,18 +1,27 @@
 """
 scripts/blender/build_bosses_act234.py
-2·3·4막 보스 원본 GLB(5만 폴리곤 · 2048px)를 주인공 마스터(build_hero_master.py)와 동일한 품질로 빌드:
+2·3·4막 보스 원본 GLB(5만 폴리곤 · 2048px)를 무장 해제(맨손) + 정밀 66본 관절 피팅으로 빌드:
   1) 5만 폴리곤 -> 1.5만 폴리곤 Decimate + 1024px Tangent-Space Normal Map 베이킹
   2) 수묵 먹선 인버티드 헐 외곽선(Boss_Outline) 생성
-  3) 기존 boss.glb의 Mesh2Motion 66본 스켈레톤 + 8종 보스 모션 이식 & 보스별 실측 체형 정밀 피팅
-  4) 복셀 프록시 볼륨 본 히트 스키닝 + 허리/도포 팔 가중치 오염 제거 + A->T 포즈 정합
-  5) 막별 전용 3D 무기 오른손 손바닥(hand_r) 정밀 밀착 부착 (2막 설산 석장 / 3막 혈월 언월도 / 4막 무간 대태도)
+  3) 원본 3D 메쉬의 실제 어깨/손목/골반/다리 좌표를 직접 계측해 Mesh2Motion 66본 관절을 3D(X/Y/Z) 정밀 정합
+  4) 무기 없는 맨손 보스 전용 Mesh2Motion 8종 액션 이식
+     - M2M_Idle    <- heavy.glb  (fighting-idle: 맨손 무투 자세)
+     - M2M_Walk    <- stone.glb  (walk-large: 묵직한 맨손 보행)
+     - M2M_Attack  <- minion.glb (zombie-scratch: 맨손 근접 타격)
+     - M2M_Slam    <- stone.glb  (attack-ground-pound: 양손 내려찍기)
+     - M2M_Cast    <- boss.glb   (power-burst: 맨손 기합/폭발 시전)
+     - M2M_Hit     <- boss.glb   (hit-chest)
+     - M2M_Stagger <- boss.glb   (hit-knockback)
+     - M2M_Death   <- boss.glb   (death-b)
+  5) 복셀 프록시 볼륨 본 히트 스키닝 + 허리/도포/망토 팔·다리 가중치 오염 제거 + 3D 쿼터니언 A->T 정합
+  6) 3D 무기 부착 없음 (2·3·4막 보스 전원 맨손)
 """
 import math
 import os
 import sys
 import bpy
 import bmesh
-from mathutils import Vector, Euler
+from mathutils import Vector, Quaternion
 
 sys.path.append(os.path.dirname(__file__))
 import apply_mesh2motion as m2m
@@ -26,55 +35,66 @@ SRC_BOSS_FIT = {
     "z_ankle": 0.11, "z_knee": 0.41, "z_pelvis": 0.71,
     "z_shoulder": 1.21, "z_neck": 1.33, "z_head": 1.45,
     "hip_x": 0.13, "shoulder_x": 0.29, "arm_len": 0.59,
-    "a_deg": 75.0,
 }
 
-# Measured directly from boss_act{2,3,4}_raw.glb cross-sections so hand_r lands dead-center in the fist
+# Unarmed Mesh2Motion action donor map: (target_name, source_glb, source_action_name, src_z_pelvis)
+UNARMED_ACTIONS = [
+    ("M2M_Idle",    "heavy.glb",  "M2M_Idle_Heavy_Armature",   0.72),
+    ("M2M_Walk",    "stone.glb",  "M2M_Walk_Stone_Armature",   0.66),
+    ("M2M_Attack",  "minion.glb", "M2M_Attack_Minion_Armature", 0.75),
+    ("M2M_Slam",    "stone.glb",  "M2M_Attack_Stone_Armature", 0.66),
+    ("M2M_Cast",    "boss.glb",   "M2M_Cast_Boss_Armature",    0.71),
+    ("M2M_Hit",     "boss.glb",   "M2M_Hit_Boss_Armature",     0.71),
+    ("M2M_Stagger", "boss.glb",   "M2M_Stagger_Boss_Armature", 0.71),
+    ("M2M_Death",   "boss.glb",   "M2M_Death_Boss_Armature",   0.71),
+]
+
+# Exact per-boss anatomical landmarks measured from normalized H=1.72m raw GLBs
 BOSS_CONFIGS = [
     {
         "id": "boss_act2",
-        "label": "2막 설산 묵승",
+        "label": "2막 설산 묵승 (맨손)",
         "raw": "boss_act2_raw.glb",
         "out": "boss_act2.glb",
-        "weapon": "monk_staff",
         "fit": {
             "z_ankle": 0.11, "z_knee": 0.42, "z_pelvis": 0.74,
-            "z_shoulder": 1.26, "z_neck": 1.38, "z_head": 1.48,
-            "hip_x": 0.13, "shoulder_x": 0.22, "arm_len": 0.44,
-            "a_deg": 64.0,
+            "z_shoulder": 1.27, "z_neck": 1.40, "z_head": 1.50,
+            "hip_x": 0.185, "shoulder_x": 0.22, "arm_len": 0.44,
         },
         "torso_clean_z": 1.18,
         "torso_clean_x": 0.23,
+        "cape_clean": False,
+        "arm_floor_z": 0.74,
     },
     {
         "id": "boss_act3",
-        "label": "3막 혈월 무장",
+        "label": "3막 혈월 무장 (맨손)",
         "raw": "boss_act3_raw.glb",
         "out": "boss_act3.glb",
-        "weapon": "blood_glaive",
         "fit": {
-            "z_ankle": 0.11, "z_knee": 0.42, "z_pelvis": 0.73,
-            "z_shoulder": 1.25, "z_neck": 1.36, "z_head": 1.47,
-            "hip_x": 0.13, "shoulder_x": 0.22, "arm_len": 0.48,
-            "a_deg": 68.0,
+            "z_ankle": 0.11, "z_knee": 0.41, "z_pelvis": 0.72,
+            "z_shoulder": 1.24, "z_neck": 1.35, "z_head": 1.46,
+            "hip_x": 0.185, "shoulder_x": 0.21, "arm_len": 0.51,
         },
         "torso_clean_z": 1.16,
         "torso_clean_x": 0.22,
+        "cape_clean": False,
+        "arm_floor_z": 0.62,
     },
     {
         "id": "boss_act4",
-        "label": "4막 무간의 검귀",
+        "label": "4막 무간의 검귀 (맨손)",
         "raw": "boss_act4_raw.glb",
         "out": "boss_act4.glb",
-        "weapon": "demon_odachi",
         "fit": {
             "z_ankle": 0.11, "z_knee": 0.43, "z_pelvis": 0.75,
-            "z_shoulder": 1.29, "z_neck": 1.41, "z_head": 1.52,
-            "hip_x": 0.13, "shoulder_x": 0.22, "arm_len": 0.47,
-            "a_deg": 66.0,
+            "z_shoulder": 1.31, "z_neck": 1.44, "z_head": 1.54,
+            "hip_x": 0.165, "shoulder_x": 0.22, "arm_len": 0.48,
         },
         "torso_clean_z": 1.20,
         "torso_clean_x": 0.23,
+        "cape_clean": True,
+        "arm_floor_z": 0.74,
     },
 ]
 
@@ -132,6 +152,93 @@ def refit_boss_armature(arm_obj, src_fit, dst_fit):
         eb.roll = saved_rolls[eb.name]
 
     bpy.ops.object.mode_set(mode="OBJECT")
+
+
+def load_unarmed_actions(t_arm, dst_z_pelvis):
+    """Import curated unarmed Mesh2Motion actions from repo GLBs and rescale pelvis Z."""
+    # Clear existing actions first
+    if t_arm.animation_data:
+        t_arm.animation_data_clear()
+    for act in list(bpy.data.actions):
+        bpy.data.actions.remove(act, do_unlink=True)
+
+    # Group donors by source glb so each donor GLB is imported once
+    by_glb = {}
+    for target_name, src_glb, src_act, src_pel_z in UNARMED_ACTIONS:
+        by_glb.setdefault(src_glb, []).append((target_name, src_act, src_pel_z))
+
+    kept_actions = []
+    for src_glb, specs in by_glb.items():
+        glb_path = os.path.join(MODELS_DIR, src_glb)
+        assert os.path.isfile(glb_path), f"Missing donor GLB {glb_path}"
+        before_objs = set(bpy.data.objects)
+        before_acts = set(bpy.data.actions)
+        bpy.ops.import_scene.gltf(filepath=glb_path)
+        new_objs = [o for o in bpy.data.objects if o not in before_objs]
+        new_acts = [a for a in bpy.data.actions if a not in before_acts]
+
+        # Match requested actions
+        for target_name, src_act, src_pel_z in specs:
+            found = None
+            for a in new_acts:
+                if a.name == src_act or a.name.startswith(src_act):
+                    found = a
+                    break
+            assert found is not None, f"Action {src_act} not found in {src_glb} (got {[a.name for a in new_acts]})"
+            cp = found.copy()
+            cp.name = target_name
+            cp.use_fake_user = True
+            pel_ratio = dst_z_pelvis / max(1e-4, src_pel_z)
+            for fc in cp.fcurves:
+                if fc.data_path.endswith('pose.bones["pelvis"].location'):
+                    for kp in fc.keyframe_points:
+                        kp.co.y *= pel_ratio
+                        kp.handle_left.y *= pel_ratio
+                        kp.handle_right.y *= pel_ratio
+            kept_actions.append(cp)
+
+        # Clean up donor objects & temporary actions
+        for o in new_objs:
+            bpy.data.objects.remove(o, do_unlink=True)
+        for a in new_acts:
+            if a.users == 0 or a not in kept_actions:
+                bpy.data.actions.remove(a, do_unlink=True)
+
+    t_arm.animation_data_create()
+    for act in kept_actions:
+        tr = t_arm.animation_data.nla_tracks.new()
+        tr.name = act.name
+        tr.strips.new(act.name, int(act.frame_range[0]), act)
+        tr.mute = True
+    t_arm.animation_data.action = None
+    print(f"  + Loaded {len(kept_actions)} unarmed Mesh2Motion actions: {[a.name for a in kept_actions]}")
+
+
+def measure_hand_targets(mesh_obj):
+    """Measure the exact 3D wrist/hand centers of the normalized A-pose mesh."""
+    vs = [v.co for v in mesh_obj.data.vertices]
+    l_pts = sorted([v for v in vs if v.x > 0.30], key=lambda v: -v.x)[:90]
+    r_pts = sorted([v for v in vs if v.x < -0.30], key=lambda v: v.x)[:90]
+    lh = sum(l_pts, Vector((0, 0, 0))) / max(1, len(l_pts))
+    rh = sum(r_pts, Vector((0, 0, 0))) / max(1, len(r_pts))
+    # Pull slightly inward (7%) from fingertips toward wrist joint center
+    lh_wrist = Vector((lh.x * 0.93, lh.y, lh.z + 0.015))
+    rh_wrist = Vector((rh.x * 0.93, rh.y, rh.z + 0.015))
+    return lh_wrist, rh_wrist
+
+
+def compute_arm_local_quat(arm_obj, upper_name, hand_name, target_world):
+    """Compute exact local quaternion on upperarm so hand_name.head lands on target_world."""
+    ub = arm_obj.data.bones[upper_name]
+    hb = arm_obj.data.bones[hand_name]
+    sh_w = arm_obj.matrix_world @ ub.head_local
+    hd_w = arm_obj.matrix_world @ hb.head_local
+    v_src = (hd_w - sh_w).normalized()
+    v_dst = (target_world - sh_w).normalized()
+    b_rot_inv = (arm_obj.matrix_world.to_3x3() @ ub.matrix_local.to_3x3()).inverted()
+    v_src_l = (b_rot_inv @ v_src).normalized()
+    v_dst_l = (b_rot_inv @ v_dst).normalized()
+    return v_src_l.rotation_difference(v_dst_l)
 
 
 def bake_normal_map(high_obj, low_obj, img_name, size=1024):
@@ -200,181 +307,18 @@ def make_outline(src_obj, name, offset=0.0040, dec_ratio=0.50):
     return out_obj
 
 
-def _make_mat(name, rgba, met=0.85, rough=0.25):
-    m = bpy.data.materials.new(name=name)
-    m.use_nodes = True
-    bsdf = m.node_tree.nodes.get("Principled BSDF")
-    if bsdf:
-        bsdf.inputs["Base Color"].default_value = rgba
-        bsdf.inputs["Metallic"].default_value = met
-        bsdf.inputs["Roughness"].default_value = rough
-    return m
-
-
-def _finalize_weapon(bm, mats, t_arm, label):
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    mesh = bpy.data.meshes.new("Boss_Weapon")
-    bm.to_mesh(mesh)
-    bm.free()
-
-    obj = bpy.data.objects.new("Boss_Weapon", mesh)
-    bpy.context.scene.collection.objects.link(obj)
-    for m in mats:
-        obj.data.materials.append(m)
-
-    vg = obj.vertex_groups.new(name="hand_r")
-    vg.add([v.index for v in obj.data.vertices], 1.0, "REPLACE")
-    obj.parent = t_arm
-    mod = obj.modifiers.new(name="Armature", type="ARMATURE")
-    mod.object = t_arm
-
-    out_mesh = mesh.copy()
-    out_mesh.name = "Boss_Weapon_Outline"
-    out_mesh.materials.clear()
-    bm_o = bmesh.new()
-    bm_o.from_mesh(out_mesh)
-    bmesh.ops.recalc_face_normals(bm_o, faces=bm_o.faces)
-    for v in bm_o.verts:
-        v.co += v.normal * 0.007
-    bmesh.ops.reverse_faces(bm_o, faces=bm_o.faces)
-    bm_o.to_mesh(out_mesh)
-    bm_o.free()
-    out_obj = bpy.data.objects.new("Boss_Weapon_Outline", out_mesh)
-    bpy.context.scene.collection.objects.link(out_obj)
-    vg_o = out_obj.vertex_groups.new(name="hand_r")
-    vg_o.add([v.index for v in out_obj.data.vertices], 1.0, "REPLACE")
-    out_obj.parent = t_arm
-    mod_o = out_obj.modifiers.new(name="Armature", type="ARMATURE")
-    mod_o.object = t_arm
-    print(f"  + Boss_Weapon ({label}) attached to hand_r ({len(obj.data.vertices)} verts)")
-
-
-def create_monk_staff(t_arm):
-    """2막 설산 묵승: 흑철 선장(석장) + 청동 고리 + 서리강 창촉"""
-    hand_b = t_arm.data.bones["hand_r"]
-    grip = t_arm.matrix_world @ ((hand_b.head_local + hand_b.tail_local) * 0.5)
-    mat_iron = _make_mat("MonkStaff_Iron", (0.20, 0.22, 0.26, 1.0), 0.85, 0.34)
-    mat_bronze = _make_mat("MonkStaff_Bronze", (0.72, 0.60, 0.34, 1.0), 0.88, 0.26)
-    mat_blade = _make_mat("MonkStaff_Blade", (0.64, 0.72, 0.78, 1.0), 0.94, 0.20)
-    bm = bmesh.new()
-
-    m_sh = Euler((math.radians(90), 0, 0), "XYZ").to_matrix().to_4x4()
-    m_sh.translation = grip + Vector((0.0, -0.21, 0.0))
-    ret = bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=10, radius1=0.022, radius2=0.022, depth=1.78, matrix=m_sh)
-    for v in ret["verts"]:
-        for f in v.link_faces: f.material_index = 0
-
-    for y_off, r, dp in [(-1.08, 0.036, 0.09), (-0.52, 0.028, 0.06), (0.68, 0.028, 0.10)]:
-        mc = Euler((math.radians(90), 0, 0), "XYZ").to_matrix().to_4x4()
-        mc.translation = grip + Vector((0.0, y_off, 0.0))
-        ret = bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=10, radius1=r, radius2=r*0.85, depth=dp, matrix=mc)
-        for v in ret["verts"]:
-            for f in v.link_faces: f.material_index = 1
-
-    ring_c = grip + Vector((0.0, -1.34, 0.0))
-    segs = 14
-    rx, ry = 0.095, 0.20
-    prev_ring = None
-    first_ring = None
-    for i in range(segs):
-        ang = (i / segs) * math.pi * 2.0
-        pt = ring_c + Vector((0.0, math.cos(ang) * ry, math.sin(ang) * rx))
-        nrm = Vector((0.0, math.cos(ang), math.sin(ang))).normalized()
-        side = Vector((1.0, 0.0, 0.0))
-        rad = 0.015
-        cur = []
-        for k in range(6):
-            ka = (k / 6.0) * math.pi * 2.0
-            v = bm.verts.new(pt + (nrm * math.cos(ka) + side * math.sin(ka)) * rad)
-            cur.append(v)
-        if first_ring is None:
-            first_ring = cur
-        if prev_ring is not None:
-            for k in range(6):
-                kn = (k + 1) % 6
-                f = bm.faces.new((prev_ring[k], prev_ring[kn], cur[kn], cur[k]))
-                f.material_index = 1
-        prev_ring = cur
-    for k in range(6):
-        kn = (k + 1) % 6
-        f = bm.faces.new((prev_ring[k], prev_ring[kn], first_ring[kn], first_ring[k]))
-        f.material_index = 1
-
-    mt = Euler((math.radians(90), 0, 0), "XYZ").to_matrix().to_4x4()
-    mt.translation = grip + Vector((0.0, -1.62, 0.0))
-    ret = bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=4, radius1=0.036, radius2=0.002, depth=0.22, matrix=mt)
-    for v in ret["verts"]:
-        for f in v.link_faces: f.material_index = 2
-
-    _finalize_weapon(bm, (mat_iron, mat_bronze, mat_blade), t_arm, "act2 iron monk staff")
-
-
-def create_demon_odachi(t_arm):
-    """4막 무간의 검귀: 흑금 대태도(Odachi / Greatsword)"""
-    hand_b = t_arm.data.bones["hand_r"]
-    grip = t_arm.matrix_world @ ((hand_b.head_local + hand_b.tail_local) * 0.5)
-    mat_wrap = _make_mat("Odachi_Wrap", (0.10, 0.08, 0.10, 1.0), 0.15, 0.72)
-    mat_gold = _make_mat("Odachi_Gold", (0.84, 0.64, 0.22, 1.0), 0.92, 0.22)
-    mat_blade = _make_mat("Odachi_Blade", (0.48, 0.50, 0.56, 1.0), 0.96, 0.18)
-    bm = bmesh.new()
-
-    mh = Euler((math.radians(90), 0, 0), "XYZ").to_matrix().to_4x4()
-    mh.translation = grip + Vector((0.0, 0.16, 0.0))
-    ret = bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=8, radius1=0.020, radius2=0.024, depth=0.52, matrix=mh)
-    for v in ret["verts"]:
-        for f in v.link_faces: f.material_index = 0
-
-    for y_off, rx, rz, dp in [(0.43, 0.032, 0.032, 0.05), (-0.11, 0.042, 0.095, 0.035)]:
-        mg = Euler((math.radians(90), 0, 0), "XYZ").to_matrix().to_4x4()
-        mg.translation = grip + Vector((0.0, y_off, 0.0))
-        ret = bmesh.ops.create_cube(bm, size=1.0, matrix=mg)
-        for v in ret["verts"]:
-            d = v.co - (grip + Vector((0.0, y_off, 0.0)))
-            v.co = grip + Vector((d.x * rx * 2.0, y_off + d.y * dp, d.z * rz * 2.0))
-            for f in v.link_faces: f.material_index = 1
-
-    profile = [
-        (-0.12, 0.012,  0.030, -0.028),
-        (-0.45, 0.011,  0.034, -0.024),
-        (-0.85, 0.010,  0.046, -0.012),
-        (-1.25, 0.009,  0.068,  0.012),
-        (-1.58, 0.006,  0.096,  0.048),
-        (-1.78, 0.002,  0.125,  0.118),
-    ]
-    rings = []
-    for y_off, hx, z_back, z_edge in profile:
-        z_mid = (z_back + z_edge) * 0.5
-        v0 = bm.verts.new(grip + Vector((0.0, y_off, z_back)))
-        v1 = bm.verts.new(grip + Vector((hx, y_off, z_mid)))
-        v2 = bm.verts.new(grip + Vector((0.0, y_off, z_edge)))
-        v3 = bm.verts.new(grip + Vector((-hx, y_off, z_mid)))
-        rings.append((v0, v1, v2, v3))
-    for i in range(len(rings) - 1):
-        r0, r1 = rings[i], rings[i + 1]
-        for k in range(4):
-            kn = (k + 1) % 4
-            f = bm.faces.new((r0[k], r0[kn], r1[kn], r1[k]))
-            f.material_index = 2
-    f0 = bm.faces.new((rings[0][3], rings[0][2], rings[0][1], rings[0][0]))
-    f0.material_index = 2
-    f1 = bm.faces.new((rings[-1][0], rings[-1][1], rings[-1][2], rings[-1][3]))
-    f1.material_index = 2
-
-    _finalize_weapon(bm, (mat_wrap, mat_gold, mat_blade), t_arm, "act4 abyssal odachi")
-
-
 def build_one_boss(cfg):
     bid = cfg["id"]
     raw_path = os.path.join(RAW_DIR, cfg["raw"])
     out_path = os.path.join(MODELS_DIR, cfg["out"])
-    fit = cfg["fit"]
+    fit = dict(cfg["fit"])
     assert os.path.isfile(raw_path), f"Missing {raw_path}"
     assert os.path.isfile(TEMPLATE_BOSS_GLB), f"Missing {TEMPLATE_BOSS_GLB}"
 
     print(f"\n================ [{bid.upper()}] {cfg['label']} ================")
     bpy.ops.wm.read_factory_settings(use_empty=True)
 
-    # 1) Load template boss.glb to inherit 66-bone Mesh2Motion armature + 8 curated boss actions
+    # 1) Load base 66-bone Mesh2Motion armature from boss.glb & replace with 8 unarmed actions
     bpy.ops.import_scene.gltf(filepath=TEMPLATE_BOSS_GLB)
     t_arm = [o for o in bpy.data.objects if o.type == "ARMATURE"][0]
     t_arm.name = f"{bid}_Armature"
@@ -382,35 +326,13 @@ def build_one_boss(cfg):
         if o.type == "MESH":
             bpy.data.objects.remove(o, do_unlink=True)
 
-    # Deduplicate and rebuild clean NLA tracks with pelvis height rescaling
-    pel_ratio = fit["z_pelvis"] / SRC_BOSS_FIT["z_pelvis"]
-    clean_acts = []
-    for act in list(bpy.data.actions):
-        cname = act.name.replace("_Boss_Armature", "")
-        act.name = cname
-        act.use_fake_user = True
-        for fc in act.fcurves:
-            if fc.data_path.endswith('pose.bones["pelvis"].location'):
-                for kp in fc.keyframe_points:
-                    kp.co.y *= pel_ratio
-                    kp.handle_left.y *= pel_ratio
-                    kp.handle_right.y *= pel_ratio
-        clean_acts.append(act)
+    load_unarmed_actions(t_arm, fit["z_pelvis"])
+    # Reset all pose bones to exact rest identity (clearing glTF import frame-0 pose residue)
+    for pb in t_arm.pose.bones:
+        pb.matrix_basis.identity()
+    bpy.context.view_layer.update()
 
-    if t_arm.animation_data:
-        t_arm.animation_data_clear()
-    t_arm.animation_data_create()
-    for act in clean_acts:
-        tr = t_arm.animation_data.nla_tracks.new()
-        tr.name = act.name
-        tr.strips.new(act.name, int(act.frame_range[0]), act)
-        tr.mute = True
-    t_arm.animation_data.action = None
-
-    refit_boss_armature(t_arm, SRC_BOSS_FIT, fit)
-    print(f"  + Refitted 66-bone armature (pelvis_z={fit['z_pelvis']:.2f}, sh_z={fit['z_shoulder']:.2f}, sh_x={fit['shoulder_x']:.2f}, arm_len={fit['arm_len']:.2f}, a_deg={fit['a_deg']:.1f})")
-
-    # 2) Import 50k-poly 2048px raw boss mesh
+    # 2) Import 50k-poly 2048px raw boss mesh & normalize to H=1.72m with torso-spine Y alignment
     before = set(bpy.data.objects)
     bpy.ops.import_scene.gltf(filepath=raw_path)
     raw_meshes = [o for o in bpy.data.objects if o not in before and o.type == "MESH"]
@@ -430,13 +352,32 @@ def build_one_boss(cfg):
     bmin, bmax = m2m.get_world_bbox(body_high)
     s = 1.72 / max(1e-4, bmax.z - bmin.z)
     cx = (bmin.x + bmax.x) * 0.5
-    cy = (bmin.y + bmax.y) * 0.5
     cz = bmin.z
+    # First scale X, Z and center Y roughly, then measure torso core Y to align with M2M spine (y=+0.02)
+    cy_rough = (bmin.y + bmax.y) * 0.5
     for v in body_high.data.vertices:
         v.co.x = (v.co.x - cx) * s
-        v.co.y = (v.co.y - cy) * s
+        v.co.y = (v.co.y - cy_rough) * s
         v.co.z = (v.co.z - cz) * s
+    torso_vs = [v.co.y for v in body_high.data.vertices if 0.70 <= v.co.z <= 1.25 and abs(v.co.x) < 0.15]
+    if torso_vs:
+        torso_y = sum(torso_vs) / len(torso_vs)
+        y_shift = 0.020 - torso_y
+        for v in body_high.data.vertices:
+            v.co.y += y_shift
+        print(f"  + Aligned torso core Y ({torso_y:.3f} -> +0.020, shift={y_shift:+.3f}m)")
     body_high.data.update()
+
+    # Measure exact 3D wrist targets and compute true arm_len from shoulder -> wrist
+    lh_wrist, rh_wrist = measure_hand_targets(body_high)
+    sh_l = Vector((fit["shoulder_x"], 0.065, fit["z_shoulder"]))
+    sh_r = Vector((-fit["shoulder_x"], 0.065, fit["z_shoulder"]))
+    true_arm_len = 0.5 * ((lh_wrist - sh_l).length + (rh_wrist - sh_r).length)
+    fit["arm_len"] = round(true_arm_len, 4)
+
+    refit_boss_armature(t_arm, SRC_BOSS_FIT, fit)
+    print(f"  + Refitted 66-bone armature (pelvis_z={fit['z_pelvis']:.2f}, hip_x={fit['hip_x']:.3f}, sh=({fit['shoulder_x']:.2f},{fit['z_shoulder']:.2f}), arm_len={fit['arm_len']:.3f})")
+    print(f"    Measured wrists: L={tuple(round(c,3) for c in lh_wrist)}, R={tuple(round(c,3) for c in rh_wrist)}")
 
     # 3) Decimate to ~15,000 tris & Bake 50k->15k Normal Map
     bpy.ops.object.select_all(action="DESELECT")
@@ -459,7 +400,7 @@ def build_one_boss(cfg):
     # 4) Inverted-hull sumi-ink outline
     outline = make_outline(body, "Boss_Outline", offset=0.0040, dec_ratio=0.50)
 
-    # 5) Create Temp_APose_Arm matching sculpted A-pose arm angle
+    # 5) Create Temp_APose_Arm matched in full 3D (X/Y/Z) via exact quaternion rotation_difference
     bpy.ops.object.select_all(action="DESELECT")
     t_arm.select_set(True)
     bpy.context.view_layer.objects.active = t_arm
@@ -468,24 +409,41 @@ def build_one_boss(cfg):
     a_arm.name = "Temp_APose_Arm"
     a_arm.animation_data_clear()
 
-    a_rad = math.radians(fit["a_deg"])
+    q_l = compute_arm_local_quat(a_arm, "upperarm_l", "hand_l", lh_wrist)
+    q_r = compute_arm_local_quat(a_arm, "upperarm_r", "hand_r", rh_wrist)
+
     bpy.ops.object.mode_set(mode="POSE")
-    for bname, sgn in [("upperarm_l", -1.0), ("upperarm_r", 1.0)]:
+    for bname, q in [("upperarm_l", q_l), ("upperarm_r", q_r)]:
         pb = a_arm.pose.bones[bname]
-        pb.rotation_mode = "XYZ"
-        pb.rotation_euler = Euler((0.0, 0.0, sgn * a_rad), "XYZ")
+        pb.rotation_mode = "QUATERNION"
+        pb.rotation_quaternion = q
     bpy.context.view_layer.update()
     bpy.ops.pose.armature_apply(selected=False)
     bpy.ops.object.mode_set(mode="OBJECT")
 
-    # 6) Volumetric Voxel-Proxy Bone Heat skinning + strip torso/robe arm bleed
+    # Verify exact 3D wrist error after A-pose fitting
+    hl_after = a_arm.matrix_world @ a_arm.data.bones["hand_l"].head_local
+    hr_after = a_arm.matrix_world @ a_arm.data.bones["hand_r"].head_local
+    err_l = (hl_after - lh_wrist).length * 100.0
+    err_r = (hr_after - rh_wrist).length * 100.0
+    print(f"  + 3D A-pose wrist fit error: L={err_l:.2f}cm, R={err_r:.2f}cm")
+
+    # 6) Volumetric Voxel-Proxy Bone Heat skinning + strip torso/robe/cape arm & leg bleed
     m2m.skin_via_voxel_heat(body, a_arm, fit)
     arm_vg_names = {"clavicle_l", "clavicle_r", "upperarm_l", "upperarm_r", "lowerarm_l", "lowerarm_r", "hand_l", "hand_r"}
+    leg_vg_names = {"thigh_l", "thigh_r", "calf_l", "calf_r", "foot_l", "foot_r", "ball_l", "ball_r"}
     arm_vgs = [vg for vg in body.vertex_groups if vg.name in arm_vg_names]
+    leg_vgs = [vg for vg in body.vertex_groups if vg.name in leg_vg_names]
     spine_vg = body.vertex_groups.get("spine_02") or body.vertex_groups.get("spine_01")
+    pelvis_vg = body.vertex_groups.get("pelvis") or spine_vg
     cleaned = 0
+    cape_cleaned = 0
+    arm_floor_z = cfg.get("arm_floor_z", 0.78)
     for v in body.data.vertices:
-        if v.co.z < cfg["torso_clean_z"] and abs(v.co.x) < cfg["torso_clean_x"]:
+        in_torso_core = (v.co.z < cfg["torso_clean_z"] and abs(v.co.x) < cfg["torso_clean_x"])
+        below_arms = (v.co.z < arm_floor_z and abs(v.co.x) < 0.40)
+        in_rear_cape = (cfg.get("cape_clean") and v.co.y > 0.10 and abs(v.co.x) < 0.40 and v.co.z < 1.25)
+        if in_torso_core or below_arms or in_rear_cape:
             had = False
             for vg in arm_vgs:
                 try:
@@ -496,9 +454,26 @@ def build_one_boss(cfg):
                     pass
             if had:
                 cleaned += 1
-                if not v.groups and spine_vg:
-                    spine_vg.add([v.index], 1.0, "REPLACE")
-    print(f"  + Stripped arm-weight bleed from {cleaned} torso/robe verts")
+                if not v.groups:
+                    target_vg = pelvis_vg if v.co.z < fit["z_pelvis"] + 0.10 else spine_vg
+                    if target_vg:
+                        target_vg.add([v.index], 1.0, "REPLACE")
+        if in_rear_cape and v.co.z < 0.95:
+            had_c = False
+            for vg in leg_vgs:
+                try:
+                    if vg.weight(v.index) > 0.0:
+                        vg.remove([v.index])
+                        had_c = True
+                except RuntimeError:
+                    pass
+            if had_c:
+                cape_cleaned += 1
+                if pelvis_vg:
+                    pelvis_vg.add([v.index], 0.70, "REPLACE")
+                if spine_vg:
+                    spine_vg.add([v.index], 0.30, "ADD")
+    print(f"  + Stripped arm-weight bleed from {cleaned} torso verts (cape={cape_cleaned})")
     bpy.ops.object.select_all(action="DESELECT")
     body.select_set(True)
     bpy.context.view_layer.objects.active = body
@@ -510,15 +485,15 @@ def build_one_boss(cfg):
     mod_o = outline.modifiers.new(name="Armature", type="ARMATURE")
     mod_o.object = a_arm
 
-    # 7) Rotate Temp_APose_Arm back into T-pose and bake body + outline to T-pose
+    # 7) Rotate Temp_APose_Arm back into exact T-pose via inverse quaternions and bake body + outline
     bpy.ops.object.select_all(action="DESELECT")
     a_arm.select_set(True)
     bpy.context.view_layer.objects.active = a_arm
     bpy.ops.object.mode_set(mode="POSE")
-    for bname, sgn in [("upperarm_l", 1.0), ("upperarm_r", -1.0)]:
+    for bname, q in [("upperarm_l", q_l), ("upperarm_r", q_r)]:
         pb = a_arm.pose.bones[bname]
-        pb.rotation_mode = "XYZ"
-        pb.rotation_euler = Euler((0.0, 0.0, sgn * a_rad), "XYZ")
+        pb.rotation_mode = "QUATERNION"
+        pb.rotation_quaternion = q.inverted()
     bpy.context.view_layer.update()
     bpy.ops.object.mode_set(mode="OBJECT")
 
@@ -535,13 +510,7 @@ def build_one_boss(cfg):
         mod.object = t_arm
     bpy.data.objects.remove(a_arm, do_unlink=True)
 
-    # 8) Attach act-themed forged 3D weapon to hand_r
-    if cfg["weapon"] == "monk_staff":
-        create_monk_staff(t_arm)
-    elif cfg["weapon"] == "blood_glaive":
-        m2m.create_boss_glaive(t_arm)
-    elif cfg["weapon"] == "demon_odachi":
-        create_demon_odachi(t_arm)
+    # 8) NO WEAPON ATTACHED — Act 2/3/4 bosses are 100% unarmed
 
     # 9) Export GLB
     bpy.ops.object.select_all(action="DESELECT")
@@ -558,13 +527,13 @@ def build_one_boss(cfg):
         export_yup=True,
         export_image_format="JPEG",
     )
-    print(f"  [SAVED] {out_path} ({os.path.getsize(out_path):,} bytes)")
+    print(f"  [SAVED UNARMED] {out_path} ({os.path.getsize(out_path):,} bytes)")
 
 
 def main():
     for cfg in BOSS_CONFIGS:
         build_one_boss(cfg)
-    print("\n[ALL 3 ACT 2/3/4 BOSSES BAKED, RIGGED & EXPORTED!]")
+    print("\n[ALL 3 ACT 2/3/4 UNARMED BOSSES PRECISION-RIGGED & EXPORTED!]")
 
 
 if __name__ == "__main__":
