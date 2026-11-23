@@ -28,10 +28,10 @@ CHARACTERS = [
         "keep_sword": True,
         # 실측 단면 기반 (H=1.72m 정규화 기준)
         "fit": {
-            "z_ankle": 0.11, "z_knee": 0.45, "z_pelvis": 0.78,
-            "z_shoulder": 1.28, "z_neck": 1.39, "z_head": 1.50,
-            "hip_x": 0.11, "shoulder_x": 0.23, "arm_len": 0.58,
-            "a_deg": 67.0,
+            "z_ankle": 0.11, "z_knee": 0.46, "z_pelvis": 0.83,
+            "z_shoulder": 1.35, "z_neck": 1.45, "z_head": 1.55,
+            "hip_x": 0.10, "shoulder_x": 0.21, "arm_len": 0.60,
+            "a_deg": 74.0,
         },
         "clips": [
             ("M2M_Idle",   "idle-sword.glb"),
