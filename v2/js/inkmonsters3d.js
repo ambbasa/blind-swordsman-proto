@@ -1,4 +1,4 @@
-import { preloadBossGlb, bossGlbReady, makeBossGlb, hookBossGlb, tickBossGlb, triggerMonsterDeathGlb, setBossPhaseGlb, applyMonsterActThemeGlb, triggerBossIntroRoarGlb } from './glbboss.js?v=v103';
+import { preloadBossGlb, bossGlbReady, makeBossGlb, hookBossGlb, tickBossGlb, triggerMonsterDeathGlb, setBossPhaseGlb, applyMonsterActThemeGlb, triggerBossIntroRoarGlb } from './glbboss.js?v=v104';
 import { hd2dEnabled, preloadHd2dAll, makeHd2dMonster, tickHd2d, triggerHd2dPose, setHd2dOpacity, setHd2dTint } from './hd2dSprite.js?v=v0792';
 /* v2/js/inkmonsters3d.js — v0.47 몬스터·보스 전종 **3D 관절 뼈대 + 수묵 툰 셰이더 + 동양 수묵 텍스처**.
 
@@ -275,10 +275,11 @@ export function build(species, opt) {
       group.userData.poseSource = 'hd2d_' + species;
     }
   }
-  const glbReady = H.hd2d ? null : bossGlbReady(species);
+  const glbSpecies = (species === 'boss' && opt.act >= 2 && opt.act <= 4) ? ('boss_act' + (opt.act | 0)) : species;
+  const glbReady = H.hd2d ? null : bossGlbReady(glbSpecies);
   if (glbReady) {
     glbReady.then(function () {
-      const G = makeBossGlb(C.h, species);
+      const G = makeBossGlb(C.h, glbSpecies);
       if (!G) return;
       root.add(G.root);
       if (G.body) G.body.castShadow = mesh.castShadow;
@@ -289,7 +290,7 @@ export function build(species, opt) {
       H.body = G.root;
       H.hull = null;
       H.glb = G;
-      group.userData.poseSource = 'glb_' + species;
+      group.userData.poseSource = 'glb_' + glbSpecies;
     }).catch(function (e) { console.warn('[심안] 몬스터 GLB 연결 실패 — 기본 3D 유지', species, e); });
   }
   LIVE++;

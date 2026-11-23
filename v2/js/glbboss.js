@@ -5,10 +5,20 @@ import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v103';
 import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v103';
 
 const MODEL_URLS = {
-  boss:   new URL('../assets/models/boss.glb?v=v103', import.meta.url).href,
-  minion: new URL('../assets/models/minion.glb?v=v103', import.meta.url).href,
-  heavy:  new URL('../assets/models/heavy.glb?v=v103', import.meta.url).href,
-  stone:  new URL('../assets/models/stone.glb?v=v103', import.meta.url).href
+  boss:      new URL('../assets/models/boss.glb?v=v104', import.meta.url).href,
+  boss_act2: new URL('../assets/models/boss_act2.glb?v=v104', import.meta.url).href,
+  boss_act3: new URL('../assets/models/boss_act3.glb?v=v104', import.meta.url).href,
+  boss_act4: new URL('../assets/models/boss_act4.glb?v=v104', import.meta.url).href,
+  minion:    new URL('../assets/models/minion.glb?v=v104', import.meta.url).href,
+  heavy:     new URL('../assets/models/heavy.glb?v=v104', import.meta.url).href,
+  stone:     new URL('../assets/models/stone.glb?v=v104', import.meta.url).href
+};
+function isBossSp(sp) { return sp === 'boss' || sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4'; }
+const BOSS_WEAPON_FX = {
+  boss:      { em: 0x3a1614, col: 0xffd27a, tail: 0xd92b24, glint: 0xff5a3c },
+  boss_act2: { em: 0x163448, col: 0x9cf0ff, tail: 0x2a78b8, glint: 0x62d6ff },
+  boss_act3: { em: 0x481010, col: 0xff8c66, tail: 0xc81818, glint: 0xff3a24 },
+  boss_act4: { em: 0x3a2448, col: 0xffe07a, tail: 0x7a24c8, glint: 0xffcf54 }
 };
 const sources = {};
 const pendings = {};
@@ -89,15 +99,17 @@ export function makeBossGlb(height, species) {
       const mat = srcMat ? srcMat.clone() : new THREE.MeshStandardMaterial({ color: 0xffffff });
       const isWeapon = /weapon/i.test(o.name);
       if (isWeapon) {
-        /* v1.00 3d-metal-material: 보스 언월도·중장 철퇴 진성 도체 강철 PBR + PMREM HDR 스튜디오 반사 */
-        mat.roughness = sp === 'boss' ? 0.22 : 0.30;
+        /* v1.04 3d-metal-material: 1~4막 보스 전용 무기·중장 철퇴 진성 도체 강철 PBR + PMREM HDR 스튜디오 반사 */
+        const bossSp = isBossSp(sp);
+        const wfx = BOSS_WEAPON_FX[sp] || BOSS_WEAPON_FX.boss;
+        mat.roughness = bossSp ? 0.22 : 0.30;
         mat.metalness = 1.0;
         mat.color.setRGB(0.56, 0.57, 0.58, THREE.LinearSRGBColorSpace);
-        mat.emissive = new THREE.Color(sp === 'boss' ? 0x3a1614 : 0x221a14);
+        mat.emissive = new THREE.Color(bossSp ? wfx.em : 0x221a14);
         mat.emissiveIntensity = 0.30;
         o.userData._forgedWeapon = true;
         o.onBeforeRender = function (r) {
-          if (!mat.envMap && r) applyForgedMetal(mat, r, { roughness: sp === 'boss' ? 0.22 : 0.30, envMapIntensity: 0.94 });
+          if (!mat.envMap && r) applyForgedMetal(mat, r, { roughness: bossSp ? 0.22 : 0.30, envMapIntensity: 0.94 });
         };
       } else if (sp === 'stone') {
         /* v1.00 석상: 화강암 질감 + 미세 비취 영기 발광 */
@@ -113,7 +125,7 @@ export function makeBossGlb(height, species) {
         /* v1.00 보스·중장·잡귀: 전투 3D 림라이트·달빛 하이라이트가 살아나는 PBR 밸런스 */
         mat.roughness = 0.68;
         mat.metalness = 0.06;
-        if (mat.color) mat.color.setHex(sp === 'boss' ? 0x767074 : 0x6c6a68);
+        if (mat.color) mat.color.setHex(isBossSp(sp) ? 0x767074 : 0x6c6a68);
         if (mat.map) {
           mat.emissiveMap = mat.map;
           mat.emissive = new THREE.Color(0xf6f0e6);
@@ -147,13 +159,15 @@ export function makeBossGlb(height, species) {
   if (actions.idle) actions.idle.play();
   let handR = null;
   scene.traverse(function (o) { if (o.isBone && o.name === 'hand_r') handR = o; });
-  const trail = (handR && (sp === 'boss' || sp === 'heavy')) ? createWeaponTrail(holder, handR, {
-    baseLocal: new THREE.Vector3(0, sp === 'boss' ? 0.55 : 0.30, 0),
-    tipLocal: new THREE.Vector3(0, sp === 'boss' ? 1.65 : 1.20, 0),
-    color: sp === 'boss' ? 0xffd27a : 0xe8d5b8,
-    tailColor: sp === 'boss' ? 0xd92b24 : 0x7c5840,
-    glintColor: sp === 'boss' ? 0xff5a3c : 0xffc864,
-    glintScale: sp === 'boss' ? 1.45 : 1.05
+  const isBossModel = isBossSp(sp);
+  const wfx = BOSS_WEAPON_FX[sp] || BOSS_WEAPON_FX.boss;
+  const trail = (handR && (isBossModel || sp === 'heavy')) ? createWeaponTrail(holder, handR, {
+    baseLocal: new THREE.Vector3(0, isBossModel ? 0.55 : 0.30, 0),
+    tipLocal: new THREE.Vector3(0, isBossModel ? 1.65 : 1.20, 0),
+    color: isBossModel ? wfx.col : 0xe8d5b8,
+    tailColor: isBossModel ? wfx.tail : 0x7c5840,
+    glintColor: isBossModel ? wfx.glint : 0xffc864,
+    glintScale: isBossModel ? 1.45 : 1.05
   }) : null;
 
   return {
@@ -214,8 +228,8 @@ function once(G, name, from, timeScale, maxLock) {
 
 export function tickBossGlb(G, H, dt) {
   const enter = function (b) { return H.burst === b && G.prevBurst !== b; };
-  const isBoss = G.species === 'boss';
-  const isHeavyArmor = (G.species === 'boss' || G.species === 'heavy' || G.species === 'stone');
+  const isBoss = isBossSp(G.species);
+  const isHeavyArmor = (isBoss || G.species === 'heavy' || G.species === 'stone');
 
   if ((H.st === 'boss:sealing' || H.st === 'dead') && G.actions.death) {
     if (G.cur !== 'death') once(G, 'death');
@@ -316,6 +330,8 @@ const ACT_RIMS = [
 ];
 export function applyMonsterActThemeGlb(G, actIdx) {
   if (!G) return;
+  /* 2·3·4막 전용 보스 모델(boss_act2/3/4)은 이미 고유 2048px 텍스처를 가지므로 과도한 틴트를 생략 */
+  if (G.species === 'boss_act2' || G.species === 'boss_act3' || G.species === 'boss_act4') return;
   const prof = ACT_RIMS[Math.max(0, Math.min(3, actIdx | 0))];
   if (!prof) return;
   const c = new THREE.Color(prof.hex);

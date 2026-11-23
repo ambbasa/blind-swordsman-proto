@@ -31,12 +31,12 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb } from './glbboss.js?v=v103';
+import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v104';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v103';
+import { probeAssets, buildArt } from './art.js?v=v104';
 import * as Anim from './anim.js';
 import { createAudio } from './audio.js?v=v103';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v103';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v104';
 import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v103';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
@@ -1978,7 +1978,9 @@ function startRun(opts) {
   /* 소개 카드를 거치지 않고 바로 시작하는 경로(QA·다시 버튼)도 예열은 반드시 거친다.
      다만 QA에서 소프트웨어 GL이라 셰이더 컴파일이 분 단위가 되는 환경이면 qa.skipWarm으로 빠진다. */
   if (!qa.skipWarm && !shadersWarmed()) warmShaders();
-  hudCtrl.syncActTheme(actOf(stageNo));
+  const _curAct = actOf(stageNo);
+  hudCtrl.syncActTheme(_curAct);
+  if (_curAct >= 2 && _curAct <= 4) preloadMonsterGlb('boss_act' + _curAct);
   S = createRunState({
     opts,
     stageNo,
@@ -2641,8 +2643,10 @@ function spawnBoss(opts) {
   const vis = e.shape;
   /* §4.5 보스 개성: 장마다 외형 변주(머리 장신구·장기 4종, 무기 3종, 크기 0.9~1.15배) */
   const BV = bossVisualOf(S.stage);
+  const bossAct = S && S.stage ? actOf(S.stage.id) : 1;
   S.bossVar = BV.var;
-  e.obj = addEntityVisual('boss', vis, { bossVar: BV.var, bossScale: BV.scale });
+  S.bossAct = bossAct;
+  e.obj = addEntityVisual('boss', vis, { bossVar: BV.var, bossScale: BV.scale, bossAct: bossAct });
   applySkin(e.obj);
   if (art && art.applyMonsterAct && S && S.stage) art.applyMonsterAct(e.obj, actOf(S.stage.id));
   placeGroup(e.obj, e.x, e.z);
@@ -8674,7 +8678,7 @@ function startClones(z) {
     inkFx.burst(p.x, p.z, FX_COLORS.jade, { r1: 40, n: 8, dur: 0.5 });
     if (i === realI) { z.x = p.x; z.z = p.z; continue; }
     const c = { id: ++S._id, kind: 'zombie', type: 'clone', x: p.x, z: p.z, r: z.r, alive: true, hp: 1, isClone: true, frozen: 0, burn: 0, poison: 0, stun: 0, marked: false };
-    c.obj = addEntityVisual('boss', z.shape, { bossVar: S.bossVar });
+    c.obj = addEntityVisual('boss', z.shape, { bossVar: S.bossVar, bossAct: S.bossAct || 1 });
     placeGroup(c.obj, c.x, c.z);
     S.zombies.push(c);
     z.clones.push(c);
@@ -10977,7 +10981,7 @@ function renderCodex() {
     '<button type="button" id="codexAnimBtn" style="padding:4px 10px;border-radius:8px;border:1px solid rgba(226,188,116,0.45);background:rgba(36,28,22,0.85);color:#f4e3c1;font:600 11px sans-serif">모션 재생</button>' +
     '</div>' +
     '<div style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap">' +
-    [['hero','심안'],['minion','잡귀'],['heavy','중장'],['stone','석상'],['boss','보스']].map(function (it, idx) {
+    [['hero','심안'],['minion','잡귀'],['heavy','중장'],['stone','석상'],['boss','1막 보스'],['boss_act2','2막 묵승'],['boss_act3','3막 무장'],['boss_act4','4막 검귀']].map(function (it, idx) {
       return '<button type="button" class="codex-sp-btn" data-sp="' + it[0] + '" style="flex:1;min-width:50px;padding:4px 6px;border-radius:7px;border:1px solid rgba(226,188,116,0.32);background:' + (idx === 0 ? 'rgba(180,126,52,0.42)' : 'rgba(20,17,15,0.72)') + ';color:#efe2c8;font:600 11px sans-serif">' + it[1] + '</button>';
     }).join('') +
     '</div>' +
@@ -13525,16 +13529,16 @@ boot();
 /* v0.85 보스·중갑·석상 무기 스윙/내려찍기 임팩트 프레임 동기화 & 로비 실시간 3D 미리보기 */
 if (typeof window !== 'undefined') {
   window.__simanOnWeaponSwing = function (species, kind) {
-    if (audio && audio.heavySweep && (species === 'boss' || species === 'heavy')) audio.heavySweep();
+    if (audio && audio.heavySweep && (/^boss/.test(species) || species === 'heavy')) audio.heavySweep();
   };
   window.__simanOnWeaponImpact = function (species, kind, x, z) {
     const heavyHit = (kind === 'slam' || species === 'stone' || species === 'heavy');
     if (!heavyHit) return;
     if (audio && audio.heavySlam) audio.heavySlam();
-    if (S) S.shake = Math.max(S.shake || 0, species === 'boss' ? 0.24 : 0.14);
-    try { triggerGroundCrackHeat(x, z, species === 'boss' ? 3.8 : 2.6, species === 'boss' ? 0xff7040 : 0xd4c2a0); } catch (_) {}
+    if (S) S.shake = Math.max(S.shake || 0, /^boss/.test(species) ? 0.24 : 0.14);
+    try { triggerGroundCrackHeat(x, z, /^boss/.test(species) ? 3.8 : 2.6, /^boss/.test(species) ? 0xff7040 : 0xd4c2a0); } catch (_) {}
     if (art && art.playFx && three && three.scene) {
-      const fx = art.playFx(three.scene, 'ink-splat', x, z, species === 'boss' ? 2.6 : 1.8);
+      const fx = art.playFx(three.scene, 'ink-splat', x, z, /^boss/.test(species) ? 2.6 : 1.8);
       if (fx) three.fx.push(fx);
     }
   };

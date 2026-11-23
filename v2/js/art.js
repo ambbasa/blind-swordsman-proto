@@ -13,7 +13,7 @@ import { buildFigure, tickFigure, kick as rigKick, slashPose as rigSlash, setOpa
 /* v0.45: 주인공만 3D 관절 뼈대 + 수묵 툰 셰이더 캐릭터(inkhero3d.js)로 교체한다. */
 import * as HERO3D from './inkhero3d.js?v=v103';
 /* v0.46: 원귀·거한·돌덩이·보스도 주인공과 같은 3D 관절 뼈대(단일 SkinnedMesh)로 세운다. */
-import * as MON3D from './inkmonsters3d.js?v=v103';
+import * as MON3D from './inkmonsters3d.js?v=v104';
 let QA_HERO2D = false;
 try { QA_HERO2D = new URLSearchParams(location.search).has('hero2d'); } catch (e) {}
 let QA_MON2D = false;
@@ -679,7 +679,7 @@ export async function buildArt(THREE) {
     }
     if(kind==='boss' && !QA_MON2D){
       const height=HERO3D.HERO_H*1.48*(opt.bossScale||1);
-      const g=MON3D.build('boss',{scale:height/6.2,variant:opt.bossVar,shadow:true});
+      const g=MON3D.build('boss',{scale:height/6.2,variant:opt.bossVar,act:opt.bossAct||1,shadow:true});
       if(g){
         g.userData.noFlip=true; g.userData.isBoss=true;
         g.userData.bellLocal={x:0,y:height*.76};
