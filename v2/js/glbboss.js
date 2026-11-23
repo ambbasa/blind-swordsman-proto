@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v082';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v083';
 
 const MODEL_URLS = {
-  boss:   new URL('../assets/models/boss.glb?v=v082', import.meta.url).href,
-  minion: new URL('../assets/models/minion.glb?v=v082', import.meta.url).href,
-  heavy:  new URL('../assets/models/heavy.glb?v=v082', import.meta.url).href,
-  stone:  new URL('../assets/models/stone.glb?v=v082', import.meta.url).href
+  boss:   new URL('../assets/models/boss.glb?v=v083', import.meta.url).href,
+  minion: new URL('../assets/models/minion.glb?v=v083', import.meta.url).href,
+  heavy:  new URL('../assets/models/heavy.glb?v=v083', import.meta.url).href,
+  stone:  new URL('../assets/models/stone.glb?v=v083', import.meta.url).href
 };
 const sources = {};
 const pendings = {};
@@ -105,7 +105,7 @@ export function makeBossGlb(height, species) {
   fit.add(scene);
   const holder = new THREE.Group();
   holder.add(fit);
-  /* v0.80 — Mesh2Motion/Mixamo 외부 모션 GLB 자동 감지: 외부 모션은 원본 애니메이션 그대로 재생 */
+
   const externalAnim = isExternalAnimGlb(scene, gltf.animations);
   const rig = externalAnim ? null : makeRig(scene);
   if (rig) rig.species = sp;
@@ -114,6 +114,7 @@ export function makeBossGlb(height, species) {
   const actions = mapGlbActions(mixer, gltf.animations, sp);
   if (actions.idle) actions.idle.play();
   return {
+    species: sp,
     root: holder, body: body, outline: outline, bodyMeshes: bodyMeshes, outlineMeshes: outlineMeshes,
     mixer: mixer, actions: actions, rig: rig, cur: 'idle', lockT: 0, prevBurst: null,
     mats: bodyMeshes.concat(outlineMeshes).map(function (m) { return m.material; }),
@@ -140,42 +141,65 @@ export function hookBossGlb(G, H) {
   });
 }
 
-function playOnly(G, name, fade, from) {
+function playOnly(G, name, fade, from, timeScale) {
   const to = G.actions[name];
   if (!to) return false;
   Object.keys(G.actions).forEach(function (k) { if (G.actions[k] !== to) G.actions[k].fadeOut(fade); });
-  to.reset(); to.setEffectiveTimeScale(1); to.setEffectiveWeight(1); to.fadeIn(fade); to.play();
+  to.reset();
+  to.enabled = true;
+  to.setEffectiveTimeScale(timeScale || 1);
+  to.setEffectiveWeight(1);
+  to.fadeIn(fade);
+  to.play();
   if (from) to.time = from;
   G.cur = name;
   return true;
 }
 
-function once(G, name, from) {
-  if (!playOnly(G, name, name === 'hit' || name === 'attack' ? 0.05 : 0.15, from)) return;
-  G.lockT = Math.max(0.15, G.actions[name].getClip().duration - (from || 0) - 0.10);
+function once(G, name, from, timeScale, maxLock) {
+  const ts = timeScale || 1;
+  if (!playOnly(G, name, name === 'hit' || name === 'attack' ? 0.05 : 0.14, from, ts)) return;
+  const dur = (G.actions[name].getClip().duration - (from || 0)) / ts - 0.08;
+  G.lockT = Math.max(0.14, maxLock != null ? Math.min(maxLock, dur) : dur);
 }
 
 export function tickBossGlb(G, H, dt) {
   const enter = function (b) { return H.burst === b && G.prevBurst !== b; };
-  if (H.st === 'boss:sealing' && G.actions.death) {
+  const isBoss = G.species === 'boss';
+  const isHeavyArmor = (G.species === 'boss' || G.species === 'heavy' || G.species === 'stone');
+
+  if ((H.st === 'boss:sealing' || H.st === 'dead') && G.actions.death) {
     if (G.cur !== 'death') once(G, 'death');
-  } else if (H.glbKick || enter('hit') || enter('kneel')) once(G, 'hit');
-  else if ((enter('strike') || enter('attack') || enter('slash')) && G.actions.attack) once(G, 'attack', 0.15);
-  else if (enter('wind') && G.actions.cast) once(G, 'cast');
+  } else if (enter('kneel')) {
+    /* 보스 강인도 격파·무릎 꿇음 상태에서만 큰 경직(stagger) 재생 */
+    once(G, G.actions.stagger ? 'stagger' : 'hit', 0, 1.0);
+  } else if (H.glbKick || enter('hit')) {
+    /* 보스·중갑·석상은 공격/시전 중 슈퍼아머로 캔슬되지 않고, 평타 피격 시에도 넘어지지 않고 짧은 상체 움찔만 재생 */
+    const busyArmor = isHeavyArmor && G.lockT > 0.06 && (G.cur === 'attack' || G.cur === 'cast' || G.cur === 'stagger');
+    if (!busyArmor && G.cur !== 'death') {
+      if (isBoss) once(G, 'hit', 0, 1.65, 0.18);
+      else if (isHeavyArmor) once(G, 'hit', 0, 1.40, 0.22);
+      else once(G, 'hit', 0, 1.25);
+    }
+  } else if ((enter('strike') || enter('attack') || enter('slash')) && G.actions.attack) {
+    once(G, 'attack', 0.10, isBoss ? 1.15 : 1.10);
+  } else if (enter('wind') && G.actions.cast) {
+    once(G, 'cast', 0, 1.10);
+  }
+
   H.glbKick = false;
   G.prevBurst = H.burst;
   G.lockT = (G.lockT || 0) - dt;
   if (G.cur !== 'death' && G.lockT <= 0) {
     const want = (H.base === 'walk' || H.burst === 'charge') ? 'walk' : 'idle';
-    if (want !== G.cur) playOnly(G, want, 0.18);
+    if (want !== G.cur) playOnly(G, want, 0.16);
   }
   if (G.actions.walk && H.actions.walk) G.actions.walk.setEffectiveTimeScale(H.actions.walk.getEffectiveTimeScale());
   G.mixer.update(dt);
-  /* 클립 위에 절차 자세를 얹는다 — 대기·걷기·공격·피격의 실제 관절 움직임은 여기서 만든다. */
   if (G.rig) {
     let st = 'idle';
     if (G.cur === 'attack') st = 'attack';
-    else if (G.cur === 'hit') st = 'hit';
+    else if (G.cur === 'hit' || G.cur === 'stagger') st = 'hit';
     else if (G.cur === 'cast') st = 'cast';
     else if (G.cur === 'death') st = 'death';
     else if (G.cur === 'walk' || H.base === 'walk' || H.burst === 'charge') st = 'walk';

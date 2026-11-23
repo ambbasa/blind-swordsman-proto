@@ -1,12 +1,9 @@
-/* v2/js/glbhero.js — 시안 B(하데스풍 주홍 먹선 검객) 3D GLB 로더·셰이더 보정·4클립 상태 머신
-   - 기본 ON (`?hero=proc` 쿼리로 구형 프로시저럴 3D 폴백 가능)
-   - `Hero_Body` (1024px WebP PBR), `Hero_Outline` (수묵 먹선), `Hero_Sword` + `Hero_Sword_Outline`
-   - 4종 애니메이션(idle / walk / slash / hit) + 치장 도포/무기 틴트·투명도·스쿼시 연동 */
+/* v2/js/glbhero.js — v0.83 시안 B(하데스풍 주홍 먹선 검객) 3D GLB 로더·3연타 검술 콤보·회피·피격 상태 머신 */
 import * as THREE from 'three';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v082';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v083';
 
-const URL_GLB = new URL('../assets/models/hero.glb?v=v082', import.meta.url).href;
+const URL_GLB = new URL('../assets/models/hero.glb?v=v083', import.meta.url).href;
 let pending = null;
 let source = null;
 let cloneSkinned = null;
@@ -34,7 +31,7 @@ export function preloadHeroGlb() {
       return gltf;
     });
   }).catch(function (e) {
-    console.warn('[심안] hero.glb?v=v082', e);
+    console.warn('[심안] hero.glb?v=v083', e);
     pending = null;
     return null;
   });
@@ -58,7 +55,6 @@ export function makeHeroGlb(height) {
     const isSword = /sword/i.test(o.name);
 
     if (isOutline) {
-      /* 블렌더에서 이미 와인딩을 뒤집은 인버티드 헐 -> 순수 먹색 무광 단면 재질 */
       o.material = new THREE.MeshBasicMaterial({
         color: 0x09090d,
         side: THREE.FrontSide,
@@ -77,8 +73,6 @@ export function makeHeroGlb(height) {
         }
         swordMeshes.push(o);
       } else {
-        /* 무대 위 등불 점광원(강도 30)에 검은 머리와 흑의가 하얗게 타지 않도록
-           확산 반사는 32%로 억제하고, 하데스풍 1024px 페인팅 텍스처 색감을 자체 발광으로 선명히 유지 */
         mat.roughness = 0.92;
         mat.metalness = 0.0;
         if (mat.color) mat.color.setHex(0x545250);
@@ -97,7 +91,6 @@ export function makeHeroGlb(height) {
     allMeshes.push(o);
   });
 
-  /* 발바닥 y=0 접지 + 정확히 HERO_H(2.45m)로 정규화 */
   scene.updateMatrixWorld(true);
   const measureTarget = bodyMeshes[0] || scene;
   const box = new THREE.Box3().setFromObject(measureTarget);
@@ -112,7 +105,6 @@ export function makeHeroGlb(height) {
   );
   fit.add(scene);
 
-  /* v0.80 — Mesh2Motion/Mixamo 외부 모션 GLB 자동 감지: 외부 모션은 원본 애니메이션 그대로 재생 */
   const externalAnim = isExternalAnimGlb(scene, source.animations);
   const rig = externalAnim ? null : makeRig(scene);
   if (rig) rig.species = 'hero';
@@ -136,6 +128,9 @@ export function makeHeroGlb(height) {
     allMeshes: allMeshes,
     cur: 'idle',
     prevBurst: null,
+    prevDash: false,
+    comboIdx: 0,
+    comboTimer: 0,
     lockT: 0,
     tris: Math.round(tris),
     cloakTint: new THREE.Color(0xffffff),
@@ -161,23 +156,43 @@ function playOnly(G, name, fade, timeScale) {
 }
 
 export function triggerHeroGlbBurst(G, name) {
-  if (!G || !G.actions[name]) return;
-  const ts = name === 'slash' ? 1.55 : 1.25;
-  playOnly(G, name, 0.04, ts);
-  const dur = G.actions[name].getClip().duration / ts;
-  G.lockT = Math.max(0.18, dur - 0.06);
+  if (!G) return;
+  let clipKey = name;
+  let ts = 1.25;
+  if (name === 'slash') {
+    const seq = ['slash', 'slash2', 'slash3'].filter(function (k) { return !!G.actions[k]; });
+    if (!seq.length) return;
+    const idx = (G.comboTimer > 0) ? (G.comboIdx % seq.length) : 0;
+    clipKey = seq[idx];
+    G.comboIdx = (idx + 1) % seq.length;
+    G.comboTimer = 1.15;
+    ts = clipKey === 'slash3' ? 2.55 : (clipKey === 'slash2' ? 1.45 : 1.25);
+  } else if (name === 'dodge') {
+    if (!G.actions.dodge) return;
+    ts = 3.1;
+  } else if (!G.actions[name]) {
+    return;
+  }
+  playOnly(G, clipKey, 0.04, ts);
+  const dur = G.actions[clipKey].getClip().duration / ts;
+  G.lockT = Math.max(0.18, dur - 0.05);
 }
 
 export function tickHeroGlb(G, H, dt) {
   if (!G) return;
   G.lockT = Math.max(0, (G.lockT || 0) - dt);
+  G.comboTimer = Math.max(0, (G.comboTimer || 0) - dt);
 
+  const isDash = !!H.wasDash;
   if (H.burst === 'slash' && G.prevBurst !== 'slash') {
     triggerHeroGlbBurst(G, 'slash');
   } else if (H.burst === 'hit' && G.prevBurst !== 'hit') {
     triggerHeroGlbBurst(G, 'hit');
+  } else if (isDash && !G.prevDash && G.actions.dodge) {
+    triggerHeroGlbBurst(G, 'dodge');
   }
   G.prevBurst = H.burst;
+  G.prevDash = isDash;
 
   if (G.lockT <= 0 && !H.burst) {
     const want = H.base === 'walk' ? 'walk' : 'idle';
@@ -190,13 +205,11 @@ export function tickHeroGlb(G, H, dt) {
     G.actions.walk.setEffectiveTimeScale(spd);
   }
 
-  /* 게임필 스쿼시·스트레치 연동 */
   const sqY = 1 + (H.squash || 0);
   const sqXZ = 1 / Math.sqrt(Math.max(0.75, sqY));
   G.fit.scale.set(sqXZ, sqY, sqXZ);
 
   G.mixer.update(dt);
-  /* 클립 위에 절차 자세를 얹는다(내장 클립의 골반·발목 키가 정지해 있어 다리가 미끄러웠다). */
   if (G.rig) {
     const st = H.burst === 'slash' ? 'attack'
       : (H.burst === 'hit' ? 'hit' : (H.base === 'walk' ? 'walk' : 'idle'));

@@ -1,15 +1,10 @@
-/* v2/js/glbAnimMap.js — v0.80 Mesh2Motion / Mixamo / 외부 모션 GLB 자동 클립 매핑 & 리그 감지
-   - Mesh2Motion(https://mesh2motion.org)에서 내보낸 다중 애니메이션 GLB를
-     별도 리네이밍이나 Blender 재작업 없이 `v2/assets/models/`에 덮어쓰기만 하면 즉시 재생되도록 지원
+/* v2/js/glbAnimMap.js — v0.83 Mesh2Motion / Mixamo / 외부 모션 GLB 자동 클립 매핑 & 리그 감지
+   - 3연타 검술(slash / slash2 / slash3), 회피(dodge), 보스 강인도 경직(stagger), 사망(death)까지 자동 매핑
    - 외부 모션 GLB가 감지되면 절차 자세 오버라이드(glbpose)를 자동 비활성화해 원본 모션을 100% 보존 */
 import * as THREE from 'three';
 
 const PROC_NAMES = { idle: 1, walk: 1, slash: 1, hit: 1 };
 
-/**
- * Mesh2Motion / Mixamo 등 외부 리깅·애니메이션 GLB인지 판별한다.
- * (기존 postprocess_glb.py 출력은 본 이름이 정확히 hips/upperArm_R/thigh_L 등이고 클립이 소문자 idle/walk/slash/hit 4종)
- */
 export function isExternalAnimGlb(scene, animations) {
   const anims = animations || [];
   let hasExternalName = false;
@@ -45,9 +40,6 @@ function pickBestClip(anims, patterns) {
   return null;
 }
 
-/**
- * GLB 내장 애니메이션 클립들을 심안 표준 슬롯(idle, walk, slash, attack, hit, cast, death)에 자동 매핑한다.
- */
 export function mapGlbActions(mixer, animations, species) {
   const anims = animations || [];
   const actions = {};
@@ -61,7 +53,6 @@ export function mapGlbActions(mixer, animations, species) {
     return act;
   }
 
-  /* 1) 정확히 일치하는 기존 이름 우선 등록 */
   for (let i = 0; i < anims.length; i++) {
     const c = anims[i];
     if (!c || !c.name) continue;
@@ -73,21 +64,20 @@ export function mapGlbActions(mixer, animations, species) {
 
   const fastRunner = (species === 'hero' || species === 'minion');
 
-  /* 2) Mesh2Motion / Quaternius / Mixamo 이름 패턴 자동 매핑 */
   if (!actions.idle) {
     const c = pickBestClip(anims, [
-      /^(idle|combat_idle|sword_idle|fighting_idle|zombie_idle)/i,
+      /^(m2m_idle|idle|combat_idle|sword_idle|fighting_idle|zombie_idle)$/i,
       /idle|breath|stand/i
     ]);
     if (c) actions.idle = getAction(c);
   }
   if (!actions.walk) {
     const c = pickBestClip(anims, fastRunner ? [
-      /^(run|running|sprint|sword_run|zombie_run|jog)/i,
+      /^(m2m_walk|run|running|sprint|sword_run|zombie_run|jog)$/i,
       /run|sprint|jog/i,
       /walk|march|strafe|move/i
     ] : [
-      /^(walk|walking|heavy_walk|march|zombie_walk|mutant_walk)/i,
+      /^(m2m_walk|walk|walking|heavy_walk|march|zombie_walk|mutant_walk)$/i,
       /walk|march|stomp/i,
       /run|charge|sprint/i
     ]);
@@ -95,10 +85,29 @@ export function mapGlbActions(mixer, animations, species) {
   }
   if (!actions.slash) {
     const c = pickBestClip(anims, [
-      /slash|sword_attack|sword_swing|cleave|cut/i,
+      /^(m2m_slash|slash)$/i,
+      /slash(?![23])|sword_attack|sword_swing|cleave|cut/i,
       /attack|strike|swing|swipe|punch|jab|kick/i
     ]);
     if (c) actions.slash = getAction(c);
+  }
+  if (!actions.slash2) {
+    const c = pickBestClip(anims, [
+      /slash2|regular[_-]?b/i
+    ]);
+    if (c) actions.slash2 = getAction(c);
+  }
+  if (!actions.slash3) {
+    const c = pickBestClip(anims, [
+      /slash3|regular[_-]?c/i
+    ]);
+    if (c) actions.slash3 = getAction(c);
+  }
+  if (!actions.dodge) {
+    const c = pickBestClip(anims, [
+      /dodge|roll|dash|evade/i
+    ]);
+    if (c) actions.dodge = getAction(c);
   }
   if (!actions.attack) {
     actions.attack = actions.slash || getAction(pickBestClip(anims, [
@@ -107,13 +116,20 @@ export function mapGlbActions(mixer, animations, species) {
   }
   if (!actions.hit) {
     const c = pickBestClip(anims, [
-      /hit|impact|damage|hurt|stagger|recoil|knock|react/i
+      /^(m2m_hit|hit)$/i,
+      /hit|impact|damage|hurt|recoil|react/i
     ]);
     if (c) actions.hit = getAction(c);
   }
+  if (!actions.stagger) {
+    const c = pickBestClip(anims, [
+      /stagger|knockback|kneel|stun/i
+    ]);
+    if (c) actions.stagger = getAction(c);
+  }
   if (!actions.cast) {
     const c = pickBestClip(anims, [
-      /cast|spell|roar|chant|shout|taunt|magic/i
+      /cast|spell|roar|chant|shout|taunt|magic|burst/i
     ]);
     if (c) actions.cast = getAction(c);
   }
@@ -124,13 +140,11 @@ export function mapGlbActions(mixer, animations, species) {
     if (c) actions.death = getAction(c);
   }
 
-  /* 3) 최소 1개 클립이라도 있으면 idle 폴백 보장 */
   if (!actions.idle && anims.length > 0) {
     actions.idle = getAction(anims[0]);
   }
 
-  /* 4) 단발 액션(공격·피격·시전·사망)은 LoopOnce 고정 */
-  ['slash', 'attack', 'hit', 'cast', 'death'].forEach(function (k) {
+  ['slash', 'slash2', 'slash3', 'dodge', 'attack', 'hit', 'stagger', 'cast', 'death'].forEach(function (k) {
     if (actions[k]) {
       actions[k].setLoop(THREE.LoopOnce, 1);
       actions[k].clampWhenFinished = true;

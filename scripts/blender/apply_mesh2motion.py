@@ -34,10 +34,13 @@ CHARACTERS = [
             "a_deg": 67.0,
         },
         "clips": [
-            ("M2M_Idle",  "idle-sword.glb"),
-            ("M2M_Walk",  "jog.glb"),
-            ("M2M_Slash", "sword-regular-a.glb"),
-            ("M2M_Hit",   "hit-chest.glb"),
+            ("M2M_Idle",   "idle-sword.glb"),
+            ("M2M_Walk",   "jog.glb"),
+            ("M2M_Slash",  "sword-regular-a.glb"),
+            ("M2M_Slash2", "sword-regular-b.glb"),
+            ("M2M_Slash3", "sword-regular-c.glb"),
+            ("M2M_Dodge",  "roll.glb"),
+            ("M2M_Hit",    "hit-chest.glb"),
         ],
     },
     {
@@ -54,6 +57,7 @@ CHARACTERS = [
             ("M2M_Walk",   "zombie-run.glb"),
             ("M2M_Attack", "zombie-scratch.glb"),
             ("M2M_Hit",    "hit-chest.glb"),
+            ("M2M_Death",  "death-a.glb"),
         ],
     },
     {
@@ -69,7 +73,8 @@ CHARACTERS = [
             ("M2M_Idle",   "fighting-idle.glb"),
             ("M2M_Walk",   "walk-large.glb"),
             ("M2M_Attack", "two-handed-overhead-slam.glb"),
-            ("M2M_Hit",    "hit-knockback.glb"),
+            ("M2M_Hit",    "hit-chest.glb"),
+            ("M2M_Death",  "death-c.glb"),
         ],
     },
     {
@@ -86,6 +91,7 @@ CHARACTERS = [
             ("M2M_Walk",   "walk-large.glb"),
             ("M2M_Attack", "attack-ground-pound.glb"),
             ("M2M_Hit",    "hit-chest.glb"),
+            ("M2M_Death",  "death-c.glb"),
         ],
     },
     {
@@ -99,12 +105,13 @@ CHARACTERS = [
             "a_deg": 75.0,
         },
         "clips": [
-            ("M2M_Idle",   "polearm-idle.glb"),
-            ("M2M_Walk",   "polearm-run.glb"),
-            ("M2M_Attack", "two-handed-horizontal-swing.glb"),
-            ("M2M_Cast",   "power-burst.glb"),
-            ("M2M_Hit",    "hit-knockback.glb"),
-            ("M2M_Death",  "death-b.glb"),
+            ("M2M_Idle",    "polearm-idle.glb"),
+            ("M2M_Walk",    "polearm-run.glb"),
+            ("M2M_Attack",  "two-handed-horizontal-swing.glb"),
+            ("M2M_Cast",    "power-burst.glb"),
+            ("M2M_Hit",     "hit-chest.glb"),
+            ("M2M_Stagger", "hit-knockback.glb"),
+            ("M2M_Death",   "death-b.glb"),
         ],
     },
 ]
