@@ -31,9 +31,9 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb } from './glbboss.js?v=v083';
+import { makeBossGlb } from './glbboss.js?v=v084';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v083';
+import { probeAssets, buildArt } from './art.js?v=v084';
 import * as Anim from './anim.js';
 import { createAudio } from './audio.js';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
@@ -4182,10 +4182,21 @@ function drawV31(ctx, r, hs, t) {
     cutMarks.forEach(function (mk) { ctx.fillRect(x + w * mk - 1, y, 2, h); });
 
     const py = y + h + 4;
-    ctx.fillStyle = 'rgba(28,24,18,0.95)';
-    ctx.fillRect(x, py, w, ph);
-    ctx.fillStyle = isOpen ? '#fff0a8' : '#e6b84c';
-    ctx.fillRect(x, py, w * clamp(pFrac, 0, 1), ph);
+    const ph2 = ph + 2;
+    ctx.fillStyle = 'rgba(24,20,14,0.96)';
+    ctx.fillRect(x, py, w, ph2);
+    const pw = w * clamp(pFrac, 0, 1);
+    const pg = ctx.createLinearGradient(x, py, x + w, py);
+    pg.addColorStop(0, isOpen ? '#fff5be' : '#d99f2b');
+    pg.addColorStop(1, isOpen ? '#ffd35c' : '#ffe07d');
+    ctx.fillStyle = pg;
+    ctx.fillRect(x, py, pw, ph2);
+    ctx.fillStyle = 'rgba(18,14,10,0.45)';
+    for (let ti = 1; ti < 4; ti++) ctx.fillRect(x + w * (ti / 4) - 0.5, py, 1, ph2);
+    ctx.font = '700 9.5px "InkSerif", serif';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = isOpen ? '#fff0a8' : '#f2d07b';
+    ctx.fillText(isOpen ? '강인도 붕괴' : '강인도', x, py + ph2 + 11);
 
     ctx.font = '700 10.5px "InkSerif", serif';
     ctx.textAlign = 'center';
@@ -5191,6 +5202,7 @@ function doParry(rec) {
   });
   r.parry = { hits: hits.length, reflected: refl };
   telemetry.event('parry', { target: 'parry', hits: hits.length, reflected: refl, result: (hits.length || refl) ? 'hit' : 'miss' });
+  if (art && art.heroBlock && three && three.hero) art.heroBlock(three.hero);
   if (hits.length || refl) {
     S.parryCd = CFG.parryCd || 0.45;
     S.iframe = Math.max(S.iframe || 0, CFG.parryIframe || 0.2);
@@ -5580,9 +5592,11 @@ function hurtZombie(z, amount, why, rec) {
     }
     z.hpTrail = Math.max(z.hpTrail || z.hp, z.hp);
     z.hp -= dealt;
+    const isCombo3 = (why === 'slash') && art && art.heroComboStep && three && three.hero && art.heroComboStep(three.hero) === 3;
     if (!isAuto && !isWeak) {
       const sh = rec && (rec.shape || rec.type);
       let pDmg = why === 'bang' ? 3.5 : ((sh && sh !== 'hline' && sh !== 'vline') ? 1.8 : 0.7);
+      if (isCombo3) pDmg *= 1.25;
       pDmg *= (1 + poiseBonus());
       if (sh === 'bolt' && swordF.boltPoiseMul) pDmg *= (1 + swordF.boltPoiseMul);
       bossPoise(z, pDmg);
@@ -5593,9 +5607,9 @@ function hurtZombie(z, amount, why, rec) {
     /* v0.52: 보스 피격 타격감 전면 복구 — 소리·히트스톱·먹파편·피격 섬광·플로팅 데미지 */
     bossFx.spawnDamageNumber(z.x, z.z, dealt, isWeak);
     if (why === 'slash' || why === 'bang') {
-      if (rec && !rec.hitstopDone) { rec.hitstopDone = true; addStrokeHitstop(rec, isWeak ? 0.05 : 0.035); }
-      if (audio) audio.hit(isWeak || !!(rec && rec.perfect), S ? (S.combo || 0) : 0);
-      S.shake = Math.max(S.shake || 0, isWeak ? 0.34 : 0.18);
+      if (rec && !rec.hitstopDone) { rec.hitstopDone = true; addStrokeHitstop(rec, (isWeak ? 0.05 : 0.035) + (isCombo3 ? 0.02 : 0)); }
+      if (audio) audio.hit(isWeak || isCombo3 || !!(rec && rec.perfect), S ? (S.combo || 0) : 0);
+      S.shake = Math.max(S.shake || 0, (isWeak ? 0.34 : 0.18) + (isCombo3 ? 0.10 : 0));
     }
     const d = inkDir(rec, z);
     if (three && three.ink) { three.ink.hit(z.x, z.z, d.x, d.z); fxinkStat.hits++; }
@@ -6036,16 +6050,25 @@ function startDying(obj) {
   const mats = [];
   obj.traverse(function (o) { if (o.material && o.material.opacity != null && o.visible) mats.push([o.material, o.material.opacity]); });
   if (obj.userData && obj.userData.tele) obj.userData.tele.visible = false;
-  three.dying.push({ obj: obj, t: 0, dur: CFG.dieDur || 0.5, mats: mats, y0: obj.position.y });
+  const hasAnim = !!(art && art.startMonsterDeath && art.startMonsterDeath(obj));
+  three.dying.push({ obj: obj, t: 0, dur: hasAnim ? 0.90 : (CFG.dieDur || 0.5), mats: mats, y0: obj.position.y, hasAnim: hasAnim });
 }
 function stepDying(dt) {
   if (!three || !three.dying || !three.dying.length) return;
   three.dying = three.dying.filter(function (d) {
     d.t += dt;
     const k = Math.min(1, d.t / d.dur);
-    d.mats.forEach(function (m) { m[0].opacity = m[1] * (1 - k); m[0].transparent = true; });
-    d.obj.scale.set(1 + 0.25 * k, 1 - 0.55 * k, 1);
-    d.obj.position.y = d.y0 - 0.3 * k;
+    if (d.hasAnim) {
+      if (art && art.tickMonsterDeath) art.tickMonsterDeath(d.obj, dt);
+      const fadeK = k > 0.62 ? (k - 0.62) / 0.38 : 0;
+      if (fadeK > 0) {
+        d.mats.forEach(function (m) { m[0].opacity = m[1] * (1 - fadeK); m[0].transparent = true; });
+      }
+    } else {
+      d.mats.forEach(function (m) { m[0].opacity = m[1] * (1 - k); m[0].transparent = true; });
+      d.obj.scale.set(1 + 0.25 * k, 1 - 0.55 * k, 1);
+      d.obj.position.y = d.y0 - 0.3 * k;
+    }
     if (k >= 1) { three.scene.remove(d.obj); return false; }
     return true;
   });

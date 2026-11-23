@@ -11,9 +11,9 @@ import { buildFigure, tickFigure, kick as rigKick, slashPose as rigSlash, setOpa
   setAuraColor as rigAuraColor, setOrder as rigOrder, setCamera as rigSetCamera, ready as rigReady,
   debugPose as rigDebugPose, actsOf as rigActsOf } from './inkchars3d.js';
 /* v0.45: 주인공만 3D 관절 뼈대 + 수묵 툰 셰이더 캐릭터(inkhero3d.js)로 교체한다. */
-import * as HERO3D from './inkhero3d.js?v=v083';
+import * as HERO3D from './inkhero3d.js?v=v084';
 /* v0.46: 원귀·거한·돌덩이·보스도 주인공과 같은 3D 관절 뼈대(단일 SkinnedMesh)로 세운다. */
-import * as MON3D from './inkmonsters3d.js?v=v083';
+import * as MON3D from './inkmonsters3d.js?v=v084';
 let QA_HERO2D = false;
 try { QA_HERO2D = new URLSearchParams(location.search).has('hero2d'); } catch (e) {}
 let QA_MON2D = false;
@@ -1004,6 +1004,18 @@ export async function buildArt(THREE) {
     /* v0.42 QA: 포즈 고정·동작 목록 */
     debugPose: function (g, a, f) { return rigDebugPose(g, a, f); },
     actsOf: function (n) { return rigActsOf(n); },
+    heroBlock: function (group) {
+      if (group && group.userData && group.userData.h3d) HERO3D.block(group);
+    },
+    heroComboStep: function (group) {
+      return (group && group.userData && group.userData.h3d) ? HERO3D.comboStep(group) : 1;
+    },
+    startMonsterDeath: function (group) {
+      return !!(group && group.userData && group.userData.m3d && MON3D.startDeath(group));
+    },
+    tickMonsterDeath: function (group, dt) {
+      if (group && group.userData && group.userData.m3d) MON3D.tickDeath(group, dt);
+    },
     kickChar: function (group, k) {
       if (group && group.userData && group.userData.hero3d) { HERO3D.kick(group, k); return; }
       if (group && group.userData && group.userData.m3d) { MON3D.kick(group, k); return; }

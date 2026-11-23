@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v083';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v084';
 
 const MODEL_URLS = {
-  boss:   new URL('../assets/models/boss.glb?v=v083', import.meta.url).href,
-  minion: new URL('../assets/models/minion.glb?v=v083', import.meta.url).href,
-  heavy:  new URL('../assets/models/heavy.glb?v=v083', import.meta.url).href,
-  stone:  new URL('../assets/models/stone.glb?v=v083', import.meta.url).href
+  boss:   new URL('../assets/models/boss.glb?v=v084', import.meta.url).href,
+  minion: new URL('../assets/models/minion.glb?v=v084', import.meta.url).href,
+  heavy:  new URL('../assets/models/heavy.glb?v=v084', import.meta.url).href,
+  stone:  new URL('../assets/models/stone.glb?v=v084', import.meta.url).href
 };
 const sources = {};
 const pendings = {};
@@ -116,7 +116,7 @@ export function makeBossGlb(height, species) {
   return {
     species: sp,
     root: holder, body: body, outline: outline, bodyMeshes: bodyMeshes, outlineMeshes: outlineMeshes,
-    mixer: mixer, actions: actions, rig: rig, cur: 'idle', lockT: 0, prevBurst: null,
+    mixer: mixer, actions: actions, rig: rig, cur: 'idle', lockT: 0, prevBurst: null, atkAlt: 0,
     mats: bodyMeshes.concat(outlineMeshes).map(function (m) { return m.material; }),
     tris: Math.round(tris), ktx2: false,
     bbox: [+size.x.toFixed(3), +size.y.toFixed(3), +size.z.toFixed(3)], fitScale: +k.toFixed(3)
@@ -182,7 +182,8 @@ export function tickBossGlb(G, H, dt) {
       else once(G, 'hit', 0, 1.25);
     }
   } else if ((enter('strike') || enter('attack') || enter('slash')) && G.actions.attack) {
-    once(G, 'attack', 0.10, isBoss ? 1.15 : 1.10);
+    const useSlam = isBoss && G.actions.slam && (H.st === 'boss:leap' || H.st === 'boss:slam' || ((G.atkAlt++) % 2 === 1));
+    once(G, useSlam ? 'slam' : 'attack', 0.10, isBoss ? 1.15 : 1.10);
   } else if (enter('wind') && G.actions.cast) {
     once(G, 'cast', 0, 1.10);
   }
@@ -205,4 +206,10 @@ export function tickBossGlb(G, H, dt) {
     else if (G.cur === 'walk' || H.base === 'walk' || H.burst === 'charge') st = 'walk';
     tickPose(G.rig, dt, st, H.speed || 0);
   }
+}
+
+export function triggerMonsterDeathGlb(G) {
+  if (!G || !G.actions || !G.actions.death) return false;
+  if (G.cur !== 'death') once(G, 'death', 0, 1.35);
+  return true;
 }

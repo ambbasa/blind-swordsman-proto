@@ -28,7 +28,7 @@ import * as TEX from './inktex3d.js';
 import {
   heroGlbEnabled, preloadHeroGlb, makeHeroGlb,
   tickHeroGlb, triggerHeroGlbBurst, setHeroGlbOpacity, setHeroGlbTint, applyHeroGlbCloak
-} from './glbhero.js?v=v083';
+} from './glbhero.js?v=v084';
 import {
   hd2dEnabled, preloadHd2dAll, makeHd2dHero, tickHd2d,
   triggerHd2dPose, setHd2dOpacity, setHd2dTint, applyHd2dCloak, makeHd2dGhost
@@ -580,6 +580,14 @@ export function slashPose(group, k) {
   startBurst(H, 'slash', 0.06);
   if (H.hd2d) triggerHd2dPose(H.hd2d, 'slash', 0.28);
   if (H.glb) triggerHeroGlbBurst(H.glb, 'slash');
+}
+export function block(group) {
+  const H = group && group.userData && group.userData.h3d;
+  if (H && H.glb) triggerHeroGlbBurst(H.glb, 'block');
+}
+export function comboStep(group) {
+  const H = group && group.userData && group.userData.h3d;
+  return (H && H.glb && H.glb.lastComboStep) || 1;
 }
 export function setOpacity(group, o) {
   const H = group && group.userData && group.userData.hero3d;

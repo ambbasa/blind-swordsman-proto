@@ -1,4 +1,4 @@
-import { preloadBossGlb, bossGlbReady, makeBossGlb, hookBossGlb, tickBossGlb } from './glbboss.js?v=v083';
+import { preloadBossGlb, bossGlbReady, makeBossGlb, hookBossGlb, tickBossGlb, triggerMonsterDeathGlb } from './glbboss.js?v=v084';
 import { hd2dEnabled, preloadHd2dAll, makeHd2dMonster, tickHd2d, triggerHd2dPose, setHd2dOpacity, setHd2dTint } from './hd2dSprite.js?v=v0792';
 /* v2/js/inkmonsters3d.js — v0.47 몬스터·보스 전종 **3D 관절 뼈대 + 수묵 툰 셰이더 + 동양 수묵 텍스처**.
 
@@ -649,4 +649,14 @@ export function pin(group, o) {
     H.mixer.update(0); H.mixer.update(0.0001);
   }
   return info(group);
+}
+
+export function startDeath(group) {
+  const H = group && group.userData && group.userData.m3d;
+  if (!H || !H.glb) return false;
+  return triggerMonsterDeathGlb(H.glb);
+}
+export function tickDeath(group, dt) {
+  const H = group && group.userData && group.userData.m3d;
+  if (H && H.glb && H.glb.mixer) H.glb.mixer.update(dt);
 }

@@ -109,6 +109,18 @@ export function mapGlbActions(mixer, animations, species) {
     ]);
     if (c) actions.dodge = getAction(c);
   }
+  if (!actions.block) {
+    const c = pickBestClip(anims, [
+      /block|parry|guard/i
+    ]);
+    if (c) actions.block = getAction(c);
+  }
+  if (!actions.slam) {
+    const c = pickBestClip(anims, [
+      /slam|overhead/i
+    ]);
+    if (c) actions.slam = getAction(c);
+  }
   if (!actions.attack) {
     actions.attack = actions.slash || getAction(pickBestClip(anims, [
       /attack|slash|strike|swing|swipe|punch|slam|cleave|bite/i
@@ -144,7 +156,7 @@ export function mapGlbActions(mixer, animations, species) {
     actions.idle = getAction(anims[0]);
   }
 
-  ['slash', 'slash2', 'slash3', 'dodge', 'attack', 'hit', 'stagger', 'cast', 'death'].forEach(function (k) {
+  ['slash', 'slash2', 'slash3', 'dodge', 'block', 'slam', 'attack', 'hit', 'stagger', 'cast', 'death'].forEach(function (k) {
     if (actions[k]) {
       actions[k].setLoop(THREE.LoopOnce, 1);
       actions[k].clampWhenFinished = true;

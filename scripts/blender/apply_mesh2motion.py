@@ -40,6 +40,7 @@ CHARACTERS = [
             ("M2M_Slash2", "sword-regular-b.glb"),
             ("M2M_Slash3", "sword-regular-c.glb"),
             ("M2M_Dodge",  "roll.glb"),
+            ("M2M_Block",  "sword-block.glb"),
             ("M2M_Hit",    "hit-chest.glb"),
         ],
     },
@@ -97,6 +98,7 @@ CHARACTERS = [
     {
         "name": "boss",
         "keep_sword": False,
+        "boss_weapon": True,
         # 뿔(z=0.93~1.00)을 제외한 실제 투구·어깨(z=0.705)·골반 기준 피팅!
         "fit": {
             "z_ankle": 0.11, "z_knee": 0.41, "z_pelvis": 0.71,
@@ -108,6 +110,7 @@ CHARACTERS = [
             ("M2M_Idle",    "polearm-idle.glb"),
             ("M2M_Walk",    "polearm-run.glb"),
             ("M2M_Attack",  "two-handed-horizontal-swing.glb"),
+            ("M2M_Slam",    "two-handed-overhead-slam.glb"),
             ("M2M_Cast",    "power-burst.glb"),
             ("M2M_Hit",     "hit-chest.glb"),
             ("M2M_Stagger", "hit-knockback.glb"),
@@ -379,6 +382,118 @@ def get_world_bbox(obj):
     return Vector((min(xs), min(ys), min(zs))), Vector((max(xs), max(ys), max(zs)))
 
 
+
+def create_boss_glaive(t_arm):
+    import bmesh
+    hand_b = t_arm.data.bones["hand_r"]
+    grip = t_arm.matrix_world @ ((hand_b.head_local + hand_b.tail_local) * 0.5)
+
+    def make_mat(name, rgba, met=0.7, rough=0.32):
+        m = bpy.data.materials.new(name=name)
+        m.use_nodes = True
+        bsdf = m.node_tree.nodes.get("Principled BSDF")
+        if bsdf:
+            bsdf.inputs["Base Color"].default_value = rgba
+            bsdf.inputs["Metallic"].default_value = met
+            bsdf.inputs["Roughness"].default_value = rough
+        return m
+
+    mat_shaft = make_mat("BossGlaive_Shaft", (0.10, 0.08, 0.08, 1.0), 0.35, 0.55)
+    mat_gold  = make_mat("BossGlaive_Gold",  (0.78, 0.58, 0.22, 1.0), 0.85, 0.28)
+    mat_blade = make_mat("BossGlaive_Blade", (0.52, 0.56, 0.64, 1.0), 0.90, 0.22)
+    mat_tassel = make_mat("BossGlaive_Tassel", (0.68, 0.10, 0.10, 1.0), 0.05, 0.78)
+
+    bm = bmesh.new()
+    # Shaft along -Y (forward blade) to +Y (butt), centered around grip
+    # 1) Shaft cylinder (y from +0.62 to -0.92, r=0.022)
+    m_shaft = Euler((math.radians(90), 0, 0), "XYZ").to_matrix().to_4x4()
+    m_shaft.translation = grip + Vector((0.0, -0.15, 0.0))
+    ret = bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=10, radius1=0.021, radius2=0.023, depth=1.54, matrix=m_shaft)
+    for v in ret["verts"]:
+        for f in v.link_faces: f.material_index = 0
+
+    # 2) Gilded collar (y = -0.94) & butt finial (y = +0.64)
+    for y_off, r1, r2, dp in [(-0.93, 0.036, 0.032, 0.10), (0.64, 0.026, 0.012, 0.12)]:
+        m_c = Euler((math.radians(90), 0, 0), "XYZ").to_matrix().to_4x4()
+        m_c.translation = grip + Vector((0.0, y_off, 0.0))
+        ret = bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=10, radius1=r1, radius2=r2, depth=dp, matrix=m_c)
+        for v in ret["verts"]:
+            for f in v.link_faces: f.material_index = 1
+
+    # 3) Crimson tassel ring right behind collar (y = -0.84)
+    m_t = Euler((math.radians(90), 0, 0), "XYZ").to_matrix().to_4x4()
+    m_t.translation = grip + Vector((0.0, -0.84, -0.05))
+    ret = bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=8, radius1=0.014, radius2=0.042, depth=0.14, matrix=m_t)
+    for v in ret["verts"]:
+        for f in v.link_faces: f.material_index = 3
+
+    # 4) Broad curved crescent glaive blade (y from -0.96 to -1.62, curving in -Z/+Z)
+    # Build 6 cross-section diamond slices along -Y
+    blade_profile = [
+        (-0.96, 0.016,  0.032, -0.028),
+        (-1.10, 0.015,  0.040, -0.062),
+        (-1.26, 0.014,  0.044, -0.095),
+        (-1.42, 0.011,  0.042, -0.105),
+        (-1.54, 0.007,  0.030, -0.070),
+        (-1.64, 0.002,  0.008, -0.004),
+    ]
+    rings = []
+    for y_off, half_x, z_back, z_edge in blade_profile:
+        z_mid = (z_back + z_edge) * 0.5
+        v0 = bm.verts.new(grip + Vector((0.0, y_off, z_back)))
+        v1 = bm.verts.new(grip + Vector((half_x, y_off, z_mid)))
+        v2 = bm.verts.new(grip + Vector((0.0, y_off, z_edge)))
+        v3 = bm.verts.new(grip + Vector((-half_x, y_off, z_mid)))
+        rings.append((v0, v1, v2, v3))
+    for i in range(len(rings) - 1):
+        r0, r1 = rings[i], rings[i + 1]
+        for k in range(4):
+            kn = (k + 1) % 4
+            f = bm.faces.new((r0[k], r0[kn], r1[kn], r1[k]))
+            f.material_index = 2
+    # Cap start & tip
+    f_start = bm.faces.new((rings[0][3], rings[0][2], rings[0][1], rings[0][0]))
+    f_start.material_index = 2
+    f_tip = bm.faces.new((rings[-1][0], rings[-1][1], rings[-1][2], rings[-1][3]))
+    f_tip.material_index = 2
+
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    mesh = bpy.data.meshes.new("Boss_Weapon")
+    bm.to_mesh(mesh)
+    bm.free()
+
+    obj = bpy.data.objects.new("Boss_Weapon", mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    for m in (mat_shaft, mat_gold, mat_blade, mat_tassel):
+        obj.data.materials.append(m)
+
+    vg = obj.vertex_groups.new(name="hand_r")
+    vg.add([v.index for v in obj.data.vertices], 1.0, "REPLACE")
+    obj.parent = t_arm
+    mod = obj.modifiers.new(name="Armature", type="ARMATURE")
+    mod.object = t_arm
+
+    # Inverted-hull ink outline matching Boss_Outline
+    out_mesh = mesh.copy()
+    out_mesh.name = "Boss_Weapon_Outline"
+    out_mesh.materials.clear()
+    bm_o = bmesh.new()
+    bm_o.from_mesh(out_mesh)
+    bmesh.ops.recalc_face_normals(bm_o, faces=bm_o.faces)
+    for v in bm_o.verts:
+        v.co += v.normal * 0.008
+    bmesh.ops.reverse_faces(bm_o, faces=bm_o.faces)
+    bm_o.to_mesh(out_mesh)
+    bm_o.free()
+    out_obj = bpy.data.objects.new("Boss_Weapon_Outline", out_mesh)
+    bpy.context.scene.collection.objects.link(out_obj)
+    vg_o = out_obj.vertex_groups.new(name="hand_r")
+    vg_o.add([v.index for v in out_obj.data.vertices], 1.0, "REPLACE")
+    out_obj.parent = t_arm
+    mod_o = out_obj.modifiers.new(name="Armature", type="ARMATURE")
+    mod_o.object = t_arm
+    print(f"  + Boss_Weapon (crescent glaive) attached to hand_r ({len(obj.data.vertices)} verts)")
+
 def process_character(cfg):
     name = cfg["name"]
     fit = cfg["fit"]
@@ -534,6 +649,9 @@ def process_character(cfg):
         mod.object = t_arm
 
     bpy.data.objects.remove(a_arm, do_unlink=True)
+
+    if cfg.get("boss_weapon"):
+        create_boss_glaive(t_arm)
 
     # 5) Import curated Mesh2Motion CC0 animation actions & scale pelvis translation to fitted leg height
     pel_scale = fit["z_pelvis"] / 0.917
