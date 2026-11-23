@@ -301,6 +301,97 @@ export class RayField {
   dispose() { this.scene.remove(this.mesh); this.geo.dispose(); this.base.dispose(); this.mat.dispose(); }
 }
 
+/* v1.01 3d-falling-leaves: 1드로우콜 InstancedMesh 3D 입체 텀블링 낙엽 (곡면 양면 잎 + 연동 횡이동 + 제로 GC) */
+const _leafDummy = new THREE.Object3D();
+function makeCurvedLeafGeo() {
+  const g = new THREE.BufferGeometry();
+  const pos = new Float32Array([
+    0.0,  0.00, -0.18,
+   -0.06, 0.02, -0.04,
+    0.06, 0.02, -0.04,
+   -0.05, 0.01,  0.09,
+    0.05, 0.01,  0.09,
+    0.0, -0.02,  0.22
+  ]);
+  const idx = [0,1,2, 1,3,2, 2,3,4, 3,5,4];
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+
+class FallingLeaves3D {
+  constructor(scene, { count = 42, color = 0x8eb88a, box = [28, 13, 28], scale = 1.0 } = {}) {
+    this.scene = scene;
+    this.count = count;
+    this.box = box;
+    this.time = 0;
+    this.cx = 0; this.cy = 6; this.cz = 0;
+    this.geo = makeCurvedLeafGeo();
+    this.mat = new THREE.MeshStandardMaterial({
+      color: color,
+      roughness: 0.72,
+      metalness: 0.0,
+      side: THREE.DoubleSide
+    });
+    this.mesh = new THREE.InstancedMesh(this.geo, this.mat, count);
+    this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.mesh.frustumCulled = false;
+    this.mesh.castShadow = false;
+    this.mesh.receiveShadow = false;
+    this.seeds = [];
+    for (let i = 0; i < count; i++) {
+      const s = (i * 0.6180339887) % 1;
+      const s2 = ((i * 1.3247179572) % 1);
+      const s3 = ((i * 2.2055694304) % 1);
+      this.seeds.push({
+        x0: (s - 0.5) * box[0],
+        y0: s2 * box[1],
+        z0: (s3 - 0.5) * box[2],
+        sc: scale * (0.72 + 0.58 * ((i * 0.37) % 1)),
+        phase: s * Math.PI * 2,
+        omega: 1.5 + 1.4 * s2,
+        rollRate: 0.6 + 0.9 * s3,
+        fall: 0.55 + 0.55 * s,
+        slip: 0.55 + 0.65 * s2,
+        dirA: s3 * Math.PI * 2
+      });
+    }
+    scene.add(this.mesh);
+    this.update(0);
+  }
+  setCenter(x, y, z) { this.cx = x; this.cy = y; this.cz = z; }
+  update(dt) {
+    this.time += Math.min(0.05, dt || 0);
+    const t = this.time;
+    const bx = this.box[0], by = this.box[1], bz = this.box[2];
+    const windX = Math.sin(t * 0.38) * 0.55;
+    const windZ = Math.cos(t * 0.27) * 0.35;
+    for (let i = 0; i < this.count; i++) {
+      const p = this.seeds[i];
+      const angle = p.phase + p.omega * t;
+      const sideOffset = -(p.slip / p.omega) * Math.cos(angle);
+      const lx = p.x0 + Math.cos(p.dirA) * sideOffset + windX * t;
+      const lz = p.z0 + Math.sin(p.dirA) * sideOffset + windZ * t;
+      const ly = p.y0 - p.fall * t;
+      const wx = this.cx + ((((lx % bx) + bx) % bx) - bx * 0.5);
+      const wy = Math.max(0.25, ((ly % by) + by) % by);
+      const wz = this.cz + ((((lz % bz) + bz) % bz) - bz * 0.5);
+      _leafDummy.position.set(wx, wy, wz);
+      _leafDummy.rotation.set(angle, p.dirA + p.rollRate * t, Math.sin(angle * 0.7) * 0.85);
+      _leafDummy.scale.setScalar(p.sc);
+      _leafDummy.updateMatrix();
+      this.mesh.setMatrixAt(i, _leafDummy.matrix);
+    }
+    this.mesh.instanceMatrix.needsUpdate = true;
+  }
+  dispose() {
+    this.scene.remove(this.mesh);
+    this.geo.dispose();
+    this.mat.dispose();
+  }
+}
+
 export class StageAtmosphere {  constructor(scene, stageId) {
     this.fields = [];
     const actNo = Math.max(1, Math.min(4, Math.ceil(Math.max(1, Number(stageId || 1)) / 3)));
@@ -309,7 +400,8 @@ export class StageAtmosphere {  constructor(scene, stageId) {
     const mote = function (o) { return mk(Object.assign({ texture: moteTexture(), mode: 0 }, o)); };
     /* v0.97 막(Act 1~4)별 전장 대기 파티클 차별화: 1막 대나무 낙엽, 2막 설산 눈송이, 3막 홍련 불티, 4막 금월 금가루 */
     if (actNo === 1) {
-      add(mk({ count: 145, texture: leafTexture(), mode: 0, box: [34, 18, 34], size: 0.22, fall: 0.32, drift: 0.56, color: stageId === 3 ? 0xcfe0c4 : 0xdcc89a, opacity: 0.74, rot: 1.45 }));
+      add(new FallingLeaves3D(scene, { count: 44, color: stageId === 3 ? 0x82b886 : 0xc8a468, box: [26, 13, 26], scale: 1.05 }));
+      add(mk({ count: 95, texture: leafTexture(), mode: 0, box: [34, 18, 34], size: 0.20, fall: 0.32, drift: 0.56, color: stageId === 3 ? 0xcfe0c4 : 0xdcc89a, opacity: 0.65, rot: 1.45 }));
       add(mote({ count: 110, box: [30, 16, 30], size: 0.055, fall: 0.18, drift: 0.42, color: 0xe6d4a8, opacity: 0.44, rot: 0.5 }));
       add(mk({ count: 48, texture: moteTexture(), mode: 1, box: [26, 7, 26], size: 0.085, color: MOTE_JADE, opacity: 0.82, additive: true, rot: 0 }));
     } else if (actNo === 2) {
@@ -319,7 +411,8 @@ export class StageAtmosphere {  constructor(scene, stageId) {
     } else if (actNo === 3) {
       add(mk({ count: 95, texture: moteTexture(), mode: 1, box: [28, 10, 28], size: 0.085, color: 0xff6238, opacity: 0.88, additive: true, rot: 0 }));
       add(mote({ count: 210, box: [32, 18, 32], size: 0.062, fall: 0.25, drift: 0.55, color: 0x9a7874, opacity: 0.48, rot: 0.95 }));
-      add(mk({ count: 65, texture: leafTexture(), mode: 0, box: [32, 16, 32], size: 0.17, fall: 0.34, drift: 0.62, color: 0xc26a58, opacity: 0.56, rot: 1.5 }));
+      add(new FallingLeaves3D(scene, { count: 36, color: 0xc24838, box: [26, 13, 26], scale: 0.95 }));
+      add(mk({ count: 45, texture: leafTexture(), mode: 0, box: [32, 16, 32], size: 0.17, fall: 0.34, drift: 0.62, color: 0xc26a58, opacity: 0.52, rot: 1.5 }));
     } else {
       add(mk({ count: 120, texture: moteTexture(), mode: 1, box: [28, 11, 28], size: 0.092, color: 0xffe08a, opacity: 0.90, additive: true, rot: 0 }));
       add(mote({ count: 165, box: [32, 18, 32], size: 0.058, fall: 0.20, drift: 0.52, color: 0xc8b2f0, opacity: 0.46, rot: 0.8 }));

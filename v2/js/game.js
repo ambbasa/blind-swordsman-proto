@@ -31,13 +31,13 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb } from './glbboss.js?v=v100';
+import { makeBossGlb } from './glbboss.js?v=v101';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v100';
+import { probeAssets, buildArt } from './art.js?v=v101';
 import * as Anim from './anim.js';
-import { createAudio } from './audio.js?v=v100';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v100';
-import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v100';
+import { createAudio } from './audio.js?v=v101';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v101';
+import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v101';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
@@ -1218,7 +1218,7 @@ function renderCharge() {
   /* 게이지가 처음 꽉 찬 순간, 무엇을 그려야 하는지 한 번 알려 준다. */
   if (full && S && S.playing && !S.chargeReadyHint) {
     S.chargeReadyHint = true;
-    showGuide('참 준비 — <b>O</b>를 그려 참(斬)을 터뜨리세요', 3.6);
+    showGuide('참 준비 — <b>O</b>를 그려 참을 터뜨리세요', 3.6);
     if (audio && audio.gong) audio.gong();
   }
   /* §8.2 참 게이지 100을 처음 보는 순간: 화면 가운데에 O 유도 획을 한 번 보여 준다. */
@@ -1857,7 +1857,7 @@ function drawTutorial(ctx, r, hs) {
     const k = clamp(S.chargeGuide / 2.2, 0, 1);
     drawGhostPath(ctx, ghostShapePath('circle', r.width * 0.5, r.height * 0.42, Math.min(r.width, r.height) * 0.16), 'rgba(91,232,196,1)', 0.35 + 0.35 * k, 6);
     ctx.save(); ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(244,236,214,' + (0.7 * k).toFixed(2) + ')';
-    ctx.font = '700 15px serif'; ctx.fillText('O — 참(斬)', r.width * 0.5, r.height * 0.42 + Math.min(r.width, r.height) * 0.16 + 26); ctx.restore();
+    ctx.font = '700 15px serif'; ctx.fillText('O — 참', r.width * 0.5, r.height * 0.42 + Math.min(r.width, r.height) * 0.16 + 26); ctx.restore();
   }
   /* 새 무늬 첫 혼령: 0.8초 반투명 유도 획 */
   if (S.newShape && S.newShape.guide > 0) {
@@ -3971,11 +3971,11 @@ function drawOverlays(ctx, r, hs) {
     ctx.shadowColor = 'rgba(0,0,0,0.9)';
     ctx.shadowBlur = 18;
     ctx.fillStyle = 'rgba(244,236,214,' + (0.72 * k).toFixed(3) + ')';
-    ctx.fillText('斬', cx, cy);
+    ctx.fillText('참', cx, cy);
     ctx.shadowBlur = 0;
     ctx.strokeStyle = 'rgba(91,232,196,' + (0.8 * k).toFixed(3) + ')';
     ctx.lineWidth = 1.5;
-    ctx.strokeText('斬', cx, cy);
+    ctx.strokeText('참', cx, cy);
     ctx.restore();
   }
   /* 7.5) v0.49 집중 개편: 심안의 원 붓경계 + 난전 주인공 발밑 시인성 비콘 */
@@ -5490,7 +5490,7 @@ function castCleave(rec) {
     three.vfx3d.triggerImpactFrame({ dur: 0.085, safe: a11yShake() });
     triggerGroundCrackHeat(S.hero.x, S.hero.z, R * 1.1, 0x5ef2c8);
   }
-  showJudge('참(斬)');
+  showJudge('참!');
   renderHud();
   return rec;
 }
@@ -6476,7 +6476,7 @@ function addCharge(n) {
   const before = S.charge || 0;
   const mul = 1 + 0.25 * (S.chargeLv || 0);
   S.charge = Math.min(max, before + n * mul);
-  if (before < max && S.charge >= max) { showJudge('참(斬) 준비'); if (audio) audio.bell(0, 'bolt'); }
+  if (before < max && S.charge >= max) { showJudge('참 준비'); if (audio) audio.bell(0, 'bolt'); }
 }
 /* 스킬 진화: 조합이 갖춰지면 화면과 손에서 바로 티나는 효과가 켜진다.
    v0.22: 강화 레벨(upLv)까지 조건에 넣어 '한 번 집은 것'이 아니라 '키운 것'으로 진화한다. */
@@ -6712,7 +6712,12 @@ function stepBolts(dt) {
       if (z.alive && S.evo && S.evo.noebing) { if(z.isBoss) z.chilled=true; else z.frozen = Math.max(z.frozen || 0, CFG.boltCard.freeze || 1.5); tintZombie(z); }
     });
   });
-  S.bolts = S.bolts.filter(function (b) { return !(b.done && b.t > b.delay + 0.58); });
+  let bw = 0;
+  for (let bi = 0; bi < S.bolts.length; bi++) {
+    const b = S.bolts[bi];
+    if (!(b.done && b.t > b.delay + 0.58)) S.bolts[bw++] = b;
+  }
+  S.bolts.length = bw;
 }
 /* 메아리 칼: 일섬 0.5초 뒤 같은 경로에 잔영이 지나간다(피해 40/55/70%). */
 function queueEcho(rec) {
@@ -6765,7 +6770,11 @@ function stepInkSteps(dt) {
       z.inkSlow = p.slow;
     });
   });
-  S.inkSteps = S.inkSteps.filter(function (p) { return p.t > 0; });
+  let iw = 0;
+  for (let ii = 0; ii < S.inkSteps.length; ii++) {
+    if (S.inkSteps[ii].t > 0) S.inkSteps[iw++] = S.inkSteps[ii];
+  }
+  S.inkSteps.length = iw;
 }
 /** 원귀가 사라지거나 상태가 끝나면 먹 발자국 감속도 함께 끝난다. */
 function slowMulOf(z) {
@@ -8553,7 +8562,7 @@ function sealStroke() {
   addHitstop(0.2);
   if (audio) { audio.explode(); audio.bell(0, 'bolt'); }
   inkFx.ring(6, FX_COLORS.gold, 0.8);
-  showJudge('봉인(封印)');
+  showJudge('봉인!');
   return true;
 }
 /** A stroke while the boss chants: right shape advances, wrong shape is spent. */
@@ -8678,7 +8687,7 @@ function drawBossPat(ctx, r, hs) {
     ctx.font = '700 ' + Math.round(Math.min(r.width, r.height) * 0.3) + 'px serif';
     ctx.shadowColor = 'rgba(0,0,0,0.9)'; ctx.shadowBlur = 18;
     ctx.fillStyle = 'rgba(232,192,74,' + (0.85 * k).toFixed(3) + ')';
-    ctx.fillText('封', r.width * 0.5, r.height * 0.42);
+    ctx.fillText('봉', r.width * 0.5, r.height * 0.42);
     ctx.restore();
   }
   /* 기물: 발밑 보랏빛 고리. 다음에 쏠 기물은 쏘기 직전 밝게 맥동한다.
@@ -10672,7 +10681,7 @@ const SHAPE_TIP = {
   star: '한붓으로 다섯 꼭짓점을 교차해 별(⛤)을 그립니다.',
   tap: '제자리에서 짧게 콕 — 패링입니다.'
 };
-const train = { shape: 'hline', pts: [], drawing: false, raf: 0, result: null, animT: 0, need: 0 };
+const train = { shape: 'hline', pts: [], drawing: false, raf: 0, result: null, animT: 0, need: 0, parryMode: false, parryPhase: 0, parryWait: 1.4, parryStreak: 0, parryBest: 0, parryMsg: '' };
 function trainStatsOf(shape) {
   const arr = (save.train && save.train.stats && save.train.stats[shape]) || [];
   const last = arr.slice(-20);
@@ -10710,6 +10719,49 @@ function trainDraw() {
   bg.addColorStop(0, 'rgba(24,22,26,1)'); bg.addColorStop(1, 'rgba(9,8,11,1)');
   ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
   /* 목표 무늬의 옅은 유도선 */
+  if (train.parryMode) {
+    const cx = W * 0.5, cy = H * 0.52;
+    train.parryPhase += 0.016;
+    const cycle = train.parryWait;
+    const rem = cycle - train.parryPhase;
+    if (rem <= -0.16) {
+      train.parryStreak = 0;
+      train.parryMsg = '놓침 — 타이밍에 맞춰 탭하세요';
+      train.parryPhase = 0;
+      train.parryWait = 1.35 + Math.random() * 0.75;
+    } else if (rem <= 0.38 && rem > -0.16) {
+      const inJust = rem <= 0.18 && rem >= -0.04;
+      const frac = Math.max(0, Math.min(1, rem / 0.38));
+      const innerR = 30, outerR = 30 + 62 * frac;
+      ctx.save();
+      ctx.strokeStyle = inJust ? 'rgba(136,255,224,0.95)' : 'rgba(255,212,118,0.75)';
+      ctx.lineWidth = inJust ? 4 : 2.2;
+      ctx.beginPath(); ctx.arc(cx, cy, outerR, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = inJust ? 'rgba(255,246,196,0.9)' : 'rgba(255,212,118,0.32)';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cx, cy, innerR, 0, Math.PI * 2); ctx.stroke();
+      ctx.font = '700 13px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillStyle = inJust ? '#9effe4' : '#f2d9a0';
+      ctx.fillText(inJust ? '지금 막기!' : '예고 중...', cx, cy + 4);
+      ctx.restore();
+    } else {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(226,188,116,0.28)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(cx, cy, 30, 0, Math.PI * 2); ctx.stroke();
+      ctx.font = '600 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(240,230,206,0.65)';
+      ctx.fillText('곧 공격이 옵니다...', cx, cy + 4);
+      ctx.restore();
+    }
+    if (train.parryMsg) {
+      ctx.font = '600 13px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillStyle = train.parryMsg.indexOf('완벽') >= 0 ? '#8ef5d4' : '#f0a288';
+      ctx.fillText(train.parryMsg, cx, 26);
+    }
+    const stEl = $('trainStats');
+    if (stEl) stEl.textContent = '연속 완벽 막기 ' + train.parryStreak + '회 · 최고 기록 ' + train.parryBest + '회';
+    train.raf = requestAnimationFrame(drawTrain);
+    return;
+  }
   const ghost = syntheticPath(train.shape, W * 0.5, H * 0.5, Math.min(70, W * 0.26));
   if (ghost && ghost.length) {
     ctx.save();
@@ -10782,8 +10834,38 @@ function trainFinish() {
 function wireTrain() {
   const cv = $('trainCanvas');
   if (!cv) return;
+  if ($('btnTrainParry')) $('btnTrainParry').addEventListener('click', function () {
+    train.parryMode = !train.parryMode;
+    train.parryPhase = 0; train.parryWait = 1.4; train.parryMsg = '';
+    $('btnTrainParry').textContent = train.parryMode ? '무늬 연습으로' : '패링 훈련';
+    const noteEl = $('trainNote');
+    if (noteEl) noteEl.textContent = train.parryMode ? '옥빛 링이 안쪽 원에 닿는 순간(0.18초) 화면을 탭해 완벽 막기를 연습하세요.' : (SHAPE_TIP[train.shape] || '');
+    if ($('trainShapes')) $('trainShapes').style.display = train.parryMode ? 'none' : '';
+  });
   cv.addEventListener('pointerdown', function (e) {
     e.preventDefault();
+    if (train.parryMode) {
+      const rem = train.parryWait - train.parryPhase;
+      const ms = Math.round(Math.abs(rem) * 1000);
+      if (rem <= 0.18 && rem >= -0.04) {
+        train.parryStreak++;
+        if (train.parryStreak > train.parryBest) train.parryBest = train.parryStreak;
+        train.parryMsg = '완벽 막기! ' + ms + 'ms · 연속 ' + train.parryStreak + '회';
+        if (audio && audio.justParry) audio.justParry();
+        haptic([24, 16, 36]);
+      } else if (rem > 0.18 && rem <= 0.45) {
+        train.parryStreak = 0;
+        train.parryMsg = '조금 빠름 (' + ms + 'ms 남음)';
+        if (audio && audio.whiff) audio.whiff();
+      } else {
+        train.parryStreak = 0;
+        train.parryMsg = '타이밍 어긋남 — 링이 모일 때 탭하세요';
+        if (audio && audio.whiff) audio.whiff();
+      }
+      train.parryPhase = 0;
+      train.parryWait = 1.3 + Math.random() * 0.75;
+      return;
+    }
     train.drawing = true; train.result = null; train.pts = [trainPoint(e)];
     try { cv.setPointerCapture(e.pointerId); } catch (err) {}
   });

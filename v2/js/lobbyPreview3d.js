@@ -1,7 +1,7 @@
 /* v2/js/lobbyPreview3d.js — v0.85 로비·치장 화면 실시간 3D 주인공 미리보기 (M2M_Idle + 터치 회전 + 도포/검 강화 반영) */
 import * as THREE from 'three';
-import { preloadHeroGlb, makeHeroGlb, applyHeroGlbCloak, applyHeroGlbSwordTrail } from './glbhero.js?v=v100';
-import { preloadMonsterGlb, makeBossGlb } from './glbboss.js?v=v100';
+import { preloadHeroGlb, makeHeroGlb, applyHeroGlbCloak, applyHeroGlbSwordTrail } from './glbhero.js?v=v101';
+import { preloadMonsterGlb, makeBossGlb } from './glbboss.js?v=v101';
 
 let renderer = null;
 let scene = null;
@@ -171,7 +171,17 @@ export function startCodex3d(canvas, species) {
   const loader = sp === 'hero' ? preloadHeroGlb() : preloadMonsterGlb(sp);
   return Promise.resolve(loader).then(function () {
     if (!cActive) return false;
-    if (cRoot) { cScene.remove(cRoot); cRoot = null; cModel = null; }
+    if (cRoot) {
+      cScene.remove(cRoot);
+      cRoot.traverse(function (o) {
+        if (o.isMesh) {
+          if (o.geometry) o.geometry.dispose();
+          const ms = Array.isArray(o.material) ? o.material : [o.material];
+          ms.forEach(function (m) { if (m && m.dispose) m.dispose(); });
+        }
+      });
+      cRoot = null; cModel = null;
+    }
     cModel = sp === 'hero' ? makeHeroGlb(2.2) : makeBossGlb(sp === 'boss' ? 2.35 : 2.15, sp);
     if (!cModel) return false;
     cRoot = cModel.fit || cModel.root;

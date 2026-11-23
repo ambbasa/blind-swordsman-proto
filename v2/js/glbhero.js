@@ -2,10 +2,10 @@
 import * as THREE from 'three';
 import { applyForgedMetal } from './modules/metalStudioEnv.js';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v100';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v100';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v101';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v101';
 
-const URL_GLB = new URL('../assets/models/hero.glb?v=v100', import.meta.url).href;
+const URL_GLB = new URL('../assets/models/hero.glb?v=v101', import.meta.url).href;
 let pending = null;
 let source = null;
 let cloneSkinned = null;
@@ -33,7 +33,7 @@ export function preloadHeroGlb() {
       return gltf;
     });
   }).catch(function (e) {
-    console.warn('[심안] hero.glb?v=v100', e);
+    console.warn('[심안] hero.glb?v=v101', e);
     pending = null;
     return null;
   });
@@ -66,7 +66,7 @@ export function makeHeroGlb(height) {
       outlineMeshes.push(o);
     } else {
       const srcMat = Array.isArray(o.material) ? o.material[0] : o.material;
-      const mat = srcMat ? srcMat.clone() : new THREE.MeshStandardMaterial({ color: 0xffffff });
+      let mat = srcMat ? srcMat.clone() : new THREE.MeshStandardMaterial({ color: 0xffffff });
       if (isSword) {
         /* v1.00 3d-metal-material: 진성 도체 강철 F0 + PMREM HDR 반사 자동 바인딩 */
         mat.metalness = 1.0;
@@ -80,14 +80,40 @@ export function makeHeroGlb(height) {
         o.castShadow = true;
         swordMeshes.push(o);
       } else {
-        mat.roughness = 0.78;
-        mat.metalness = 0.06;
-        if (mat.color) mat.color.setHex(0x8a8682);
-        if (mat.map) {
-          mat.emissiveMap = mat.map;
-          mat.emissive = new THREE.Color(0xffffff);
-          mat.emissiveIntensity = 0.54;
+        /* v1.01 3d-cloth-material: Hero_Body는 MeshPhysicalMaterial 직물 sheen(무명/비단 광택) 적용 */
+        let targetMat = mat;
+        if (!isHead) {
+          const phys = new THREE.MeshPhysicalMaterial({
+            color: 0x8a8682,
+            map: mat.map || null,
+            normalMap: mat.normalMap || null,
+            roughnessMap: mat.roughnessMap || null,
+            roughness: 0.86,
+            metalness: 0.02,
+            sheen: 0.56,
+            sheenRoughness: 0.56,
+            sheenColor: new THREE.Color(0x827d72)
+          });
+          if (mat.normalScale && phys.normalScale) phys.normalScale.copy(mat.normalScale);
+          if (phys.map) {
+            phys.emissiveMap = phys.map;
+            phys.emissive = new THREE.Color(0xffffff);
+            phys.emissiveIntensity = 0.50;
+          }
+          phys.customProgramCacheKey = function () { return 'hero-cloth-v101'; };
+          mat.dispose();
+          targetMat = phys;
+        } else {
+          targetMat.roughness = 0.78;
+          targetMat.metalness = 0.04;
+          if (targetMat.color) targetMat.color.setHex(0x8a8682);
+          if (targetMat.map) {
+            targetMat.emissiveMap = targetMat.map;
+            targetMat.emissive = new THREE.Color(0xffffff);
+            targetMat.emissiveIntensity = 0.54;
+          }
         }
+        mat = targetMat;
         /* v0.85/v0.90 의복 전용 셰이더 마스크: Hero_Head는 치장 틴트 제외, Hero_Body는 피부/머리 보호 */
         if (!isHead) {
         mat.userData.uCloakTint = { value: new THREE.Color(0xffffff) };
@@ -300,6 +326,14 @@ export function setHeroGlbTint(G, r, g, b) {
     m.color.setRGB(bc.r * r, bc.g * g, bc.b * b);
     if (m.userData.uCloakTint) m.userData.uCloakTint.value.copy(G.cloakTint);
     if (m.userData.uCloakMix) m.userData.uCloakMix.value = G.cloakMix || 0;
+      /* v1.01 3d-cloth-material: 도포별 직물(무명/설산비단/진홍비단/금사비단) sheen 차별화 */
+      if (m.isMeshPhysicalMaterial) {
+        const cid = (cloakProf && cloakProf.id) || 'ink';
+        if (cid === 'gilded_eclipse') { m.roughness = 0.42; m.sheen = 0.78; m.sheenRoughness = 0.26; m.sheenColor.setHex(0xd8b45c); }
+        else if (cid === 'crimson_guard') { m.roughness = 0.48; m.sheen = 0.68; m.sheenRoughness = 0.28; m.sheenColor.setHex(0xc86454); }
+        else if (cid === 'snow_sage') { m.roughness = 0.54; m.sheen = 0.62; m.sheenRoughness = 0.30; m.sheenColor.setHex(0x98d6ea); }
+        else { m.roughness = 0.86; m.sheen = 0.55; m.sheenRoughness = 0.56; m.sheenColor.setHex(0x827d72); }
+      }
   }
 }
 
