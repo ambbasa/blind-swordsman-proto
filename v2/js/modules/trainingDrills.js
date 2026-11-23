@@ -242,13 +242,13 @@ export function drawDrillCanvas(ctx, W, H, st) {
       ctx.strokeStyle = inJust ? 'rgba(255,246,196,0.9)' : 'rgba(255,212,118,0.34)';
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(cx, cy, innerR, 0, Math.PI * 2); ctx.stroke();
-      ctx.font = '700 13px sans-serif'; ctx.textAlign = 'center';
+      ctx.font = '700 13px "InkSerif", "Gowun Batang", serif'; ctx.textAlign = 'center';
       ctx.fillStyle = inJust ? '#9effe4' : '#f2d9a0';
       ctx.fillText(inJust ? '지금 막기!' : (st.kind === 'rhythm' ? ((st.beatIdx + 1) + '/3 예고') : '예고 중...'), cx, cy + 4);
     } else {
       ctx.strokeStyle = 'rgba(226,188,116,0.28)'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(cx, cy, 30, 0, Math.PI * 2); ctx.stroke();
-      ctx.font = '600 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(240,230,206,0.65)';
+      ctx.font = '600 12px "InkSerif", "Gowun Batang", serif'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(240,230,206,0.65)';
       ctx.fillText(st.kind === 'rhythm' ? ('삼연격 ' + (st.beatIdx + 1) + '/3 대기...') : '곧 공격이 옵니다...', cx, cy + 4);
     }
     ctx.restore();
@@ -291,7 +291,7 @@ export function drawDrillCanvas(ctx, W, H, st) {
     /* 보스 코어 */
     ctx.fillStyle = '#d93829';
     ctx.beginPath(); ctx.arc(cx, cy, 12, 0, Math.PI * 2); ctx.fill();
-    ctx.font = '700 10px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff3e0';
+    ctx.font = '700 10px "InkSerif", "Gowun Batang", serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#fff3e0';
     ctx.fillText('보스', cx, cy + 3);
 
     /* 혼령 타겟 */
@@ -304,7 +304,7 @@ export function drawDrillCanvas(ctx, W, H, st) {
       ctx.beginPath(); ctx.arc(tx, ty, tg.ok ? 20 : 16, 0, Math.PI * 2); ctx.stroke();
       ctx.fillStyle = tg.ok ? 'rgba(77,212,255,0.18)' : 'rgba(255,77,61,0.14)';
       ctx.fill();
-      ctx.font = '700 11px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = col;
+      ctx.font = '700 11px "InkSerif", "Gowun Batang", serif'; ctx.textAlign = 'center'; ctx.fillStyle = col;
       ctx.fillText(tg.label, tx, ty + 4);
     }
 
@@ -318,7 +318,7 @@ export function drawDrillCanvas(ctx, W, H, st) {
 
   if (st.msg) {
     ctx.save();
-    ctx.font = '600 12px sans-serif'; ctx.textAlign = 'center';
+    ctx.font = '600 12px "InkSerif", "Gowun Batang", serif'; ctx.textAlign = 'center';
     ctx.fillStyle = st.msgOk ? '#8ef5d4' : '#f0a288';
     ctx.fillText(st.msg, cx, 22);
     ctx.restore();

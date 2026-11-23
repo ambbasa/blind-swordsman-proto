@@ -413,7 +413,7 @@ export class BossFx {
     ctx.fillText(info.name || '', x + bw + 14, y + 16);
 
     ctx.textAlign = 'right';
-    ctx.font = isNow ? '700 12.5px "InkSerif", serif' : '600 11px sans-serif';
+    ctx.font = isNow ? '700 12.5px "InkSerif", "Gowun Batang", serif' : '600 11px "InkSerif", "Gowun Batang", serif';
     ctx.fillStyle = isNow ? '#fff2b0' : 'rgba(244,232,206,0.88)';
     const rightTxt = isNow
       ? (info.mode === 'parry' ? '지금 받아쳐라' : (info.mode === 'dodge' ? '지금 회피!' : (info.hint || S.hint)))
@@ -506,7 +506,7 @@ export class BossFx {
     ctx.strokeStyle = urgent ? '#FFF0C2' : '#FF4D3D'; ctx.lineWidth = 3; ctx.stroke();
     ctx.beginPath(); ctx.arc(hp.x, hp.y, 7 + 3 * Math.sin(t * 20), 0, Math.PI * 2);
     ctx.fillStyle = '#FF4D3D'; ctx.fill();
-    ctx.font = '700 13px sans-serif'; ctx.textAlign = 'center';
+    ctx.font = '700 13px "InkSerif", "Gowun Batang", serif'; ctx.textAlign = 'center';
     ctx.strokeStyle = 'rgba(10,12,16,0.92)'; ctx.lineWidth = 4;
     ctx.fillStyle = '#85F5D4';
     ctx.strokeText('등 뒤로 일섬!', hp.x, hp.y - 24);
@@ -543,7 +543,7 @@ export class BossFx {
       }
     }
     const tp = project(bx, bz, 2.3);
-    ctx.font = '700 14px sans-serif'; ctx.textAlign = 'center';
+    ctx.font = '700 14px "InkSerif", "Gowun Batang", serif'; ctx.textAlign = 'center';
     ctx.strokeStyle = 'rgba(10,12,16,0.92)'; ctx.lineWidth = 4;
     ctx.fillStyle = '#4DD4FF';
     ctx.strokeText('안전 칸으로 일섬!', tp.x, tp.y);
@@ -575,7 +575,7 @@ export class BossFx {
       ctx.strokeStyle = '#4DD4FF'; ctx.lineWidth = 2.6; ctx.stroke();
     }
     const c = project(bx, bz, 2.3);
-    ctx.font = '700 14px sans-serif'; ctx.textAlign = 'center';
+    ctx.font = '700 14px "InkSerif", "Gowun Batang", serif'; ctx.textAlign = 'center';
     ctx.fillStyle = '#4DD4FF';
     ctx.strokeStyle = 'rgba(10,12,16,0.9)'; ctx.lineWidth = 4;
     const msg = safeInside ? '안으로 진입!' : '밖으로 이탈!';
@@ -605,7 +605,7 @@ export class BossFx {
       ctx.strokeStyle = '#F2B84B'; ctx.lineWidth = 3.2; ctx.stroke();
       groundPoly(ctx, project, p.x, p.z, Math.max(0.2, (p.r || 2.2) * (1 - u)), 32, t * 0.6);
       ctx.strokeStyle = '#FFF3C4'; ctx.lineWidth = 2.2; ctx.stroke();
-      ctx.font = '700 13px sans-serif'; ctx.textAlign = 'center';
+      ctx.font = '700 13px "InkSerif", "Gowun Batang", serif'; ctx.textAlign = 'center';
       ctx.strokeStyle = 'rgba(10,12,16,0.9)'; ctx.lineWidth = 4;
       ctx.fillStyle = '#FFE494';
       ctx.strokeText('결계 진입!', base.x, base.y - 24);
@@ -627,7 +627,7 @@ export class BossFx {
     ctx.beginPath(); ctx.moveTo(bp.x, bp.y); ctx.lineTo(hp.x, hp.y); ctx.stroke();
     ctx.setLineDash([]);
     const mx = (bp.x + hp.x) * 0.5, my = (bp.y + hp.y) * 0.5 - 16;
-    ctx.font = '700 13px sans-serif'; ctx.textAlign = 'center';
+    ctx.font = '700 13px "InkSerif", "Gowun Batang", serif'; ctx.textAlign = 'center';
     ctx.strokeStyle = 'rgba(10,12,16,0.92)'; ctx.lineWidth = 4;
     ctx.fillStyle = frac >= 0.78 ? '#85F5D4' : '#FF9A8A';
     const txt = '사슬 절단 ' + Math.round(frac * 100) + '%';
@@ -647,7 +647,7 @@ export class BossFx {
     ctx.strokeStyle = inJust ? '#FFF8D6' : 'rgba(242,184,75,0.34)';
     ctx.lineWidth = 1.8;
     ctx.beginPath(); ctx.arc(hs.x, hs.y, innerR, 0, Math.PI * 2); ctx.stroke();
-    ctx.font = '700 13px sans-serif'; ctx.textAlign = 'center';
+    ctx.font = '700 13px "InkSerif", "Gowun Batang", serif'; ctx.textAlign = 'center';
     ctx.strokeStyle = 'rgba(10,12,16,0.92)'; ctx.lineWidth = 4;
     ctx.fillStyle = inJust ? '#85F5D4' : '#F2CC79';
     const txt = (inJust ? '막기! ' : '리듬 패링 ') + (beatIdx + 1) + '/' + totalBeats;
@@ -1018,7 +1018,7 @@ export class BossFx {
 
       /* 다음 순서 화살표 */
       if (i < n - 1) {
-        ctx.font = '700 14px sans-serif';
+        ctx.font = '700 14px "InkSerif", "Gowun Batang", serif';
         ctx.fillStyle = done ? 'rgba(130,120,108,0.5)' : 'rgba(244,232,206,0.65)';
         ctx.fillText('›', px + gap * 0.5, cy);
       }
@@ -1045,7 +1045,7 @@ export class BossFx {
       ctx.fillStyle = done ? 'rgba(120,110,98,0.8)' : (cur ? '#fff8df' : accent);
       ctx.strokeStyle = ctx.fillStyle;
       if (done) {
-        ctx.font = '700 16px sans-serif';
+        ctx.font = '700 16px "InkSerif", "Gowun Batang", serif';
         ctx.fillText('완료', px, cy + 1);
       } else if (sh === 'star') {
         ctx.beginPath();

@@ -31,15 +31,15 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v112';
+import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v113';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v112';
+import { probeAssets, buildArt } from './art.js?v=v113';
 import * as Anim from './anim.js';
-import { createAudio } from './audio.js?v=v112';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v112';
-import { PAT_COST, PAT_CUE, getActPhaseFx, bossPatternMean, buildBossBannerInfo } from './modules/bossPatterns.js?v=v112';
-import { GIMMICK_DRILLS, getDrillDef, createDrillState, resetDrillRound, stepDrill, handleDrillInput, drawDrillCanvas } from './modules/trainingDrills.js?v=v112';
-import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v112';
+import { createAudio } from './audio.js?v=v113';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v113';
+import { PAT_COST, PAT_CUE, getActPhaseFx, bossPatternMean, buildBossBannerInfo } from './modules/bossPatterns.js?v=v113';
+import { GIMMICK_DRILLS, getDrillDef, createDrillState, resetDrillRound, stepDrill, handleDrillInput, drawDrillCanvas } from './modules/trainingDrills.js?v=v113';
+import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v113';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
@@ -60,7 +60,7 @@ import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariant
 import { InkFx, FX_COLORS } from './inkfx.js';
 import { BossFx } from './bossFx.js';
 import { createTelemetry } from './telemetry.js';
-import { applyHeroCloak3D } from './inkhero3d.js?v=v112';
+import { applyHeroCloak3D } from './inkhero3d.js?v=v113';
 import {
   SAVE_VERSION, STAT_DEFS, FORGE_COSTS, SWORDS, RELICS, COSMETIC_CLOAKS, COSMETIC_TRAILS,
   DAILY_QUESTS, ATTENDANCE_REWARDS, STAR_CHESTS, CODEX_MILESTONES,
@@ -3993,7 +3993,7 @@ function drawOverlays(ctx, r, hs) {
     ctx.font = '700 17px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(chip.type ? (G.LABELS[chip.type] || '') : '?', x, y + 1);
     if (chip.hint) {
-      ctx.font = '700 11px sans-serif';
+      ctx.font = '700 11px "InkSerif", "Gowun Batang", serif';
       ctx.fillStyle = 'rgba(244,236,214,0.92)';
       ctx.fillText(chip.hint, x, y + 34);
     }
@@ -4332,7 +4332,7 @@ function drawV31(ctx, r, hs, t) {
       ctx.lineWidth = 1.4;
       ctx.beginPath(); ctx.arc(hs.x, hs.y, innerR, 0, Math.PI * 2); ctx.stroke();
       if (inJust) {
-        ctx.font = '700 11px sans-serif';
+        ctx.font = '700 11px "InkSerif", "Gowun Batang", serif';
         ctx.textAlign = 'center';
         ctx.fillStyle = '#9effe4';
         ctx.fillText('막기!', hs.x, hs.y - innerR - 8);
@@ -9501,6 +9501,8 @@ function endRun(win, msg) {
       qBtn.hidden = true;
     }
   }
+  const drillSub = $('btnResultDrill');
+  if (drillSub) drillSub.hidden = !(!win && S.boss);
   const retrySub = $('btnResultRetry');
   if (win && nextSt) {
     $('btnResultGo').textContent = '다음 장 — ' + nextSt.name;
@@ -11107,50 +11109,77 @@ function renderCodex() {
     });
   }
   const out = [];
-  /* v1.12 도감 3D 턴테이블 뷰어 — 조선 수묵 4x2 균등 그리드 */
+  if (!renderCodex._tab) renderCodex._tab = '3d';
+  const ctab = renderCodex._tab;
   out.push(
-    '<div class="codex-group codex-3d-wrap">' +
-    '<div class="codex-3d-head">' +
-    '<h3>3D 도감 뷰어</h3>' +
-    '<button type="button" id="codexAnimBtn" class="codex-3d-anim-btn">모션 재생</button>' +
-    '</div>' +
-    '<div class="codex-3d-grid">' +
-    [['hero','심안'],['minion','잡귀'],['heavy','중장'],['stone','석상'],['boss','1막 보스'],['boss_act2','2막 묵승'],['boss_act3','3막 무장'],['boss_act4','4막 검귀']].map(function (it, idx) {
-      return '<button type="button" class="codex-sp-btn' + (idx === 0 ? ' on' : '') + '" data-sp="' + it[0] + '">' + it[1] + '</button>';
-    }).join('') +
-    '</div>' +
-    '<div class="codex-3d-stage">' +
-    '<canvas id="codex3dCanvas"></canvas>' +
-    '<div class="codex-3d-hint">좌우 드래그로 360도 회전</div>' +
-    '</div></div>'
+    '<div class="codex-tabs" role="tablist" aria-label="도감 분류">' +
+    '<button type="button" data-codextab="3d" class="' + (ctab === '3d' ? 'on' : '') + '">3D 뷰어</button>' +
+    '<button type="button" data-codextab="mon" class="' + (ctab === 'mon' ? 'on' : '') + '">귀물·보스</button>' +
+    '<button type="button" data-codextab="pat" class="' + (ctab === 'pat' ? 'on' : '') + '">진화·기믹</button>' +
+    '</div>'
   );
-  out.push('<div class="codex-group"><h3>귀물 ' + n.mon + '/8</h3><div class="codex-grid">');
-  MON_CODE.forEach(function (m) {
-    const on = !!(save.codex.mon && save.codex.mon[m.id]);
-    out.push('<div class="codex-cell' + (on ? ' on' : ' unknown') + '"><b>' + (on ? m.name : '???') + '</b><span>' + (on ? m.desc : '') + '</span></div>');
-  });
-  out.push('</div></div>');
-  out.push('<div class="codex-group"><h3>보스 ' + n.boss + '/' + STAGES.length + '</h3><div class="codex-grid">');
-  STAGES.forEach(function (st) {
-    const rec = save.codex.boss && save.codex.boss[st.id];
-    out.push('<div class="codex-cell' + (rec ? ' on' : ' unknown') + '"><b>' + (rec ? st.bossName : '???') + '</b><span>' + (rec ? st.name : '') + '</span></div>');
-  });
-  out.push('</div></div>');
-  out.push('<div class="codex-group"><h3>진화 ' + n.evo + '/' + EVO_SLOTS + '</h3><div class="codex-grid">');
-  EVO_RECIPES.forEach(function (r) {
-    const on = !!(save.codex.evo && save.codex.evo[r.key]);
-    out.push('<div class="codex-cell' + (on ? ' on' : ' unknown') + '"><b>' + (on ? r.name : '???') + '</b><span>' + (on ? '재료 ' + (r.a.length ? cardNameOf(r.a[0]) : '종') + ' + ' + cardNameOf(r.b) : '') + '</span></div>');
-  });
-  out.push('</div></div>');
-  out.push('<div class="codex-group"><h3>패턴 ' + n.pat + '/' + PAT_SLOTS + '</h3><div class="codex-grid">');
-  PAT_CODE.filter(function (p) { return isBasePat(p.id); }).forEach(function (p) {
-    const on = !!(save.codex.pat && save.codex.pat[p.id]);
-    out.push('<div class="codex-cell' + (on ? ' on' : ' unknown') + '"><b>' + (on ? p.name : '???') + '</b><span>' + (on ? p.guides[0] : '') + '</span></div>');
-  });
-  out.push('</div></div>');
+  if (ctab === '3d') {
+    out.push(
+      '<div class="codex-group codex-3d-wrap">' +
+      '<div class="codex-3d-head">' +
+      '<h3>3D 도감 뷰어</h3>' +
+      '<button type="button" id="codexAnimBtn" class="codex-3d-anim-btn">모션 재생</button>' +
+      '</div>' +
+      '<div class="codex-3d-grid">' +
+      [['hero','심안'],['minion','잡귀'],['heavy','중장'],['stone','석상'],['boss','1막 보스'],['boss_act2','2막 묵승'],['boss_act3','3막 무장'],['boss_act4','4막 검귀']].map(function (it, idx) {
+        return '<button type="button" class="codex-sp-btn' + (idx === 0 ? ' on' : '') + '" data-sp="' + it[0] + '">' + it[1] + '</button>';
+      }).join('') +
+      '</div>' +
+      '<div class="codex-3d-stage">' +
+      '<canvas id="codex3dCanvas"></canvas>' +
+      '<div class="codex-3d-hint">좌우 드래그로 360도 회전</div>' +
+      '</div></div>'
+    );
+  } else if (ctab === 'mon') {
+    out.push('<div class="codex-group"><h3>귀물 ' + n.mon + '/8</h3><div class="codex-grid">');
+    MON_CODE.forEach(function (m) {
+      const on = !!(save.codex.mon && save.codex.mon[m.id]);
+      out.push('<div class="codex-cell' + (on ? ' on' : ' unknown') + '"><b>' + (on ? m.name : '???') + '</b><span>' + (on ? m.desc : '') + '</span></div>');
+    });
+    out.push('</div></div>');
+    out.push('<div class="codex-group"><h3>보스 ' + n.boss + '/' + STAGES.length + '</h3><div class="codex-grid">');
+    STAGES.forEach(function (st) {
+      const rec = save.codex.boss && save.codex.boss[st.id];
+      out.push('<div class="codex-cell' + (rec ? ' on' : ' unknown') + '"><b>' + (rec ? st.bossName : '???') + '</b><span>' + (rec ? st.name : '') + '</span></div>');
+    });
+    out.push('</div></div>');
+  } else {
+    out.push('<div class="codex-group"><h3>보스 6대 핵심 기믹 (4색 예고 공략)</h3><div class="codex-gimmick-list">');
+    PAT_CODE.filter(function (p) { return p.slot >= 13; }).forEach(function (p) {
+      const cue = PAT_CUE[p.id] || 'jade';
+      out.push('<div class="codex-gimmick-cell cue-' + cue + '"><b>' + p.name + '</b><span>' + p.guides.join(' ') + '</span></div>');
+    });
+    out.push('</div></div>');
+    out.push('<div class="codex-group"><h3>진화 ' + n.evo + '/' + EVO_SLOTS + '</h3><div class="codex-grid">');
+    EVO_RECIPES.forEach(function (r) {
+      const on = !!(save.codex.evo && save.codex.evo[r.key]);
+      out.push('<div class="codex-cell' + (on ? ' on' : ' unknown') + '"><b>' + (on ? r.name : '???') + '</b><span>' + (on ? '재료 ' + (r.a.length ? cardNameOf(r.a[0]) : '종') + ' + ' + cardNameOf(r.b) : '') + '</span></div>');
+    });
+    out.push('</div></div>');
+    out.push('<div class="codex-group"><h3>기본 패턴 ' + n.pat + '/' + PAT_SLOTS + '</h3><div class="codex-grid">');
+    PAT_CODE.filter(function (p) { return isBasePat(p.id); }).forEach(function (p) {
+      const on = !!(save.codex.pat && save.codex.pat[p.id]);
+      out.push('<div class="codex-cell' + (on ? ' on' : ' unknown') + '"><b>' + (on ? p.name : '???') + '</b><span>' + (on ? p.guides[0] : '') + '</span></div>');
+    });
+    out.push('</div></div>');
+  }
   body.innerHTML = out.join('');
+  Array.prototype.forEach.call(body.querySelectorAll('button[data-codextab]'), function (tb) {
+    tb.addEventListener('click', function () {
+      const next = tb.getAttribute('data-codextab') || '3d';
+      if (next === renderCodex._tab) return;
+      if (renderCodex._tab === '3d') { try { stopCodex3d(); } catch (_) {} }
+      renderCodex._tab = next;
+      renderCodex();
+    });
+  });
   try {
-    const cv = document.getElementById('codex3dCanvas');
+    const cv = ctab === '3d' ? document.getElementById('codex3dCanvas') : null;
     if (cv) {
       startCodex3d(cv, 'hero');
       const spBtns = body.querySelectorAll('button.codex-sp-btn');
@@ -12000,6 +12029,10 @@ function bindUi() {
     persist();
     setMode('train');
     startRun({ stage: (S && S.stageNo) || 1 });
+  });
+  if ($('btnResultDrill')) $('btnResultDrill').addEventListener('click', function () {
+    openTrain();
+    if (!train.parryMode && $('btnTrainParry')) $('btnTrainParry').click();
   });
   if ($('btnSaveExport')) $('btnSaveExport').addEventListener('click', function () {
     try {

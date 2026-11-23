@@ -1203,3 +1203,45 @@ h1, h2, h3, #timer, #titleName, #bossCardName, #resultTitle { font-family: var(-
   color: var(--jade-light); background: rgba(24, 52, 44, 0.85);
   border: 1px solid rgba(132, 242, 214, 0.42);
 }
+
+/* ========== v1.13 도감 3탭 & 6대 보스 기믹 공략 카드 ========== */
+.codex-tabs {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+  margin: 0 0 10px !important;
+}
+.codex-tabs button {
+  min-height: 36px !important;
+  border-radius: 2px !important;
+  border: 1px solid rgba(217, 185, 126, 0.32) !important;
+  background: rgba(20, 16, 13, 0.88) !important;
+  color: var(--ivory-dim) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  cursor: pointer;
+}
+.codex-tabs button.on {
+  background: linear-gradient(180deg, rgba(217, 185, 126, 0.26), rgba(34, 25, 17, 0.94)) !important;
+  border-color: var(--chapter-accent) !important;
+  color: var(--chapter-accent) !important;
+}
+.codex-gimmick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.codex-gimmick-cell {
+  padding: 8px 10px;
+  border-radius: 2px;
+  background: rgba(18, 15, 12, 0.84);
+  border: 1px solid rgba(217, 185, 126, 0.24);
+  border-left: 4px solid var(--chapter-accent);
+  text-align: left;
+  word-break: keep-all;
+}
+.codex-gimmick-cell.cue-red { border-left-color: #FF4D3D; }
+.codex-gimmick-cell.cue-gold { border-left-color: #F2B84B; }
+.codex-gimmick-cell.cue-jade { border-left-color: #4DD4FF; }
+.codex-gimmick-cell b { display: block; font-size: 12.5px; color: var(--ivory); margin-bottom: 2px; }
+.codex-gimmick-cell span { display: block; font-size: 11px; color: var(--ivory-dim); line-height: 1.4; }
