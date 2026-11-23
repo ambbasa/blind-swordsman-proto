@@ -139,6 +139,10 @@ export function syncSceneActTheme3D({ actNo, scene, lights, arena, paperFx, hero
     if (lights.fill && lights.fill.color && lights.fill.color.setHex) lights.fill.color.setHex(t.fillHex);
     if (lights.amb && lights.amb.color && lights.amb.color.setHex) lights.amb.color.setHex(t.ambHex);
     if (lights.hemi && lights.hemi.color && lights.hemi.color.setHex) lights.hemi.color.setHex(t.rimHex);
+    if (lights.rim && lights.rim.color && lights.rim.color.setHex) lights.rim.color.setHex(t.rimHex);
+    if (lights.inkUniforms && lights.inkUniforms.uGroundSheenCol && lights.inkUniforms.uGroundSheenCol.value && lights.inkUniforms.uGroundSheenCol.value.setHex) {
+      lights.inkUniforms.uGroundSheenCol.value.setHex(t.rimHex);
+    }
   }
 
   if (arena && typeof arena.applyActTheme === 'function') {

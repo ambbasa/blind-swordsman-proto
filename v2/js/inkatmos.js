@@ -303,42 +303,32 @@ export class RayField {
 
 export class StageAtmosphere {  constructor(scene, stageId) {
     this.fields = [];
-    const rnd = Math.random;
+    const actNo = Math.max(1, Math.min(4, Math.ceil(Math.max(1, Number(stageId || 1)) / 3)));
     const add = function (f) { this.fields.push(f); }.bind(this);
     const mk = function (o) { return new DriftField(scene, o); };
     const mote = function (o) { return mk(Object.assign({ texture: moteTexture(), mode: 0 }, o)); };
-    if (stageId === 3) {
-      add(mk({ count: 150, texture: leafTexture(), mode: 0, box: [34, 18, 34], size: 0.22, fall: 0.32, drift: 0.5, color: 0xcfe0c4, opacity: 0.75, rot: 1.4 }));
-      add(mk({ count: 90, texture: moteTexture(), mode: 0, box: [30, 16, 30], size: 0.05, fall: 0.16, color: 0x9fb6a4, opacity: 0.4, rot: 0.5 }));
-      add(mk({ count: 54, texture: moteTexture(), mode: 1, box: [26, 7, 26], size: 0.09, color: MOTE_JADE, opacity: 0.85, additive: true, rot: 0 }));
-    } else if (stageId === 2) {
-      add(mk({ count: 170, texture: moteTexture(), mode: 0, box: [32, 18, 32], size: 0.055, fall: 0.28, color: 0xbfcbe0, opacity: 0.42, rot: 0.6 }));
-      add(mk({ count: 70, texture: moteTexture(), mode: 0, box: [30, 16, 30], size: 0.03, fall: 0.5, color: 0xdde6f5, opacity: 0.3, rot: 0.8 }));
-    } else if (stageId === 6) {
-      /* 설산 폐사찰: 굵은 눈송이와 가는 눈발 */
-      add(mote({ count: 260, box: [32, 18, 32], size: 0.11, fall: 0.9, drift: 0.7, color: 0xf2f6ff, opacity: 0.7, rot: 0.4 }));
-      add(mote({ count: 160, box: [30, 16, 30], size: 0.045, fall: 1.4, drift: 0.9, color: 0xe2ecfa, opacity: 0.45, rot: 0.6 }));
-    } else if (stageId === 7) {
-      /* 고목 골: 마른 낙엽과 흙먼지 */
-      add(mk({ count: 120, texture: leafTexture(), mode: 0, box: [34, 18, 34], size: 0.2, fall: 0.38, drift: 0.6, color: 0xc8a070, opacity: 0.7, rot: 1.6 }));
-      add(mote({ count: 90, box: [30, 16, 30], size: 0.05, fall: 0.2, color: 0xa89878, opacity: 0.35, rot: 0.5 }));
-    } else if (stageId >= 5 && stageId <= 8) {
-      /* 안개 석탑 · 무명 산문: 느리게 떠도는 물안개 알갱이와 푸른 반딧불 */
-      add(mote({ count: 60, box: [34, 8, 34], size: 0.5, fall: 0.05, drift: 0.4, color: 0xcfd8e4, opacity: 0.12, rot: 0.2 }));
-      add(mote({ count: 150, box: [32, 18, 32], size: 0.05, fall: 0.22, color: 0xc0cad8, opacity: 0.38, rot: 0.6 }));
-      add(mk({ count: 36, texture: moteTexture(), mode: 1, box: [26, 7, 26], size: 0.08, color: MOTE_COLD, opacity: 0.75, additive: true, rot: 0 }));
-    } else if (stageId >= 9) {
-      /* 혈월의 나락: 내려앉는 재와 떠오르는 핏빛 불티 */
-      add(mote({ count: 220, box: [32, 18, 32], size: 0.06, fall: 0.24, drift: 0.5, color: 0x8a8480, opacity: 0.45, rot: 0.9 }));
-      add(mk({ count: 70, texture: moteTexture(), mode: 1, box: [28, 8, 28], size: 0.07, color: BLOOD, opacity: 0.8, additive: true, rot: 0 }));
+    /* v0.97 막(Act 1~4)별 전장 대기 파티클 차별화: 1막 대나무 낙엽, 2막 설산 눈송이, 3막 홍련 불티, 4막 금월 금가루 */
+    if (actNo === 1) {
+      add(mk({ count: 145, texture: leafTexture(), mode: 0, box: [34, 18, 34], size: 0.22, fall: 0.32, drift: 0.56, color: stageId === 3 ? 0xcfe0c4 : 0xdcc89a, opacity: 0.74, rot: 1.45 }));
+      add(mote({ count: 110, box: [30, 16, 30], size: 0.055, fall: 0.18, drift: 0.42, color: 0xe6d4a8, opacity: 0.44, rot: 0.5 }));
+      add(mk({ count: 48, texture: moteTexture(), mode: 1, box: [26, 7, 26], size: 0.085, color: MOTE_JADE, opacity: 0.82, additive: true, rot: 0 }));
+    } else if (actNo === 2) {
+      add(mote({ count: 240, box: [32, 18, 32], size: 0.115, fall: 0.82, drift: 0.78, color: 0xf0f6ff, opacity: 0.72, rot: 0.45 }));
+      add(mote({ count: 150, box: [30, 16, 30], size: 0.048, fall: 1.25, drift: 0.95, color: 0xd8e8fa, opacity: 0.48, rot: 0.65 }));
+      add(mk({ count: 42, texture: moteTexture(), mode: 1, box: [26, 8, 26], size: 0.08, color: MOTE_COLD, opacity: 0.76, additive: true, rot: 0 }));
+    } else if (actNo === 3) {
+      add(mk({ count: 95, texture: moteTexture(), mode: 1, box: [28, 10, 28], size: 0.085, color: 0xff6238, opacity: 0.88, additive: true, rot: 0 }));
+      add(mote({ count: 210, box: [32, 18, 32], size: 0.062, fall: 0.25, drift: 0.55, color: 0x9a7874, opacity: 0.48, rot: 0.95 }));
+      add(mk({ count: 65, texture: leafTexture(), mode: 0, box: [32, 16, 32], size: 0.17, fall: 0.34, drift: 0.62, color: 0xc26a58, opacity: 0.56, rot: 1.5 }));
     } else {
-      add(mk({ count: 200, texture: moteTexture(), mode: 0, box: [32, 18, 32], size: 0.05, fall: 0.34, color: stageId === 4 ? 0xd8a898 : 0xc8c2b4, opacity: 0.4, rot: 0.7 }));
-      add(mk({ count: 26, texture: moteTexture(), mode: 0, box: [28, 12, 28], size: 0.16, fall: 0.12, color: stageId === 4 ? 0x6a4038 : 0x8a8478, opacity: 0.16, rot: 1.2 }));
+      add(mk({ count: 120, texture: moteTexture(), mode: 1, box: [28, 11, 28], size: 0.092, color: 0xffe08a, opacity: 0.90, additive: true, rot: 0 }));
+      add(mote({ count: 165, box: [32, 18, 32], size: 0.058, fall: 0.20, drift: 0.52, color: 0xc8b2f0, opacity: 0.46, rot: 0.8 }));
+      add(mk({ count: 45, texture: moteTexture(), mode: 1, box: [26, 8, 26], size: 0.075, color: 0xc29aff, opacity: 0.72, additive: true, rot: 0 }));
     }
-    /* v0.43: 사선 빛줄기(갓레이) — 막마다 색만 다르고, 아주 옅게 깔린다. */
+    /* v0.97 막별 사선 빛줄기(갓레이) */
     try {
-      const rayCol = stageId >= 9 ? 0xff9a74 : (stageId >= 5 && stageId <= 8 ? 0xdfe9f2 : 0xfff0d0);
-      this.rays = new RayField(scene, { count: 5, color: rayCol, alpha: stageId >= 5 && stageId <= 8 ? 0.075 : 0.09, width: 3.6, length: 26, tilt: 0.42 });
+      const rayCol = actNo === 4 ? 0xf4d284 : (actNo === 3 ? 0xff8c66 : (actNo === 2 ? 0xd8ecff : 0xfff0d0));
+      this.rays = new RayField(scene, { count: 5, color: rayCol, alpha: actNo === 2 ? 0.08 : 0.095, width: 3.6, length: 26, tilt: 0.42 });
       this.fields.push(this.rays);
     } catch (e) { this.rays = null; }
     /* v0.43: 한지 먼지 — 모든 장에 아주 옅은 따뜻한 티끌을 한 겹 더한다. */

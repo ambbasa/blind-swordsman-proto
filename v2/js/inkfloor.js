@@ -198,7 +198,7 @@ export function createFloorLayer(opts) {
 
   /* ---------- 1) 바탕 흙(길 밑) · 물길 · 다진 길 띠 ---------- */
   const waterMat = new THREE.MeshStandardMaterial({
-    map: tex.water, color: tcol(0.62), roughness: 0.42, metalness: 0.0,
+    map: tex.water, color: tcol(0.66), roughness: 0.24, metalness: 0.14,
     transparent: true, depthWrite: false, side: THREE.DoubleSide, opacity: 0.95
   });
   waterMat.userData.cardProfile = 'ground';
@@ -272,7 +272,7 @@ export function createFloorLayer(opts) {
   for (let i = 0; i < PAVE_N; i++) {
     if (!tex['pave' + i]) continue;
     const m = new THREE.MeshStandardMaterial({
-      map: tex['pave' + i], roughness: 0.96, metalness: 0.0,
+      map: tex['pave' + i], roughness: 0.74, metalness: 0.08,
       transparent: true, alphaTest: 0.42, depthWrite: true, color: tcol(0.52)
     });
     m.userData.inkGround = true;

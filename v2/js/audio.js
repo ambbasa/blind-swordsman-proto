@@ -329,6 +329,25 @@ export function createAudio() {
     bell();
   }
 
+  /* v0.97 저스트 패링(완벽 막기): 예리한 칼날 격돌 + 맑은 옥종 공명 + 깊은 충격 저음 */
+  function justParry() {
+    if (quiet) return;
+    const c = resume(); if (!c) return;
+    const t0 = c.currentTime;
+    const V = voice(1.0, 0.92); if (!V) return;
+    tone(t0, 96, 0.16, 0.30, 'sine', V, 40);
+    [1380, 2160, 3280, 4890].forEach(function (f, i) {
+      tone(t0, f, 0.22 - i * 0.025, 0.11 / (i * 0.5 + 1), i < 2 ? 'triangle' : 'sine', V, f * 0.97);
+    });
+    noise(t0, 0.048, 'highpass', 3200, 1.2, 0.22, V);
+    /* 옥종 공명 (D5 + D6 + A6 + 미세 맥놀이) */
+    tone(t0 + 0.015, 587.33, 0.85, 0.16, 'sine', V, 584.5);
+    tone(t0 + 0.018, 589.60, 0.80, 0.10, 'sine', V, 586.8);
+    tone(t0 + 0.022, 1174.66, 0.68, 0.095, 'sine', V, 1170.0);
+    tone(t0 + 0.026, 1762.00, 0.48, 0.052, 'triangle', V, 1756.0);
+    bell();
+  }
+
   /* 한국 징(Jing): 7개 비정수 금속 배음 + 느린 맥놀이 + 장엄한 잔향 */
   function gong() {
     if (quiet) return;
@@ -694,6 +713,7 @@ export function createAudio() {
     breakCue: breakCue,
     explode: explode,
     parry: parry,
+    justParry: justParry,
     drum: drum,
     gong: gong,
     bossSpawn: bossSpawn,
@@ -717,7 +737,7 @@ export function createAudio() {
         synth: true,
         bpm: bossMode ? 118 : 100,
         bossMode: bossMode,
-        kinds: ['slash', 'hit', 'explode', 'bell', 'bellCut', 'whiff', 'pickup', 'drum', 'gong', 'bossSpawn', 'bossSlam', 'bossCharge', 'bossVolley', 'bossBreak', 'paperFold', 'paperTear', 'paperCrush', 'bgm-gayageum-daegeum-ajaeng-janggu'],
+        kinds: ['slash', 'hit', 'explode', 'bell', 'bellCut', 'whiff', 'pickup', 'drum', 'gong', 'justParry', 'bossSpawn', 'bossSlam', 'bossCharge', 'bossVolley', 'bossBreak', 'paperFold', 'paperTear', 'paperCrush', 'bgm-gayageum-daegeum-ajaeng-janggu'],
         muted: muted,
         bgmOn: bgmOn,
         source: 'original-webaudio',

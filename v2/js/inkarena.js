@@ -801,10 +801,48 @@ export function buildArena(opts) {
     B.add(gTop, col, ZONE.STONE, { x: x + tilt * 0.85, z: z - tilt * 0.55, y: h * 0.80, sx: 0.62, sy: h * 0.28, sz: 0.56, ry: yaw + 2.3, rz: tilt * 1.3 });
     gBase.dispose(); gMid.dispose(); gTop.dispose();
   }
-  /* v0.65: 전 스테이지 구형 저폴리곤 아레나 기물(house/gate/pagoda/shrine/stall/lantern/spire 등)을
-     완전히 걷어내고, skillAssets3d.js 기반 고품질 PBR 스킬 3D 에셋(inkTerrain3d.js)으로 전수 교체.
-     inkarena.js는 외곽 절벽 링(cliffRing)과 아레나 경계(ARENA.R)만 담당해 중복·과밀·충돌을 근본 차단. */
+  /* v0.65: 외곽 절벽 링(cliffRing)과 아레나 경계(ARENA.R)를 담당해 전투 구역 충돌을 차단.
+     v0.97: 외곽 경계선(ARENA.R + 2.2m~4.8m)에 막(Act 1~4)별 3D 실루엣 프롭을 단일 SkinnedMesh에 합쳐 드로우콜 0 증가로 전장 개성 강화. */
   cliffRing(B,rnd,c);
+  const actNoProps = actFromStageId(stageId);
+  (function addActPerimeterProps() {
+    const count = 12;
+    for (let i = 0; i < count; i++) {
+      const ang = (i / count) * Math.PI * 2 + (rnd() - 0.5) * 0.22;
+      const rr = ARENA.R + 2.4 + rnd() * 2.2;
+      const px = Math.cos(ang) * rr, pz = Math.sin(ang) * rr;
+      if (actNoProps === 1) {
+        /* 1막: 대나무 군락 다발(3줄기 + 잎관) */
+        for (let k = 0; k < 3; k++) {
+          const ox = (rnd() - 0.5) * 0.75, oz = (rnd() - 0.5) * 0.75;
+          const bh = 5.4 + rnd() * 2.6;
+          const lean = (rnd() - 0.5) * 0.14;
+          B.add(G.cyl, 0x385842, ZONE.WOOD, { x: px + ox, y: bh * 0.5, z: pz + oz, sx: 0.14, sy: bh, sz: 0.14, rx: lean, rz: -lean * 0.8 });
+          B.add(G.cone4, 0x2f4d3a, ZONE.LEAF, { x: px + ox + lean * 2.2, y: bh + 0.35, z: pz + oz, sx: 0.95, sy: 1.25, sz: 0.95, ry: rnd() * 6.28 });
+        }
+      } else if (actNoProps === 2) {
+        /* 2막: 설산 빙석 암봉 + 푸른 서리 발광 틈 */
+        const sh = 2.8 + rnd() * 2.2;
+        B.add(G.cone4, 0x7b8ea4, ZONE.STONE, { x: px, y: sh * 0.5, z: pz, sx: 1.35, sy: sh, sz: 1.25, ry: rnd() * 6.28 });
+        B.add(G.cone4, 0xdce8f8, ZONE.STONE, { x: px, y: sh * 0.82, z: pz, sx: 0.72, sy: sh * 0.36, sz: 0.72, ry: rnd() * 6.28 });
+        if (i % 2 === 0) B.lit(G.box, 0x9ce8ff, { x: px, y: sh * 0.45, z: pz, sx: 0.18, sy: sh * 0.42, sz: 0.18, ry: ang });
+      } else if (actNoProps === 3) {
+        /* 3막: 홍련 석등 & 주홍 기둥 화로 */
+        const ph = 3.0 + rnd() * 1.1;
+        B.add(G.box, 0x3a2526, ZONE.STONE, { x: px, y: 0.35, z: pz, sx: 0.95, sy: 0.70, sz: 0.95, ry: ang });
+        B.add(G.cyl, 0x862c28, ZONE.WOOD, { x: px, y: 0.7 + ph * 0.5, z: pz, sx: 0.24, sy: ph, sz: 0.24 });
+        B.lit(G.box, 0xff6e42, { x: px, y: 0.7 + ph + 0.28, z: pz, sx: 0.42, sy: 0.44, sz: 0.42, ry: ang });
+        B.add(G.cone4, 0x2a1d1f, ZONE.TILE, { x: px, y: 0.7 + ph + 0.72, z: pz, sx: 0.88, sy: 0.48, sz: 0.88, ry: ang });
+      } else {
+        /* 4막: 금월 고대 석주 오벨리스크 + 황금 룬 발광 띠 */
+        const oh = 4.2 + rnd() * 2.0;
+        B.add(G.box, 0x262034, ZONE.STONE, { x: px, y: oh * 0.5, z: pz, sx: 0.72, sy: oh, sz: 0.72, ry: ang });
+        B.lit(G.box, 0xffd878, { x: px, y: oh * 0.62, z: pz, sx: 0.78, sy: 0.14, sz: 0.78, ry: ang });
+        B.lit(G.box, 0xc29aff, { x: px, y: oh * 0.82, z: pz, sx: 0.62, sy: 0.12, sz: 0.62, ry: ang });
+        B.add(G.cone4, 0x332946, ZONE.STONE, { x: px, y: oh + 0.45, z: pz, sx: 0.68, sy: 0.90, sz: 0.68, ry: ang });
+      }
+    }
+  })();
 
   const bodyGeo = merge(B.body);
   const bodyMat = propMat();

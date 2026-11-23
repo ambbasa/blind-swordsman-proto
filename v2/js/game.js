@@ -31,13 +31,13 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb } from './glbboss.js?v=v096';
+import { makeBossGlb } from './glbboss.js?v=v097';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v096';
+import { probeAssets, buildArt } from './art.js?v=v097';
 import * as Anim from './anim.js';
-import { createAudio } from './audio.js?v=v096';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle } from './lobbyPreview3d.js?v=v096';
-import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v096';
+import { createAudio } from './audio.js?v=v097';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle } from './lobbyPreview3d.js?v=v097';
+import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v097';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
@@ -298,7 +298,7 @@ const CFG = {
   /* v0.31 §3.3 콤보 단계 보상: 10 참+10 · 15 다음 일섬 폭 ×1.5 · 20 혼백+3·엽전+5 · 30부터 10마다 참+10. */
   comboTiers: { 10: { charge: 10 }, 15: { wide: 1.5 }, 20: { xp: 3, coin: 5 }, 30: { charge: 10 } },
   /* v0.31 §3.5 정확한 패링: 공격이 닿기 0.2초 안의 탭 = 피해 2배·참 +10·0.2초 느린 화면. */
-  preciseWin: 0.2, preciseDmgMul: 2, preciseCharge: 10, preciseSlow: 0.2, preciseStun: 0.6,
+  preciseWin: 0.2, justParryWin: 0.18, preciseDmgMul: 2, preciseCharge: 10, preciseSlow: 0.2, preciseStun: 0.6,
   /* v0.31 §5.2 멈추지 않는 선택: 0.3배 1.5초 + 아래 카드 3장, 4초 안에 고르면 자동 추천. */
   quick: { slow: 0.3, slowDur: 1.5, pickSec: 4.0, zone: 0.22 },
   /* v0.31 §5.3 새 카드 */
@@ -1343,12 +1343,12 @@ async function makeWorld() {
   camera.position.set(CFG.camOff.x, CFG.camOff.y, CFG.camOff.z);
   camera.lookAt(0, CFG.camLookY, 0);
 
-  const amb = new THREE.AmbientLight(palColor('rigAmbient'), 1.0);
+  const amb = new THREE.AmbientLight(palColor('rigAmbient'), 1.02);
   scene.add(amb);
-  const hemi = new THREE.HemisphereLight(palColor('rigHemiSky'), palColor('rigHemiGround'), 1.0);
+  const hemi = new THREE.HemisphereLight(palColor('rigHemiSky'), palColor('rigHemiGround'), 1.08);
   scene.add(hemi);
-  /* v0.36 컨셉 아트 톤: 달빛을 낮추고 중앙 등불을 키워, 가장자리는 먹빛으로 스며들고 가운데만 호박빛으로 맺힌다. */
-  const moon = new THREE.DirectionalLight(palColor('rigMoonlight'), 1.25);
+  /* v0.97 전투 3D 입체감 강화: 주광(달빛)·보조광·후면 림라이트를 로비 3D 톤에 맞춰 조율 */
+  const moon = new THREE.DirectionalLight(palColor('rigMoonlight'), 1.48);
   moon.position.set(-18, 28, 10);
   moon.castShadow = true;
   const initShadowSz = IS_MOBILE ? (fxQ === 'high' ? 1024 : 512) : (fxQ === 'high' ? 2048 : 1024);
@@ -1357,16 +1357,20 @@ async function makeWorld() {
   moon.shadow.camera.left = -30; moon.shadow.camera.right = 30;
   moon.shadow.camera.top = 30; moon.shadow.camera.bottom = -30;
   moon.shadow.camera.near = 1; moon.shadow.camera.far = 90;
-  moon.shadow.bias = -0.0011;
-  moon.shadow.normalBias = 0.045;
-  moon.shadow.radius = 2.4;
+  moon.shadow.bias = -0.0008;
+  moon.shadow.normalBias = 0.032;
+  moon.shadow.radius = 2.2;
   moon.target.position.set(0, 0, 0);
   scene.add(moon);
   scene.add(moon.target);
   /* 그림자 진 곳을 죽이지 않는 반대편 달빛(그림자 없음) — 먹 그림자가 검은 구멍이 되지 않게. */
-  const fill = new THREE.DirectionalLight(palColor('rigFill'), 0.6);
+  const fill = new THREE.DirectionalLight(palColor('rigFill'), 0.78);
   fill.position.set(14, 12, -16);
   scene.add(fill);
+  /* v0.97 캐릭터·보스 윤곽을 어두운 수묵 바닥에서 또렷하게 분리하는 후면 림라이트 */
+  const rim = new THREE.DirectionalLight(0xffebb8, 1.15);
+  rim.position.set(-10, 14, -18);
+  scene.add(rim);
 
   const sky = new THREE.Mesh(
     new THREE.SphereGeometry(90, 24, 16),
@@ -1380,7 +1384,7 @@ async function makeWorld() {
   try { if (sky && sky.material) { sky.material.userData.cardProfile = 'backdrop'; paintCard(sky.material, 'backdrop'); } } catch (e) {}
   const world = {
     renderer: renderer, scene: scene, camera: camera, map: map, torches: [], fx: [], slashes: [],
-    view: view, fxForced: fxQForced, amb: amb, hemi: hemi, moon: moon, fill: fill, sky: sky, baseClear: clear,
+    view: view, fxForced: fxQForced, amb: amb, hemi: hemi, moon: moon, fill: fill, rim: rim, sky: sky, baseClear: clear,
     dprCap: dprCap, dprNow: dprCap, atmo: new StageAtmosphere(scene, 1)
   };
   /* 점광원 풀은 재질 예열(prewarmInkSlash) 전에 만든다 — 조명 개수가 바뀌면 예열한 프로그램이 다시 링크된다.
@@ -4234,6 +4238,27 @@ function drawV31(ctx, r, hs, t) {
     ctx.fillText(hint, cx, py + ph + 13);
     ctx.restore();
   }
+  /* v0.97 저스트 패링(완벽 막기) 수묵 흑백 반전 연출 (0.14초, 접근성 흔들림 끔 설정 존중) */
+  if (S && S.justParryInvertT > 0) {
+    S.justParryInvertT = Math.max(0, S.justParryInvertT - 0.016);
+    if (!save || save.shake !== false) {
+      const jk = clamp(S.justParryInvertT / 0.14, 0, 1);
+      ctx.save();
+      ctx.globalCompositeOperation = 'difference';
+      ctx.fillStyle = 'rgba(245,240,226,' + (0.78 * jk).toFixed(3) + ')';
+      ctx.fillRect(0, 0, r.width, r.height);
+      ctx.restore();
+      ctx.save();
+      const jcx = r.width * 0.5, jcy = r.height * 0.48, jrad = Math.hypot(jcx, jcy);
+      const jGrad = ctx.createRadialGradient(jcx, jcy, jrad * 0.05, jcx, jcy, jrad * 0.65);
+      jGrad.addColorStop(0, 'rgba(130,248,216,' + (0.32 * jk).toFixed(3) + ')');
+      jGrad.addColorStop(0.45, 'rgba(255,228,136,' + (0.16 * jk).toFixed(3) + ')');
+      jGrad.addColorStop(1, 'rgba(10,10,12,0)');
+      ctx.fillStyle = jGrad;
+      ctx.fillRect(0, 0, r.width, r.height);
+      ctx.restore();
+    }
+  }
   /* v0.67 수묵 2톤 임팩트 프레임 + 먹물 집중선 (lightning-energy-skill-vfx · WCAG 안전 0.085초) */
   if (S && S.impactFrameT > 0) {
     S.impactFrameT = Math.max(0, S.impactFrameT - 0.016);
@@ -4854,7 +4879,7 @@ function dashEndPoint(from, tgt) {
 /* v0.49.2 2칸 FIFO 선입력 버퍼: 연타 시 앞선 예약을 덮어쓰지 않고 순서대로 이어 붙인다. */
 function enqueueInputBuf(entry) {
   if (!S) return { queued: false, size: 0, overwritten: false };
-  if (!S.inputQueue) S.inputQueue = createInputQueue({ maxSize: 2 });
+  if (!S.inputQueue) S.inputQueue = createInputQueue({ maxSize: 3, dedupMs: 36, graceMs: 420 });
   const tNow = (entry && entry.t0 != null) ? entry.t0 : now();
   const res = S.inputQueue.push(entry, tNow);
   S.inputBuf = S.inputQueue.peek();
@@ -5111,25 +5136,39 @@ function preciseTarget() {
 function preciseParry(prec, rec) {
   if (!S || !prec) return rec;
   const awaken = upLv('parry');
-  const mul = CFG.preciseDmgMul || 2;
+  const isJust = (prec.t || 0) <= (CFG.justParryWin || 0.18);
+  const mul = (CFG.preciseDmgMul || 2) * (isJust ? 1.35 : 1);
   const dmg = ((CFG.parryDmg || 0.5) + (CFG.parryAwakenDmg || 0.4) * awaken) * mul;
   S.parryCd = CFG.parryCd || 0.45;
-  S.iframe = Math.max(S.iframe || 0, 0.45);
-  S.parryFlash = 0.25;
+  S.iframe = Math.max(S.iframe || 0, isJust ? 0.55 : 0.45);
+  S.parryFlash = isJust ? 0.32 : 0.25;
   S.parryHits = [];
-  S.shake = Math.max(S.shake || 0, 0.5);
-  S.goldEdge = Math.max(S.goldEdge || 0, 0.2);
-  addHitstop(0.08);
-  addSlow(CFG.preciseSlow || 0.2, 0.35);
-  addCharge(CFG.preciseCharge || 10);
-  if (rec) rec.parry = { precise: prec.kind, t: +(prec.t || 0).toFixed(3), dmg: dmg };
-  telemetry.event('parry', { target: prec.kind, errMs: Math.round((prec.t || 0) * 1000), result: 'precise' });
-  if (audio && audio.parry) audio.parry();
-  inkFx.ring(3.4, FX_COLORS.gold, 0.5);
+  S.parryOkN = (S.parryOkN || 0) + 1;
+  if (isJust) S.justParryN = (S.justParryN || 0) + 1;
+  S.shake = Math.max(S.shake || 0, isJust ? 0.62 : 0.5);
+  S.goldEdge = Math.max(S.goldEdge || 0, isJust ? 0.30 : 0.2);
+  addHitstop(isJust ? 0.11 : 0.08);
+  addSlow(isJust ? 0.24 : (CFG.preciseSlow || 0.2), isJust ? 0.30 : 0.35);
+  addCharge(isJust ? ((CFG.preciseCharge || 10) + 6) : (CFG.preciseCharge || 10));
+  haptic(isJust ? [24, 18, 42] : [16, 26, 32]);
+  if (art && art.heroBlock && three && three.hero) art.heroBlock(three.hero);
+  if (rec) rec.parry = { precise: prec.kind, just: isJust, t: +(prec.t || 0).toFixed(3), dmg: dmg };
+  telemetry.event('parry', { target: prec.kind, errMs: Math.round((prec.t || 0) * 1000), result: isJust ? 'just' : 'precise' });
+  if (isJust && audio && audio.justParry) audio.justParry();
+  else if (audio && audio.parry) audio.parry();
+  inkFx.ring(isJust ? 4.4 : 3.4, isJust ? FX_COLORS.jade : FX_COLORS.gold, 0.55);
+  if (isJust && (!save || save.shake !== false)) {
+    S.justParryInvertT = 0.14;
+    S.impactFrameT = 0.085;
+  }
   if (three && three.vfx3d && S.hero) {
-    three.vfx3d.spawnSwirl(S.hero.x, S.hero.z, { r0: 1.3, r1: 3.8, accentHex: 0xf0ca68, dur: 0.38 });
-    three.vfx3d.spawnSparks(S.hero.x, S.hero.z, 18, { color: 0xffd26a, speed: 7.0 });
-    three.vfx3d.triggerImpactFrame({ dur: 0.065, safe: a11yShake() });
+    three.vfx3d.spawnSwirl(S.hero.x, S.hero.z, { r0: 1.3, r1: isJust ? 4.6 : 3.8, accentHex: isJust ? 0x7ef5d4 : 0xf0ca68, dur: 0.42 });
+    three.vfx3d.spawnSparks(S.hero.x, S.hero.z, isJust ? 26 : 18, { color: isJust ? 0x98ffe2 : 0xffd26a, speed: isJust ? 8.4 : 7.0 });
+    three.vfx3d.triggerImpactFrame({ dur: isJust ? 0.085 : 0.065, safe: a11yShake() });
+    if (isJust && three.shaderFx3d) {
+      three.shaderFx3d.spawnShockwave(S.hero.x, S.hero.z, { r0: 0.7, r1: 5.2, colorHex: 0x7ef5d4, coreHex: 0xfff8dc, dur: 0.38 });
+    }
+    if (isJust) triggerGroundCrackHeat(S.hero.x, S.hero.z, 4.4, 0x98ffe2);
   }
   if (prec.kind === 'charger' && prec.z && prec.z.alive) {
     const z = prec.z;
@@ -5159,13 +5198,13 @@ function preciseParry(prec, rec) {
     b.openUntil=S.elapsed+1.8+(b.chilled ? .4 : 0); b.chilled=false;
     b.state = 'stun'; b.stateT = 0;
     b.pat = b.pat || null;
-    bossPoise(b, 1);
+    bossPoise(b, isJust ? 2 : 1);
   }
   /* §5.3 칼집 반격: 정확한 패링 성공 시 가장 가까운 혼령으로 자동 일섬 1회. */
   if (upLv('counter') > 0) sheathCounter();
   /* §5.4 귀검(歸劍): 정확한 패링이 보스에게도 1칸 절단. */
   if (S.evo && S.evo.gwigeom && prec.kind === 'boss' && S.boss && S.boss.alive) cutBoss(S.boss);
-  showJudge('챙—!');
+  showJudge(isJust ? '완벽 막기 — 강인도 2배!' : '챙—!');
   triggerSightWave();
   return rec;
 }
@@ -5194,7 +5233,11 @@ function doParry(rec) {
   /* 기모으기 중의 탭은 게이지 판정이 먼저다(쿨다운과 무관). */
   const kt = kiaiTap();
   if (kt) { r.parry = kt; return r; }
-  if ((S.parryCd || 0) > 0) { r.parry = { hits: 0, cooling: true }; return r; }
+  if ((S.parryCd || 0) > 0) {
+    if (S.parryCd <= 0.14) S.parryBufT = 0.16;
+    r.parry = { hits: 0, cooling: true, buffered: S.parryCd <= 0.14 };
+    return r;
+  }
   /* v0.31 §3.5 정확한 패링: 적의 공격이 닿기 0.2초 안의 탭 — 피해 2배·참 +10·0.2초 느린 화면. */
   const prec = preciseTarget();
   if (prec) { preciseParry(prec, r); return r; }
@@ -8788,6 +8831,10 @@ function step(dt) {
   S.elapsed += dt; S.timeLeft -= dt;
   if (S.iframe > 0) S.iframe -= dt;
   if (S.parryCd > 0) S.parryCd = Math.max(0, S.parryCd - dt);
+  if (S.parryBufT > 0) {
+    S.parryBufT = Math.max(0, S.parryBufT - dt);
+    if (S.parryCd <= 0 && S.playing && !S.paused) { S.parryBufT = 0; doParry(); }
+  }
   if (S.armorJudgeT > 0) S.armorJudgeT = Math.max(0, S.armorJudgeT - dt);
   if (S.parryFlash > 0) S.parryFlash = Math.max(0, S.parryFlash - dt);
   if (S.cleaveFx > 0) S.cleaveFx = Math.max(0, S.cleaveFx - dt);
@@ -9521,7 +9568,17 @@ function finishStroke(pts, opts) {
   /* 기물 무늬는 은신·영창 중에도 그 기물로 일섬한다(피할 곳은 늘 열려 있어야 한다). */
   const totemStroke = TOTEM_SHAPES.indexOf(rec.type) >= 0;
   if (!totemStroke && veilStroke(pts)) { rec.veil = true; return rec; }
-  const res = resolveStrokeType(rec, pts);
+  let res = resolveStrokeType(rec, pts);
+  /* v0.97 모바일 한손 엄지 빠른 플릭 보정: 짧지만 곧은 스와이프(26px 이상, 직진도 0.80+)는 가로/세로선으로 구제 */
+  if (!res.type && IS_MOBILE && pts && pts.length >= 2 && G && G.pathLen && G.straightness) {
+    const fl = G.pathLen(pts);
+    if (fl >= 26 && G.straightness(pts) >= 0.80) {
+      const dx = Math.abs(pts[pts.length - 1].x - pts[0].x);
+      const dy = Math.abs(pts[pts.length - 1].y - pts[0].y);
+      const flickType = dx >= dy ? 'hline' : 'vline';
+      res = { type: flickType, rec: rec, flickRecovered: true };
+    }
+  }
   if (!res.type) {
     inkFade = 0.16;
     toast((read ? read + ' ' : '잘 안 그려졌어요. ') + failHint());
@@ -9565,7 +9622,8 @@ function finishStroke(pts, opts) {
       quality: (rec.q != null ? rec.q : rec.bestScore)
     });
     inkFade = 0.20;
-    showJudge(stumbling ? '비틀 — 다음 획' : (qres.size >= 2 ? '연속 예약' : '예약'));
+    haptic(10);
+    showJudge(stumbling ? '비틀 — 다음 획' : (qres.size >= 3 ? '3연속 예약!' : (qres.size >= 2 ? '2연속 예약' : '예약')));
     rec.buffered = true;
     rec.queueSize = qres.size;
     rec.targets = [];
@@ -10559,6 +10617,8 @@ function applyStageAtmo(st) {
     }
     if (three.amb) three.amb.intensity = (a.amb != null ? a.amb : 1.0) * ATMO_K;
     if (three.fill) three.fill.intensity = (a.fill != null ? a.fill : 0.85) * ATMO_K;
+    if (three.rim) three.rim.intensity = 1.15 * ATMO_K;
+    if (three.inkUniforms && three.inkUniforms.uGroundSheenAmt) three.inkUniforms.uGroundSheenAmt.value = 0.22;
     if (three.hemi && a.hemiI != null) three.hemi.intensity = a.hemiI * ATMO_K;
     if (three.hemi && a.hemi != null) three.hemi.color.setHex(a.hemi);
     if (three.hemi && a.ground != null) three.hemi.groundColor.setHex(a.ground);

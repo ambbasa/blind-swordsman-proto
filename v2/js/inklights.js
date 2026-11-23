@@ -75,7 +75,10 @@ export function createWorldInkUniforms() {
     uCrackHeatPos: { value: new THREE.Vector3(0, 0, 0) },
     uCrackHeatRadius: { value: 3.5 },
     uCrackHeatAmt: { value: 0.0 },
-    uCrackHeatCol: { value: new THREE.Color(0xff9838) }
+    uCrackHeatCol: { value: new THREE.Color(0xff9838) },
+    /* v0.97 전투 바닥 달빛·테마 프레넬 반사광(추가 드로우콜 없음) */
+    uGroundSheenCol: { value: new THREE.Color(0xffebb8) },
+    uGroundSheenAmt: { value: 0.20 }
   };
 }
 
@@ -111,7 +114,9 @@ export function attachGroundInkShader(material, uniforms) {
         uniform vec3 uCrackHeatPos;
         uniform float uCrackHeatRadius;
         uniform float uCrackHeatAmt;
-        uniform vec3 uCrackHeatCol;`)
+        uniform vec3 uCrackHeatCol;
+        uniform vec3 uGroundSheenCol;
+        uniform float uGroundSheenAmt;`)
       .replace('#include <dithering_fragment>', `
         if (uSonarAlpha > 0.001) {
           float dSonar = abs(length(vInkWorldPos.xz - uSonarOrigin.xz) - uSonarRadius);
@@ -131,6 +136,16 @@ export function attachGroundInkShader(material, uniforms) {
             float glow = hFall * hFall * (0.22 + 1.45 * crackMask) * uCrackHeatAmt;
             gl_FragColor.rgb += uCrackHeatCol * glow;
           }
+        }
+        if (uGroundSheenAmt > 0.002) {
+          vec3 vDir = normalize(cameraPosition - vInkWorldPos);
+          float fres = pow(1.0 - clamp(vDir.y, 0.0, 1.0), 2.6);
+          float stoneVar = 0.65;
+          #ifdef USE_ROUGHNESSMAP
+            stoneVar = 1.0 - smoothstep(0.32, 0.88, texture2D(roughnessMap, vRoughnessMapUv).g);
+          #endif
+          float distFade = 1.0 - smoothstep(10.0, 34.0, length(vInkWorldPos.xz - cameraPosition.xz));
+          gl_FragColor.rgb += uGroundSheenCol * fres * (0.35 + 0.65 * stoneVar) * distFade * uGroundSheenAmt;
         }
         #include <dithering_fragment>`);
   };
