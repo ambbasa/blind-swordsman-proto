@@ -1,10 +1,10 @@
 /* v2/js/glbhero.js — v0.83 시안 B(하데스풍 주홍 먹선 검객) 3D GLB 로더·3연타 검술 콤보·회피·피격 상태 머신 */
 import * as THREE from 'three';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v089';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v089';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v090';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v090';
 
-const URL_GLB = new URL('../assets/models/hero.glb?v=v089', import.meta.url).href;
+const URL_GLB = new URL('../assets/models/hero.glb?v=v090', import.meta.url).href;
 let pending = null;
 let source = null;
 let cloneSkinned = null;
@@ -32,7 +32,7 @@ export function preloadHeroGlb() {
       return gltf;
     });
   }).catch(function (e) {
-    console.warn('[심안] hero.glb?v=v089', e);
+    console.warn('[심안] hero.glb?v=v090', e);
     pending = null;
     return null;
   });
@@ -54,6 +54,7 @@ export function makeHeroGlb(height) {
     tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3;
     const isOutline = /outline/i.test(o.name);
     const isSword = /sword/i.test(o.name);
+    const isHead = /head/i.test(o.name);
 
     if (isOutline) {
       o.material = new THREE.MeshBasicMaterial({
@@ -83,7 +84,8 @@ export function makeHeroGlb(height) {
           mat.emissive = new THREE.Color(0xffffff);
           mat.emissiveIntensity = 0.54;
         }
-        /* v0.85 의복 전용 셰이더 마스크: 피부 톤과 검은 머리카락을 보호하고 도포·허리띠만 치장 색감 반영 */
+        /* v0.85/v0.90 의복 전용 셰이더 마스크: Hero_Head는 치장 틴트 제외, Hero_Body는 피부/머리 보호 */
+        if (!isHead) {
         mat.userData.uCloakTint = { value: new THREE.Color(0xffffff) };
         mat.userData.uCloakMix = { value: 0.0 };
         mat.onBeforeCompile = function (shader) {
@@ -102,6 +104,7 @@ export function makeHeroGlb(height) {
             "}"
           );
         };
+        }
         o.castShadow = true;
         bodyMeshes.push(o);
       }

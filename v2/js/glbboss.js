@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v089';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v089';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v090';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v090';
 
 const MODEL_URLS = {
-  boss:   new URL('../assets/models/boss.glb?v=v089', import.meta.url).href,
-  minion: new URL('../assets/models/minion.glb?v=v089', import.meta.url).href,
-  heavy:  new URL('../assets/models/heavy.glb?v=v089', import.meta.url).href,
-  stone:  new URL('../assets/models/stone.glb?v=v089', import.meta.url).href
+  boss:   new URL('../assets/models/boss.glb?v=v090', import.meta.url).href,
+  minion: new URL('../assets/models/minion.glb?v=v090', import.meta.url).href,
+  heavy:  new URL('../assets/models/heavy.glb?v=v090', import.meta.url).href,
+  stone:  new URL('../assets/models/stone.glb?v=v090', import.meta.url).href
 };
 const sources = {};
 const pendings = {};

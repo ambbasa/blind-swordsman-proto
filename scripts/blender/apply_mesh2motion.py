@@ -586,6 +586,243 @@ def create_heavy_club(t_arm):
     mod_o.object = t_arm
     print(f"  + Heavy_Weapon (iron war-club) attached to hand_r ({len(obj.data.vertices)} verts)")
 
+
+def repaint_old_waist_sash(body):
+    # Repaint crooked old grey waist sash pixels on Hero_Body texture (z in 0.90..1.11) to charcoal robe color
+    import numpy as np
+    if not body.data.uv_layers:
+        return
+    img = None
+    for mat in body.data.materials:
+        if mat and mat.use_nodes:
+            for n in mat.node_tree.nodes:
+                if n.type == "TEX_IMAGE" and n.image:
+                    img = n.image
+                    break
+        if img:
+            break
+    if img is None:
+        return
+    w, h = img.size[0], img.size[1]
+    px = np.array(img.pixels[:], dtype=np.float32).reshape((h, w, 4))
+    uv_layer = body.data.uv_layers.active.data
+    verts = body.data.vertices
+    painted = 0
+    for poly in body.data.polygons:
+        zs = [verts[vi].co.z for vi in poly.vertices]
+        z_avg = sum(zs) / len(zs)
+        if not (0.90 <= z_avg <= 1.11):
+            continue
+        # Check triangle UV bbox
+        us = [uv_layer[li].uv.x for li in poly.loop_indices]
+        vs = [uv_layer[li].uv.y for li in poly.loop_indices]
+        u0 = max(0, int(min(us) * w) - 1)
+        u1 = min(w - 1, int(max(us) * w) + 1)
+        v0 = max(0, int(min(vs) * h) - 1)
+        v1 = min(h - 1, int(max(vs) * h) + 1)
+        patch = px[v0:v1+1, u0:u1+1, :3]
+        # Old grey sash is noticeably brighter than charcoal robe (lum > 0.14) and low saturation
+        lum = patch[..., 0]*0.299 + patch[..., 1]*0.587 + patch[..., 2]*0.114
+        sat = patch.max(axis=2) - patch.min(axis=2)
+        mask = (lum > 0.14) & (sat < 0.12)
+        if mask.any():
+            # Replace with natural dark charcoal robe tone (slightly modulated by original shading)
+            shade = np.clip(lum[mask] * 0.22 + 0.055, 0.04, 0.11)
+            patch[mask, 0] = shade * 0.96
+            patch[mask, 1] = shade * 0.98
+            patch[mask, 2] = shade * 1.03
+            px[v0:v1+1, u0:u1+1, :3] = patch
+            painted += int(mask.sum())
+    if painted > 0:
+        img.pixels.foreach_set(px.ravel())
+        img.pack()
+        print(f"  + Repainted {painted} old crooked grey waist pixels to charcoal robe")
+
+
+def create_clean_hero_sash(body, t_arm):
+    import bmesh
+    # Measure exact torso contour around waist (z = 0.96..1.05, excluding arms abs(x)<0.21)
+    pts = [v.co for v in body.data.vertices if 0.95 <= v.co.z <= 1.06 and abs(v.co.x) < 0.21]
+    if not pts:
+        return
+    cy = sum(p.y for p in pts) / len(pts)
+    # Sample radial profile at 32 angles around waist so sash hugs body with +0.014m clean offset
+    N = 32
+    radii = []
+    for k in range(N):
+        ang = k * (2.0 * math.pi / N)
+        dx, dy = math.cos(ang), math.sin(ang)
+        best_r = 0.11
+        for p in pts:
+            vx, vy = p.x, p.y - cy
+            proj = vx * dx + vy * dy
+            perp = abs(-vx * dy + vy * dx)
+            if proj > 0 and perp < 0.032:
+                if proj > best_r:
+                    best_r = proj
+        radii.append(best_r + 0.013)
+    # Smooth radii cyclically for ultra-clean cloth wrap
+    for _ in range(3):
+        radii = [(radii[(i-1)%N] + 2*radii[i] + radii[(i+1)%N]) * 0.25 for i in range(N)]
+
+    bm = bmesh.new()
+    # 5 horizontal rings for folded cloth sash (z = 0.955 .. 1.045)
+    z_rings = [(0.955, 0.99), (0.978, 1.015), (1.000, 1.00), (1.022, 1.015), (1.045, 0.99)]
+    rings = []
+    for zr, r_mul in z_rings:
+        ring = []
+        for k in range(N):
+            ang = k * (2.0 * math.pi / N)
+            rr = radii[k] * r_mul
+            ring.append(bm.verts.new(Vector((math.cos(ang) * rr, cy + math.sin(ang) * rr, zr))))
+        rings.append(ring)
+    for i in range(len(rings) - 1):
+        for k in range(N):
+            kn = (k + 1) % N
+            bm.faces.new((rings[i][k], rings[i][kn], rings[i+1][kn], rings[i+1][k]))
+
+    # Clean horizontal cloth waist wrap (preserves original sculpted hanging sash tail cleanly)
+
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    mesh = bpy.data.meshes.new("Hero_Sash")
+    bm.to_mesh(mesh)
+    bm.free()
+
+    mat = bpy.data.materials.new(name="HeroSash_Mat")
+    mat.use_nodes = True
+    bsdf = mat.node_tree.nodes.get("Principled BSDF")
+    if bsdf:
+        bsdf.inputs["Base Color"].default_value = (0.28, 0.30, 0.33, 1.0)
+        bsdf.inputs["Roughness"].default_value = 0.78
+        bsdf.inputs["Metallic"].default_value = 0.02
+    mesh.materials.append(mat)
+
+    sash = bpy.data.objects.new("Hero_Sash", mesh)
+    bpy.context.scene.collection.objects.link(sash)
+    transfer_vertex_weights(body, sash)
+    sash.parent = t_arm
+    mod = sash.modifiers.new(name="Armature", type="ARMATURE")
+    mod.object = t_arm
+
+    # Thin ink outline for sash
+    out_m = mesh.copy()
+    out_m.name = "Hero_Sash_Outline"
+    out_m.materials.clear()
+    bm_o = bmesh.new()
+    bm_o.from_mesh(out_m)
+    bmesh.ops.recalc_face_normals(bm_o, faces=bm_o.faces)
+    for v in bm_o.verts:
+        v.co += v.normal * 0.004
+    bmesh.ops.reverse_faces(bm_o, faces=bm_o.faces)
+    bm_o.to_mesh(out_m)
+    bm_o.free()
+    sash_out = bpy.data.objects.new("Hero_Sash_Outline", out_m)
+    bpy.context.scene.collection.objects.link(sash_out)
+    transfer_vertex_weights(sash, sash_out)
+    sash_out.parent = t_arm
+    mod_o = sash_out.modifiers.new(name="Armature", type="ARMATURE")
+    mod_o.object = t_arm
+    print(f"  + Clean 3D Hero_Sash wrapped around waist ({len(mesh.vertices)} verts)")
+
+
+def replace_hero_head_highres(body, outline, t_arm):
+    import bmesh
+    head_glb = os.path.join(MODELS_DIR, "hero_head_raw.glb")
+    if not os.path.isfile(head_glb):
+        return
+    # 1) Measure existing head/neck centerline on body before slicing
+    neck_pts = [v.co for v in body.data.vertices if 1.40 <= v.co.z <= 1.46 and abs(v.co.x) < 0.12]
+    neck_cy = sum(p.y for p in neck_pts) / max(1, len(neck_pts))
+
+    # Slice off old low-res head above collar (z > 1.445) on body & outline
+    for o in [body, outline]:
+        if o is None:
+            continue
+        bm = bmesh.new()
+        bm.from_mesh(o.data)
+        to_del = [v for v in bm.verts if v.co.z > 1.468 and abs(v.co.x) < 0.15]
+        bmesh.ops.delete(bm, geom=to_del, context="VERTS")
+        bm.to_mesh(o.data)
+        bm.free()
+        o.data.update()
+
+    # 2) Import high-res head sculpt
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.gltf(filepath=head_glb)
+    new_meshes = [o for o in bpy.data.objects if o not in before and o.type == "MESH"]
+    if not new_meshes:
+        return
+    head = new_meshes[0]
+    head.name = "Hero_Head"
+    for o in list(bpy.data.objects):
+        if o not in before and o != head:
+            bpy.data.objects.remove(o, do_unlink=True)
+    head.parent = None
+    bpy.ops.object.select_all(action="DESELECT")
+    head.select_set(True)
+    bpy.context.view_layer.objects.active = head
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+
+    # Decimate gently (50k -> ~14k tris) to keep razor-sharp nose/lips/blindfold while staying mobile-friendly
+    dec = head.modifiers.new(name="Decimate", type="DECIMATE")
+    dec.ratio = 0.12
+    bpy.ops.object.modifier_apply(modifier=dec.name)
+
+    # Scale to exact 8-head skull+neck height (0.315m: neck base tucked at z=1.405 inside collar -> topknot at z=1.720)
+    hmin, hmax = get_world_bbox(head)
+    h_cur = max(1e-4, hmax.z - hmin.z)
+    hs = 0.315 / h_cur
+    hcx = (hmin.x + hmax.x) * 0.5
+    hcy = (hmin.y + hmax.y) * 0.5
+    for v in head.data.vertices:
+        nz = (v.co.z - hmin.z) * hs + 1.392
+        # Gently taper bottom neck flare inward below z=1.465 so it tucks seamlessly inside the silver collar!
+        taper = 1.0 - 0.26 * max(0.0, min(1.0, (1.468 - nz) / 0.065))
+        v.co.x = (v.co.x - hcx) * hs * taper
+        v.co.y = (v.co.y - hcy) * hs * taper + neck_cy - 0.006
+        v.co.z = nz
+    head.data.update()
+
+    # Smooth neck_01 -> head bone weight transition
+    head.vertex_groups.clear()
+    vg_head = head.vertex_groups.new(name="head")
+    vg_neck = head.vertex_groups.new(name="neck_01")
+    for v in head.data.vertices:
+        t = max(0.0, min(1.0, (v.co.z - 1.42) / 0.055))
+        if t > 0.01:
+            vg_head.add([v.index], t, "REPLACE")
+        if 1.0 - t > 0.01:
+            vg_neck.add([v.index], 1.0 - t, "REPLACE")
+    head.parent = t_arm
+    mod = head.modifiers.new(name="Armature", type="ARMATURE")
+    mod.object = t_arm
+
+    # Crisp thin ink outline for high-res head
+    out_m = head.data.copy()
+    out_m.name = "Hero_Head_Outline"
+    out_m.materials.clear()
+    bm_o = bmesh.new()
+    bm_o.from_mesh(out_m)
+    bmesh.ops.recalc_face_normals(bm_o, faces=bm_o.faces)
+    for v in bm_o.verts:
+        v.co += v.normal * 0.0032
+    bmesh.ops.reverse_faces(bm_o, faces=bm_o.faces)
+    bm_o.to_mesh(out_m)
+    bm_o.free()
+    head_out = bpy.data.objects.new("Hero_Head_Outline", out_m)
+    bpy.context.scene.collection.objects.link(head_out)
+    bpy.ops.object.select_all(action="DESELECT")
+    head_out.select_set(True)
+    bpy.context.view_layer.objects.active = head_out
+    dec_o = head_out.modifiers.new(name="DecimateOut", type="DECIMATE")
+    dec_o.ratio = 0.45
+    bpy.ops.object.modifier_apply(modifier=dec_o.name)
+    transfer_vertex_weights(head, head_out)
+    head_out.parent = t_arm
+    mod_o = head_out.modifiers.new(name="Armature", type="ARMATURE")
+    mod_o.object = t_arm
+    print(f"  + Merged high-res Hero_Head ({len(head.data.polygons)} tris) seamlessly into collar!")
+
 def process_character(cfg):
     name = cfg["name"]
     fit = cfg["fit"]
@@ -734,6 +971,11 @@ def process_character(cfg):
 
     bpy.data.objects.remove(a_arm, do_unlink=True)
 
+    if name == "hero":
+        repaint_old_waist_sash(body)
+        create_clean_hero_sash(body, t_arm)
+        replace_hero_head_highres(body, outline, t_arm)
+
     if cfg.get("keep_sword") and sword is not None:
         hand_b = t_arm.data.bones["hand_r"]
         palm = t_arm.matrix_world @ ((hand_b.head_local + hand_b.tail_local) * 0.5)
@@ -753,7 +995,7 @@ def process_character(cfg):
         target_dir = Vector((-0.18, -0.88, -0.44)).normalized()
         rot_q = blade_vec.rotation_difference(target_dir)
         # Shift hilt slightly (+0.11m along blade_vec from butt pommel) so hand grips the handle right behind the guard
-        grip_origin = hilt_pt + blade_vec * 0.11
+        grip_origin = hilt_pt + blade_vec * 0.055
         for so in [sword, sword_out]:
             if so is None:
                 continue
