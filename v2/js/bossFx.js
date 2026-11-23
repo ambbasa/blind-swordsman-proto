@@ -440,6 +440,77 @@ export class BossFx {
     ctx.restore();
   }
 
+  /* v1.03 시선 회피 (Gaze) — 보스 머리 위 붉은 눈 인장 + 전방 시선 원뿔 + 등 뒤 안전 표식 */
+  drawGazeTele(ctx, project, bx, bz, aimA, f, t) {
+    const u = clamp(f, 0, 1);
+    const urgent = u >= 0.78;
+    const hp = project(bx, bz, 2.65);
+    ctx.save();
+    /* 1) 전방 위험 시선 부채꼴(주홍) */
+    const R = 8.5, half = 1.05;
+    const c = project(bx, bz, 0.06);
+    ctx.beginPath(); ctx.moveTo(c.x, c.y);
+    for (let i = 0; i <= 20; i++) {
+      const a = aimA - half + (i / 20) * (half * 2);
+      const p = project(bx + Math.cos(a) * R, bz + Math.sin(a) * R, 0.06);
+      ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = urgent ? 'rgba(255,77,61,0.28)' : ('rgba(220,48,36,' + (0.08 + 0.14 * u).toFixed(3) + ')');
+    ctx.fill();
+    ctx.strokeStyle = '#FF4D3D'; ctx.lineWidth = 3.0; ctx.stroke();
+    /* 2) 보스 머리 위 붉은 눈 인장 */
+    const ew = 28 + 10 * u, eh = 13 + 5 * u;
+    ctx.beginPath(); ctx.ellipse(hp.x, hp.y, ew, eh, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(20,8,10,0.85)'; ctx.fill();
+    ctx.strokeStyle = urgent ? '#FFF0C2' : '#FF4D3D'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.beginPath(); ctx.arc(hp.x, hp.y, 7 + 3 * Math.sin(t * 20), 0, Math.PI * 2);
+    ctx.fillStyle = '#FF4D3D'; ctx.fill();
+    ctx.font = '700 13px sans-serif'; ctx.textAlign = 'center';
+    ctx.strokeStyle = 'rgba(10,12,16,0.92)'; ctx.lineWidth = 4;
+    ctx.fillStyle = '#85F5D4';
+    ctx.strokeText('등 뒤로 일섬!', hp.x, hp.y - 24);
+    ctx.fillText('등 뒤로 일섬!', hp.x, hp.y - 24);
+    ctx.restore();
+  }
+
+  /* v1.03 부채꼴 순차 절단 (6-Slice Pizza) — 짝수/홀수 교차 주홍 위험 + 청록 안전 칸 */
+  drawPizzaTele(ctx, project, bx, bz, baseA, oddDanger, f, t) {
+    const u = clamp(f, 0, 1);
+    const urgent = u >= 0.78;
+    const R = 9.5;
+    const c = project(bx, bz, 0.05);
+    ctx.save();
+    for (let s = 0; s < 6; s++) {
+      const danger = (s % 2 === 1) === !!oddDanger;
+      const a0 = baseA + s * (Math.PI / 3);
+      const a1 = a0 + (Math.PI / 3);
+      ctx.beginPath(); ctx.moveTo(c.x, c.y);
+      for (let i = 0; i <= 10; i++) {
+        const a = a0 + (i / 10) * (a1 - a0);
+        const p = project(bx + Math.cos(a) * R, bz + Math.sin(a) * R, 0.05);
+        ctx.lineTo(p.x, p.y);
+      }
+      ctx.closePath();
+      if (danger) {
+        ctx.fillStyle = urgent ? 'rgba(255,77,61,0.30)' : ('rgba(220,48,36,' + (0.10 + 0.14 * u).toFixed(3) + ')');
+        ctx.fill();
+        ctx.strokeStyle = '#FF4D3D'; ctx.lineWidth = 2.8; ctx.stroke();
+      } else {
+        ctx.fillStyle = 'rgba(77,212,255,0.08)';
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(77,212,255,0.55)'; ctx.lineWidth = 1.6; ctx.stroke();
+      }
+    }
+    const tp = project(bx, bz, 2.3);
+    ctx.font = '700 14px sans-serif'; ctx.textAlign = 'center';
+    ctx.strokeStyle = 'rgba(10,12,16,0.92)'; ctx.lineWidth = 4;
+    ctx.fillStyle = '#4DD4FF';
+    ctx.strokeText('안전 칸으로 일섬!', tp.x, tp.y);
+    ctx.fillText('안전 칸으로 일섬!', tp.x, tp.y);
+    ctx.restore();
+  }
+
   /* v1.02 청록 안전 도넛 댄스 (In / Out) — 4색 표준 하드 보더 예고 */
   drawDonutTele(ctx, project, bx, bz, innerR, outerR, safeInside, f, t) {
     const u = clamp(f, 0, 1);

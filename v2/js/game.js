@@ -31,13 +31,13 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb } from './glbboss.js?v=v102';
+import { makeBossGlb } from './glbboss.js?v=v103';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v102';
+import { probeAssets, buildArt } from './art.js?v=v103';
 import * as Anim from './anim.js';
-import { createAudio } from './audio.js?v=v102';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v102';
-import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v102';
+import { createAudio } from './audio.js?v=v103';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v103';
+import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v103';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
@@ -2541,6 +2541,12 @@ function setSpiritAlpha(s) {
 }
 /* A spirit bound to a zombie hovers over its head and follows it; free (test) spirits stay on the ring. */
 function placeSpirit(s) {
+  /* v1.03 보스 중심 회전 혼령 및 기믹 안전지대 전용 혼령은 지정 월드 좌표에 정확히 배치 */
+  if (s.worldAnchor && s.wx != null && s.wz != null) {
+    s.x = s.wx; s.z = s.wz;
+    if (s.obj) placeGroup(s.obj, s.x, s.z, 1.32);
+    return;
+  }
   const z = s.target;
   if (!z || !z.alive || s.free) { placeSpiritOnRing(s); return; }
   const ud = (z.obj && z.obj.userData) || {};
@@ -2592,7 +2598,10 @@ function spawnSpirit(opts) {
   const e = {
     id: ++S._id, kind: 'spirit', shape: shape, angle: angNorm(angle),
     x: 0, z: 0, r: 0.7, alive: true, hp: 1, isBoss: false, target: opts.target || null, avoid: 0,
-    free: !opts.target
+    free: !opts.target,
+    worldAnchor: !!opts.worldAnchor, wx: opts.wx != null ? opts.wx : null, wz: opts.wz != null ? opts.wz : null,
+    orbitSlot: opts.orbitSlot != null ? opts.orbitSlot : null,
+    zoneTag: opts.zoneTag || null, zoneTtl: opts.zoneTtl || 0
   };
   /* Show the shape the spirit answers to: the one-bell shape, or the boss's current shape. */
   e.obj = addEntityVisual('spirit', spiritShape(e));
@@ -2704,6 +2713,8 @@ function openArena(cx, cz) {
   a.group.scale.set(1, 1, 1);
   a.t = 0;
   a.group.position.set(S.arena.x, 0, S.arena.z);
+  /* v1.03 보스전 외곽 테두리 결계 시각 링 제거 (열린 전장 시야 확보) */
+  a.group.visible = false;
   a.group.visible = true;
   /* v0.40 5단계: 결계 벽이 바닥에서 종이처럼 펴져 솟는다(1자유도 접힘 스프링). */
   try {
@@ -4105,7 +4116,7 @@ function syncGroundEffects() {
   }
   for(const hazard of S.hazards || []) if(hazard.arrowVolley && hazard.done)
     layer.put('terrain',7,hazard.x,hazard.z,hazard.r*2,hazard.r*2);
-  const bossTeleDim = (S.boss && S.boss.alive && ['telegraph','slamTele','sweepTele','volleyTele','kiai','donut','soak','rhythm','tether'].indexOf(S.boss.state) >= 0) ? 0.35 : 1.0;
+  const bossTeleDim = (S.boss && S.boss.alive && ['telegraph','slamTele','sweepTele','volleyTele','kiai','donut','soak','rhythm','tether','gaze','pizza'].indexOf(S.boss.state) >= 0) ? 0.35 : 1.0;
   for(const p of S.inkSteps || []) {
     const age=1-clamp(p.t/(CFG.inkStep.dur||2),0,1);
     layer.put('phases',8+Math.min(3,Math.floor(age*4)),p.x,p.z,p.r*2,p.r*2);
@@ -7792,6 +7803,8 @@ function startBossPattern(z, id) {
   else if (id === 'soak') startSoak(z);
   else if (id === 'rhythm') startRhythm(z);
   else if (id === 'tether') startTether(z);
+  else if (id === 'gaze') startGaze(z);
+  else if (id === 'pizza') startPizza(z);
   else startCharge(z);
 }
 /* v1.02 신규 레이드·액션 기믹 4종 (donut · soak · rhythm · tether) + 취약 중첩 */
@@ -7802,27 +7815,130 @@ function applyVulnStack(why) {
   heroHurt(1, why || '기믹에 피격되었습니다.');
   showJudge('취약 중첩 ' + S.vulnStacks + ' (8초)');
 }
+/* v1.03 기믹 특정 구역 전용 혼령 생성 및 정리 (자유 이동이 없는 게임에서 이동 수단 100% 보장) */
+function clearZoneSpirits(tag) {
+  if (!S || !S.spirits) return;
+  for (let i = 0; i < S.spirits.length; i++) {
+    const sp = S.spirits[i];
+    if (sp && sp.alive && sp.zoneTag && (!tag || sp.zoneTag === tag)) {
+      sp.alive = false;
+      if (sp.obj && three && three.scene) { three.scene.remove(sp.obj); sp.obj = null; }
+    }
+  }
+}
+function spawnZoneSpirit(x, z, tag, ttl, preferredShape) {
+  if (!S) return null;
+  const pool = (S.pool && S.pool.length) ? S.pool.filter(function (s) { return s !== 'circle'; }) : ['hline', 'vline'];
+  const sh = (preferredShape && pool.indexOf(preferredShape) >= 0) ? preferredShape : pool[Math.floor(Math.random() * pool.length)] || 'hline';
+  const c = clampPointToArena(x, z, 1.2);
+  return spawnSpirit({ worldAnchor: true, wx: c.x, wz: c.z, shape: sh, zoneTag: tag, zoneTtl: ttl || 3.5 });
+}
+/* v1.03 보스 중심 삼각형 대형 시계방향 회전 혼령 3개 (반경 5.8m > 보스 원형 공격 반경) */
+function syncBossOrbitSpirits(dt) {
+  if (!S || !S.boss || !S.boss.alive) return;
+  const z = S.boss;
+  const orbitR = 5.8; /* 보스 내려찍기(3.4m)·도넛 내부(3.3m)보다 넉넉히 큰 안전 탈출 반경 */
+  S.bossOrbitAng = (S.bossOrbitAng || 0) + 0.34 * dt; /* 시계방향 천천히 회전 */
+  const pool = (S.pool && S.pool.length) ? S.pool.filter(function (s) { return s !== 'circle'; }) : ['hline', 'vline'];
+  const baseShapes = [pool[0] || 'hline', pool[1] || pool[0] || 'vline', pool[2] || pool[0] || 'hline'];
+  const existing = [null, null, null];
+  for (let i = 0; i < (S.spirits || []).length; i++) {
+    const sp = S.spirits[i];
+    if (sp && sp.alive && sp.orbitSlot != null && sp.orbitSlot >= 0 && sp.orbitSlot < 3) {
+      existing[sp.orbitSlot] = sp;
+    }
+    if (sp && sp.alive && sp.zoneTag && sp.zoneTtl > 0) {
+      sp.zoneTtl -= dt;
+      if (sp.zoneTtl <= 0) {
+        sp.alive = false;
+        if (sp.obj && three && three.scene) { three.scene.remove(sp.obj); sp.obj = null; }
+      }
+    }
+  }
+  for (let slot = 0; slot < 3; slot++) {
+    const a = S.bossOrbitAng + slot * ((Math.PI * 2) / 3);
+    const pt = clampPointToArena(z.x + Math.cos(a) * orbitR, z.z + Math.sin(a) * orbitR, 1.2);
+    let sp = existing[slot];
+    if (!sp) {
+      sp = spawnSpirit({ worldAnchor: true, wx: pt.x, wz: pt.z, shape: baseShapes[slot], orbitSlot: slot });
+    } else {
+      sp.wx = pt.x; sp.wz = pt.z;
+      placeSpirit(sp);
+    }
+  }
+}
+function spawnDonutZoneSpirit(z, dn) {
+  clearZoneSpirits('donut');
+  const a = Math.atan2(S.hero.z - z.z, S.hero.x - z.x) + 0.45;
+  if (dn.safeInside) {
+    spawnZoneSpirit(z.x + Math.cos(a) * 2.0, z.z + Math.sin(a) * 2.0, 'donut', dn.dur + 0.4, 'hline');
+  } else {
+    spawnZoneSpirit(z.x + Math.cos(a) * 5.6, z.z + Math.sin(a) * 5.6, 'donut', dn.dur + 0.4, 'vline');
+  }
+}
 function startDonut(z) {
   z.state = 'donut'; z.stateT = 0; z.pat = 'donut';
   const firstSafeIn = Math.random() < 0.5;
-  z.donut = { step: 0, safeInside: firstSafeIn, innerR: 3.3, outerR: 9.2, dur: 1.55 * (z.teleMul || 1) };
+  z.donut = { step: 0, safeInside: firstSafeIn, innerR: 3.3, outerR: 9.2, dur: 1.65 * (z.teleMul || 1) };
+  spawnDonutZoneSpirit(z, z.donut);
   bossCue(z, 'jade', 'donut');
-  showJudge(firstSafeIn ? '도넛 결계 — 안으로!' : '도넛 결계 — 밖으로!');
+  showJudge(firstSafeIn ? '도넛 결계 — 안쪽 혼령으로 일섬!' : '도넛 결계 — 바깥 혼령으로 이탈!');
   if (audio && audio.bell) audio.bell(0, 'circle');
 }
 function startSoak(z) {
   z.state = 'soak'; z.stateT = 0; z.pat = 'soak';
+  clearZoneSpirits('soak');
   const cnt = (z.phase || 1) >= 2 ? 2 : 1;
   const pillars = [];
   for (let i = 0; i < cnt; i++) {
     const a = Math.atan2(S.hero.z - z.z, S.hero.x - z.x) + (i === 0 ? 0.85 : -0.95);
     const p = clampPointToArena(z.x + Math.cos(a) * 5.2, z.z + Math.sin(a) * 5.2, 2.0);
-    pillars.push({ x: p.x, z: p.z, r: 2.3, t: 0, dur: 3.2 * (z.teleMul || 1), done: false });
+    const dur = 3.3 * (z.teleMul || 1);
+    pillars.push({ x: p.x, z: p.z, r: 2.3, t: 0, dur: dur, done: false });
+    /* v1.03 호박빛 결계 기둥 정중앙에 전용 혼령 배치 */
+    spawnZoneSpirit(p.x, p.z, 'soak', dur + 0.3, i === 0 ? 'hline' : 'vline');
   }
   z.soak = { pillars: pillars };
   bossCue(z, 'gold', 'soak');
-  showJudge('호박빛 결계 기둥 — 진입해 흡수!');
+  showJudge('호박빛 결계 기둥 — 기둥 혼령으로 일섬!');
   if (audio && audio.bell) audio.bell(0, 'bolt');
+}
+/* v1.03 신규 기믹 5: 시선 회피 (Gaze) — 보스 등 뒤에 전용 혼령 자동 생성 */
+function startGaze(z) {
+  z.state = 'gaze'; z.stateT = 0; z.pat = 'gaze';
+  clearZoneSpirits('gaze');
+  const aimA = Math.atan2(S.hero.z - z.z, S.hero.x - z.x);
+  const dur = 1.50 * (z.teleMul || 1);
+  z.gaze = { aimA: aimA, dur: dur };
+  /* 보스 정반대 등 뒤 3.2m 지점에 배후 안전 혼령 배치 */
+  const backA = aimA + Math.PI;
+  spawnZoneSpirit(z.x + Math.cos(backA) * 3.2, z.z + Math.sin(backA) * 3.2, 'gaze', dur + 0.4, 'hline');
+  bossCue(z, 'red', 'gaze');
+  showJudge('붉은 시선 — 보스 등 뒤 혼령으로 일섬!');
+  if (audio && audio.bell) audio.bell(0, 'vline');
+}
+/* v1.03 신규 기믹 6: 6조각 부채꼴 순차 절단 (Pizza) — 매 안전 칸에 전용 혼령 배치 */
+function spawnPizzaSafeSpirit(z, pz) {
+  clearZoneSpirits('pizza');
+  const heroA = Math.atan2(S.hero.z - z.z, S.hero.x - z.x);
+  let bestA = pz.baseA + Math.PI / 6, bestDiff = 99;
+  for (let s = 0; s < 6; s++) {
+    const danger = (s % 2 === 1) === !!pz.oddDanger;
+    if (danger) continue;
+    const midA = pz.baseA + s * (Math.PI / 3) + Math.PI / 6;
+    const diff = Math.abs(Math.atan2(Math.sin(midA - heroA), Math.cos(midA - heroA)));
+    if (diff < bestDiff) { bestDiff = diff; bestA = midA; }
+  }
+  spawnZoneSpirit(z.x + Math.cos(bestA) * 4.8, z.z + Math.sin(bestA) * 4.8, 'pizza', pz.dur + 0.4, pz.step === 0 ? 'hline' : 'vline');
+}
+function startPizza(z) {
+  z.state = 'pizza'; z.stateT = 0; z.pat = 'pizza';
+  const baseA = Math.atan2(S.hero.z - z.z, S.hero.x - z.x) - Math.PI / 6;
+  z.pizza = { step: 0, baseA: baseA, oddDanger: false, dur: 1.45 * (z.teleMul || 1) };
+  spawnPizzaSafeSpirit(z, z.pizza);
+  bossCue(z, 'jade', 'pizza');
+  showJudge('부채꼴 절단 — 청록 안전 칸 혼령으로 일섬!');
+  if (audio && audio.drum) audio.drum();
 }
 function startRhythm(z) {
   z.state = 'rhythm'; z.stateT = 0; z.pat = 'rhythm';
@@ -7858,9 +7974,14 @@ function rhythmTap() {
 }
 function startTether(z) {
   z.state = 'tether'; z.stateT = 0; z.pat = 'tether';
-  z.tether = { dur: 3.1 * (z.teleMul || 1), breakDist: 7.5 };
+  clearZoneSpirits('tether');
+  const dur = 3.2 * (z.teleMul || 1);
+  z.tether = { dur: dur, breakDist: 7.5 };
+  /* v1.03 혈사슬 절단용 외곽 탈출 혼령(보스로부터 8.4m) 자동 배치 */
+  const escA = Math.atan2(S.hero.z - z.z, S.hero.x - z.x);
+  spawnZoneSpirit(z.x + Math.cos(escA) * 8.4, z.z + Math.sin(escA) * 8.4, 'tether', dur + 0.4, 'hline');
   bossCue(z, 'red', 'tether');
-  showJudge('혈사슬 결속 — 멀어져 끊으세요!');
+  showJudge('혈사슬 결속 — 외곽 혼령으로 일섬해 절단!');
   if (audio && audio.charge) audio.charge(1.5);
 }
 function startCharge(z) {
@@ -8144,9 +8265,11 @@ function stepBossPat(z, dt) {
       else { showJudge('안전지대 파훼!'); addCharge(8); }
       if (dn.step === 0) {
         dn.step = 1; dn.safeInside = !dn.safeInside; z.stateT = 0;
-        showJudge(dn.safeInside ? '연속 결계 — 안으로!' : '연속 결계 — 밖으로!');
+        spawnDonutZoneSpirit(z, dn);
+        showJudge(dn.safeInside ? '연속 결계 — 안쪽 혼령으로!' : '연속 결계 — 바깥 혼령으로!');
         if (audio && audio.bell) audio.bell(0, 'circle');
       } else {
+        clearZoneSpirits('donut');
         z.donut = null; z.openUntil = Math.max(z.openUntil || 0, S.elapsed + 1.4);
         z.state = 'walk'; z.stateT = 0;
       }
@@ -8222,9 +8345,54 @@ function stepBossPat(z, dt) {
       S.hero.z += ((z.z - S.hero.z) / d) * pull;
     }
     if (z.stateT >= z.tether.dur) {
+      clearZoneSpirits('tether');
       z.tether = null;
       applyVulnStack('혈사슬을 끊지 못했습니다.');
       z.state = 'walk'; z.stateT = 0;
+    }
+    return true;
+  }
+  /* v1.03 신규 기믹 5: 시선 회피 (Gaze) 틱 */
+  if (st === 'gaze' && z.gaze) {
+    if (z.stateT >= z.gaze.dur) {
+      const ha = Math.atan2(S.hero.z - z.z, S.hero.x - z.x);
+      const diff = Math.abs(Math.atan2(Math.sin(ha - z.gaze.aimA), Math.cos(ha - z.gaze.aimA)));
+      clearZoneSpirits('gaze');
+      if (diff <= 1.05 && dist(z, S.hero) <= 8.8 && !S.dash) {
+        applyVulnStack('보스의 붉은 시선에 걸렸습니다.');
+      } else {
+        bossPoise(z, 1.5);
+        addCharge(12);
+        z.openUntil = Math.max(z.openUntil || 0, S.elapsed + 1.6);
+        if (audio && audio.justParry) audio.justParry();
+        showJudge('배후 회피 성공 — 빈틈 노출!');
+      }
+      z.gaze = null; z.state = 'walk'; z.stateT = 0;
+    }
+    return true;
+  }
+  /* v1.03 신규 기믹 6: 6조각 부채꼴 순차 절단 (Pizza) 틱 */
+  if (st === 'pizza' && z.pizza) {
+    const pz = z.pizza;
+    if (z.stateT >= pz.dur) {
+      const ha = Math.atan2(S.hero.z - z.z, S.hero.x - z.x);
+      const rel = (((ha - pz.baseA) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+      const sliceIdx = Math.floor(rel / (Math.PI / 3)) % 6;
+      const inDanger = ((sliceIdx % 2 === 1) === !!pz.oddDanger) && dist(z, S.hero) <= 9.5;
+      if (audio && audio.bossSlam) audio.bossSlam();
+      if (three && three.lights) three.lights.burst(z.x, 1.6, z.z, { color: 0xff4d3d, intensity: 6.5, duration: 0.3, distance: 16 });
+      if (inDanger && !S.dash) applyVulnStack('부채꼴 절단에 피격되었습니다.');
+      else { showJudge('안전 칸 회피!'); addCharge(8); }
+      if (pz.step === 0) {
+        pz.step = 1; pz.oddDanger = !pz.oddDanger; z.stateT = 0;
+        spawnPizzaSafeSpirit(z, pz);
+        showJudge('교차 절단 — 다음 안전 칸으로!');
+        if (audio && audio.drum) audio.drum();
+      } else {
+        clearZoneSpirits('pizza');
+        z.pizza = null; z.openUntil = Math.max(z.openUntil || 0, S.elapsed + 1.4);
+        z.state = 'walk'; z.stateT = 0;
+      }
     }
     return true;
   }
@@ -8926,6 +9094,10 @@ function drawBossPat(ctx, r, hs) {
     } else if (z.state === 'rhythm' && z.rhythm && S.hero) {
       const dur = z.rhythm.beats[z.rhythm.idx] || 0.6;
       bossFx.drawRhythmTell(ctx, projectXZ, hs, z.x, z.z, z.rhythm.idx, z.rhythm.beats.length, dur - z.rhythm.t, dur, tt2);
+    } else if (z.state === 'gaze' && z.gaze) {
+      bossFx.drawGazeTele(ctx, projectXZ, z.x, z.z, z.gaze.aimA, z.stateT / Math.max(0.1, z.gaze.dur), tt2);
+    } else if (z.state === 'pizza' && z.pizza) {
+      bossFx.drawPizzaTele(ctx, projectXZ, z.x, z.z, z.pizza.baseA, z.pizza.oddDanger, z.stateT / Math.max(0.1, z.pizza.dur), tt2);
     }
   }
   /* 부적 탄막 예고: v0.53 공중 정렬 살부적 편대 + 갈필 먹연기 궤적 */
@@ -9255,6 +9427,7 @@ function step(dt) {
   if (S.iframe > 0) S.iframe -= dt;
   if (S.parryCd > 0) S.parryCd = Math.max(0, S.parryCd - dt);
   if (S.vulnT > 0) { S.vulnT = Math.max(0, S.vulnT - dt); if (S.vulnT <= 0) S.vulnStacks = 0; }
+  syncBossOrbitSpirits(dt);
   if (S.parryBufT > 0) {
     S.parryBufT = Math.max(0, S.parryBufT - dt);
     if (S.parryCd <= 0 && S.playing && !S.paused) { S.parryBufT = 0; doParry(); }
