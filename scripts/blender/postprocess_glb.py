@@ -888,6 +888,8 @@ def render_turnaround(body, outline, outline_mat, render_dir, base_name, samples
 
 
 def main():
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(line_buffering=True)
     args = parse_args()
     clear_scene()
 
