@@ -31,13 +31,13 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb } from './glbboss.js?v=v098';
+import { makeBossGlb } from './glbboss.js?v=v099';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v098';
+import { probeAssets, buildArt } from './art.js?v=v099';
 import * as Anim from './anim.js';
-import { createAudio } from './audio.js?v=v098';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle } from './lobbyPreview3d.js?v=v098';
-import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v098';
+import { createAudio } from './audio.js?v=v099';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle } from './lobbyPreview3d.js?v=v099';
+import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v099';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
@@ -572,6 +572,7 @@ function goalPass(msg) {
   showJudge('부목표 달성');
   toast('부목표 달성 — ' + g.label + (msg ? ' · ' + msg : ''));
   S.goldEdge = Math.max(S.goldEdge || 0, 0.25);
+  if (audio && audio.setBossPhase) audio.setBossPhase(nextPhase);
   if (audio && audio.gong) audio.gong();
   renderGoalHud();
   telemetry.event('subgoal', { id: g.id, result: 'pass' });
@@ -4242,6 +4243,50 @@ function drawV31(ctx, r, hs, t) {
     ctx.fillText(hint, cx, py + ph + 13);
     ctx.restore();
   }
+  /* v0.99 저스트 패링 예고 섬광(Attack Tell) + 바닥 수축 타이밍 링 (0.38초 예고, 0.18초 완벽 막기 구간 옥빛 강조) */
+  if (S && S.playing && !S.paused && S.hero && (S.parryCd || 0) <= 0.08) {
+    const tellW = 0.38;
+    const thr = incomingParryThreat(tellW);
+    if (thr) {
+      const justW = CFG.justParryWin || 0.18;
+      const inJust = (thr.t || 0) <= justW;
+      const frac = clamp((thr.t || 0) / tellW, 0, 1);
+      const hs = heroScreen();
+      ctx.save();
+      /* 1) 주인공 중심 수축 타이밍 링 */
+      const innerR = 26, outerR = 26 + 44 * frac;
+      ctx.strokeStyle = inJust ? 'rgba(136,255,224,0.92)' : 'rgba(255,212,118,0.68)';
+      ctx.lineWidth = inJust ? 3.2 : 2.0;
+      ctx.beginPath(); ctx.arc(hs.x, hs.y, outerR, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = inJust ? 'rgba(255,244,190,0.85)' : 'rgba(255,212,118,0.28)';
+      ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(hs.x, hs.y, innerR, 0, Math.PI * 2); ctx.stroke();
+      if (inJust) {
+        ctx.font = '700 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#9effe4';
+        ctx.fillText('막기!', hs.x, hs.y - innerR - 8);
+      }
+      /* 2) 위협 대상 무기/투사체 4각 경고 섬광 */
+      const src = thr.z || thr.sh;
+      if (src) {
+        const tp = projectXZ(src.x, src.z, thr.sh ? 0.7 : 1.35);
+        const glintR = inJust ? 22 : 13;
+        ctx.translate(tp.x, tp.y);
+        ctx.rotate((1 - frac) * 0.9);
+        ctx.fillStyle = inJust ? 'rgba(158,255,228,0.95)' : 'rgba(255,142,102,0.88)';
+        ctx.beginPath();
+        for (let gi = 0; gi < 8; gi++) {
+          const ga = (gi * Math.PI) / 4;
+          const gr = (gi % 2 === 0) ? glintR : glintR * 0.22;
+          if (gi === 0) ctx.moveTo(Math.cos(ga) * gr, Math.sin(ga) * gr);
+          else ctx.lineTo(Math.cos(ga) * gr, Math.sin(ga) * gr);
+        }
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
   /* v0.97 저스트 패링(완벽 막기) 수묵 흑백 반전 연출 (0.14초, 접근성 흔들림 끔 설정 존중) */
   if (S && S.justParryInvertT > 0) {
     S.justParryInvertT = Math.max(0, S.justParryInvertT - 0.016);
@@ -5129,9 +5174,47 @@ function landingShock(at) {
 }
 /* 제자리 탭 → 칼집 패링: 반경 2.4m 넉백·경직·0.5 피해. 성공 시 parry 사운드 + 히트스톱. */
 /* v0.31 §3.5: 지금 닿기 직전(W초 안)인 공격을 찾는다 — 돌진·투척 부적·자폭 점화·보스 돌진. */
+function incomingParryThreat(maxWin) {
+  if (!S || !S.hero) return null;
+  const W = maxWin || ((CFG.preciseWin || 0.2) + (relicOn(save, 'sheath') ? 0.12 : 0));
+  const hx = S.hero.x, hz = S.hero.z;
+  let best = null, bestT = W + 1e-6;
+  (S.zombies || []).forEach(function (z) {
+    if (!z.alive || z.isBoss) return;
+    const kd = CFG.zombieTypes[z.type] || {};
+    if ((z.dashPhase || 0) > 0 && kd.dashSpeed) {
+      const d = Math.max(0, Math.hypot(hx - z.x, hz - z.z) - (z.r || 0.5) - 0.55);
+      const t = d / kd.dashSpeed;
+      if (t <= W && t < bestT) { best = { kind: 'charger', z: z, t: t }; bestT = t; }
+    }
+    if (z.type === 'bomber' && (z.fuse || 0) > 0 && z.fuse <= W) {
+      const d = Math.hypot(hx - z.x, hz - z.z);
+      if (d <= (kd.blastR || 2.7) + 1.1 && z.fuse < bestT) { best = { kind: 'bomber', z: z, t: z.fuse }; bestT = z.fuse; }
+    }
+  });
+  (S.shots || []).forEach(function (sh) {
+    if (sh.reflect) return;
+    const sp = Math.hypot(sh.vx || 0, sh.vz || 0) || 1;
+    const d = Math.max(0, Math.hypot(hx - sh.x, hz - sh.z) - (CFG.shotR || 0.42) - 0.55);
+    const t = d / sp;
+    if (t <= W && t < bestT) { best = { kind: 'shot', sh: sh, t: t }; bestT = t; }
+  });
+  const b = S.boss;
+  if (b && b.alive && b.state === 'charge' && !b.hidden) {
+    const sp = bossTiming().chargeSp || 20;
+    const d = Math.max(0, Math.hypot(hx - b.x, hz - b.z) - (b.r || 1.1) - 0.7);
+    const t = d / sp;
+    if (t <= W && t < bestT) { best = { kind: 'boss', z: b, t: t }; bestT = t; }
+  }
+  return best;
+}
 function preciseTarget() {
   if (!S || !S.hero) return null;
   const W = (CFG.preciseWin || 0.2) + (relicOn(save, 'sheath') ? 0.12 : 0);
+  return incomingParryThreat(W);
+}
+function _unusedPreciseLegacy() {
+  if (true) return null;
   const hx = S.hero.x, hz = S.hero.z;
   let best = null, bestT = W + 1e-6;
   (S.zombies || []).forEach(function (z) {
@@ -8736,8 +8819,15 @@ function endRun(win, msg) {
       }
       const sec = Math.max(0, Math.round(S.elapsed || 0));
       const mm = Math.floor(sec / 60), ss = String(sec % 60).padStart(2, '0');
+      const hpRatio = Math.max(0, (S.hp || 0) / Math.max(1, maxHp()));
+      const gradePts = (win ? 40 : 0) + Math.round(hpRatio * 30) + Math.min(20, (S.justParryN || 0) * 8 + (S.parryOkN || 0) * 3) + Math.min(15, (S.poiseBreaksN || 0) * 5) + Math.min(15, Math.floor((S.comboMax || 0) / 2));
+      const grade = !win ? 'C' : (gradePts >= 82 ? 'S' : (gradePts >= 62 ? 'A' : 'B'));
+      const gradeCol = grade === 'S' ? '#ffe078' : (grade === 'A' ? '#8ef5d4' : '#d6cbb5');
+      const jpN = S.justParryN || 0;
+      card.style.gridTemplateColumns = 'repeat(5,1fr)';
       card.innerHTML =
-        '<div><div style="font-size:10px;opacity:.72">패링</div><div>' + (S.parryOkN || 0) + '회</div></div>' +
+        '<div><div style="font-size:10px;opacity:.72">등급</div><div style="font-size:14px;color:' + gradeCol + '">' + grade + '</div></div>' +
+        '<div><div style="font-size:10px;opacity:.72">패링</div><div>' + (S.parryOkN || 0) + '회' + (jpN > 0 ? '<div style="font-size:9px;color:#8ef5d4">완벽 ' + jpN + '</div>' : '') + '</div></div>' +
         '<div><div style="font-size:10px;opacity:.72">자세격파</div><div>' + (S.poiseBreaksN || 0) + '회</div></div>' +
         '<div><div style="font-size:10px;opacity:.72">최고연타</div><div>' + (S.comboMax || 0) + '</div></div>' +
         '<div><div style="font-size:10px;opacity:.72">시간</div><div>' + mm + ':' + ss + '</div></div>';
@@ -10671,6 +10761,7 @@ function applyStageAtmo(st) {
   const app = $('app');
   if (app) app.dataset.stage = String((st && st.id) || 1);
   const actNo = actOf((st && st.id) || 1);
+  if (audio && audio.setAct) audio.setAct(actNo);
   hudCtrl.syncActTheme(actNo);
   syncSceneActTheme3D({
     actNo,

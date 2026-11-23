@@ -5,7 +5,7 @@
 import { createAudioBus } from './audiobus.js';
 export function createAudio() {
   let ctx = null, master = null, bgmGain = null, sfxGain = null, bus = null;
-  let bgmOn = false, bossMode = false, timer = 0, nextBeat = 0, beatI = 0, melodyI = 0;
+  let bgmOn = false, bossMode = false, bgmAct = 1, bossPhase = 1, timer = 0, nextBeat = 0, beatI = 0, melodyI = 0;
   let muted = true, quiet = true;
   let busInfo = null;
 
@@ -545,38 +545,64 @@ export function createAudio() {
   const PHRASE_A = [3, 4, 5, 4, 3, 2, 0, 2, 3, 5, 6, 5, 4, 3, 2, 0];
   const PHRASE_B = [5, 6, 7, 6, 5, 4, 3, 4, 5, 3, 2, 3, 4, 2, 0, 0];
   const BOSS_ARP = [0, 3, 4, 5, 4, 3, 1, 0];
+  /* v0.99 막(Act 1~4)별 국악 BGM 음계·템포·악기 변주 */
+  const ACT_BGM = {
+    1: { baseHz: 293.66, droneHz: 73.42, bpmMul: 1.00, chime: false, extraDrum: false }, /* 1막 D 계면조: 잔잔한 가야금·대금 */
+    2: { baseHz: 329.63, droneHz: 82.41, bpmMul: 0.96, chime: true,  extraDrum: false }, /* 2막 E 청아조: 설산 대금·옥종 여운 */
+    3: { baseHz: 277.18, droneHz: 69.30, bpmMul: 1.07, chime: false, extraDrum: true  }, /* 3막 C# 혈월조: 아쟁·장구 긴박 */
+    4: { baseHz: 261.63, droneHz: 65.41, bpmMul: 1.11, chime: true,  extraDrum: true  }  /* 4막 C 나락조: 대북·징·웅장 드론 */
+  };
+  function actBgm() { return ACT_BGM[bgmAct] || ACT_BGM[1]; }
+
   function gyFreq(deg, oct) {
     const semi = GY_SCALE[((deg | 0) + GY_SCALE.length * 4) % GY_SCALE.length] + (oct || 0) * 12;
-    return 293.66 * Math.pow(2, semi / 12); /* D4 기준 */
+    return actBgm().baseHz * Math.pow(2, semi / 12);
   }
 
   function setBossMode(on) {
     bossMode = !!on;
+    if (!bossMode) bossPhase = 1;
+  }
+  function setAct(n) {
+    bgmAct = Math.max(1, Math.min(4, (n | 0) || 1));
+  }
+  function setBossPhase(p) {
+    bossPhase = Math.max(1, Math.min(3, (p | 0) || 1));
   }
 
   function scheduleBeat(t0, i, bpm) {
     const per = 60 / (bpm || 100);
     const barBeat = i % 8;
     const isHeavy = (i % 4) === 0 || (i % 4) === 2;
+    const ab = actBgm();
 
-    /* 1) 저음 아쟁/거문고 드론 (8박마다 깊은 호흡) */
+    /* 1) 저음 아쟁/거문고 드론 (8박마다 깊은 호흡, 3~4막·보스전 강화) */
     if (barBeat === 0) {
-      const root = bossMode && ((i >> 3) % 2 === 1) ? 77.78 : 73.42; /* D2 ↔ Eb2 긴장감 */
-      ajaengDrone(t0, root, per * 7.8, bossMode ? 0.085 : 0.055);
-      ajaengDrone(t0 + 0.03, root * 1.5, per * 7.2, bossMode ? 0.045 : 0.03);
+      const root = bossMode && ((i >> 3) % 2 === 1) ? ab.droneHz * 1.0595 : ab.droneHz;
+      const dVol = bossMode ? (0.085 + (bossPhase - 1) * 0.015) : (bgmAct >= 3 ? 0.068 : 0.055);
+      ajaengDrone(t0, root, per * 7.8, dVol);
+      ajaengDrone(t0 + 0.03, root * 1.5, per * 7.2, dVol * 0.54);
     }
 
-    /* 2) 타악: 일반전 중모리·굿거리 ↔ 보스전 자진모리·꽹과리 */
+    /* 2) 타악: 막별 리듬 + 보스 페이즈(1/2/3)별 점층 강화 */
     buk(t0, (i % 4) === 0);
     if (bossMode) {
-      if ((i % 2) === 1) buk(t0 + per * 0.5, false);
+      if ((i % 2) === 1) buk(t0 + per * 0.5, bossPhase >= 3);
       janggu(t0 + per * 0.25, (i % 4) === 1);
       janggu(t0 + per * 0.75, (i % 4) === 3);
-      if ((i % 4) === 0 || (i % 8) === 6) kkwaeng(t0, (i % 8) === 0 ? 0.85 : 0.55, bgmGain);
+      if (bossPhase >= 2 && (i % 2) === 0) janggu(t0 + per * 0.5, true);
+      if ((i % 4) === 0 || (i % 8) === 6 || (bossPhase >= 3 && (i % 4) === 2)) {
+        kkwaeng(t0, (i % 8) === 0 ? 0.90 : 0.58, bgmGain);
+      }
     } else {
-      if ((i % 4) === 2) buk(t0 + 0.02, false);
+      if ((i % 4) === 2 || (ab.extraDrum && (i % 4) === 3)) buk(t0 + 0.02, bgmAct === 4 && (i % 8) === 0);
       if (!isHeavy) janggu(t0, false);
       if ((i % 4) === 1 || (i % 4) === 3) janggu(t0 + per * 0.5, (i % 4) === 3);
+      if (ab.chime && (i % 8) === 4 && bgmGain) {
+        const cf = gyFreq(5, 1);
+        tone(t0 + 0.02, cf, 0.75, 0.032, 'sine', bgmGain, cf * 0.996);
+        tone(t0 + 0.024, cf * 2, 0.45, 0.014, 'sine', bgmGain);
+      }
     }
 
     /* 3) 가야금 산조 반주 (매 박 부드러운 뜯기, 보스전엔 긴박한 8분음표 아르페지오) */
@@ -619,7 +645,8 @@ export function createAudio() {
   function tick(bpm) {
     if (!bgmOn || quiet) return;
     const c = ac(); if (!c) return;
-    bpm = (bpm || 100) * (bossMode ? 1.18 : 1.0);
+    const phaseMul = bossMode ? (bossPhase >= 3 ? 1.30 : (bossPhase === 2 ? 1.24 : 1.18)) : actBgm().bpmMul;
+    bpm = (bpm || 100) * phaseMul;
     const per = 60 / bpm;
     const t = c.currentTime;
     /* schedule a little ahead */
@@ -722,6 +749,8 @@ export function createAudio() {
     bossVolley: bossVolley,
     bossBreak: bossBreak,
     setBossMode: setBossMode,
+    setAct: setAct,
+    setBossPhase: setBossPhase,
     paperFold: paperFold,
     paperTear: paperTear,
     paperCrush: paperCrush,
