@@ -184,6 +184,26 @@ def main():
 
     # 3) Volumetric Voxel-Proxy Bone Heat skinning on Hero_Body -> transfer to Hero_Outline
     m2m.skin_via_voxel_heat(body, a_arm, HERO_FIT)
+    # Strip arm/hand bone bleed from torso/waist/back sash below armpit so A->T bake NEVER pulls waist sash into a V!
+    arm_vg_names = {"clavicle_l", "clavicle_r", "upperarm_l", "upperarm_r", "lowerarm_l", "lowerarm_r", "hand_l", "hand_r"}
+    arm_vgs = [vg for vg in body.vertex_groups if vg.name in arm_vg_names]
+    spine_vg = body.vertex_groups.get("spine_02") or body.vertex_groups.get("spine_01")
+    cleaned = 0
+    for v in body.data.vertices:
+        if v.co.z < 1.24 and abs(v.co.x) < 0.225:
+            had = False
+            for vg in arm_vgs:
+                try:
+                    if vg.weight(v.index) > 0.0:
+                        vg.remove([v.index])
+                        had = True
+                except RuntimeError:
+                    pass
+            if had:
+                cleaned += 1
+                if not v.groups and spine_vg:
+                    spine_vg.add([v.index], 1.0, "REPLACE")
+    print(f"  + Stripped arm-weight bleed from {cleaned} torso/waist verts (waist sash 100% flat!)")
     bpy.ops.object.select_all(action="DESELECT")
     body.select_set(True)
     bpy.context.view_layer.objects.active = body
@@ -253,11 +273,11 @@ def main():
         poly.use_smooth = True
 
     hmin, hmax = m2m.get_world_bbox(head)
-    hs = 0.308 / max(1e-4, hmax.z - hmin.z)
+    hs = 0.336 / max(1e-4, hmax.z - hmin.z)
     hcx = (hmin.x + hmax.x) * 0.5
     hcy = (hmin.y + hmax.y) * 0.5
     for v in head.data.vertices:
-        nz = (v.co.z - hmin.z) * hs + 1.396
+        nz = (v.co.z - hmin.z) * hs + 1.374
         taper = 1.0 - 0.18 * max(0.0, min(1.0, (1.455 - nz) / 0.055))
         v.co.x = (v.co.x - hcx) * hs * taper
         v.co.y = (v.co.y - hcy) * hs * taper + neck_cy - 0.022
@@ -286,11 +306,10 @@ def main():
     nc_y = neck_cy - 0.022
     N_c = 28
     c_specs = [
-        (1.402, 0.082, 0.076, 0),
-        (1.422, 0.074, 0.070, 0),
-        (1.440, 0.067, 0.065, 0),
-        (1.452, 0.063, 0.062, 1),
-        (1.458, 0.059, 0.058, 1),
+        (1.392, 0.084, 0.078, 0),
+        (1.410, 0.072, 0.068, 0),
+        (1.426, 0.064, 0.062, 0),
+        (1.434, 0.058, 0.058, 0),
     ]
     c_rings = []
     for cz_r, rx, ry, _ in c_specs:
@@ -366,7 +385,7 @@ def main():
             cnt_b = sum(1 for p in pts if (p - p_b).length < 0.18)
             hilt_pt, tip_pt = (p_a, p_b) if cnt_a < cnt_b else (p_b, p_a)
             blade_vec = (tip_pt - hilt_pt).normalized()
-            target_dir = Vector((-0.18, -0.88, -0.44)).normalized()
+            target_dir = Vector((-0.62, -0.52, -0.58)).normalized()
             rot_q = blade_vec.rotation_difference(target_dir)
             grip_origin = hilt_pt + blade_vec * 0.055
             for so in [sword, sword_out]:

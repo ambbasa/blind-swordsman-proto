@@ -1,6 +1,6 @@
 /* v2/js/lobbyPreview3d.js — v0.85 로비·치장 화면 실시간 3D 주인공 미리보기 (M2M_Idle + 터치 회전 + 도포/검 강화 반영) */
 import * as THREE from 'three';
-import { preloadHeroGlb, makeHeroGlb, applyHeroGlbCloak, applyHeroGlbSwordTrail } from './glbhero.js?v=v091';
+import { preloadHeroGlb, makeHeroGlb, applyHeroGlbCloak, applyHeroGlbSwordTrail } from './glbhero.js?v=v092';
 
 let renderer = null;
 let scene = null;
@@ -40,8 +40,8 @@ export function startLobby3d(canvas, cloakProf, forgeLv) {
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(32, 1, 0.1, 30);
-    camera.position.set(0, 1.30, 4.95);
-    camera.lookAt(0, 1.12, 0);
+    camera.position.set(0, 1.36, 5.25);
+    camera.lookAt(0, 1.16, 0);
 
     const amb = new THREE.AmbientLight(0xfff4e0, 1.1);
     scene.add(amb);
