@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v080';
 
 const MODEL_URLS = {
-  boss:   new URL('../assets/models/boss.glb?v=v0792', import.meta.url).href,
-  minion: new URL('../assets/models/minion.glb?v=v0792', import.meta.url).href,
-  heavy:  new URL('../assets/models/heavy.glb?v=v0792', import.meta.url).href,
-  stone:  new URL('../assets/models/stone.glb?v=v0792', import.meta.url).href
+  boss:   new URL('../assets/models/boss.glb?v=v080', import.meta.url).href,
+  minion: new URL('../assets/models/minion.glb?v=v080', import.meta.url).href,
+  heavy:  new URL('../assets/models/heavy.glb?v=v080', import.meta.url).href,
+  stone:  new URL('../assets/models/stone.glb?v=v080', import.meta.url).href
 };
 const sources = {};
 const pendings = {};
@@ -104,17 +105,13 @@ export function makeBossGlb(height, species) {
   fit.add(scene);
   const holder = new THREE.Group();
   holder.add(fit);
-  /* v0.79.2 — 절차 자세 레이어(대기·걷기·예비·공격·피격)용 리그. */
-  const rig = makeRig(scene);
+  /* v0.80 — Mesh2Motion/Mixamo 외부 모션 GLB 자동 감지: 외부 모션은 원본 애니메이션 그대로 재생 */
+  const externalAnim = isExternalAnimGlb(scene, gltf.animations);
+  const rig = externalAnim ? null : makeRig(scene);
   if (rig) rig.species = sp;
 
   const mixer = new THREE.AnimationMixer(scene);
-  const actions = {};
-  (gltf.animations || []).forEach(function (c) { actions[c.name] = mixer.clipAction(c); });
-  if (!actions.attack && actions.slash) actions.attack = actions.slash;
-  ['hit', 'attack', 'slash', 'cast', 'death'].forEach(function (k) {
-    if (actions[k]) { actions[k].setLoop(THREE.LoopOnce, 1); actions[k].clampWhenFinished = true; }
-  });
+  const actions = mapGlbActions(mixer, gltf.animations, sp);
   if (actions.idle) actions.idle.play();
   return {
     root: holder, body: body, outline: outline, bodyMeshes: bodyMeshes, outlineMeshes: outlineMeshes,
