@@ -31,15 +31,15 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v113';
+import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v114';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v113';
+import { probeAssets, buildArt } from './art.js?v=v114';
 import * as Anim from './anim.js';
-import { createAudio } from './audio.js?v=v113';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v113';
-import { PAT_COST, PAT_CUE, getActPhaseFx, bossPatternMean, buildBossBannerInfo } from './modules/bossPatterns.js?v=v113';
-import { GIMMICK_DRILLS, getDrillDef, createDrillState, resetDrillRound, stepDrill, handleDrillInput, drawDrillCanvas } from './modules/trainingDrills.js?v=v113';
-import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v113';
+import { createAudio } from './audio.js?v=v114';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v114';
+import { PAT_COST, PAT_CUE, getActPhaseFx, bossPatternMean, buildBossBannerInfo } from './modules/bossPatterns.js?v=v114';
+import { GIMMICK_DRILLS, getDrillDef, createDrillState, resetDrillRound, stepDrill, handleDrillInput, drawDrillCanvas } from './modules/trainingDrills.js?v=v114';
+import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v114';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
@@ -60,7 +60,7 @@ import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariant
 import { InkFx, FX_COLORS } from './inkfx.js';
 import { BossFx } from './bossFx.js';
 import { createTelemetry } from './telemetry.js';
-import { applyHeroCloak3D } from './inkhero3d.js?v=v113';
+import { applyHeroCloak3D } from './inkhero3d.js?v=v114';
 import {
   SAVE_VERSION, STAT_DEFS, FORGE_COSTS, SWORDS, RELICS, COSMETIC_CLOAKS, COSMETIC_TRAILS,
   DAILY_QUESTS, ATTENDANCE_REWARDS, STAR_CHESTS, CODEX_MILESTONES,
@@ -89,7 +89,7 @@ import { PAT_CODE } from './modules/bossCatalog.js';
 import { createInputQueue, createDashLatencyTracker } from './modules/inputQueue.js';
 import { createRunState, resetRunStateOnQuit } from './modules/state.js';
 import { createHudController } from './modules/hudController.js';
-import { createUiRouter } from './modules/uiRouter.js';
+import { createUiRouter } from './modules/uiRouter.js?v=v114';
 import { syncSceneActTheme3D } from './modules/actTheme3d.js';
 import { createInkRiver3D } from './modules/inkWater3d.js';
 import { createInkTerrain3D } from './modules/inkTerrain3d.js';
@@ -11095,7 +11095,7 @@ function renderCodex() {
   const n = codexCounts(save);
   const b = Math.round(codexBonus(save) * 100);
   const pct = codexTotalPct(save);
-  if (bonus) bonus.innerHTML = '달성도 ' + pct + '% · 귀물 ' + n.mon + '/8 · 보스 ' + n.boss + '/12 · 진화 ' + n.evo + '/' + EVO_SLOTS + ' · 패턴 ' + n.pat + '/' + PAT_SLOTS + '<br>묶음 보너스: 엽전 +' + b + '%';
+  if (bonus) bonus.innerHTML = '달성도 ' + pct + '% · 귀물 ' + n.mon + '/8 · 보스 ' + n.boss + '/' + STAGES.length + ' · 진화 ' + n.evo + '/' + EVO_SLOTS + ' · 패턴 ' + n.pat + '/' + PAT_SLOTS + '<br>묶음 보너스: 엽전 +' + b + '%';
   const msBox = $('codexMilestones');
   if (msBox) {
     msBox.innerHTML = CODEX_MILESTONES.map(function (ms) {

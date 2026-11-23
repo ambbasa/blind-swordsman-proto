@@ -8,7 +8,7 @@
   ],
   "parts": [
    {
-    "f": "hero_head.png",
+    "f": "hero_head.webp",
     "w": 0.2998,
     "h": 0.3546,
     "pos": [
@@ -28,7 +28,7 @@
     "order": 5
    },
    {
-    "f": "hero_arm_l.png",
+    "f": "hero_arm_l.webp",
     "w": 0.5964,
     "h": 0.9091,
     "pos": [
@@ -48,7 +48,7 @@
     "order": 4
    },
    {
-    "f": "hero_arm_r.png",
+    "f": "hero_arm_r.webp",
     "w": 0.5932,
     "h": 0.9091,
     "pos": [
@@ -68,7 +68,7 @@
     "order": 4
    },
    {
-    "f": "hero_torso.png",
+    "f": "hero_torso.webp",
     "w": 0.2031,
     "h": 0.735,
     "pos": [
@@ -88,7 +88,7 @@
     "order": 3
    },
    {
-    "f": "hero_cloak_b_a.png",
+    "f": "hero_cloak_b_a.webp",
     "w": 1.3604,
     "h": 0.3739,
     "pos": [
@@ -108,7 +108,7 @@
     "order": 0
    },
    {
-    "f": "hero_cloak_b_b.png",
+    "f": "hero_cloak_b_b.webp",
     "w": 0.922,
     "h": 0.3997,
     "pos": [
@@ -128,7 +128,7 @@
     "order": 0
    },
    {
-    "f": "hero_cloak_f_a.png",
+    "f": "hero_cloak_f_a.webp",
     "w": 1.3604,
     "h": 0.4126,
     "pos": [
@@ -148,7 +148,7 @@
     "order": 2
    },
    {
-    "f": "hero_cloak_f_b.png",
+    "f": "hero_cloak_f_b.webp",
     "w": 0.922,
     "h": 0.4255,
     "pos": [
@@ -168,7 +168,7 @@
     "order": 2
    },
    {
-    "f": "hero_leg_l.png",
+    "f": "hero_leg_l.webp",
     "w": 0.4513,
     "h": 0.6866,
     "pos": [
@@ -188,7 +188,7 @@
     "order": 1
    },
    {
-    "f": "hero_leg_r.png",
+    "f": "hero_leg_r.webp",
     "w": 0.4707,
     "h": 0.6834,
     "pos": [
@@ -251,7 +251,7 @@
    ]
   },
   "aura": {
-   "f": "hero_aura.png",
+   "f": "hero_aura.webp",
    "w": 1.6247,
    "h": 2.7079,
    "pos": [
@@ -280,7 +280,7 @@
   ],
   "parts": [
    {
-    "f": "minion_head.png",
+    "f": "minion_head.webp",
     "w": 0.6035,
     "h": 0.3882,
     "pos": [
@@ -300,7 +300,7 @@
     "order": 5
    },
    {
-    "f": "minion_arm_l.png",
+    "f": "minion_arm_l.webp",
     "w": 0.5718,
     "h": 0.7976,
     "pos": [
@@ -320,7 +320,7 @@
     "order": 4
    },
    {
-    "f": "minion_arm_r.png",
+    "f": "minion_arm_r.webp",
     "w": 0.5718,
     "h": 0.7941,
     "pos": [
@@ -340,7 +340,7 @@
     "order": 4
    },
    {
-    "f": "minion_torso.png",
+    "f": "minion_torso.webp",
     "w": 0.2365,
     "h": 0.6635,
     "pos": [
@@ -360,7 +360,7 @@
     "order": 3
    },
    {
-    "f": "minion_skirt_a.png",
+    "f": "minion_skirt_a.webp",
     "w": 1.5741,
     "h": 0.7447,
     "pos": [
@@ -380,7 +380,7 @@
     "order": 1
    },
    {
-    "f": "minion_skirt_b.png",
+    "f": "minion_skirt_b.webp",
     "w": 0.8824,
     "h": 0.7059,
     "pos": [
@@ -435,7 +435,7 @@
    ]
   },
   "aura": {
-   "f": "minion_aura.png",
+   "f": "minion_aura.webp",
    "w": 1.8635,
    "h": 2.6824,
    "pos": [
@@ -464,7 +464,7 @@
   ],
   "parts": [
    {
-    "f": "heavy_head.png",
+    "f": "heavy_head.webp",
     "w": 0.9689,
     "h": 0.5108,
     "pos": [
@@ -484,7 +484,7 @@
     "order": 5
    },
    {
-    "f": "heavy_arm_l_up.png",
+    "f": "heavy_arm_l_up.webp",
     "w": 0.4095,
     "h": 0.6689,
     "pos": [
@@ -504,7 +504,7 @@
     "order": 4
    },
    {
-    "f": "heavy_arm_l_lo.png",
+    "f": "heavy_arm_l_lo.webp",
     "w": 0.373,
     "h": 0.6649,
     "pos": [
@@ -524,7 +524,7 @@
     "order": 4
    },
    {
-    "f": "heavy_arm_r_up.png",
+    "f": "heavy_arm_r_up.webp",
     "w": 0.4095,
     "h": 0.6689,
     "pos": [
@@ -544,7 +544,7 @@
     "order": 4
    },
    {
-    "f": "heavy_arm_r_lo.png",
+    "f": "heavy_arm_r_lo.webp",
     "w": 0.3486,
     "h": 0.6649,
     "pos": [
@@ -564,7 +564,7 @@
     "order": 4
    },
    {
-    "f": "heavy_torso.png",
+    "f": "heavy_torso.webp",
     "w": 2.0878,
     "h": 0.9446,
     "pos": [
@@ -584,7 +584,7 @@
     "order": 3
    },
    {
-    "f": "heavy_skirt_a.png",
+    "f": "heavy_skirt_a.webp",
     "w": 2.25,
     "h": 0.6486,
     "pos": [
@@ -604,7 +604,7 @@
     "order": 1
    },
    {
-    "f": "heavy_skirt_b.png",
+    "f": "heavy_skirt_b.webp",
     "w": 1.8446,
     "h": 0.6324,
     "pos": [
@@ -624,7 +624,7 @@
     "order": 1
    },
    {
-    "f": "heavy_leg_l_up.png",
+    "f": "heavy_leg_l_up.webp",
     "w": 0.8351,
     "h": 0.2351,
     "pos": [
@@ -644,7 +644,7 @@
     "order": 2
    },
    {
-    "f": "heavy_leg_l_lo.png",
+    "f": "heavy_leg_l_lo.webp",
     "w": 0.6122,
     "h": 0.2189,
     "pos": [
@@ -664,7 +664,7 @@
     "order": 2
    },
    {
-    "f": "heavy_leg_r_up.png",
+    "f": "heavy_leg_r_up.webp",
     "w": 0.8311,
     "h": 0.2351,
     "pos": [
@@ -684,7 +684,7 @@
     "order": 2
    },
    {
-    "f": "heavy_leg_r_lo.png",
+    "f": "heavy_leg_r_lo.webp",
     "w": 0.6,
     "h": 0.223,
     "pos": [
@@ -743,7 +743,7 @@
    ]
   },
   "aura": {
-   "f": "heavy_aura.png",
+   "f": "heavy_aura.webp",
    "w": 2.5784,
    "h": 3.3243,
    "pos": [
@@ -772,7 +772,7 @@
   ],
   "parts": [
    {
-    "f": "boss_head.png",
+    "f": "boss_head.webp",
     "w": 3.1264,
     "h": 1.2994,
     "pos": [
@@ -792,7 +792,7 @@
     "order": 5
    },
    {
-    "f": "boss_arm_l_up.png",
+    "f": "boss_arm_l_up.webp",
     "w": 0.7255,
     "h": 1.1872,
     "pos": [
@@ -812,7 +812,7 @@
     "order": 4
    },
    {
-    "f": "boss_arm_l_lo.png",
+    "f": "boss_arm_l_lo.webp",
     "w": 0.7123,
     "h": 1.0751,
     "pos": [
@@ -832,7 +832,7 @@
     "order": 4
    },
    {
-    "f": "boss_arm_r_up.png",
+    "f": "boss_arm_r_up.webp",
     "w": 0.7255,
     "h": 1.1806,
     "pos": [
@@ -852,7 +852,7 @@
     "order": 4
    },
    {
-    "f": "boss_arm_r_lo.png",
+    "f": "boss_arm_r_lo.webp",
     "w": 0.7123,
     "h": 1.1147,
     "pos": [
@@ -872,7 +872,7 @@
     "order": 4
    },
    {
-    "f": "boss_torso.png",
+    "f": "boss_torso.webp",
     "w": 3.9179,
     "h": 1.6028,
     "pos": [
@@ -892,7 +892,7 @@
     "order": 3
    },
    {
-    "f": "boss_cape_a.png",
+    "f": "boss_cape_a.webp",
     "w": 3.1726,
     "h": 0.8179,
     "pos": [
@@ -912,7 +912,7 @@
     "order": 1
    },
    {
-    "f": "boss_cape_b.png",
+    "f": "boss_cape_b.webp",
     "w": 3.9245,
     "h": 1.1938,
     "pos": [
@@ -932,7 +932,7 @@
     "order": 1
    },
    {
-    "f": "boss_crown.png",
+    "f": "boss_crown.webp",
     "w": 2.6581,
     "h": 0.864,
     "pos": [
@@ -952,7 +952,7 @@
     "order": 6
    },
    {
-    "f": "boss_veil.png",
+    "f": "boss_veil.webp",
     "w": 3.1264,
     "h": 1.2994,
     "pos": [
@@ -972,7 +972,7 @@
     "order": 4
    },
    {
-    "f": "boss_skirt_a.png",
+    "f": "boss_skirt_a.webp",
     "w": 3.9047,
     "h": 1.5698,
     "pos": [
@@ -992,7 +992,7 @@
     "order": 1
    },
    {
-    "f": "boss_skirt_b.png",
+    "f": "boss_skirt_b.webp",
     "w": 3.8189,
     "h": 1.5434,
     "pos": [
@@ -1055,7 +1055,7 @@
    ]
   },
   "aura": {
-   "f": "boss_aura.png",
+   "f": "boss_aura.webp",
    "w": 4.4719,
    "h": 6.7277,
    "pos": [
@@ -1084,7 +1084,7 @@
   ],
   "parts": [
    {
-    "f": "stone_head.png",
+    "f": "stone_head.webp",
     "w": 1.9067,
     "h": 0.5489,
     "pos": [
@@ -1104,7 +1104,7 @@
     "order": 5
    },
    {
-    "f": "stone_arm_l_up.png",
+    "f": "stone_arm_l_up.webp",
     "w": 0.4694,
     "h": 0.7186,
     "pos": [
@@ -1124,7 +1124,7 @@
     "order": 4
    },
    {
-    "f": "stone_arm_l_lo.png",
+    "f": "stone_arm_l_lo.webp",
     "w": 0.3719,
     "h": 0.6789,
     "pos": [
@@ -1144,7 +1144,7 @@
     "order": 4
    },
    {
-    "f": "stone_arm_r_up.png",
+    "f": "stone_arm_r_up.webp",
     "w": 0.4694,
     "h": 0.7186,
     "pos": [
@@ -1164,7 +1164,7 @@
     "order": 4
    },
    {
-    "f": "stone_arm_r_lo.png",
+    "f": "stone_arm_r_lo.webp",
     "w": 0.4117,
     "h": 0.6789,
     "pos": [
@@ -1184,7 +1184,7 @@
     "order": 4
    },
    {
-    "f": "stone_torso.png",
+    "f": "stone_torso.webp",
     "w": 2.5169,
     "h": 1.1014,
     "pos": [
@@ -1204,7 +1204,7 @@
     "order": 3
    },
    {
-    "f": "stone_skirt_a.png",
+    "f": "stone_skirt_a.webp",
     "w": 2.5169,
     "h": 0.2347,
     "pos": [
@@ -1224,7 +1224,7 @@
     "order": 1
    },
    {
-    "f": "stone_skirt_b.png",
+    "f": "stone_skirt_b.webp",
     "w": 2.4881,
     "h": 0.2203,
     "pos": [
@@ -1244,7 +1244,7 @@
     "order": 1
    },
    {
-    "f": "stone_leg_l_up.png",
+    "f": "stone_leg_l_up.webp",
     "w": 1.1086,
     "h": 0.3178,
     "pos": [
@@ -1264,7 +1264,7 @@
     "order": 2
    },
    {
-    "f": "stone_leg_l_lo.png",
+    "f": "stone_leg_l_lo.webp",
     "w": 0.5922,
     "h": 0.3503,
     "pos": [
@@ -1284,7 +1284,7 @@
     "order": 2
    },
    {
-    "f": "stone_leg_r_up.png",
+    "f": "stone_leg_r_up.webp",
     "w": 1.0544,
     "h": 0.3178,
     "pos": [
@@ -1304,7 +1304,7 @@
     "order": 2
    },
    {
-    "f": "stone_leg_r_lo.png",
+    "f": "stone_leg_r_lo.webp",
     "w": 0.5994,
     "h": 0.3503,
     "pos": [
@@ -1363,7 +1363,7 @@
    ]
   },
   "aura": {
-   "f": "stone_aura.png",
+   "f": "stone_aura.webp",
    "w": 2.8131,
    "h": 2.8889,
    "pos": [
@@ -1385,7 +1385,7 @@
  },
  "tools": {
   "hero_arm_sword": {
-   "f": "hero_arm_sword.png",
+   "f": "hero_arm_sword.webp",
    "w": 1.2341,
    "h": 1.0751,
    "pos": [
@@ -1405,7 +1405,7 @@
    "nf": 1
   },
   "boss_weapon_sword": {
-   "f": "boss_weapon_sword.png",
+   "f": "boss_weapon_sword.webp",
    "w": 0.6388,
    "h": 3.4309,
    "pos": [
@@ -1425,7 +1425,7 @@
    "nf": 1
   },
   "boss_weapon_spear": {
-   "f": "boss_weapon_spear.png",
+   "f": "boss_weapon_spear.webp",
    "w": 0.5983,
    "h": 3.9849,
    "pos": [
@@ -1445,7 +1445,7 @@
    "nf": 1
   },
   "boss_weapon_staff": {
-   "f": "boss_weapon_staff.png",
+   "f": "boss_weapon_staff.webp",
    "w": 1.0921,
    "h": 3.9849,
    "pos": [
