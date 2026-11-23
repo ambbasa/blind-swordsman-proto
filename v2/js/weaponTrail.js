@@ -196,3 +196,17 @@ export function updateWeaponTrail(T, dt, emitting) {
   T.geo.attributes.position.needsUpdate = true;
   T.geo.attributes.color.needsUpdate = true;
 }
+
+export function disposeWeaponTrail(T) {
+  if (!T) return;
+  if (T.mesh && T.mesh.parent) T.mesh.parent.remove(T.mesh);
+  if (T.glint && T.glint.parent) T.glint.parent.remove(T.glint);
+  if (T.geo) T.geo.dispose();
+  if (T.mat) T.mat.dispose();
+  if (T.glintMat) T.glintMat.dispose();
+  T.mesh = null;
+  T.glint = null;
+  T.geo = null;
+  T.mat = null;
+  T.glintMat = null;
+}

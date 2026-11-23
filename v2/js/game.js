@@ -31,15 +31,15 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v109';
+import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v110';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v109';
+import { probeAssets, buildArt } from './art.js?v=v110';
 import * as Anim from './anim.js';
 import { createAudio } from './audio.js?v=v103';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v109';
-import { PAT_COST, PAT_CUE, getActPhaseFx, bossPatternMean, buildBossBannerInfo } from './modules/bossPatterns.js?v=v109';
-import { GIMMICK_DRILLS, getDrillDef, createDrillState, resetDrillRound, stepDrill, handleDrillInput, drawDrillCanvas } from './modules/trainingDrills.js?v=v109';
-import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v103';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v110';
+import { PAT_COST, PAT_CUE, getActPhaseFx, bossPatternMean, buildBossBannerInfo } from './modules/bossPatterns.js?v=v110';
+import { GIMMICK_DRILLS, getDrillDef, createDrillState, resetDrillRound, stepDrill, handleDrillInput, drawDrillCanvas } from './modules/trainingDrills.js?v=v110';
+import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v110';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
@@ -60,7 +60,7 @@ import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariant
 import { InkFx, FX_COLORS } from './inkfx.js';
 import { BossFx } from './bossFx.js';
 import { createTelemetry } from './telemetry.js';
-import { applyHeroCloak3D } from './inkhero3d.js?v=v109';
+import { applyHeroCloak3D } from './inkhero3d.js?v=v110';
 import {
   SAVE_VERSION, STAT_DEFS, FORGE_COSTS, SWORDS, RELICS, COSMETIC_CLOAKS, COSMETIC_TRAILS,
   DAILY_QUESTS, ATTENDANCE_REWARDS, STAR_CHESTS, CODEX_MILESTONES,
@@ -2093,9 +2093,23 @@ function startRun(opts) {
 
 function clearEntities() {
   if (!S || !three) return;
-  function rm(list) { list.forEach(function (e) { if (e.obj) three.scene.remove(e.obj); }); }
-  rm(S.spirits || []); rm(S.zombies || []); rm(S.items || []);
-  (three.dying || []).forEach(function (d) { three.scene.remove(d.obj); });
+  function rm(list, dispose) {
+    for (let i = 0; i < list.length; i++) {
+      const e = list[i];
+      if (!e || !e.obj) continue;
+      if (dispose && art && art.disposeChar) art.disposeChar(e.obj);
+      three.scene.remove(e.obj);
+    }
+  }
+  rm(S.spirits || [], false); rm(S.zombies || [], true); rm(S.items || [], false);
+  const dying = three.dying || [];
+  for (let i = 0; i < dying.length; i++) {
+    const d = dying[i];
+    if (d && d.obj) {
+      if (art && art.disposeChar) art.disposeChar(d.obj);
+      three.scene.remove(d.obj);
+    }
+  }
   three.dying = [];
   inkFx.clear();
   if (three && three.vfx3d) three.vfx3d.clear();
@@ -5054,9 +5068,18 @@ function beginDash(shape, opts) {
   const dir = ('dir' in opts) ? opts.dir : (S.lastStrokeDir || null);
   const targets = pickSpirits(shape, n, S.hero, dir, null);
   if (!targets.length) {
-    const nearby = nearestTo(livingMarks().filter(mark => isOnScreen(mark, 20)), S.hero);
+    const marks = livingMarks();
+    let nearby = null, bestD = 1e9;
+    for (let i = 0; i < marks.length; i++) {
+      const m = marks[i];
+      if (!isOnScreen(m, 20)) continue;
+      const d = dist(m, S.hero);
+      if (d < bestD) { bestD = d; nearby = m; }
+    }
     const hint = nearby && SHAPE_MARK[spiritShape(nearby)];
-    toast(hint ? '가까운 혼령의 무늬: ' + hint : '혼령이 보이면 종의 무늬를 그리세요');
+    if (audio && audio.whiff) audio.whiff();
+    showJudge(hint ? ('대상 없음 · ' + hint + ' 그리기') : '대상 없음');
+    toast(hint ? ('가까운 혼령의 무늬: ' + hint) : '혼령이 보이면 종의 무늬를 그리세요');
     return { type: shape, targets: [], hits: [], items: [] };
   }
   S.dashQuality = (opts.quality != null) ? opts.quality : 0;
