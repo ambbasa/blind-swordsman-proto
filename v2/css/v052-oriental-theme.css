@@ -1095,3 +1095,111 @@ h1, h2, h3, #timer, #titleName, #bossCardName, #resultTitle { font-family: var(-
   background: rgba(217, 185, 126, 0.36);
   border-radius: 2px;
 }
+
+/* ========== v1.12 3D 도감·결과 숙련도·입장 족자·레벨업 카드 일관성 마감 ========== */
+/* 1) 3D 도감 뷰어 — 4x2 균등 옻칠 그리드 */
+.codex-3d-wrap { margin-bottom: 12px; }
+.codex-3d-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin-bottom: 7px;
+}
+.codex-3d-head h3 { margin: 0 !important; }
+.codex-3d-anim-btn {
+  padding: 5px 11px; border-radius: 2px;
+  border: 1px solid rgba(217, 185, 126, 0.5);
+  background: linear-gradient(180deg, rgba(44, 34, 24, 0.92), rgba(20, 16, 13, 0.96));
+  color: var(--ivory); font-family: var(--font-body) !important;
+  font-size: 11.5px; font-weight: 700; cursor: pointer;
+}
+.codex-3d-anim-btn:active { border-color: var(--chapter-accent); color: var(--chapter-accent); }
+.codex-3d-grid {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px; margin-bottom: 7px;
+}
+.codex-sp-btn {
+  padding: 5px 4px; border-radius: 2px;
+  border: 1px solid rgba(217, 185, 126, 0.28);
+  background: rgba(20, 16, 13, 0.86);
+  color: var(--ivory-dim); font-family: var(--font-body) !important;
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+}
+.codex-sp-btn.on {
+  background: linear-gradient(180deg, rgba(217, 185, 126, 0.28), rgba(34, 25, 17, 0.94));
+  border-color: var(--chapter-accent); color: var(--chapter-accent);
+}
+.codex-3d-stage {
+  position: relative; height: 214px; border-radius: 2px; overflow: hidden;
+  background: radial-gradient(circle at 50% 45%, rgba(76, 62, 48, 0.44), rgba(12, 10, 11, 0.96));
+  border: 1px solid rgba(217, 185, 126, 0.34);
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.65);
+}
+.codex-3d-stage canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+.codex-3d-hint {
+  position: absolute; bottom: 6px; left: 0; right: 0; text-align: center;
+  font-size: 10.5px; color: rgba(240, 230, 206, 0.68); pointer-events: none;
+}
+
+/* 2) 결과 화면 S/A/B 숙련도 배너 — 중복 제거 4열 낙관 카드 */
+.result-mastery-bar {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px;
+  margin: 8px 0 6px; padding: 8px 6px; border-radius: 2px;
+  background: linear-gradient(180deg, rgba(28, 22, 17, 0.9), rgba(14, 11, 9, 0.95));
+  border: 1px solid rgba(217, 185, 126, 0.34); text-align: center;
+}
+.result-mastery-bar .rm-cell {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+}
+.result-mastery-bar .rm-lbl { font-size: 10px; color: var(--ivory-dim); }
+.result-mastery-bar strong { font-size: 13px; color: var(--ivory); font-variant-numeric: tabular-nums; }
+.result-mastery-bar .rm-sub { font-style: normal; font-size: 9.5px; color: var(--jade-light); }
+.result-mastery-bar .rm-grade {
+  font-family: var(--font-display) !important; font-size: 17px; line-height: 1.1;
+  padding: 1px 8px; border-radius: 2px;
+}
+.result-mastery-bar .rm-grade.g-s { color: #ffe488; background: rgba(181, 36, 27, 0.35); border: 1px solid rgba(244, 204, 114, 0.72); }
+.result-mastery-bar .rm-grade.g-a { color: #8ef5d4; background: rgba(34, 78, 66, 0.38); border: 1px solid rgba(132, 242, 214, 0.55); }
+.result-mastery-bar .rm-grade.g-b { color: var(--ivory); }
+.result-mastery-bar .rm-grade.g-c { color: #ff9c92; }
+
+/* 3) 스테이지 입장 족자(#ov-stage) 정보 위계 정돈 */
+#ov-stage .stage-intro {
+  width: min(92vw, 396px);
+  padding: 18px 18px 16px;
+  gap: 7px;
+}
+#ov-stage .stage-goal {
+  font-size: 13.5px !important; font-weight: 700; color: var(--ivory) !important;
+  line-height: 1.45; word-break: keep-all;
+}
+#ov-stage .stage-gimmick-box {
+  padding: 8px 10px; border-radius: 2px;
+  background: rgba(18, 14, 11, 0.76);
+  border: 1px solid rgba(217, 185, 126, 0.28);
+  font-size: 11.5px; line-height: 1.45; word-break: keep-all;
+}
+#ov-stage .stage-tip {
+  font-size: 11.5px !important; color: var(--ivory-dim) !important;
+  line-height: 1.4; word-break: keep-all;
+}
+
+/* 4) 레벨업 3택 카드(#ov-level) 1초 가독성 강화 */
+#ov-level .choices { display: flex; flex-direction: column; gap: 8px; }
+#ov-level .up-card {
+  display: flex !important; align-items: center !important; gap: 10px !important;
+  text-align: left !important; padding: 10px 12px !important; min-height: 62px !important;
+  width: 100% !important;
+}
+#ov-level .up-card.evo-mat {
+  border-color: rgba(132, 242, 214, 0.65) !important;
+  box-shadow: 0 0 12px rgba(95, 232, 194, 0.16);
+}
+#ov-level .up-text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+#ov-level .up-text strong { font-size: 14px; color: var(--ivory); }
+#ov-level .up-desc { font-size: 11.5px; color: var(--ivory-dim); line-height: 1.38; word-break: keep-all; }
+#ov-level .up-evo {
+  display: inline-block; align-self: flex-start; margin-top: 2px;
+  padding: 1px 6px; border-radius: 2px; font-size: 10.5px; font-weight: 700;
+  color: var(--jade-light); background: rgba(24, 52, 44, 0.85);
+  border: 1px solid rgba(132, 242, 214, 0.42);
+}

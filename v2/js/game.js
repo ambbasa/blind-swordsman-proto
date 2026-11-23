@@ -31,15 +31,15 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v111';
+import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v112';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v111';
+import { probeAssets, buildArt } from './art.js?v=v112';
 import * as Anim from './anim.js';
-import { createAudio } from './audio.js?v=v111';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v111';
-import { PAT_COST, PAT_CUE, getActPhaseFx, bossPatternMean, buildBossBannerInfo } from './modules/bossPatterns.js?v=v111';
-import { GIMMICK_DRILLS, getDrillDef, createDrillState, resetDrillRound, stepDrill, handleDrillInput, drawDrillCanvas } from './modules/trainingDrills.js?v=v111';
-import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v111';
+import { createAudio } from './audio.js?v=v112';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v112';
+import { PAT_COST, PAT_CUE, getActPhaseFx, bossPatternMean, buildBossBannerInfo } from './modules/bossPatterns.js?v=v112';
+import { GIMMICK_DRILLS, getDrillDef, createDrillState, resetDrillRound, stepDrill, handleDrillInput, drawDrillCanvas } from './modules/trainingDrills.js?v=v112';
+import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v112';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
@@ -60,7 +60,7 @@ import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariant
 import { InkFx, FX_COLORS } from './inkfx.js';
 import { BossFx } from './bossFx.js';
 import { createTelemetry } from './telemetry.js';
-import { applyHeroCloak3D } from './inkhero3d.js?v=v111';
+import { applyHeroCloak3D } from './inkhero3d.js?v=v112';
 import {
   SAVE_VERSION, STAT_DEFS, FORGE_COSTS, SWORDS, RELICS, COSMETIC_CLOAKS, COSMETIC_TRAILS,
   DAILY_QUESTS, ATTENDANCE_REWARDS, STAR_CHESTS, CODEX_MILESTONES,
@@ -9408,7 +9408,7 @@ function endRun(win, msg) {
       if (!card) {
         card = document.createElement('div');
         card.id = 'resultMastery';
-        card.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0 6px;padding:7px 8px;border-radius:10px;background:rgba(20,17,15,0.72);border:1px solid rgba(226,188,116,0.28);font:600 11px/1.3 sans-serif;color:#efe2c8;text-align:center';
+        card.className = 'result-mastery-bar';
         rt.insertAdjacentElement('afterend', card);
       }
       const sec = Math.max(0, Math.round(S.elapsed || 0));
@@ -9416,15 +9416,13 @@ function endRun(win, msg) {
       const hpRatio = Math.max(0, (S.hp || 0) / Math.max(1, maxHp()));
       const gradePts = (win ? 40 : 0) + Math.round(hpRatio * 30) + Math.min(20, (S.justParryN || 0) * 8 + (S.parryOkN || 0) * 3) + Math.min(15, (S.poiseBreaksN || 0) * 5) + Math.min(15, Math.floor((S.comboMax || 0) / 2));
       const grade = !win ? 'C' : (gradePts >= 82 ? 'S' : (gradePts >= 62 ? 'A' : 'B'));
-      const gradeCol = grade === 'S' ? '#ffe078' : (grade === 'A' ? '#8ef5d4' : '#d6cbb5');
+      const gradeCls = grade === 'S' ? 'g-s' : (grade === 'A' ? 'g-a' : (grade === 'B' ? 'g-b' : 'g-c'));
       const jpN = S.justParryN || 0;
-      card.style.gridTemplateColumns = 'repeat(5,1fr)';
       card.innerHTML =
-        '<div><div style="font-size:10px;opacity:.72">등급</div><div style="font-size:14px;color:' + gradeCol + '">' + grade + '</div></div>' +
-        '<div><div style="font-size:10px;opacity:.72">패링</div><div>' + (S.parryOkN || 0) + '회' + (jpN > 0 ? '<div style="font-size:9px;color:#8ef5d4">완벽 ' + jpN + '</div>' : '') + '</div></div>' +
-        '<div><div style="font-size:10px;opacity:.72">자세격파</div><div>' + (S.poiseBreaksN || 0) + '회</div></div>' +
-        '<div><div style="font-size:10px;opacity:.72">최고연타</div><div>' + (S.comboMax || 0) + '</div></div>' +
-        '<div><div style="font-size:10px;opacity:.72">시간</div><div>' + mm + ':' + ss + '</div></div>';
+        '<div class="rm-cell"><span class="rm-lbl">등급</span><strong class="rm-grade ' + gradeCls + '">' + grade + '</strong></div>' +
+        '<div class="rm-cell"><span class="rm-lbl">막기</span><strong>' + (S.parryOkN || 0) + '회</strong>' + (jpN > 0 ? '<em class="rm-sub">완벽 ' + jpN + '</em>' : '') + '</div>' +
+        '<div class="rm-cell"><span class="rm-lbl">자세격파</span><strong>' + (S.poiseBreaksN || 0) + '회</strong></div>' +
+        '<div class="rm-cell"><span class="rm-lbl">소요 시간</span><strong>' + mm + ':' + ss + '</strong></div>';
     }
   } catch (_) {}
   S.goldStar = !!(win && curMode().gold);
@@ -11109,21 +11107,21 @@ function renderCodex() {
     });
   }
   const out = [];
-  /* v1.00 도감 3D 턴테이블 뷰어 (5종 캐릭터 회전 + 모션 재생) */
+  /* v1.12 도감 3D 턴테이블 뷰어 — 조선 수묵 4x2 균등 그리드 */
   out.push(
-    '<div class="codex-group" style="margin-bottom:10px">' +
-    '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px">' +
-    '<h3 style="margin:0">3D 도감 뷰어</h3>' +
-    '<button type="button" id="codexAnimBtn" style="padding:4px 10px;border-radius:8px;border:1px solid rgba(226,188,116,0.45);background:rgba(36,28,22,0.85);color:#f4e3c1;font:600 11px sans-serif">모션 재생</button>' +
+    '<div class="codex-group codex-3d-wrap">' +
+    '<div class="codex-3d-head">' +
+    '<h3>3D 도감 뷰어</h3>' +
+    '<button type="button" id="codexAnimBtn" class="codex-3d-anim-btn">모션 재생</button>' +
     '</div>' +
-    '<div style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap">' +
+    '<div class="codex-3d-grid">' +
     [['hero','심안'],['minion','잡귀'],['heavy','중장'],['stone','석상'],['boss','1막 보스'],['boss_act2','2막 묵승'],['boss_act3','3막 무장'],['boss_act4','4막 검귀']].map(function (it, idx) {
-      return '<button type="button" class="codex-sp-btn" data-sp="' + it[0] + '" style="flex:1;min-width:50px;padding:4px 6px;border-radius:7px;border:1px solid rgba(226,188,116,0.32);background:' + (idx === 0 ? 'rgba(180,126,52,0.42)' : 'rgba(20,17,15,0.72)') + ';color:#efe2c8;font:600 11px sans-serif">' + it[1] + '</button>';
+      return '<button type="button" class="codex-sp-btn' + (idx === 0 ? ' on' : '') + '" data-sp="' + it[0] + '">' + it[1] + '</button>';
     }).join('') +
     '</div>' +
-    '<div style="position:relative;height:210px;border-radius:10px;overflow:hidden;background:radial-gradient(circle at 50% 45%, rgba(76,62,48,0.45), rgba(14,12,15,0.92));border:1px solid rgba(226,188,116,0.22)">' +
-    '<canvas id="codex3dCanvas" style="width:100%;height:100%;display:block;touch-action:none"></canvas>' +
-    '<div style="position:absolute;bottom:6px;left:0;right:0;text-align:center;font:500 10px sans-serif;color:rgba(240,230,206,0.65);pointer-events:none">좌우 드래그로 360도 회전</div>' +
+    '<div class="codex-3d-stage">' +
+    '<canvas id="codex3dCanvas"></canvas>' +
+    '<div class="codex-3d-hint">좌우 드래그로 360도 회전</div>' +
     '</div></div>'
   );
   out.push('<div class="codex-group"><h3>귀물 ' + n.mon + '/8</h3><div class="codex-grid">');
@@ -11132,7 +11130,7 @@ function renderCodex() {
     out.push('<div class="codex-cell' + (on ? ' on' : ' unknown') + '"><b>' + (on ? m.name : '???') + '</b><span>' + (on ? m.desc : '') + '</span></div>');
   });
   out.push('</div></div>');
-  out.push('<div class="codex-group"><h3>보스 ' + n.boss + '/12</h3><div class="codex-grid">');
+  out.push('<div class="codex-group"><h3>보스 ' + n.boss + '/' + STAGES.length + '</h3><div class="codex-grid">');
   STAGES.forEach(function (st) {
     const rec = save.codex.boss && save.codex.boss[st.id];
     out.push('<div class="codex-cell' + (rec ? ' on' : ' unknown') + '"><b>' + (rec ? st.bossName : '???') + '</b><span>' + (rec ? st.name : '') + '</span></div>');
@@ -11160,7 +11158,7 @@ function renderCodex() {
         btn.addEventListener('click', function () {
           const sp = btn.getAttribute('data-sp') || 'hero';
           Array.prototype.forEach.call(spBtns, function (b2) {
-            b2.style.background = (b2 === btn) ? 'rgba(180,126,52,0.42)' : 'rgba(20,17,15,0.72)';
+            b2.classList.toggle('on', b2 === btn);
           });
           startCodex3d(cv, sp);
         });
