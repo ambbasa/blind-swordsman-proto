@@ -174,8 +174,12 @@ EVO_RECIPES.forEach((r) => {
   assert.ok(upIds.has(r.b), 'unknown evo ingredient b: ' + r.b);
 });
 
-/* 6. 보스 패턴 도감 12종 및 오탈자 교정 검증 */
-assert.equal(PAT_CODE.length, 12);
+/* 6. 보스 패턴 도감 18종(기본 12 + 신규 6대 기믹) 및 오탈자 교정 검증 */
+assert.equal(PAT_CODE.length, 18);
+['donut', 'soak', 'rhythm', 'tether', 'gaze', 'pizza'].forEach((id) => {
+  const m = getPatternMeta(id);
+  assert.ok(m && m.name && m.guides.length >= 2, 'missing gimmick catalog: ' + id);
+});
 assert.equal(getPatternMeta('shuffle').name, '무늬 뒤섞기(12장)');
 assert.match(getPatternMeta('charge').guides[0], /비켜서세요/);
 assert.match(getPatternMeta('volley').desc, /부적을/);

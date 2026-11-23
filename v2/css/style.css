@@ -703,3 +703,12 @@ body { font-family: "InkSerif", "Apple SD Gothic Neo", "Noto Sans KR", serif; }
 .challenge-row .btn.locked b { color: var(--paper-dim); }
 /* v0.33: 탭 전환 시 숨김은 display 규칙보다 우선해야 한다 */
 .shop-list[hidden] { display: none !important; }
+/* v1.06 취약 중첩 HUD 배지 */
+.vuln-badge {
+  display: inline-flex; align-items: center; margin-left: 6px; padding: 1px 6px;
+  font: 700 10.5px/1.3 "InkSerif", serif; letter-spacing: .02em;
+  color: #fff3e6; background: rgba(196, 44, 34, 0.88);
+  border: 1px solid rgba(255, 138, 114, 0.92); border-radius: 999px;
+  box-shadow: 0 0 8px rgba(255, 77, 61, 0.55);
+}
+.vuln-badge[hidden] { display: none !important; }

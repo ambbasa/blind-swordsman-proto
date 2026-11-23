@@ -57,7 +57,7 @@ export const STAGES = [
       { t: 90, n: 28, mix: { imp: 0.6, brute: 0.3, stone: 0.1 }, r: [9.5, 12], elite: 1 }
     ],
     spawn: { ms: 800, max: 34, earlyMax: 10, earlyMinMs: 1200 },
-    boss: { telegraph: 1.25, charge: 18, adds: 0, hazard: 0, patterns: ['sweep', 'kiai', 'slam', 'charge', 'donut'], seal: true },
+    boss: { telegraph: 1.25, charge: 18, adds: 0, hazard: 0, patterns: ['sweep', 'kiai', 'slam', 'charge'], seal: true },
     starCombo: 20, star3: { kind: 'combo', alt: { kind: 'terrain', key: 'rubble', need: 4, text: '잔해 위 착지 4회' } }, bossVisual: { var: 3, scale: 0.92 }, bossName: '성문의 문지기', bossLine: '무너진 성문에 매달려 우는 원혼',
     atmo: { clear: 0x141a26, fogCol: [12, 17, 26], fog: 0.024, moon: 20.0, amb: 5.6, hemiI: 6.6, fill: 4.0, hemi: 0x5c6a8c, ground: 0x11141c, moonCol: 0xa9b8dd, tint: 'linear-gradient(180deg, rgba(44,64,150,0.20) 0%, rgba(8,18,58,0.26) 100%)' }
   },
@@ -76,7 +76,7 @@ export const STAGES = [
       { t: 126, n: 34, mix: { imp: 0.5, brute: 0.32, stone: 0.18 }, r: [9.5, 12.5], elite: 1 }
     ],
     spawn: { ms: 700, max: 40, earlyMax: 11, earlyMinMs: 1100 },
-    boss: { telegraph: 1.15, charge: 19, adds: 0, hazard: 1, patterns: ['clones', 'charge', 'veil', 'kiai', 'donut'], seal: true },
+    boss: { telegraph: 1.15, charge: 19, adds: 0, hazard: 1, patterns: ['clones', 'charge', 'veil', 'kiai'], seal: true },
     starCombo: 26, star3: { kind: 'combo', alt: { kind: 'terrain', key: 'bamboo', need: 3, text: '대숲 가로지른 일섬 3회' } }, bossVisual: { var: 3, scale: 0.94 }, bossName: '대숲의 울음', bossLine: '베인 대나무 사이에서 우는 것',
     atmo: { clear: 0x121a15, fogCol: [11, 19, 14], fog: 0.026, moon: 18.0, amb: 5.4, hemiI: 6.2, fill: 3.6, hemi: 0x6f8472, ground: 0x12160f, moonCol: 0xb4d2b4, tint: 'linear-gradient(180deg, rgba(28,92,60,0.18) 0%, rgba(6,26,16,0.26) 100%)' }
   },
@@ -95,7 +95,7 @@ export const STAGES = [
       { t: 122, n: 36, mix: { imp: 0.45, brute: 0.33, stone: 0.22 }, r: [9.5, 12.5], elite: 1 }
     ],
     spawn: { ms: 660, max: 42, earlyMax: 11, earlyMinMs: 1050 },
-    boss: { telegraph: 1.0, charge: 21, adds: 0, hazard: 1, patterns: ['sweep', 'volley', 'chant', 'charge', 'donut'], phase2: ['slam', 'kiai', 'clones'], seal: true },
+    boss: { telegraph: 1.0, charge: 21, adds: 0, hazard: 1, patterns: ['sweep', 'volley', 'chant', 'charge'], phase2: ['slam', 'kiai', 'donut'], seal: true },
     starCombo: 32, star3: { kind: 'pattern', counter: 'goldReflect', need: 2, text: '금빛 부적 되받기 2회' }, bossVisual: { var: 0, scale: 1.05 }, bossName: '붉은 달의 사냥꾼', bossLine: '달이 붉어지면 사냥을 시작하는 자',
     atmo: { clear: 0x1c0f12, fogCol: [30, 10, 11], fog: 0.028, moon: 21.0, amb: 6.0, hemiI: 5.8, fill: 4.0, hemi: 0x8a5a52, ground: 0x1e1210, moonCol: 0xff9c84, tint: 'linear-gradient(180deg, rgba(150,32,28,0.22) 0%, rgba(52,6,8,0.28) 100%)' }
   },
@@ -116,7 +116,7 @@ export const STAGES = [
       { t: 126, n: 38, mix: { imp: 0.42, brute: 0.26, charger: 0.18, thrower: 0.08, stone: 0.06 }, r: [9.5, 12.5], elite: 1 }
     ],
     spawn: { ms: 680, max: 44, earlyMax: 12, earlyMinMs: 1050 },
-    boss: { telegraph: 1.15, charge: 19, adds: 0, hazard: 2, patterns: ['veil', 'charge', 'kiai', 'soak', 'donut', 'gaze', 'pizza'], seal: true },
+    boss: { telegraph: 1.15, charge: 19, adds: 0, hazard: 2, patterns: ['veil', 'charge', 'kiai', 'donut', 'gaze'], seal: true },
     starCombo: 30, star3: { kind: 'goal', text: '석등을 60초 지키기' }, subgoal: { id: 'guard', t: 60, hp: 10, label: '석등 지키기 60초' }, bossVisual: { var: 3, scale: 0.96 }, bossName: '탑을 감은 안개', bossLine: '구름에 잠긴 탑의 종지기',
     atmo: { clear: 0x101a1e, fogCol: [14, 24, 28], fog: 0.032, moon: 17.0, amb: 5.2, hemiI: 6.4, fill: 3.4, hemi: 0x6f8a92, ground: 0x0d1417, moonCol: 0xbcd8dc, tint: 'linear-gradient(180deg, rgba(38,86,96,0.20) 0%, rgba(6,20,26,0.30) 100%)' }
   },
@@ -135,7 +135,7 @@ export const STAGES = [
       { t: 132, n: 40, mix: { imp: 0.36, brute: 0.24, thrower: 0.18, charger: 0.12, stone: 0.1 }, r: [9.5, 12.5], elite: 1 }
     ],
     spawn: { ms: 620, max: 46, earlyMax: 12, earlyMinMs: 1000 },
-    boss: { telegraph: 1.05, charge: 20, adds: 0, hazard: 3, patterns: ['volley', 'sweep', 'slam', 'kiai', 'soak', 'donut', 'gaze', 'pizza'], seal: true },
+    boss: { telegraph: 1.05, charge: 20, adds: 0, hazard: 3, patterns: ['volley', 'sweep', 'soak', 'donut', 'gaze'], seal: true },
     starCombo: 34, star3: { kind: 'combo', alt: { kind: 'terrain', key: 'snow', need: 4, text: '눈밭 미끄러짐 4회' } }, bossVisual: { var: 3, scale: 0.98 }, bossName: '눈 밑의 중', bossLine: '향을 끊지 못한 채 눈에 덮인 자',
     atmo: { clear: 0x161d25, fogCol: [22, 30, 40], fog: 0.034, moon: 16.0, amb: 5.4, hemiI: 6.8, fill: 3.6, hemi: 0x8aa0b4, ground: 0x11161d, moonCol: 0xdcecf8, tint: 'linear-gradient(180deg, rgba(120,160,200,0.20) 0%, rgba(14,24,38,0.30) 100%)' }
   },
@@ -154,7 +154,7 @@ export const STAGES = [
       { t: 134, n: 42, mix: { imp: 0.32, brute: 0.24, bomber: 0.18, charger: 0.16, stone: 0.1 }, r: [9.5, 12.5], elite: 1 }
     ],
     spawn: { ms: 580, max: 48, earlyMax: 13, earlyMinMs: 980 },
-    boss: { telegraph: 1.0, charge: 21, adds: 0, hazard: 3, patterns: ['clones', 'charge', 'veil', 'kiai', 'soak', 'donut', 'gaze', 'pizza'], phase2: ['slam'], seal: true },
+    boss: { telegraph: 1.0, charge: 21, adds: 0, hazard: 3, patterns: ['clones', 'veil', 'soak', 'donut', 'pizza'], phase2: ['slam', 'gaze'], seal: true },
     starCombo: 38, star3: { kind: 'goal', text: '정예 3마리 사냥' }, subgoal: { id: 'hunt', n: 3, t: 90, label: '정예 3마리 사냥' }, bossVisual: { var: 3, scale: 1.0 }, bossName: '고목에 깃든 것', bossLine: '잎이 진 나무에 뿌리내린 원혼',
     atmo: { clear: 0x121a14, fogCol: [16, 24, 18], fog: 0.030, moon: 17.5, amb: 5.3, hemiI: 6.2, fill: 3.4, hemi: 0x74886e, ground: 0x0f1410, moonCol: 0xbfd6bc, tint: 'linear-gradient(180deg, rgba(46,84,52,0.20) 0%, rgba(8,20,10,0.30) 100%)' }
   },
@@ -173,7 +173,7 @@ export const STAGES = [
       { t: 140, n: 44, mix: { imp: 0.3, brute: 0.24, thrower: 0.18, charger: 0.16, bomber: 0.12 }, r: [9.5, 13], elite: 1 }
     ],
     spawn: { ms: 520, max: 50, earlyMax: 13, earlyMinMs: 950 },
-    boss: { telegraph: 0.9, charge: 22, adds: 0, hazard: 4, patterns: ['clash', 'sweep', 'slam', 'soak', 'donut', 'gaze', 'pizza'], phase2: ['mimic', 'veil', 'kiai'], seal: true },
+    boss: { telegraph: 0.9, charge: 22, adds: 0, hazard: 4, patterns: ['clash', 'sweep', 'soak', 'donut', 'gaze'], phase2: ['mimic', 'pizza', 'kiai'], seal: true },
     starCombo: 42, star3: { kind: 'pattern', counter: 'clashWin', need: 2, text: '합 겨루기 2합 성공' }, bossVisual: { var: 1, scale: 1.1 }, bossName: '무명 검귀', bossLine: '눈을 잃은 채 길을 지키는 자',
     atmo: { clear: 0x171a22, fogCol: [24, 26, 34], fog: 0.036, moon: 15.5, amb: 5.6, hemiI: 7.0, fill: 3.8, hemi: 0x8c8ea4, ground: 0x13151b, moonCol: 0xd6d2e8, tint: 'linear-gradient(180deg, rgba(92,86,150,0.18) 0%, rgba(14,14,30,0.30) 100%)' }
   },
@@ -194,7 +194,7 @@ export const STAGES = [
       { t: 142, n: 46, mix: { imp: 0.26, brute: 0.24, charger: 0.2, bomber: 0.16, stone: 0.14 }, r: [9.5, 13], elite: 1 }
     ],
     spawn: { ms: 540, max: 52, earlyMax: 14, earlyMinMs: 900 },
-    boss: { telegraph: 1.0, charge: 22, adds: 0, hazard: 4, patterns: ['shrink', 'charge', 'kiai', 'volley', 'rhythm', 'tether', 'pizza'], phase2: ['clones'], seal: true },
+    boss: { telegraph: 1.0, charge: 22, adds: 0, hazard: 4, patterns: ['shrink', 'charge', 'rhythm', 'tether', 'volley'], phase2: ['kiai', 'clones'], seal: true },
     starCombo: 46, star3: { kind: 'goal', text: '한 무늬로 30초' }, subgoal: { id: 'shapeLock', at: 20, t: 30, label: '한 무늬로 30초' }, bossVisual: { var: 3, scale: 1.03 }, bossName: '혈석을 문 자', bossLine: '붉은 돌에 목숨을 맡긴 제관',
     atmo: { clear: 0x1e0e11, fogCol: [34, 12, 14], fog: 0.030, moon: 22.0, amb: 7.4, hemiI: 6.2, fill: 4.6, hemi: 0xa8746e, ground: 0x1e0f10, moonCol: 0xff9a80, tint: 'linear-gradient(180deg, rgba(150,28,34,0.20) 0%, rgba(44,4,8,0.24) 100%)' }
   },
@@ -213,7 +213,7 @@ export const STAGES = [
       { t: 146, n: 48, mix: { imp: 0.24, brute: 0.24, thrower: 0.2, charger: 0.16, bomber: 0.16 }, r: [9.5, 13], elite: 1 }
     ],
     spawn: { ms: 520, max: 54, earlyMax: 14, earlyMinMs: 900 },
-    boss: { telegraph: 0.92, charge: 23, adds: 0, hazard: 4, patterns: ['chant', 'slam', 'clones', 'charge', 'kiai', 'rhythm', 'tether', 'pizza'], phase2: ['volley'], seal: true },
+    boss: { telegraph: 0.92, charge: 23, adds: 0, hazard: 4, patterns: ['chant', 'slam', 'rhythm', 'tether', 'pizza'], phase2: ['volley', 'clones'], seal: true },
     starCombo: 50, star3: { kind: 'goal', text: '어둠 60초 버티기' }, subgoal: { id: 'dark', t: 60, label: '어둠 60초 버티기' }, bossVisual: { var: 3, scale: 1.06 }, bossName: '뼈의 뱃사공', bossLine: '마른 강에서 삯을 받는 자',
     atmo: { clear: 0x221714, fogCol: [38, 28, 22], fog: 0.026, moon: 22.5, amb: 7.4, hemiI: 6.8, fill: 4.8, hemi: 0xb4a088, ground: 0x241a16, moonCol: 0xf4d8b8, tint: 'linear-gradient(180deg, rgba(120,88,58,0.14) 0%, rgba(34,18,12,0.18) 100%)' }
   },
@@ -232,7 +232,7 @@ export const STAGES = [
       { t: 150, n: 50, mix: { imp: 0.22, brute: 0.24, charger: 0.2, bomber: 0.18, stone: 0.16 }, r: [9.5, 13], elite: 1 }
     ],
     spawn: { ms: 500, max: 56, earlyMax: 15, earlyMinMs: 880 },
-    boss: { telegraph: 0.88, charge: 24, adds: 0, hazard: 5, patterns: ['volley', 'veil', 'charge', 'slam', 'kiai', 'rhythm', 'tether', 'pizza'], phase2: ['clones', 'chant'], seal: true },
+    boss: { telegraph: 0.88, charge: 24, adds: 0, hazard: 5, patterns: ['volley', 'veil', 'rhythm', 'tether', 'slam'], phase2: ['clones', 'chant'], seal: true },
     starCombo: 54, star3: { kind: 'goal', text: '줄어든 시간에 클리어' }, subgoal: { id: 'timed', cut: 0.3, add: 0.5, label: '시간 −30% · 처치 +0.5초' }, bossVisual: { var: 3, scale: 1.1 }, bossName: '성벽의 활잡이', bossLine: '혈월 아래 성벽을 지키는 자',
     atmo: { clear: 0x22090d, fogCol: [40, 10, 14], fog: 0.030, moon: 23.0, amb: 7.8, hemiI: 6.4, fill: 5.0, hemi: 0xb0706a, ground: 0x220b0e, moonCol: 0xff8a72, tint: 'linear-gradient(180deg, rgba(170,20,30,0.20) 0%, rgba(48,2,8,0.24) 100%)' }
   },
@@ -251,7 +251,7 @@ export const STAGES = [
       { t: 150, n: 52, mix: { imp: 0.18, brute: 0.24, charger: 0.22, bomber: 0.2, thrower: 0.16 }, r: [9.5, 13.5], elite: 1 }
     ],
     spawn: { ms: 460, max: 58, earlyMax: 15, earlyMinMs: 860 },
-    boss: { telegraph: 0.8, charge: 25, adds: 0, hazard: 5, patterns: ['shuffle', 'sweep', 'volley', 'rhythm', 'tether', 'pizza'], phase2: ['chant', 'slam', 'kiai'], phase3: ['clones', 'veil', 'mimic'], seal: true },
+    boss: { telegraph: 0.8, charge: 25, adds: 0, hazard: 5, patterns: ['shuffle', 'sweep', 'rhythm', 'tether', 'pizza'], phase2: ['chant', 'slam', 'kiai'], phase3: ['clones', 'veil', 'mimic'], seal: true },
     starCombo: 58, star3: { kind: 'pattern', counter: 'shuffleLock', need: 2, text: '무늬 뒤섞기 고정 2회' }, bossVisual: { var: 2, scale: 1.15 }, bossName: '나락의 주인', bossLine: '검은 달이 떨어지는 자리를 지키는 것',
     atmo: { clear: 0x2a0709, fogCol: [40, 8, 12], fog: 0.028, moon: 26.0, amb: 8.4, hemiI: 7.2, fill: 5.4, hemi: 0xc08a80, ground: 0x2a0b10, moonCol: 0xff7a5c, tint: 'linear-gradient(180deg, rgba(150,16,26,0.20) 0%, rgba(44,2,8,0.24) 100%)' }
   },
@@ -270,7 +270,7 @@ id: 13, act: 4, name: '무간의 회랑', sub: '끝없는 핏빛 안개 회랑',
       { t: 162, n: 52, mix: { imp: 0.2, brute: 0.25, charger: 0.2, thrower: 0.2, bomber: 0.15 }, r: [9.5, 14], elite: 1 }
     ],
     spawn: { ms: 460, max: 58, earlyMax: 15, earlyMinMs: 840 },
-    boss: { telegraph: 0.86, charge: 24, adds: 0, hazard: 5, patterns: ['shrink', 'charge', 'kiai', 'volley', 'donut', 'soak', 'rhythm', 'tether', 'gaze', 'pizza'], phase2: ['clones', 'slam'], seal: true },
+    boss: { telegraph: 0.86, charge: 24, adds: 0, hazard: 5, patterns: ['shrink', 'donut', 'pizza', 'gaze'], phase2: ['rhythm', 'tether', 'slam'], seal: true },
     starCombo: 54, star3: { kind: 'combo', n: 54 }, bossVisual: { var: 3, scale: 1.08 }, bossName: '무간의 수문장', bossLine: '핏빛 안개 속에서 칼을 가는 자',
     atmo: { clear: 0x100b1a, fogCol: [24, 16, 40], fog: 0.032, moon: 18.0, amb: 6.2, hemiI: 6.0, fill: 4.4, hemi: 0x9b84c8, ground: 0x140e20, moonCol: 0xdcc7ff, tint: 'linear-gradient(180deg, rgba(110,72,185,0.22) 0%, rgba(20,10,36,0.32) 100%)' }
   },
@@ -289,7 +289,7 @@ id: 13, act: 4, name: '무간의 회랑', sub: '끝없는 핏빛 안개 회랑',
       { t: 168, n: 54, mix: { imp: 0.2, brute: 0.2, thrower: 0.25, charger: 0.2, bomber: 0.15 }, r: [9.5, 14], elite: 1 }
     ],
     spawn: { ms: 450, max: 60, earlyMax: 15, earlyMinMs: 820 },
-    boss: { telegraph: 0.84, charge: 24, adds: 0, hazard: 5, patterns: ['veil', 'chant', 'volley', 'kiai', 'donut', 'soak', 'rhythm', 'tether', 'gaze', 'pizza'], phase2: ['clones', 'charge'], seal: true },
+    boss: { telegraph: 0.84, charge: 24, adds: 0, hazard: 5, patterns: ['veil', 'gaze', 'donut', 'volley'], phase2: ['rhythm', 'tether', 'clones'], seal: true },
     starCombo: 56, star3: { kind: 'combo', n: 56 }, bossVisual: { var: 1, scale: 1.09 }, bossName: '망각의 사공', bossLine: '이름을 잊은 자만 건널 수 있다',
     atmo: { clear: 0x0e0c18, fogCol: [20, 18, 38], fog: 0.034, moon: 18.0, amb: 6.0, hemiI: 6.0, fill: 4.4, hemi: 0x8f86c8, ground: 0x120f1e, moonCol: 0xd4c6ff, tint: 'linear-gradient(180deg, rgba(96,76,175,0.22) 0%, rgba(16,12,32,0.34) 100%)' }
   },
@@ -308,7 +308,7 @@ id: 13, act: 4, name: '무간의 회랑', sub: '끝없는 핏빛 안개 회랑',
       { t: 174, n: 56, mix: { imp: 0.18, brute: 0.22, charger: 0.22, thrower: 0.2, bomber: 0.18 }, r: [9.5, 14.5], elite: 1 }
     ],
     spawn: { ms: 440, max: 62, earlyMax: 16, earlyMinMs: 800 },
-    boss: { telegraph: 0.82, charge: 25, adds: 0, hazard: 5, patterns: ['clash', 'sweep', 'volley', 'kiai', 'donut', 'soak', 'rhythm', 'tether', 'gaze', 'pizza'], phase2: ['mimic', 'veil', 'slam'], seal: true },
+    boss: { telegraph: 0.82, charge: 25, adds: 0, hazard: 5, patterns: ['clash', 'sweep', 'pizza', 'soak'], phase2: ['mimic', 'rhythm', 'tether'], seal: true },
     starCombo: 60, star3: { kind: 'combo', n: 60 }, bossVisual: { var: 2, scale: 1.1 }, bossName: '칠흑의 장수', bossLine: '성벽 위 모든 화살이 너를 향한다',
     atmo: { clear: 0x130b1c, fogCol: [28, 14, 42], fog: 0.032, moon: 19.0, amb: 6.2, hemiI: 6.2, fill: 4.5, hemi: 0xa684d4, ground: 0x160d22, moonCol: 0xe2ccff, tint: 'linear-gradient(180deg, rgba(125,74,195,0.22) 0%, rgba(22,10,38,0.34) 100%)' }
   },
@@ -327,7 +327,7 @@ id: 13, act: 4, name: '무간의 회랑', sub: '끝없는 핏빛 안개 회랑',
       { t: 184, n: 58, mix: { imp: 0.16, brute: 0.22, charger: 0.22, thrower: 0.2, bomber: 0.2 }, r: [9.5, 14.5], elite: 1 }
     ],
     spawn: { ms: 420, max: 64, earlyMax: 16, earlyMinMs: 780 },
-    boss: { telegraph: 0.78, charge: 26, adds: 0, hazard: 6, patterns: ['shuffle', 'clash', 'volley', 'donut', 'soak', 'rhythm', 'tether', 'gaze', 'pizza'], phase2: ['chant', 'slam', 'kiai'], phase3: ['clones', 'veil', 'mimic'], seal: true },
+    boss: { telegraph: 0.78, charge: 26, adds: 0, hazard: 6, patterns: ['donut', 'pizza', 'gaze', 'volley'], phase2: ['rhythm', 'tether', 'clash', 'slam'], phase3: ['shuffle', 'mimic', 'soak', 'veil'], seal: true },
     starCombo: 64, star3: { kind: 'combo', n: 64 }, bossVisual: { var: 3, scale: 1.14 }, bossName: '심안의 그림자', bossLine: '눈을 감아도 피할 수 없는 마지막 검',
     atmo: { clear: 0x0d0816, fogCol: [22, 12, 38], fog: 0.036, moon: 20.0, amb: 6.4, hemiI: 6.2, fill: 4.6, hemi: 0xb292e6, ground: 0x120a1f, moonCol: 0xead8ff, tint: 'linear-gradient(180deg, rgba(135,84,215,0.25) 0%, rgba(16,8,30,0.38) 100%)' }
   }

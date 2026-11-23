@@ -65,7 +65,8 @@ const BANNER_STYLE = {
   dodge:  { tag: '회피',     accent: '#f05a42', bg: 'rgba(54,16,14,0.88)',  border: 'rgba(244,96,70,0.92)',  hint: '일섬으로 벗어나라' },
   parry:  { tag: '받아치기', accent: '#f6d268', bg: 'rgba(46,34,12,0.90)',  border: 'rgba(248,212,102,0.95)', hint: '금빛 구간에서 화면 탭!' },
   break:  { tag: '파훼',     accent: '#5ce8c4', bg: 'rgba(12,38,34,0.88)',  border: 'rgba(92,232,196,0.92)',  hint: '뜬 무늬를 그려 끊어라' },
-  seal:   { tag: '봉인',     accent: '#ffd872', bg: 'rgba(44,30,10,0.92)',  border: 'rgba(255,222,120,0.98)', hint: '별(★)을 그려 마무리!' }
+  seal:   { tag: '봉인',     accent: '#ffd872', bg: 'rgba(44,30,10,0.92)',  border: 'rgba(255,222,120,0.98)', hint: '별(★)을 그려 마무리!' },
+  soak:   { tag: '진입',     accent: '#f2b84b', bg: 'rgba(46,32,10,0.90)',  border: 'rgba(242,184,75,0.95)',  hint: '기둥 혼령으로 일섬!' }
 };
 
 /* v0.53: 직선 피자 조각 대신 손붓으로 쓸어낸 동양 수묵 초승달 횡참 3D 바닥 텍스처 생성 */
@@ -437,6 +438,40 @@ export class BossFx {
     const cx = bx + barW * f;
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(cx - 1.5, by - 2, 3, barH + 4);
+    ctx.restore();
+  }
+
+  /* v1.06 기믹 전용 혼령 시각 강조 링 + 주인공→안전지대 유도 점선 */
+  drawZoneSpiritGuide(ctx, project, hero, sp, t) {
+    if (!sp || !sp.alive || !sp.zoneTag) return;
+    const isGold = sp.zoneTag === 'soak';
+    const isJade = sp.zoneTag === 'rhythm' || sp.zoneTag === 'tether' || sp.zoneTag === 'gaze';
+    const col = isGold ? '#F2B84B' : (isJade ? '#5FE8C2' : '#4DD4FF');
+    const colRgba = isGold ? 'rgba(242,184,75,0.72)' : (isJade ? 'rgba(95,232,194,0.72)' : 'rgba(77,212,255,0.72)');
+    const p = project(sp.x, sp.z, 1.32);
+    const pulse = 0.5 + 0.5 * Math.sin((t || 0) * 14);
+    ctx.save();
+    /* 1) 지면 안전 타겟 회전 링 */
+    groundPoly(ctx, project, sp.x, sp.z, 0.95 + 0.16 * pulse, 24, (t || 0) * 1.8);
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2.6;
+    ctx.stroke();
+    /* 2) 주인공 발밑 -> 전용 혼령 유도 점선 */
+    if (hero) {
+      const hp = project(hero.x, hero.z, 0.35);
+      ctx.strokeStyle = colRgba;
+      ctx.lineWidth = 2.0;
+      ctx.setLineDash([7, 6]);
+      ctx.lineDashOffset = -(t || 0) * 44;
+      ctx.beginPath(); ctx.moveTo(hp.x, hp.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    /* 3) 혼령 구슬 외곽 맥동 링 */
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 22 + 5 * pulse, 0, Math.PI * 2);
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 2.4;
+    ctx.stroke();
     ctx.restore();
   }
 
