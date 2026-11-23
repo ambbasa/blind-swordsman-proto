@@ -1,6 +1,7 @@
 /* v2/js/lobbyPreview3d.js — v0.85 로비·치장 화면 실시간 3D 주인공 미리보기 (M2M_Idle + 터치 회전 + 도포/검 강화 반영) */
 import * as THREE from 'three';
-import { preloadHeroGlb, makeHeroGlb, applyHeroGlbCloak, applyHeroGlbSwordTrail } from './glbhero.js?v=v099';
+import { preloadHeroGlb, makeHeroGlb, applyHeroGlbCloak, applyHeroGlbSwordTrail } from './glbhero.js?v=v100';
+import { preloadMonsterGlb, makeBossGlb } from './glbboss.js?v=v100';
 
 let renderer = null;
 let scene = null;
@@ -100,6 +101,96 @@ export function startLobby3d(canvas, cloakProf, forgeLv) {
         rafId = requestAnimationFrame(loop);
       };
       rafId = requestAnimationFrame(loop);
+    }
+    return true;
+  }).catch(function () { return false; });
+}
+
+
+/* v1.00 도감 3D 턴테이블 뷰어 (심안 + 적 4종 · 터치 회전 · 모션 재생) */
+let cRenderer = null, cScene = null, cCamera = null, cModel = null, cRoot = null;
+let cRaf = 0, cActive = false, cYaw = 0.35, cDrag = false, cLastX = 0, cLastT = 0, cAnimIdx = 0;
+let cCanvas = null;
+
+export function stopCodex3d() {
+  cActive = false;
+  if (cRaf) { cancelAnimationFrame(cRaf); cRaf = 0; }
+}
+
+export function playCodexAnim3d() {
+  if (!cModel || !cModel.actions) return '';
+  const keys = Object.keys(cModel.actions).filter(function (k) { return cModel.actions[k] && k !== 'death'; });
+  if (!keys.length) return '';
+  cAnimIdx = (cAnimIdx + 1) % keys.length;
+  const pick = keys[cAnimIdx];
+  keys.forEach(function (k) {
+    const a = cModel.actions[k];
+    if (k === pick) { a.reset(); a.setLoop(THREE.LoopRepeat, Infinity); a.fadeIn(0.18).play(); }
+    else a.fadeOut(0.18);
+  });
+  return pick;
+}
+
+export function startCodex3d(canvas, species) {
+  if (!canvas) return Promise.resolve(false);
+  const sp = species || 'boss';
+  cActive = true;
+  if (!cRenderer || cCanvas !== canvas) {
+    if (cRenderer) { try { cRenderer.dispose(); } catch (_) {} }
+    cCanvas = canvas;
+    cRenderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true, powerPreference: 'low-power' });
+    cRenderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    cRenderer.outputColorSpace = THREE.SRGBColorSpace;
+    cScene = new THREE.Scene();
+    cCamera = new THREE.PerspectiveCamera(34, 1, 0.1, 30);
+    cCamera.position.set(0, 1.45, 5.4);
+    cCamera.lookAt(0, 1.15, 0);
+    cScene.add(new THREE.AmbientLight(0xfff4e0, 1.15));
+    const ck = new THREE.DirectionalLight(0xffe8c2, 1.85); ck.position.set(2.8, 4.2, 3.4); cScene.add(ck);
+    const cr = new THREE.DirectionalLight(0x9cf0ff, 1.6); cr.position.set(-2.6, 2.4, -2.8); cScene.add(cr);
+    canvas.addEventListener('pointerdown', function (e) {
+      cDrag = true; cLastX = e.clientX;
+      try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    canvas.addEventListener('pointermove', function (e) {
+      if (!cDrag) return;
+      cYaw += (e.clientX - cLastX) * 0.015;
+      cLastX = e.clientX;
+    });
+    const endC = function () { cDrag = false; };
+    canvas.addEventListener('pointerup', endC);
+    canvas.addEventListener('pointercancel', endC);
+  }
+  const r = canvas.getBoundingClientRect();
+  const cw = Math.max(200, Math.round(r.width || 280));
+  const ch = Math.max(180, Math.round(r.height || 210));
+  cRenderer.setSize(cw, ch, false);
+  cCamera.aspect = cw / ch;
+  cCamera.updateProjectionMatrix();
+
+  const loader = sp === 'hero' ? preloadHeroGlb() : preloadMonsterGlb(sp);
+  return Promise.resolve(loader).then(function () {
+    if (!cActive) return false;
+    if (cRoot) { cScene.remove(cRoot); cRoot = null; cModel = null; }
+    cModel = sp === 'hero' ? makeHeroGlb(2.2) : makeBossGlb(sp === 'boss' ? 2.35 : 2.15, sp);
+    if (!cModel) return false;
+    cRoot = cModel.fit || cModel.root;
+    cAnimIdx = 0;
+    cYaw = 0.35;
+    cScene.add(cRoot);
+    cLastT = performance.now();
+    if (!cRaf) {
+      const loopC = function (now) {
+        if (!cActive) { cRaf = 0; return; }
+        const dt = Math.min(0.05, Math.max(0.001, (now - cLastT) / 1000));
+        cLastT = now;
+        if (!cDrag) cYaw += dt * 0.42;
+        if (cRoot) cRoot.rotation.y = cYaw;
+        if (cModel && cModel.mixer) cModel.mixer.update(dt);
+        cRenderer.render(cScene, cCamera);
+        cRaf = requestAnimationFrame(loopC);
+      };
+      cRaf = requestAnimationFrame(loopC);
     }
     return true;
   }).catch(function () { return false; });

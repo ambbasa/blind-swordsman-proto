@@ -1,13 +1,14 @@
 import * as THREE from 'three';
+import { applyForgedMetal } from './modules/metalStudioEnv.js';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v099';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v099';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v100';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v100';
 
 const MODEL_URLS = {
-  boss:   new URL('../assets/models/boss.glb?v=v099', import.meta.url).href,
-  minion: new URL('../assets/models/minion.glb?v=v099', import.meta.url).href,
-  heavy:  new URL('../assets/models/heavy.glb?v=v099', import.meta.url).href,
-  stone:  new URL('../assets/models/stone.glb?v=v099', import.meta.url).href
+  boss:   new URL('../assets/models/boss.glb?v=v100', import.meta.url).href,
+  minion: new URL('../assets/models/minion.glb?v=v100', import.meta.url).href,
+  heavy:  new URL('../assets/models/heavy.glb?v=v100', import.meta.url).href,
+  stone:  new URL('../assets/models/stone.glb?v=v100', import.meta.url).href
 };
 const sources = {};
 const pendings = {};
@@ -88,12 +89,16 @@ export function makeBossGlb(height, species) {
       const mat = srcMat ? srcMat.clone() : new THREE.MeshStandardMaterial({ color: 0xffffff });
       const isWeapon = /weapon/i.test(o.name);
       if (isWeapon) {
-        /* v1.00 단조 강철 무기 PBR: 보스 언월도·중장 철퇴 금속 광택 */
-        mat.roughness = 0.26;
-        mat.metalness = 0.82;
-        if (mat.color) mat.color.setHex(sp === 'boss' ? 0xc4c8d4 : 0xaeb2ba);
-        mat.emissive = new THREE.Color(sp === 'boss' ? 0x3a1816 : 0x261c14);
-        mat.emissiveIntensity = 0.32;
+        /* v1.00 3d-metal-material: 보스 언월도·중장 철퇴 진성 도체 강철 PBR + PMREM HDR 스튜디오 반사 */
+        mat.roughness = sp === 'boss' ? 0.22 : 0.30;
+        mat.metalness = 1.0;
+        mat.color.setRGB(0.56, 0.57, 0.58, THREE.LinearSRGBColorSpace);
+        mat.emissive = new THREE.Color(sp === 'boss' ? 0x3a1614 : 0x221a14);
+        mat.emissiveIntensity = 0.30;
+        o.userData._forgedWeapon = true;
+        o.onBeforeRender = function (r) {
+          if (!mat.envMap && r) applyForgedMetal(mat, r, { roughness: sp === 'boss' ? 0.22 : 0.30, envMapIntensity: 0.94 });
+        };
       } else if (sp === 'stone') {
         /* v1.00 석상: 화강암 질감 + 미세 비취 영기 발광 */
         mat.roughness = 0.72;

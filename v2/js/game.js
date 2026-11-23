@@ -31,13 +31,13 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb } from './glbboss.js?v=v099';
+import { makeBossGlb } from './glbboss.js?v=v100';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v099';
+import { probeAssets, buildArt } from './art.js?v=v100';
 import * as Anim from './anim.js';
-import { createAudio } from './audio.js?v=v099';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle } from './lobbyPreview3d.js?v=v099';
-import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v099';
+import { createAudio } from './audio.js?v=v100';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v100';
+import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v100';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
@@ -1052,6 +1052,7 @@ function showOv(id) {
   }
 }
 function hideOvs() {
+  try { stopCodex3d(); } catch (_) {}
   ['ov-title', 'ov-stages', 'ov-shop', 'ov-cosmetic', 'ov-daily', 'ov-result', 'ov-idle', 'ov-level', 'ov-stage', 'ov-pause', 'ov-codex', 'ov-train'].forEach(function (k) { if ($(k)) $(k).classList.remove('show'); });
   hudCtrl.syncOverlayVisibility(false);
 }
@@ -7395,6 +7396,12 @@ function stepHazards(dt) {
       h.done = true;
       h.t = 0;
       bossFx.triggerHazardBlast(h.x, h.z, h.r);
+      if (three) {
+        if (three.lights) three.lights.burst(h.x, 1.4, h.z, { color: 0xff5a36, intensity: 6.0, duration: 0.30, distance: 14 });
+        if (three.shaderFx3d) three.shaderFx3d.spawnShockwave(h.x, h.z, { r0: 0.5, r1: (h.r || 2.5) * 1.15, colorHex: 0xff5a36, coreHex: 0xffe8b0, dur: 0.36 });
+        if (three.vfx3d) three.vfx3d.spawnSparks(h.x, h.z, 16, { color: 0xff8a3c, speed: 7.2 });
+        triggerGroundCrackHeat(h.x, h.z, (h.r || 2.5) * 1.2, 0xff5a36);
+      }
       if (audio) audio.explode();
       if (three && three.lights) three.lights.burst(h.x, 1.0, h.z, { color: 0xe64532, intensity: 4.5, duration: 0.35 });
       if (art && art.playFx) {
@@ -7952,6 +7959,15 @@ function stepBossPat(z, dt) {
     if (z.stateT >= T + K.grace) {
       inkFx.ring(arenaR(), FX_COLORS.gold, 0.6);
       bossFx.triggerKiaiBurst(z.x, z.z, false);
+      if (three) {
+        if (three.lights) three.lights.burst(z.x, 1.8, z.z, { color: 0xff4234, intensity: 7.5, duration: 0.36, distance: 18 });
+        if (three.shaderFx3d) three.shaderFx3d.spawnShockwave(z.x, z.z, { r0: 1.0, r1: 7.8, colorHex: 0xff4234, coreHex: 0xffe4b8, dur: 0.44 });
+        if (three.vfx3d) {
+          three.vfx3d.spawnSwirl(z.x, z.z, { r0: 1.2, r1: 6.4, accentHex: 0xe83a2e, dur: 0.44 });
+          three.vfx3d.spawnSparks(z.x, z.z, 22, { color: 0xff7838, speed: 8.6 });
+        }
+        triggerGroundCrackHeat(z.x, z.z, 5.4, 0xff4234);
+      }
       if (audio && audio.bossSlam) audio.bossSlam();
       S.fogPulse = Math.max(S.fogPulse || 0, 0.55);
       /* §3.4 대응 2개: 기물 뒤에 숨었으면(기물·보스 선분 0.8m 안) 피해 1로 경감. */
@@ -7985,6 +8001,16 @@ function stepBossPat(z, dt) {
       z.x = z.slam.x; z.z = z.slam.z; z.leapY = 0; z._warnTicked = false;
       if (z.hidden) revealBoss(z);
       bossFx.triggerSlamImpact(z.x, z.z, L.r);
+      if (three) {
+        const sr = L.r || 3.4;
+        if (three.lights) three.lights.burst(z.x, 1.6, z.z, { color: 0xff6230, intensity: 7.8, duration: 0.38, distance: 18 });
+        if (three.shaderFx3d) three.shaderFx3d.spawnShockwave(z.x, z.z, { r0: 0.8, r1: sr * 1.25, colorHex: 0xff542e, coreHex: 0xfff0c4, dur: 0.42 });
+        if (three.vfx3d) {
+          three.vfx3d.spawnSwirl(z.x, z.z, { r0: 0.9, r1: sr * 1.15, accentHex: 0xff5a32, dur: 0.42 });
+          three.vfx3d.spawnSparks(z.x, z.z, 24, { color: 0xff923e, speed: 8.8 });
+        }
+        triggerGroundCrackHeat(z.x, z.z, sr * 1.35, 0xff6230);
+      }
       /* 주인공 일섬 동급의 3D 교차 수묵 검기 + 먹파편 + 붉은 광원 폭발 */
       makeBossSlash({ x: z.x - L.r * 0.85, z: z.z - L.r * 0.45 }, { x: z.x + L.r * 0.85, z: z.z + L.r * 0.45 }, { width: 2.6, height: 1.05 });
       makeBossSlash({ x: z.x - L.r * 0.45, z: z.z + L.r * 0.85 }, { x: z.x + L.r * 0.45, z: z.z - L.r * 0.85 }, { width: 2.4, height: 0.9 });
@@ -8026,6 +8052,14 @@ function stepBossPat(z, dt) {
       z._warnTicked = false;
       const a = sw.aimA, half = sw.arc * 0.5, R = sw.range;
       bossFx.triggerSweepBurst(z.x, z.z, a, R);
+      if (three) {
+        const sx = z.x + Math.cos(a) * 1.6, sz = z.z + Math.sin(a) * 1.6;
+        if (three.lights) three.lights.burst(sx, 1.4, sz, { color: 0xff5a3c, intensity: 6.4, duration: 0.28, distance: 15 });
+        if (three.vfx3d) {
+          three.vfx3d.spawnSwirl(sx, sz, { r0: 1.0, r1: (R || 5.5) * 0.85, accentHex: 0xf04832, dur: 0.34 });
+          three.vfx3d.spawnSparks(sx, sz, 18, { color: 0xff9842, speed: 8.2 });
+        }
+      }
       makeBossSlash(
         { x: z.x + Math.cos(a - half * 0.85) * 2.8, z: z.z + Math.sin(a - half * 0.85) * 2.8 },
         { x: z.x + Math.cos(a + half * 0.85) * 3.8, z: z.z + Math.sin(a + half * 0.85) * 3.8 },
@@ -10560,6 +10594,23 @@ function renderCodex() {
     });
   }
   const out = [];
+  /* v1.00 도감 3D 턴테이블 뷰어 (5종 캐릭터 회전 + 모션 재생) */
+  out.push(
+    '<div class="codex-group" style="margin-bottom:10px">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:6px">' +
+    '<h3 style="margin:0">3D 도감 뷰어</h3>' +
+    '<button type="button" id="codexAnimBtn" style="padding:4px 10px;border-radius:8px;border:1px solid rgba(226,188,116,0.45);background:rgba(36,28,22,0.85);color:#f4e3c1;font:600 11px sans-serif">모션 재생</button>' +
+    '</div>' +
+    '<div style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap">' +
+    [['hero','심안'],['minion','잡귀'],['heavy','중장'],['stone','석상'],['boss','보스']].map(function (it, idx) {
+      return '<button type="button" class="codex-sp-btn" data-sp="' + it[0] + '" style="flex:1;min-width:50px;padding:4px 6px;border-radius:7px;border:1px solid rgba(226,188,116,0.32);background:' + (idx === 0 ? 'rgba(180,126,52,0.42)' : 'rgba(20,17,15,0.72)') + ';color:#efe2c8;font:600 11px sans-serif">' + it[1] + '</button>';
+    }).join('') +
+    '</div>' +
+    '<div style="position:relative;height:210px;border-radius:10px;overflow:hidden;background:radial-gradient(circle at 50% 45%, rgba(76,62,48,0.45), rgba(14,12,15,0.92));border:1px solid rgba(226,188,116,0.22)">' +
+    '<canvas id="codex3dCanvas" style="width:100%;height:100%;display:block;touch-action:none"></canvas>' +
+    '<div style="position:absolute;bottom:6px;left:0;right:0;text-align:center;font:500 10px sans-serif;color:rgba(240,230,206,0.65);pointer-events:none">좌우 드래그로 360도 회전</div>' +
+    '</div></div>'
+  );
   out.push('<div class="codex-group"><h3>귀물 ' + n.mon + '/8</h3><div class="codex-grid">');
   MON_CODE.forEach(function (m) {
     const on = !!(save.codex.mon && save.codex.mon[m.id]);
@@ -10585,6 +10636,24 @@ function renderCodex() {
   });
   out.push('</div></div>');
   body.innerHTML = out.join('');
+  try {
+    const cv = document.getElementById('codex3dCanvas');
+    if (cv) {
+      startCodex3d(cv, 'hero');
+      const spBtns = body.querySelectorAll('button.codex-sp-btn');
+      Array.prototype.forEach.call(spBtns, function (btn) {
+        btn.addEventListener('click', function () {
+          const sp = btn.getAttribute('data-sp') || 'hero';
+          Array.prototype.forEach.call(spBtns, function (b2) {
+            b2.style.background = (b2 === btn) ? 'rgba(180,126,52,0.42)' : 'rgba(20,17,15,0.72)';
+          });
+          startCodex3d(cv, sp);
+        });
+      });
+      const aBtn = document.getElementById('codexAnimBtn');
+      if (aBtn) aBtn.addEventListener('click', function () { playCodexAnim3d(); });
+    }
+  } catch (_) {}
 }
 
 /* §8.3 무늬 수련장: 10종 자유 연습 + 최근 20회 인식률 + 그리는 요령 애니메이션 */

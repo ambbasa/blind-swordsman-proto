@@ -1,10 +1,11 @@
 /* v2/js/glbhero.js — v0.83 시안 B(하데스풍 주홍 먹선 검객) 3D GLB 로더·3연타 검술 콤보·회피·피격 상태 머신 */
 import * as THREE from 'three';
+import { applyForgedMetal } from './modules/metalStudioEnv.js';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v099';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v099';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v100';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v100';
 
-const URL_GLB = new URL('../assets/models/hero.glb?v=v099', import.meta.url).href;
+const URL_GLB = new URL('../assets/models/hero.glb?v=v100', import.meta.url).href;
 let pending = null;
 let source = null;
 let cloneSkinned = null;
@@ -32,7 +33,7 @@ export function preloadHeroGlb() {
       return gltf;
     });
   }).catch(function (e) {
-    console.warn('[심안] hero.glb?v=v099', e);
+    console.warn('[심안] hero.glb?v=v100', e);
     pending = null;
     return null;
   });
@@ -67,12 +68,15 @@ export function makeHeroGlb(height) {
       const srcMat = Array.isArray(o.material) ? o.material[0] : o.material;
       const mat = srcMat ? srcMat.clone() : new THREE.MeshStandardMaterial({ color: 0xffffff });
       if (isSword) {
-        mat.metalness = Math.max(0.75, mat.metalness || 0);
-        mat.roughness = Math.min(0.28, mat.roughness || 0.22);
-        if (mat.color) {
-          mat.emissive = mat.color.clone().multiplyScalar(0.32);
-          mat.emissiveIntensity = 1.0;
-        }
+        /* v1.00 3d-metal-material: 진성 도체 강철 F0 + PMREM HDR 반사 자동 바인딩 */
+        mat.metalness = 1.0;
+        mat.roughness = 0.22;
+        mat.color.setRGB(0.56, 0.57, 0.58, THREE.LinearSRGBColorSpace);
+        mat.emissive = new THREE.Color(0x1e2028);
+        mat.emissiveIntensity = 0.35;
+        o.onBeforeRender = function (r) {
+          if (!mat.envMap && r) applyForgedMetal(mat, r, { roughness: 0.22, envMapIntensity: 0.96 });
+        };
         o.castShadow = true;
         swordMeshes.push(o);
       } else {
