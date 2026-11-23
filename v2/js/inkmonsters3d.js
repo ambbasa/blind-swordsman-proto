@@ -1,4 +1,5 @@
-import { preloadBossGlb, bossGlbReady, makeBossGlb, hookBossGlb, tickBossGlb } from './glbboss.js?v=v0783';
+import { preloadBossGlb, bossGlbReady, makeBossGlb, hookBossGlb, tickBossGlb } from './glbboss.js?v=v079';
+import { hd2dEnabled, preloadHd2dAll, makeHd2dMonster, tickHd2d, triggerHd2dPose, setHd2dOpacity, setHd2dTint } from './hd2dSprite.js?v=v079';
 /* v2/js/inkmonsters3d.js — v0.47 몬스터·보스 전종 **3D 관절 뼈대 + 수묵 툰 셰이더 + 동양 수묵 텍스처**.
 
    v0.45에서 주인공만 3D 관절 뼈대(inkhero3d.js)로 세웠다. v0.46은 원귀(조선 좀비)·거한(장정)·
@@ -54,6 +55,7 @@ function getMonShadow() {
 }
 export function setCamera(c, renderer) {
   CAM = c;
+  if (hd2dEnabled()) { preloadHd2dAll(); return; }
   if (renderer) { const p = preloadBossGlb(renderer); if (p) p.catch(function (e) { console.warn('[심안] 보스 GLB 로드 실패 — 3D 수묵 보스 유지', e); }); }
 }
 export function stats() {
@@ -261,7 +263,19 @@ export function build(species, opt) {
     backToBase(H, 0.16);
   };
   mixer.addEventListener('finished', finished);
-  const glbReady = bossGlbReady(species);
+  if (hd2dEnabled()) {
+    const U = makeHd2dMonster(species, C.h);
+    if (U) {
+      root.add(U.holder);
+      mesh.visible = false;
+      if (hull) hull.visible = false;
+      H.hd2d = U;
+      H.body = U.holder;
+      H.hull = null;
+      group.userData.poseSource = 'hd2d_' + species;
+    }
+  }
+  const glbReady = H.hd2d ? null : bossGlbReady(species);
   if (glbReady) {
     glbReady.then(function () {
       const G = makeBossGlb(C.h, species);
@@ -528,6 +542,16 @@ export function tick(group, kind, state, dt, vx, vz) {
     if (H.bones.chest) H.bones.chest.rotateX(-wind * 0.10 + hit * 0.13);
     if (H.bones.spine) H.bones.spine.rotateX(-wind * 0.06 + hit * 0.08);
   }
+  if (H.hd2d) {
+    const bEnter = H.burst && H.burst !== H._hdPrevBurst;
+    if (bEnter && (H.burst === 'strike' || H.burst === 'attack' || H.burst === 'slash' || H.burst === 'wind')) {
+      triggerHd2dPose(H.hd2d, 'atk', 0.30);
+    } else if (bEnter && (H.burst === 'hit' || H.burst === 'kneel')) {
+      triggerHd2dPose(H.hd2d, 'hit', 0.20);
+    }
+    H._hdPrevBurst = H.burst;
+    tickHd2d(H.hd2d, group, CAM, { vx: vx || 0, speed: H.speed || 0, walking: H.base === 'walk' || H.burst === 'charge' }, dt);
+  }
   if (H.glb) tickBossGlb(H.glb, H, dt);
   H.t += dt;
   return true;
@@ -551,6 +575,7 @@ export function kick(group, k) {
   H.squash = -0.15;
   H.squashV = 2.8;
   H.glbKick = true;
+  if (H.hd2d) triggerHd2dPose(H.hd2d, 'hit', 0.20);
   startBurst(H, 'hit', 0.05);
 }
 export function slashPose(group, k) {
@@ -558,11 +583,13 @@ export function slashPose(group, k) {
   if (!H) return;
   if (H.species === 'boss') startBurst(H, 'strike', 0.08);
   else startBurst(H, 'attack', 0.08);
+  if (H.hd2d) triggerHd2dPose(H.hd2d, 'atk', 0.30);
 }
 export function setOpacity(group, o) {
   const H = group && group.userData && group.userData.m3d;
   if (!H) return;
   H.opacity = o;
+  if (H.hd2d) setHd2dOpacity(H.hd2d, o);
   for (let i = 0; i < H.mats.length; i++) {
     const m = H.mats[i];
     if (m.transparent !== (o < 0.999)) { m.transparent = o < 0.999; m.needsUpdate = true; }
@@ -573,6 +600,7 @@ export function setTint(group, r, g, b) {
   const H = group && group.userData && group.userData.m3d;
   if (!H) return;
   H.tint[0] = r; H.tint[1] = g; H.tint[2] = b;
+  if (H.hd2d) setHd2dTint(H.hd2d, r, g, b);
 }
 export function setAuraColor(group, hex, op) {
   const H = group && group.userData && group.userData.m3d;

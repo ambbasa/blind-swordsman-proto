@@ -11,9 +11,9 @@ import { buildFigure, tickFigure, kick as rigKick, slashPose as rigSlash, setOpa
   setAuraColor as rigAuraColor, setOrder as rigOrder, setCamera as rigSetCamera, ready as rigReady,
   debugPose as rigDebugPose, actsOf as rigActsOf } from './inkchars3d.js';
 /* v0.45: 주인공만 3D 관절 뼈대 + 수묵 툰 셰이더 캐릭터(inkhero3d.js)로 교체한다. */
-import * as HERO3D from './inkhero3d.js?v=v0783';
+import * as HERO3D from './inkhero3d.js?v=v079';
 /* v0.46: 원귀·거한·돌덩이·보스도 주인공과 같은 3D 관절 뼈대(단일 SkinnedMesh)로 세운다. */
-import * as MON3D from './inkmonsters3d.js?v=v0783';
+import * as MON3D from './inkmonsters3d.js?v=v079';
 let QA_HERO2D = false;
 try { QA_HERO2D = new URLSearchParams(location.search).has('hero2d'); } catch (e) {}
 let QA_MON2D = false;
@@ -1000,7 +1000,7 @@ export async function buildArt(THREE) {
     night: hexColor(pal.night || pal.ground, 0x1e1c1a),
     makeChar: makeChar, tickChar: tickChar, buildStage3D: buildStage3D,
     /* v0.38 파츠 리그 훅: 카메라·피격 반동·틴트·투명도·그리기 순서 */
-    setCamera: function (cam, renderer) { rigSetCamera(cam); try { MON3D.setCamera(cam, renderer); } catch (e) {} },
+    setCamera: function (cam, renderer) { rigSetCamera(cam); try { MON3D.setCamera(cam, renderer); if (HERO3D.setCamera) HERO3D.setCamera(cam); } catch (e) {} },
     /* v0.42 QA: 포즈 고정·동작 목록 */
     debugPose: function (g, a, f) { return rigDebugPose(g, a, f); },
     actsOf: function (n) { return rigActsOf(n); },
