@@ -2,7 +2,7 @@
 
 - **저장소**: `https://github.com/ambbasa/blind-swordsman-proto`
 - **라이브 데모**: `https://ambbasa.github.io/blind-swordsman-proto/v2/`
-- **최신 버전**: `v1.15` (2026-11-24 기준)
+- **최신 버전**: `v1.16` (2026-11-24 기준)
 - **기술 스택**: Vanilla JS ES Modules + Three.js r170 + Custom GLSL + Web Audio API (모바일 세로 웹/PWA, 100% 무료 로컬 파이프라인)
 
 ## 1. 절대 원칙 (Standing Rules)
