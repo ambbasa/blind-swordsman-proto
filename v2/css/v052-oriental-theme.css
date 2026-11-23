@@ -1257,13 +1257,18 @@ h1, h2, h3, #timer, #titleName, #bossCardName, #resultTitle { font-family: var(-
   margin: 0 0 8px !important;
 }
 .codex-milestones .codex-ms-btn {
-  padding: 5px 3px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 1px !important;
+  padding: 5px 2px !important;
   font-size: 10.5px !important;
-  line-height: 1.25 !important;
+  line-height: 1.2 !important;
   white-space: nowrap !important;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
+.codex-milestones .codex-ms-btn b { font-size: 11px; color: var(--chapter-accent); }
+.codex-milestones .codex-ms-btn span { font-size: 10px; color: var(--ivory-dim); }
 /* 3) 로비 청각 배지 1줄 슬림화 & 설정 팝오버 레이어 보장 */
 .siman-audio-pill {
   padding: 2px 10px !important;

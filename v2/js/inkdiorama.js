@@ -7,15 +7,15 @@ import * as THREE from 'three';
 
 const BASE = new URL('../assets/diorama/', import.meta.url).href;
 const FILES = {
-  house: 'house.png',
-  pine: 'pine.png',
-  bamboo: 'bamboo.png',
-  lantern: 'lantern.png',
-  rock: 'rock.png',
-  floor: 'stone_floor.png',
-  floorN: 'stone_floor_n.png',
-  floorR: 'stone_floor_r.png',
-  screen: 'folding_screen.png',
+  house: 'house.webp',
+  pine: 'pine.webp',
+  bamboo: 'bamboo.webp',
+  lantern: 'lantern.webp',
+  rock: 'rock.webp',
+  floor: 'stone_floor.webp',
+  floorN: 'stone_floor_n.webp',
+  floorR: 'stone_floor_r.webp',
+  screen: 'folding_screen.webp',
   /* v0.43 막별 원경 파노라마 — 1막 저잣거리·나루터, 2막 안개 산사, 3막 혈월 나락. */
   pano1: 'pano_1.jpg',
   pano2: 'pano_2.jpg',

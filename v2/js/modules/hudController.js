@@ -33,8 +33,8 @@ export function createHudController(doc = typeof document !== 'undefined' ? docu
     const pill = byId('simanAudioPill');
     if (pill) {
       pill.textContent = isMuted
-        ? '심안 청각 · 출전 시 무당방울 소리 자동 활성화'
-        : '심안 청각 활성 · 무당방울(2600~3800Hz) 켜짐';
+        ? '심안 청각 · 출전 시 소리 켜짐'
+        : '심안 청각 활성';
     }
   }
 
