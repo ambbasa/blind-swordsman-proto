@@ -247,7 +247,7 @@ def main():
     for o in [body, outline]:
         bm = bmesh.new()
         bm.from_mesh(o.data)
-        to_del = [v for v in bm.verts if abs(v.co.x) < 0.14 and (v.co.z > 1.425 or (v.co.z > 1.402 and v.co.y < -0.020))]
+        to_del = [v for v in bm.verts if abs(v.co.x) < 0.11 and v.co.z > 1.465]
         bmesh.ops.delete(bm, geom=to_del, context="VERTS")
         bm.to_mesh(o.data)
         bm.free()
@@ -277,10 +277,17 @@ def main():
     hcx = (hmin.x + hmax.x) * 0.5
     hcy = (hmin.y + hmax.y) * 0.5
     for v in head.data.vertices:
-        nz = (v.co.z - hmin.z) * hs + 1.374
-        taper = 1.0 - 0.18 * max(0.0, min(1.0, (1.455 - nz) / 0.055))
-        v.co.x = (v.co.x - hcx) * hs * taper
-        v.co.y = (v.co.y - hcy) * hs * taper + neck_cy - 0.022
+        nz = (v.co.z - hmin.z) * hs + 1.376
+        nx = (v.co.x - hcx) * hs
+        ny = (v.co.y - hcy) * hs
+        # Below z=1.475 (inside/below collar), smoothly slim neck flare inward so it tucks cleanly inside the REAL V-collar!
+        if nz < 1.475:
+            k = max(0.0, min(1.0, (1.475 - nz) / 0.070))
+            taper = 1.0 - 0.38 * k
+            nx *= taper
+            ny *= taper
+        v.co.x = nx
+        v.co.y = ny + neck_cy - 0.014
         v.co.z = nz
     head.data.update()
 
@@ -301,53 +308,6 @@ def main():
     mod_ho = head_out.modifiers.new(name="Armature", type="ARMATURE")
     mod_ho.object = t_arm
 
-    # Smooth charcoal-black Joseon inner collar ring sealing neck 360°
-    bm_c = bmesh.new()
-    nc_y = neck_cy - 0.022
-    N_c = 28
-    c_specs = [
-        (1.392, 0.084, 0.078, 0),
-        (1.410, 0.072, 0.068, 0),
-        (1.426, 0.064, 0.062, 0),
-        (1.434, 0.058, 0.058, 0),
-    ]
-    c_rings = []
-    for cz_r, rx, ry, _ in c_specs:
-        ring = []
-        for k in range(N_c):
-            ang = k * (2.0 * math.pi / N_c)
-            front_dip = -0.022 * max(0.0, -math.sin(ang)) ** 2 if cz_r > 1.42 else 0.0
-            ring.append(bm_c.verts.new(Vector((math.cos(ang)*rx, nc_y + math.sin(ang)*ry, cz_r + front_dip))))
-        c_rings.append(ring)
-    for i in range(len(c_rings) - 1):
-        mat_i = c_specs[i+1][3]
-        for k in range(N_c):
-            kn = (k + 1) % N_c
-            f = bm_c.faces.new((c_rings[i][k], c_rings[i][kn], c_rings[i+1][kn], c_rings[i+1][k]))
-            f.material_index = mat_i
-    bmesh.ops.recalc_face_normals(bm_c, faces=bm_c.faces)
-    cmesh = bpy.data.meshes.new("Hero_Collar")
-    bm_c.to_mesh(cmesh)
-    bm_c.free()
-    for poly in cmesh.polygons:
-        poly.use_smooth = True
-    m_dark = bpy.data.materials.new("HeroCollar_Dark")
-    m_dark.use_nodes = True
-    m_dark.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.014, 0.015, 0.018, 1.0)
-    m_dark.node_tree.nodes["Principled BSDF"].inputs["Roughness"].default_value = 0.80
-    m_trim = bpy.data.materials.new("HeroCollar_Trim")
-    m_trim.use_nodes = True
-    m_trim.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value = (0.68, 0.70, 0.72, 1.0)
-    m_trim.node_tree.nodes["Principled BSDF"].inputs["Roughness"].default_value = 0.75
-    cmesh.materials.append(m_dark)
-    cmesh.materials.append(m_trim)
-    c_obj = bpy.data.objects.new("Hero_Collar", cmesh)
-    bpy.context.scene.collection.objects.link(c_obj)
-    vg_c = c_obj.vertex_groups.new(name="neck_01")
-    vg_c.add([v.index for v in c_obj.data.vertices], 1.0, "REPLACE")
-    c_obj.parent = t_arm
-    mod_c = c_obj.modifiers.new(name="Armature", type="ARMATURE")
-    mod_c.object = t_arm
     print(f"  + Merged Hero_Head ({len(head.data.polygons)} tris) + seamless Hero_Collar!")
 
     # 6) Import Hero_Sword (+ outline) and snap handle center dead-center into hand_r palm
@@ -385,7 +345,7 @@ def main():
             cnt_b = sum(1 for p in pts if (p - p_b).length < 0.18)
             hilt_pt, tip_pt = (p_a, p_b) if cnt_a < cnt_b else (p_b, p_a)
             blade_vec = (tip_pt - hilt_pt).normalized()
-            target_dir = Vector((-0.62, -0.52, -0.58)).normalized()
+            target_dir = Vector((0.35, -0.78, -0.52)).normalized()
             rot_q = blade_vec.rotation_difference(target_dir)
             grip_origin = hilt_pt + blade_vec * 0.055
             for so in [sword, sword_out]:
