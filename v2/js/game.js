@@ -31,13 +31,13 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb } from './glbboss.js?v=v101';
+import { makeBossGlb } from './glbboss.js?v=v102';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v101';
+import { probeAssets, buildArt } from './art.js?v=v102';
 import * as Anim from './anim.js';
-import { createAudio } from './audio.js?v=v101';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v101';
-import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v101';
+import { createAudio } from './audio.js?v=v102';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v102';
+import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v102';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
@@ -4105,6 +4105,7 @@ function syncGroundEffects() {
   }
   for(const hazard of S.hazards || []) if(hazard.arrowVolley && hazard.done)
     layer.put('terrain',7,hazard.x,hazard.z,hazard.r*2,hazard.r*2);
+  const bossTeleDim = (S.boss && S.boss.alive && ['telegraph','slamTele','sweepTele','volleyTele','kiai','donut','soak','rhythm','tether'].indexOf(S.boss.state) >= 0) ? 0.35 : 1.0;
   for(const p of S.inkSteps || []) {
     const age=1-clamp(p.t/(CFG.inkStep.dur||2),0,1);
     layer.put('phases',8+Math.min(3,Math.floor(age*4)),p.x,p.z,p.r*2,p.r*2);
@@ -4121,7 +4122,7 @@ function syncGroundEffects() {
       const offset = i === 5 ? 0 : cloud.r * .48;
       const size = cloud.r * (1.02 + .16 * Math.sin(drift * 2 + i)) * fade;
       layer.put('mist',0,cloud.x + Math.cos(angle)*offset,cloud.z + Math.sin(angle)*offset,
-        size*1.14,size,angle,.1 + .12*(1 + Math.sin(angle*2)));
+        size*1.14,size,angle,(.1 + .12*(1 + Math.sin(angle*2))) * bossTeleDim);
     }
   }
   layer.end();
@@ -5359,6 +5360,9 @@ function doParry(rec) {
   r.type = 'tap';
   r.targets = r.targets || [];
   r.hits = r.hits || [];
+  /* v1.02 세키로식 3연속 리듬 패링 탭 판정 (쿨다운 무관 최우선) */
+  const rt = rhythmTap();
+  if (rt) { r.parry = rt; return r; }
   /* 기모으기 중의 탭은 게이지 판정이 먼저다(쿨다운과 무관). */
   const kt = kiaiTap();
   if (kt) { r.parry = kt; return r; }
@@ -5789,7 +5793,8 @@ function hurtZombie(z, amount, why, rec) {
     const isWeak = (z.openUntil > nowT) || z.state === 'groggy';
     const isAuto = (why === 'bolt' || why === 'ward' || why === 'poison' || why === 'burn' || why === 'cloud' || why === 'ring' || why === 'inkstep');
     const weakBoost = isWeak ? ((1 + gapBonus()) * (1 + (swordF.gapDmgMul || 0))) : 1;
-    const mult = why === 'bang' ? 1.6 : (isAuto ? (isWeak ? 0.45 : 0.15) : (isWeak ? 1.85 * weakBoost : 0.35));
+    /* v1.02 밸런스 정상화: 일반 타격 0.35 -> 0.50(스펀지 해소), 그로기/약점 극딜 1.85 -> 2.00 */
+    const mult = why === 'bang' ? 1.6 : (isAuto ? (isWeak ? 0.50 : 0.18) : (isWeak ? 2.00 * weakBoost : 0.50));
     let dealt = Math.min(z.hp, amount * mult);
     /* v0.70 귀문검(gapCharge): 보스 빈틈·그로기 타격 시 참 게이지 즉시 충전 */
     if (isWeak && !isAuto && swordF.gapCharge > 0 && S) {
@@ -7238,7 +7243,8 @@ function heroHurt(n, why) {
   if (mirrorSave(why)) return;
   noteHit();
   /* v0.30 §7.2: 모드별 받는 피해(수련 ×0.5 최소 1 · 고수 ×1.5). */
-  S.hp -= modeDmg(n) + relicDmgAdd();
+  const vulnAdd = (S && (S.vulnStacks || 0) > 0 && (S.vulnT || 0) > 0) ? S.vulnStacks : 0;
+  S.hp -= modeDmg(n) + relicDmgAdd() + vulnAdd;
   if (S.hp <= 0) S.deathWhy = why || '귀물에게 닿았습니다.';
   S.iframe = CFG.iframeMs / 1000;
   S.hurtFlash = CFG.hurtVignette || 0.3;
@@ -7782,7 +7788,80 @@ function startBossPattern(z, id) {
   } else if (id === 'clash') startClash(z);
   else if (id === 'mimic') startMimic(z);
   else if (id === 'shuffle') startShuffle(z);
+  else if (id === 'donut') startDonut(z);
+  else if (id === 'soak') startSoak(z);
+  else if (id === 'rhythm') startRhythm(z);
+  else if (id === 'tether') startTether(z);
   else startCharge(z);
+}
+/* v1.02 신규 레이드·액션 기믹 4종 (donut · soak · rhythm · tether) + 취약 중첩 */
+function applyVulnStack(why) {
+  if (!S) return;
+  S.vulnStacks = Math.min(2, (S.vulnStacks || 0) + 1);
+  S.vulnT = 8.0;
+  heroHurt(1, why || '기믹에 피격되었습니다.');
+  showJudge('취약 중첩 ' + S.vulnStacks + ' (8초)');
+}
+function startDonut(z) {
+  z.state = 'donut'; z.stateT = 0; z.pat = 'donut';
+  const firstSafeIn = Math.random() < 0.5;
+  z.donut = { step: 0, safeInside: firstSafeIn, innerR: 3.3, outerR: 9.2, dur: 1.55 * (z.teleMul || 1) };
+  bossCue(z, 'jade', 'donut');
+  showJudge(firstSafeIn ? '도넛 결계 — 안으로!' : '도넛 결계 — 밖으로!');
+  if (audio && audio.bell) audio.bell(0, 'circle');
+}
+function startSoak(z) {
+  z.state = 'soak'; z.stateT = 0; z.pat = 'soak';
+  const cnt = (z.phase || 1) >= 2 ? 2 : 1;
+  const pillars = [];
+  for (let i = 0; i < cnt; i++) {
+    const a = Math.atan2(S.hero.z - z.z, S.hero.x - z.x) + (i === 0 ? 0.85 : -0.95);
+    const p = clampPointToArena(z.x + Math.cos(a) * 5.2, z.z + Math.sin(a) * 5.2, 2.0);
+    pillars.push({ x: p.x, z: p.z, r: 2.3, t: 0, dur: 3.2 * (z.teleMul || 1), done: false });
+  }
+  z.soak = { pillars: pillars };
+  bossCue(z, 'gold', 'soak');
+  showJudge('호박빛 결계 기둥 — 진입해 흡수!');
+  if (audio && audio.bell) audio.bell(0, 'bolt');
+}
+function startRhythm(z) {
+  z.state = 'rhythm'; z.stateT = 0; z.pat = 'rhythm';
+  z.rhythm = { idx: 0, beats: [0.62, 0.52, 0.72], t: 0, ok: 0, handled: false };
+  bossCue(z, 'jade', 'rhythm');
+  showJudge('삼연격 — 박자에 맞춰 탭 3회!');
+  if (audio && audio.drum) audio.drum();
+}
+function rhythmTap() {
+  const z = S && S.boss;
+  if (!z || !z.alive || z.state !== 'rhythm' || !z.rhythm) return null;
+  const rh = z.rhythm;
+  const dur = rh.beats[rh.idx] || 0.6;
+  const rem = dur - rh.t;
+  if (rh.handled) return null;
+  if (rem <= 0.24 && rem >= -0.06) {
+    rh.handled = true;
+    rh.ok++;
+    if (art && art.heroBlock && three && three.hero) art.heroBlock(three.hero);
+    if (audio && audio.justParry) audio.justParry();
+    haptic([20, 14, 34]);
+    addHitstop(0.065);
+    addCharge(8);
+    S.parryOkN = (S.parryOkN || 0) + 1;
+    S.justParryN = (S.justParryN || 0) + 1;
+    inkFx.ring(3.6, FX_COLORS.jade, 0.42);
+    if (three && three.vfx3d && S.hero) three.vfx3d.spawnSparks(S.hero.x, S.hero.z, 16, { color: 0x85f5d4, speed: 7.5 });
+    bossPoise(z, 1.35);
+    showJudge('막아냈다! ' + rh.ok + '/3');
+    return { rhythm: true, ok: rh.ok };
+  }
+  return null;
+}
+function startTether(z) {
+  z.state = 'tether'; z.stateT = 0; z.pat = 'tether';
+  z.tether = { dur: 3.1 * (z.teleMul || 1), breakDist: 7.5 };
+  bossCue(z, 'red', 'tether');
+  showJudge('혈사슬 결속 — 멀어져 끊으세요!');
+  if (audio && audio.charge) audio.charge(1.5);
 }
 function startCharge(z) {
   z.state = 'telegraph'; z.stateT = 0; z.pat = 'charge'; z._warnTicked = false;
@@ -8047,6 +8126,105 @@ function stepBossPat(z, dt) {
         }
       }
       if (z.state === 'slamTele') { z.state = 'stun'; z.stateT = 0; z.stunT = L.stun; }
+    }
+    return true;
+  }
+  /* v1.02 신규 기믹 1: 청록 도넛 안전지대 댄스 (2연속 In/Out) */
+  if (st === 'donut' && z.donut) {
+    const dn = z.donut;
+    if (z.stateT >= dn.dur) {
+      const d = dist(z, S.hero);
+      const hit = dn.safeInside ? (d > dn.innerR && d <= dn.outerR) : (d <= dn.innerR);
+      if (three) {
+        if (three.lights) three.lights.burst(z.x, 1.6, z.z, { color: 0x4dd4ff, intensity: 6.5, duration: 0.34, distance: 16 });
+        if (three.shaderFx3d) three.shaderFx3d.spawnShockwave(z.x, z.z, { r0: dn.safeInside ? dn.innerR : 0.6, r1: dn.safeInside ? dn.outerR : dn.innerR, colorHex: 0xff4d3d, coreHex: 0x85f5d4, dur: 0.40 });
+      }
+      if (audio && audio.bossSlam) audio.bossSlam();
+      if (hit && !S.dash) applyVulnStack('도넛 결계 폭발에 맞았습니다.');
+      else { showJudge('안전지대 파훼!'); addCharge(8); }
+      if (dn.step === 0) {
+        dn.step = 1; dn.safeInside = !dn.safeInside; z.stateT = 0;
+        showJudge(dn.safeInside ? '연속 결계 — 안으로!' : '연속 결계 — 밖으로!');
+        if (audio && audio.bell) audio.bell(0, 'circle');
+      } else {
+        z.donut = null; z.openUntil = Math.max(z.openUntil || 0, S.elapsed + 1.4);
+        z.state = 'walk'; z.stateT = 0;
+      }
+    }
+    return true;
+  }
+  /* v1.02 신규 기믹 2: 호박빛 소크 결계 기둥 */
+  if (st === 'soak' && z.soak) {
+    const ps = z.soak.pillars;
+    let remain = 0;
+    for (let i = 0; i < ps.length; i++) {
+      const p = ps[i];
+      if (p.done) continue;
+      p.t += dt;
+      if (dist(S.hero, p) <= p.r + 0.5) {
+        p.done = true;
+        addCharge(25);
+        bossPoise(z, 2.0);
+        if (audio && audio.justParry) audio.justParry();
+        inkFx.ring(3.2, FX_COLORS.gold, 0.48);
+        if (three && three.shaderFx3d) three.shaderFx3d.spawnShockwave(p.x, p.z, { r0: 0.5, r1: 4.0, colorHex: 0xf2b84b, coreHex: 0xfff8dc, dur: 0.36 });
+        showJudge('결계 흡수! 참 +25 · 강인도 -2');
+      } else if (p.t >= p.dur) {
+        p.done = true;
+        if (audio && audio.explode) audio.explode();
+        applyVulnStack('결계 기둥이 폭주했습니다.');
+      } else {
+        remain++;
+      }
+    }
+    if (remain === 0) { z.soak = null; z.state = 'walk'; z.stateT = 0; }
+    return true;
+  }
+  /* v1.02 신규 기믹 3: 세키로식 3연속 리듬 패링 */
+  if (st === 'rhythm' && z.rhythm) {
+    const rh = z.rhythm;
+    rh.t += dt;
+    const dur = rh.beats[rh.idx] || 0.6;
+    if (rh.t >= dur + 0.06) {
+      if (!rh.handled) {
+        applyVulnStack('삼연격 박자를 놓쳤습니다.');
+      }
+      rh.idx++; rh.t = 0; rh.handled = false;
+      if (rh.idx >= rh.beats.length) {
+        if (rh.ok >= 3) {
+          bossPoise(z, 3.0);
+          if (S && (!save || save.shake !== false)) S.justParryInvertT = 0.14;
+          showJudge('삼연파훼 — 대경직!');
+        }
+        z.rhythm = null; z.state = 'walk'; z.stateT = 0;
+      } else {
+        if (audio && audio.drum) audio.drum();
+      }
+    }
+    return true;
+  }
+  /* v1.02 신규 기믹 4: 혈사슬 결속 (7.5m 이탈 절단) */
+  if (st === 'tether' && z.tether) {
+    const d = dist(z, S.hero);
+    if (d >= z.tether.breakDist) {
+      z.tether = null;
+      z.openUntil = Math.max(z.openUntil || 0, S.elapsed + 1.8);
+      bossPoise(z, 1.5);
+      if (audio && audio.justParry) audio.justParry();
+      if (three && three.vfx3d) three.vfx3d.spawnSparks(S.hero.x, S.hero.z, 20, { color: 0x85f5d4, speed: 7.5 });
+      showJudge('사슬 절단 — 빈틈 노출!');
+      z.state = 'stun'; z.stateT = 0; z.stunT = 1.6;
+      return true;
+    }
+    if (!S.dash && d > 1.8) {
+      const pull = 1.65 * dt;
+      S.hero.x += ((z.x - S.hero.x) / d) * pull;
+      S.hero.z += ((z.z - S.hero.z) / d) * pull;
+    }
+    if (z.stateT >= z.tether.dur) {
+      z.tether = null;
+      applyVulnStack('혈사슬을 끊지 못했습니다.');
+      z.state = 'walk'; z.stateT = 0;
     }
     return true;
   }
@@ -8736,6 +8914,20 @@ function drawBossPat(ctx, r, hs) {
     const f = clamp(z.stateT / Math.max(0.01, z.sweep.tele), 0, 1);
     bossFx.drawSweepTele(ctx, projectXZ, z.x, z.z, z.sweep.aimA, z.sweep.arc, z.sweep.range, f, t);
   }
+  /* v1.02 신규 4대 기믹 최상위 시각 계층 렌더링 */
+  if (z && z.alive) {
+    const tt2 = S.elapsed || 0;
+    if (z.state === 'donut' && z.donut) {
+      bossFx.drawDonutTele(ctx, projectXZ, z.x, z.z, z.donut.innerR, z.donut.outerR, z.donut.safeInside, z.stateT / Math.max(0.1, z.donut.dur), tt2);
+    } else if (z.state === 'soak' && z.soak) {
+      bossFx.drawSoakPillars(ctx, projectXZ, z.soak.pillars, tt2);
+    } else if (z.state === 'tether' && z.tether && S.hero) {
+      bossFx.drawTetherChain(ctx, projectXZ, z.x, z.z, S.hero.x, S.hero.z, dist(z, S.hero), z.tether.breakDist, tt2);
+    } else if (z.state === 'rhythm' && z.rhythm && S.hero) {
+      const dur = z.rhythm.beats[z.rhythm.idx] || 0.6;
+      bossFx.drawRhythmTell(ctx, projectXZ, hs, z.x, z.z, z.rhythm.idx, z.rhythm.beats.length, dur - z.rhythm.t, dur, tt2);
+    }
+  }
   /* 부적 탄막 예고: v0.53 공중 정렬 살부적 편대 + 갈필 먹연기 궤적 */
   if (z.state === 'volleyTele' && onScr) {
     const Vo = P.volley, f = clamp(z.stateT / (z.volleyTele || Vo.tele), 0, 1);
@@ -9062,6 +9254,7 @@ function step(dt) {
   S.elapsed += dt; S.timeLeft -= dt;
   if (S.iframe > 0) S.iframe -= dt;
   if (S.parryCd > 0) S.parryCd = Math.max(0, S.parryCd - dt);
+  if (S.vulnT > 0) { S.vulnT = Math.max(0, S.vulnT - dt); if (S.vulnT <= 0) S.vulnStacks = 0; }
   if (S.parryBufT > 0) {
     S.parryBufT = Math.max(0, S.parryBufT - dt);
     if (S.parryCd <= 0 && S.playing && !S.paused) { S.parryBufT = 0; doParry(); }

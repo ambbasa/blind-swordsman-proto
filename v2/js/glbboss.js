@@ -1,14 +1,14 @@
 import * as THREE from 'three';
 import { applyForgedMetal } from './modules/metalStudioEnv.js';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v101';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v101';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v102';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v102';
 
 const MODEL_URLS = {
-  boss:   new URL('../assets/models/boss.glb?v=v101', import.meta.url).href,
-  minion: new URL('../assets/models/minion.glb?v=v101', import.meta.url).href,
-  heavy:  new URL('../assets/models/heavy.glb?v=v101', import.meta.url).href,
-  stone:  new URL('../assets/models/stone.glb?v=v101', import.meta.url).href
+  boss:   new URL('../assets/models/boss.glb?v=v102', import.meta.url).href,
+  minion: new URL('../assets/models/minion.glb?v=v102', import.meta.url).href,
+  heavy:  new URL('../assets/models/heavy.glb?v=v102', import.meta.url).href,
+  stone:  new URL('../assets/models/stone.glb?v=v102', import.meta.url).href
 };
 const sources = {};
 const pendings = {};

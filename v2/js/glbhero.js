@@ -2,10 +2,10 @@
 import * as THREE from 'three';
 import { applyForgedMetal } from './modules/metalStudioEnv.js';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v101';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v101';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v102';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v102';
 
-const URL_GLB = new URL('../assets/models/hero.glb?v=v101', import.meta.url).href;
+const URL_GLB = new URL('../assets/models/hero.glb?v=v102', import.meta.url).href;
 let pending = null;
 let source = null;
 let cloneSkinned = null;
@@ -33,7 +33,7 @@ export function preloadHeroGlb() {
       return gltf;
     });
   }).catch(function (e) {
-    console.warn('[심안] hero.glb?v=v101', e);
+    console.warn('[심안] hero.glb?v=v102', e);
     pending = null;
     return null;
   });
@@ -100,7 +100,7 @@ export function makeHeroGlb(height) {
             phys.emissive = new THREE.Color(0xffffff);
             phys.emissiveIntensity = 0.50;
           }
-          phys.customProgramCacheKey = function () { return 'hero-cloth-v101'; };
+          phys.customProgramCacheKey = function () { return 'hero-cloth-v102'; };
           mat.dispose();
           targetMat = phys;
         } else {

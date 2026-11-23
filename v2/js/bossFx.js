@@ -440,6 +440,124 @@ export class BossFx {
     ctx.restore();
   }
 
+  /* v1.02 청록 안전 도넛 댄스 (In / Out) — 4색 표준 하드 보더 예고 */
+  drawDonutTele(ctx, project, bx, bz, innerR, outerR, safeInside, f, t) {
+    const u = clamp(f, 0, 1);
+    const urgent = u >= 0.78;
+    ctx.save();
+    if (safeInside) {
+      groundPoly(ctx, project, bx, bz, outerR, 44, 0);
+      ctx.fillStyle = urgent ? 'rgba(255,77,61,0.24)' : ('rgba(220,48,36,' + (0.08 + 0.12 * u).toFixed(3) + ')');
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,77,61,0.92)'; ctx.lineWidth = 3.0; ctx.stroke();
+      groundPoly(ctx, project, bx, bz, innerR, 40, t * 0.4);
+      ctx.fillStyle = 'rgba(77,212,255,0.16)'; ctx.fill();
+      ctx.strokeStyle = '#4DD4FF'; ctx.lineWidth = urgent ? 4.0 : 3.0; ctx.stroke();
+    } else {
+      groundPoly(ctx, project, bx, bz, innerR, 40, 0);
+      ctx.fillStyle = urgent ? 'rgba(255,77,61,0.28)' : ('rgba(220,48,36,' + (0.10 + 0.14 * u).toFixed(3) + ')');
+      ctx.fill();
+      ctx.strokeStyle = '#FF4D3D'; ctx.lineWidth = 3.2; ctx.stroke();
+      groundPoly(ctx, project, bx, bz, innerR * u, 36, -t * 0.4);
+      ctx.strokeStyle = 'rgba(255,240,192,0.9)'; ctx.lineWidth = 2.2; ctx.stroke();
+      groundPoly(ctx, project, bx, bz, innerR + 1.2, 42, t * 0.3);
+      ctx.strokeStyle = '#4DD4FF'; ctx.lineWidth = 2.6; ctx.stroke();
+    }
+    const c = project(bx, bz, 2.3);
+    ctx.font = '700 14px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = '#4DD4FF';
+    ctx.strokeStyle = 'rgba(10,12,16,0.9)'; ctx.lineWidth = 4;
+    const msg = safeInside ? '안으로 진입!' : '밖으로 이탈!';
+    ctx.strokeText(msg, c.x, c.y); ctx.fillText(msg, c.x, c.y);
+    ctx.restore();
+  }
+
+  /* v1.02 호박빛 소크 결계 기둥 (#F2B84B) — 수직 빛기둥 + 안쪽 화살표 + 진행 링 */
+  drawSoakPillars(ctx, project, pillars, t) {
+    if (!pillars || !pillars.length) return;
+    ctx.save();
+    for (let i = 0; i < pillars.length; i++) {
+      const p = pillars[i];
+      if (p.done) continue;
+      const u = clamp((p.t || 0) / Math.max(0.1, p.dur || 3.2), 0, 1);
+      const base = project(p.x, p.z, 0.05);
+      const top = project(p.x, p.z, 6.2);
+      const grad = ctx.createLinearGradient(base.x, base.y, top.x, top.y);
+      grad.addColorStop(0, 'rgba(242,184,75,0.48)');
+      grad.addColorStop(0.65, 'rgba(242,184,75,0.16)');
+      grad.addColorStop(1, 'rgba(242,184,75,0)');
+      ctx.fillStyle = grad;
+      const bw = 22 + 10 * Math.sin(t * 8 + i);
+      ctx.fillRect(base.x - bw * 0.5, top.y, bw, Math.max(10, base.y - top.y));
+      groundPoly(ctx, project, p.x, p.z, p.r || 2.2, 36, 0);
+      ctx.fillStyle = 'rgba(242,184,75,0.16)'; ctx.fill();
+      ctx.strokeStyle = '#F2B84B'; ctx.lineWidth = 3.2; ctx.stroke();
+      groundPoly(ctx, project, p.x, p.z, Math.max(0.2, (p.r || 2.2) * (1 - u)), 32, t * 0.6);
+      ctx.strokeStyle = '#FFF3C4'; ctx.lineWidth = 2.2; ctx.stroke();
+      ctx.font = '700 13px sans-serif'; ctx.textAlign = 'center';
+      ctx.strokeStyle = 'rgba(10,12,16,0.9)'; ctx.lineWidth = 4;
+      ctx.fillStyle = '#FFE494';
+      ctx.strokeText('결계 진입!', base.x, base.y - 24);
+      ctx.fillText('결계 진입!', base.x, base.y - 24);
+    }
+    ctx.restore();
+  }
+
+  /* v1.02 혈사슬 결속 (Tether) — 보스↔주인공 붉은 사슬 + 이탈 절단 게이지 */
+  drawTetherChain(ctx, project, bx, bz, hx, hz, curDist, breakDist, t) {
+    const bp = project(bx, bz, 1.15);
+    const hp = project(hx, hz, 1.0);
+    const frac = clamp(curDist / Math.max(1, breakDist), 0, 1);
+    ctx.save();
+    ctx.strokeStyle = frac >= 0.78 ? '#5FE8C2' : '#FF4D3D';
+    ctx.lineWidth = 3.6;
+    ctx.setLineDash([10, 6]);
+    ctx.lineDashOffset = -t * 60;
+    ctx.beginPath(); ctx.moveTo(bp.x, bp.y); ctx.lineTo(hp.x, hp.y); ctx.stroke();
+    ctx.setLineDash([]);
+    const mx = (bp.x + hp.x) * 0.5, my = (bp.y + hp.y) * 0.5 - 16;
+    ctx.font = '700 13px sans-serif'; ctx.textAlign = 'center';
+    ctx.strokeStyle = 'rgba(10,12,16,0.92)'; ctx.lineWidth = 4;
+    ctx.fillStyle = frac >= 0.78 ? '#85F5D4' : '#FF9A8A';
+    const txt = '사슬 절단 ' + Math.round(frac * 100) + '%';
+    ctx.strokeText(txt, mx, my); ctx.fillText(txt, mx, my);
+    ctx.restore();
+  }
+
+  /* v1.02 세키로식 3연속 리듬 패링 (Rhythm Deflect) — 옥빛 수축 링 + 3박자 핍 */
+  drawRhythmTell(ctx, project, hs, bx, bz, beatIdx, totalBeats, rem, beatDur, t) {
+    const inJust = rem <= 0.22 && rem >= -0.04;
+    const frac = clamp(rem / Math.max(0.1, beatDur), 0, 1);
+    ctx.save();
+    const innerR = 28, outerR = 28 + 56 * frac;
+    ctx.strokeStyle = inJust ? '#5FE8C2' : 'rgba(242,184,75,0.82)';
+    ctx.lineWidth = inJust ? 4.0 : 2.4;
+    ctx.beginPath(); ctx.arc(hs.x, hs.y, outerR, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = inJust ? '#FFF8D6' : 'rgba(242,184,75,0.34)';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.arc(hs.x, hs.y, innerR, 0, Math.PI * 2); ctx.stroke();
+    ctx.font = '700 13px sans-serif'; ctx.textAlign = 'center';
+    ctx.strokeStyle = 'rgba(10,12,16,0.92)'; ctx.lineWidth = 4;
+    ctx.fillStyle = inJust ? '#85F5D4' : '#F2CC79';
+    const txt = (inJust ? '막기! ' : '리듬 패링 ') + (beatIdx + 1) + '/' + totalBeats;
+    ctx.strokeText(txt, hs.x, hs.y - innerR - 12);
+    ctx.fillText(txt, hs.x, hs.y - innerR - 12);
+    const tp = project(bx, bz, 1.5);
+    const gr = inJust ? 26 : 14;
+    ctx.translate(tp.x, tp.y);
+    ctx.rotate(t * 4);
+    ctx.fillStyle = inJust ? '#85F5D4' : '#FF785A';
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const a = (i * Math.PI) / 4;
+      const r = (i % 2 === 0) ? gr : gr * 0.22;
+      if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+      else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+
   /* 내려찍기 예고: 3D 바닥 마법진(주인공 아래) + 2D는 얇은 경계선·수렴 백금 타이밍 링만 그려 캐릭터 가림 0% */
   drawSlamTele(ctx, project, x, z, R, f, t) {
     const u = clamp(f, 0, 1);
