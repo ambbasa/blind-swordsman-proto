@@ -31,14 +31,14 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v108';
+import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v109';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v108';
+import { probeAssets, buildArt } from './art.js?v=v109';
 import * as Anim from './anim.js';
 import { createAudio } from './audio.js?v=v103';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v108';
-import { PAT_COST, PAT_CUE, getActPhaseFx, bossPatternMean, buildBossBannerInfo } from './modules/bossPatterns.js?v=v108';
-import { GIMMICK_DRILLS, getDrillDef, createDrillState, resetDrillRound, stepDrill, handleDrillInput, drawDrillCanvas } from './modules/trainingDrills.js?v=v108';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v109';
+import { PAT_COST, PAT_CUE, getActPhaseFx, bossPatternMean, buildBossBannerInfo } from './modules/bossPatterns.js?v=v109';
+import { GIMMICK_DRILLS, getDrillDef, createDrillState, resetDrillRound, stepDrill, handleDrillInput, drawDrillCanvas } from './modules/trainingDrills.js?v=v109';
 import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v103';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
@@ -60,7 +60,7 @@ import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariant
 import { InkFx, FX_COLORS } from './inkfx.js';
 import { BossFx } from './bossFx.js';
 import { createTelemetry } from './telemetry.js';
-import { applyHeroCloak3D } from './inkhero3d.js';
+import { applyHeroCloak3D } from './inkhero3d.js?v=v109';
 import {
   SAVE_VERSION, STAT_DEFS, FORGE_COSTS, SWORDS, RELICS, COSMETIC_CLOAKS, COSMETIC_TRAILS,
   DAILY_QUESTS, ATTENDANCE_REWARDS, STAR_CHESTS, CODEX_MILESTONES,
@@ -143,7 +143,7 @@ const fxQForced = (function () {
 })();
 let fxQ = fxQualityFromUrl();
 const fxinkStat = { slashes: 0, hits: 0, kills: 0 };
-const SHAPE_MARK = { hline: '—', vline: 'ㅣ', vee: 'V', bolt: '⚡', star: '⛤', square: 'ㅁ', tri: '△', arc: '◡', spiral: '@' };
+const SHAPE_MARK = { hline: '—', vline: 'ㅣ', vee: 'V', bolt: 'Z', star: '⛤', square: 'ㅁ', tri: '△', arc: '◡', spiral: '@' };
 /* 기물 전용 제스처: 보스 무늬(장의 무늬)와 겹치지 않고, 기물끼리도 하나씩 나눠 가진다. */
 const TOTEM_SHAPES = ['tri', 'square', 'spiral'];
 const SHAPE_KEY = { hline: 'H', vline: 'I', vee: 'V', bolt: 'Z' };
@@ -154,7 +154,7 @@ const SHAPE_HINT = {
   hline: '가로로 길게 그어 보세요',
   vline: '세로로 길게 그어 보세요',
   vee: 'V자를 그려 보세요',
-  bolt: '번개(⚡)처럼 지그재그로 그어 보세요'
+  bolt: '번개(Z)처럼 지그재그로 그어 보세요'
 };
 /* v1 numbers reused where the new brief is silent. Documented as defaults. */
 const CFG = {
@@ -3489,44 +3489,51 @@ function isSpiritVisibleForDash(s) {
 function pickSpirits(shape, n, from, dir, exclude) {
   from = from || (S && S.hero);
   const skip = exclude || [];
-  const list = livingMarks().filter(function (s) {
-    return spiritShape(s) === shape && skip.indexOf(s) < 0 && isSpiritVisibleForDash(s);
-  });
-  const zone = list.filter(function (s) { return !!s.zoneTag; });
-  const boss = list.filter(function (s) { return s.isBoss && !s.zoneTag; });
-  let rest = list.filter(function (s) { return !s.isBoss && !s.zoneTag; });
-  const on = rest.filter(function (s) { return isOnScreen(s, 20); });
-  const off = rest.filter(function (s) { return !isOnScreen(s, 20); });
-  if (on.length) rest = on;
+  const marks = livingMarks();
+  const zone = [], boss = [], on = [], off = [];
+  for (let i = 0; i < marks.length; i++) {
+    const s = marks[i];
+    if (spiritShape(s) !== shape || skip.indexOf(s) >= 0 || !isSpiritVisibleForDash(s)) continue;
+    if (s.zoneTag) zone.push(s);
+    else if (s.isBoss) boss.push(s);
+    else if (isOnScreen(s, 20)) on.push(s);
+    else off.push(s);
+  }
+  let rest = on.length ? on : off;
   const heroScr = projectXZ(from.x, from.z);
   function sortRest(arr) {
-    const copy = arr.slice();
+    if (arr.length <= 1) return arr;
     if (dir && (dir.x || dir.y)) {
-      const dMax = copy.reduce(function (m, s) { return Math.max(m, dist(s, from)); }, 1) || 1;
+      let dMax = 1;
+      for (let i = 0; i < arr.length; i++) {
+        const d = dist(arr[i], from);
+        if (d > dMax) dMax = d;
+      }
       const cone = CFG.aimConeCos || 0.5;
       const wN = CFG.aimNearW == null ? 0.35 : CFG.aimNearW;
-      const scored = copy.map(function (s) {
+      const pick = [];
+      for (let i = 0; i < arr.length; i++) {
+        const s = arr[i];
         const va = projectXZ(s.x, s.z);
         const da = Math.hypot(va.x - heroScr.x, va.y - heroScr.y) || 1;
         const cos = ((va.x - heroScr.x) / da) * dir.x + ((va.y - heroScr.y) / da) * dir.y;
-        const score = cos - wN * (dist(s, from) / dMax);
-        return { s: s, cos: cos, score: score };
-      });
-      let pick = scored.filter(function (o) { return o.cos >= cone; });
+        if (cos >= cone) pick.push({ s: s, score: cos - wN * (dist(s, from) / dMax) });
+      }
       if (!pick.length) {
-        copy.sort(function (a, b) { return dist(a, from) - dist(b, from); });
-        return copy;
+        arr.sort(function (a, b) { return dist(a, from) - dist(b, from); });
+        return arr;
       }
       pick.sort(function (a, b) { return b.score - a.score; });
-      return pick.map(function (o) { return o.s; });
-    } else {
-      /* 방향이 없는 모양(V·⚡)은 위협도 순위로 고른다. */
-      copy.sort(function (a, b) { return threatScore(b.target, from) - threatScore(a.target, from); });
+      const out = new Array(pick.length);
+      for (let i = 0; i < pick.length; i++) out[i] = pick[i].s;
+      return out;
     }
-    return copy;
+    /* 방향이 없는 모양(V·Z)은 위협도 순위로 고른다. */
+    arr.sort(function (a, b) { return threatScore(b.target, from) - threatScore(a.target, from); });
+    return arr;
   }
   rest = sortRest(rest);
-  if (qa.noDelay && rest.length < n && off.length) rest = rest.concat(sortRest(off));
+  if (qa.noDelay && rest.length < n && on.length && off.length) rest = rest.concat(sortRest(off));
   return zone.concat(boss, rest).slice(0, Math.max(0, n));
 }
 function spiritShape(s) {
@@ -8337,7 +8344,16 @@ function stepBossPat(z, dt) {
       if (audio && audio.bossSlam) audio.bossSlam();
       z._strikeFxT = 0.28; z._strikeAnim = 'slam';
       if (hit && !S.dash) applyVulnStack('도넛 결계 폭발에 맞았습니다.');
-      else { showJudge('안전지대 파훼!'); addCharge(8); notePatSeen('donut', 'dodge'); }
+      else {
+        notePatSeen('donut', 'dodge');
+        bossPoise(z, 1.2);
+        addCharge(10);
+        z.openUntil = Math.max(z.openUntil || 0, (S.elapsed || 0) + 1.4);
+        addHitstop(0.04);
+        inkFx.ring(3.6, FX_COLORS.gold, 0.45);
+        if (audio && audio.justParry) audio.justParry();
+        showJudge('도넛 파훼! 빈틈 노출!');
+      }
       if (dn.step === 0) {
         dn.step = 1; dn.safeInside = !dn.safeInside; z.stateT = 0;
         spawnDonutZoneSpirit(z, dn);
@@ -8464,7 +8480,16 @@ function stepBossPat(z, dt) {
       if (three && three.lights) three.lights.burst(z.x, 1.6, z.z, { color: 0xff4d3d, intensity: 6.5, duration: 0.3, distance: 16 });
       z._strikeFxT = 0.28; z._strikeAnim = 'strike';
       if (inDanger && !S.dash) applyVulnStack('부채꼴 절단에 피격되었습니다.');
-      else { showJudge('안전 칸 회피!'); addCharge(8); notePatSeen('pizza', 'dodge'); }
+      else {
+        notePatSeen('pizza', 'dodge');
+        bossPoise(z, 1.2);
+        addCharge(10);
+        z.openUntil = Math.max(z.openUntil || 0, (S.elapsed || 0) + 1.4);
+        addHitstop(0.04);
+        inkFx.ring(3.6, FX_COLORS.gold, 0.45);
+        if (audio && audio.justParry) audio.justParry();
+        showJudge('안전 칸 파훼! 빈틈 노출!');
+      }
       if (pz.step === 0) {
         pz.step = 1; pz.oddDanger = !pz.oddDanger; z.stateT = 0;
         spawnPizzaSafeSpirit(z, pz);
@@ -11111,7 +11136,7 @@ function renderCodex() {
 
 /* §8.3 무늬 수련장: 10종 자유 연습 + 최근 20회 인식률 + 그리는 요령 애니메이션 */
 const TRAIN_SHAPES = ['hline', 'vline', 'vee', 'bolt', 'circle', 'square', 'tri', 'spiral', 'star', 'tap'];
-const SHAPE_LABEL = { hline: '—', vline: 'ㅣ', vee: 'V', bolt: '⚡', circle: 'O', star: '⛤', square: 'ㅁ', tri: '△', arc: '◡', spiral: '@', tap: '•' };
+const SHAPE_LABEL = { hline: '—', vline: 'ㅣ', vee: 'V', bolt: 'Z', circle: 'O', star: '⛤', square: 'ㅁ', tri: '△', arc: '◡', spiral: '@', tap: '•' };
 const SHAPE_TIP = {
   hline: '가로로 곧게, 화면 폭의 절반쯤. 끝에서 멈칫하지 마세요.',
   vline: '위에서 아래로 한 번에. 좌우로 흔들리면 번개로 읽힙니다.',

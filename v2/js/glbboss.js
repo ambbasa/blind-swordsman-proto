@@ -5,13 +5,13 @@ import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v103';
 import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v103';
 
 const MODEL_URLS = {
-  boss:      new URL('../assets/models/boss.glb?v=v108', import.meta.url).href,
-  boss_act2: new URL('../assets/models/boss_act2.glb?v=v108', import.meta.url).href,
-  boss_act3: new URL('../assets/models/boss_act3.glb?v=v108', import.meta.url).href,
-  boss_act4: new URL('../assets/models/boss_act4.glb?v=v108', import.meta.url).href,
-  minion:    new URL('../assets/models/minion.glb?v=v108', import.meta.url).href,
-  heavy:     new URL('../assets/models/heavy.glb?v=v108', import.meta.url).href,
-  stone:     new URL('../assets/models/stone.glb?v=v108', import.meta.url).href
+  boss:      new URL('../assets/models/boss.glb?v=v109', import.meta.url).href,
+  boss_act2: new URL('../assets/models/boss_act2.glb?v=v109', import.meta.url).href,
+  boss_act3: new URL('../assets/models/boss_act3.glb?v=v109', import.meta.url).href,
+  boss_act4: new URL('../assets/models/boss_act4.glb?v=v109', import.meta.url).href,
+  minion:    new URL('../assets/models/minion.glb?v=v109', import.meta.url).href,
+  heavy:     new URL('../assets/models/heavy.glb?v=v109', import.meta.url).href,
+  stone:     new URL('../assets/models/stone.glb?v=v109', import.meta.url).href
 };
 function isBossSp(sp) { return sp === 'boss' || sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4'; }
 const BOSS_WEAPON_FX = {

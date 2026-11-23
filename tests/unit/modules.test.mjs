@@ -403,13 +403,32 @@ import { GIMMICK_DRILLS, getDrillDef, createDrillState, handleDrillInput } from 
     return out;
   };
   const hanjaHits = [];
+  const emojiHits = [];
+  const importMap = new Map();
+  const emojiRe = /[\u{1F300}-\u{1FAFF}\u26A1]/u;
   for (const fp of walkJs(path.resolve('v2/js'))) {
-    const code = fs.readFileSync(fp, 'utf8')
+    const raw = fs.readFileSync(fp, 'utf8');
+    const code = raw
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/(^|[^:\\])\/\/[^\n]*/g, '$1');
     const m = code.match(/[\u4E00-\u9FFF]/);
     if (m) hanjaHits.push(path.relative(process.cwd(), fp) + ':' + m[0]);
+    const em = code.match(emojiRe);
+    if (em) emojiHits.push(path.relative(process.cwd(), fp) + ':' + em[0]);
+    for (const im of raw.matchAll(/from\s+['"](\.[^'"]+)['"]/g)) {
+      const spec = im[1];
+      const base = spec.split('?')[0].split('/').pop();
+      const tail = spec.split('/').pop();
+      if (!importMap.has(base)) importMap.set(base, new Set());
+      importMap.get(base).add(tail);
+    }
+  }
+  const dupImports = [];
+  for (const [base, set] of importMap.entries()) {
+    if (set.size > 1) dupImports.push(base + '=' + Array.from(set).join('|'));
   }
   assert.deepEqual(hanjaHits, [], 'Runtime Hanja found in v2/js: ' + hanjaHits.join(', '));
-  console.log('v1.08 BOSS_PATTERNS, TRAINING_DRILLS, CACHE_SYNC & ZERO-HANJA TESTS PASSED (' + swVer + ')');
+  assert.deepEqual(emojiHits, [], 'Runtime OS color emoji found in v2/js: ' + emojiHits.join(', '));
+  assert.deepEqual(dupImports, [], 'Duplicate ES module ?v= instances found: ' + dupImports.join(', '));
+  console.log('v1.09 BOSS_PATTERNS, TRAINING_DRILLS, CACHE_SYNC, ZERO-HANJA/EMOJI & SINGLE-INSTANCE TESTS PASSED (' + swVer + ')');
 }
