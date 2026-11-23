@@ -4,7 +4,7 @@
    - 4종 애니메이션(idle / walk / slash / hit) + 치장 도포/무기 틴트·투명도·스쿼시 연동 */
 import * as THREE from 'three';
 
-const URL_GLB = new URL('../assets/models/hero.glb?v=v078', import.meta.url).href;
+const URL_GLB = new URL('../assets/models/hero.glb?v=v0782', import.meta.url).href;
 let pending = null;
 let source = null;
 let cloneSkinned = null;

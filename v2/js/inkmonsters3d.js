@@ -261,12 +261,13 @@ export function build(species, opt) {
     backToBase(H, 0.16);
   };
   mixer.addEventListener('finished', finished);
-  const glbReady = species === 'boss' ? bossGlbReady() : null;
+  const glbReady = bossGlbReady(species);
   if (glbReady) {
     glbReady.then(function () {
-      const G = makeBossGlb(C.h);
+      const G = makeBossGlb(C.h, species);
+      if (!G) return;
       root.add(G.root);
-      G.body.castShadow = mesh.castShadow;
+      if (G.body) G.body.castShadow = mesh.castShadow;
       G.mats.forEach(function (m) { m.opacity = H.opacity; m.transparent = H.opacity < 0.999; H.mats.push(m); });
       hookBossGlb(G, H);
       mesh.visible = false;
@@ -274,8 +275,8 @@ export function build(species, opt) {
       H.body = G.root;
       H.hull = null;
       H.glb = G;
-      group.userData.poseSource = 'glbBoss';
-    }).catch(function (e) { console.warn('[심안] 보스 GLB 연결 실패 — 3D 수묵 보스 유지', e); });
+      group.userData.poseSource = 'glb_' + species;
+    }).catch(function (e) { console.warn('[심안] 몬스터 GLB 연결 실패 — 기본 3D 유지', species, e); });
   }
   LIVE++;
   return group;
