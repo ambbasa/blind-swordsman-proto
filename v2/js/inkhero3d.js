@@ -28,11 +28,11 @@ import * as TEX from './inktex3d.js';
 import {
   heroGlbEnabled, preloadHeroGlb, makeHeroGlb,
   tickHeroGlb, triggerHeroGlbBurst, setHeroGlbOpacity, setHeroGlbTint, applyHeroGlbCloak
-} from './glbhero.js?v=v079';
+} from './glbhero.js?v=v0791';
 import {
   hd2dEnabled, preloadHd2dAll, makeHd2dHero, tickHd2d,
   triggerHd2dPose, setHd2dOpacity, setHd2dTint, applyHd2dCloak, makeHd2dGhost
-} from './hd2dSprite.js?v=v079';
+} from './hd2dSprite.js?v=v0791';
 let HERO_CAM = null;
 
 export const HERO_H = 2.45;          /* 기존 주인공(파츠 리그 m=2.45)과 같은 키 — 그림자·HUD 기준이 맞는다 */
@@ -349,7 +349,7 @@ export function build(opt) {
 
   root.userData.hero3d = H;
   root.userData.worldH = HERO_H;
-  root.userData.poseSource = 'hero3d';
+  root.userData.poseSource = H.hd2d ? 'hd2d_hero' : 'hero3d';
   return root;
 }
 
@@ -919,6 +919,7 @@ export function applyHeroCloak3D(group, cloak, forgeLv) {
   if (H) {
     H.lastCloakProf = prof;
     H.lastForgeLv = flv;
+    if (H.hd2d) { applyHd2dCloak(H.hd2d, prof); updated++; }
     if (H.glb) { applyHeroGlbCloak(H.glb, prof, flv); updated++; }
   }
   const curRig = group.userData && group.userData.cosmeticRig;

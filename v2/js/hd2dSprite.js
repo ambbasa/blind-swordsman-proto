@@ -4,7 +4,7 @@
    - 방향 전환 2.5D 페이퍼 플립, 호흡/발걸음 바운스, 속도 기울기, 스쿼시·스트레치, 공격/피격 포즈 전환 지원 */
 import * as THREE from 'three';
 
-const V = 'v079';
+const V = 'v0791';
 const ASSETS = {
   hero:   { idle: 'hero_idle.webp',   slash: 'hero_slash.webp', hit: 'hero_hit.webp' },
   minion: { idle: 'minion_idle.webp', atk: 'minion_atk.webp' },
@@ -74,6 +74,7 @@ function makeSpriteUnit(species, worldH) {
     depthWrite: true,
     color: new THREE.Color(0xffffff)
   });
+  mat.userData.cardSkip = true;
 
   const mesh = new THREE.Mesh(sharedGeo, mat);
   mesh.frustumCulled = false;
@@ -148,7 +149,7 @@ const _camDir = new THREE.Vector3();
 
 function alignBillboard(U, parentGroup, cam) {
   let camYaw = 0;
-  if (cam) {
+  if (cam && typeof cam.getWorldDirection === 'function') {
     cam.getWorldDirection(_camDir);
     camYaw = Math.atan2(-_camDir.x, -_camDir.z);
   }
@@ -258,6 +259,7 @@ export function makeHd2dGhost(srcU, parentGroup, cam) {
     side: THREE.DoubleSide,
     color: new THREE.Color(0x9be6d2)
   });
+  gMat.userData.cardSkip = true;
   const mesh = new THREE.Mesh(sharedGeo, gMat);
   mesh.scale.copy(srcU.mesh.scale);
   mesh.rotation.copy(srcU.mesh.rotation);
@@ -269,7 +271,7 @@ export function makeHd2dGhost(srcU, parentGroup, cam) {
 
   const root = new THREE.Group();
   root.add(tilt);
-  if (cam) {
+  if (cam && typeof cam.getWorldDirection === 'function') {
     cam.getWorldDirection(_camDir);
     root.rotation.y = Math.atan2(-_camDir.x, -_camDir.z);
   }
