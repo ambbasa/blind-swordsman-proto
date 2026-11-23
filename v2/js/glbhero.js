@@ -3,8 +3,9 @@
    - `Hero_Body` (1024px WebP PBR), `Hero_Outline` (수묵 먹선), `Hero_Sword` + `Hero_Sword_Outline`
    - 4종 애니메이션(idle / walk / slash / hit) + 치장 도포/무기 틴트·투명도·스쿼시 연동 */
 import * as THREE from 'three';
+import { makeRig, tickPose } from './glbpose.js?v=v0792';
 
-const URL_GLB = new URL('../assets/models/hero.glb?v=v0783', import.meta.url).href;
+const URL_GLB = new URL('../assets/models/hero.glb?v=v0792', import.meta.url).href;
 let pending = null;
 let source = null;
 let cloneSkinned = null;
@@ -32,7 +33,7 @@ export function preloadHeroGlb() {
       return gltf;
     });
   }).catch(function (e) {
-    console.warn('[심안] hero.glb?v=v0783 로드 실패 — 기본 3D 영웅 유지', e);
+    console.warn('[심안] hero.glb?v=v0792 로드 실패 — 기본 3D 영웅 유지', e);
     pending = null;
     return null;
   });
@@ -110,6 +111,10 @@ export function makeHeroGlb(height) {
   );
   fit.add(scene);
 
+  /* v0.79.2 — 자세 레이어(대기·걷기·일섬·피격)용 리그. rest 자세에서 본 축을 잡아 둔다. */
+  const rig = makeRig(scene);
+  if (rig) rig.species = 'hero';
+
   const mixer = new THREE.AnimationMixer(scene);
   const actions = {};
   (source.animations || []).forEach(function (clip) {
@@ -130,6 +135,7 @@ export function makeHeroGlb(height) {
     scene: scene,
     mixer: mixer,
     actions: actions,
+    rig: rig,
     bodyMeshes: bodyMeshes,
     outlineMeshes: outlineMeshes,
     swordMeshes: swordMeshes,
@@ -196,6 +202,12 @@ export function tickHeroGlb(G, H, dt) {
   G.fit.scale.set(sqXZ, sqY, sqXZ);
 
   G.mixer.update(dt);
+  /* 클립 위에 절차 자세를 얹는다(내장 클립의 골반·발목 키가 정지해 있어 다리가 미끄러웠다). */
+  if (G.rig) {
+    const st = H.burst === 'slash' ? 'attack'
+      : (H.burst === 'hit' ? 'hit' : (H.base === 'walk' ? 'walk' : 'idle'));
+    tickPose(G.rig, dt, st, H.speed || 0);
+  }
 }
 
 export function setHeroGlbOpacity(G, o) {

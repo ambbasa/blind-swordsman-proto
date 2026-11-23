@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>심안 자세 검수 랩</title>
+<style>
+  html,body{margin:0;height:100%;background:#14110f;color:#e8e2d8;font:13px/1.4 system-ui,sans-serif;overflow:hidden}
+  #c{position:fixed;inset:0}
+  #ui{position:fixed;left:10px;top:10px;background:rgba(0,0,0,.55);padding:8px 10px;border-radius:8px;max-width:330px}
+  #ui button{background:#2c2723;color:#e8e2d8;border:1px solid #4a423a;border-radius:6px;padding:3px 7px;margin:2px;font:12px system-ui;cursor:pointer}
+  #ui button.on{background:#8a5a2a;border-color:#c08a4a}
+  #ui .row{margin:4px 0}
+  #log{font:11px/1.3 ui-monospace,monospace;color:#9a8f80;white-space:pre;max-height:150px;overflow:auto}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <div class="row"><b>심안 GLB 자세 랩</b></div>
+  <div class="row" id="sp"></div>
+  <div class="row" id="st"></div>
+  <div class="row"><input id="u" type="range" min="0" max="1" step="0.01" value="0" style="width:190px"> <span id="uv">0.00</span></div>
+  <div class="row"><button id="auto">자동 재생</button><button id="reset">멈춤</button></div>
+  <div class="row" id="log"></div>
+</div>
+<script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { makeRig, tickPose, posePreview, poseInfo } from './js/glbpose.js?v=v0792';
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(2, devicePixelRatio));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x14110f);
+const camera = new THREE.PerspectiveCamera(34, innerWidth / innerHeight, 0.1, 200);
+const amb = new THREE.HemisphereLight(0xdfe8ff, 0x2a2018, 1.15);
+const key = new THREE.DirectionalLight(0xfff2dd, 2.1); key.position.set(4, 8, 7);
+const fill = new THREE.DirectionalLight(0x9ec5ff, 0.7); fill.position.set(-6, 4, -5);
+scene.add(amb, key, fill);
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshStandardMaterial({ color: 0x2a2622, roughness: 1 }));
+floor.rotation.x = -Math.PI / 2;
+scene.add(floor);
+const grid = new THREE.GridHelper(20, 20, 0x5a5040, 0x3a332c); grid.position.y = 0.002; scene.add(grid);
+
+const loader = (await import('./vendor/addons/loaders/GLTFLoader.js')).GLTFLoader;
+const gltfLoader = new loader();
+const SPEC = { hero: 1.0, minion: 1.12, heavy: 1.0, stone: 1.0, boss: 1.0 };
+const H = { hero: 2.45, minion: 2.2, heavy: 2.9, stone: 2.55, boss: 3.4 };
+const chars = {};
+let active = 'hero', state = 'idle', uVal = 0, auto = false;
+
+const list = Object.keys(SPEC);
+for (const sp of list) {
+  const g = await gltfLoader.loadAsync('./assets/models/' + sp + '.glb?v=v0792');
+  const root = g.scene;
+  root.traverse(o => {
+    if (o.isMesh) {
+      o.frustumCulled = false;
+      o.material = new THREE.MeshStandardMaterial({
+        color: /outline/i.test(o.name) ? 0x09090d : 0xd8d2c6,
+        roughness: 0.85, metalness: 0.0,
+        side: /outline/i.test(o.name) ? THREE.FrontSide : THREE.FrontSide
+      });
+    }
+  });
+  root.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(root);
+  const size = box.getSize(new THREE.Vector3());
+  const k = H[sp] / size.y;
+  root.scale.setScalar(k);
+  root.position.set(0, -box.min.y * k, 0);
+  const holder = new THREE.Group();
+  holder.add(root);
+  holder.visible = false;
+  scene.add(holder);
+  const rig = makeRig(root);
+  if (rig) { rig.species = sp; }
+  chars[sp] = { holder, rig, root };
+}
+
+const spBox = document.getElementById('sp');
+list.forEach(sp => {
+  const b = document.createElement('button'); b.textContent = sp;
+  b.onclick = () => { active = sp; syncUi(); layout(); };
+  b.dataset.sp = sp; spBox.appendChild(b);
+});
+const stBox = document.getElementById('st');
+['idle', 'walk', 'attack', 'hit', 'cast', 'death'].forEach(st => {
+  const b = document.createElement('button'); b.textContent = st;
+  b.onclick = () => { state = st; uVal = 0; syncUi(); };
+  b.dataset.st = st; stBox.appendChild(b);
+});
+document.getElementById('u').oninput = e => { uVal = +e.target.value; document.getElementById('uv').textContent = uVal.toFixed(2); };
+document.getElementById('auto').onclick = () => { auto = true; };
+document.getElementById('reset').onclick = () => { auto = false; };
+
+function syncUi() {
+  [...spBox.children].forEach(b => b.classList.toggle('on', b.dataset.sp === active));
+  [...stBox.children].forEach(b => b.classList.toggle('on', b.dataset.st === state));
+}
+function layout() {
+  /* 활성 종만 크게, 나머지는 오른쪽에 작게 */
+  let i = 0;
+  for (const sp of list) {
+    const c = chars[sp];
+    c.holder.visible = true;
+    if (sp === active) { c.holder.position.set(0, 0, 0); c.holder.scale.setScalar(1); }
+    else {
+      i++;
+      c.holder.position.set(3.4 + i * 1.5, 0, -1.0);
+      c.holder.scale.setScalar(0.42);
+    }
+    c.holder.rotation.y = 0.35;
+  }
+  camera.position.set(0.4, 2.1, 6.4);
+  camera.lookAt(0.2, 1.35, 0);
+}
+layout();
+syncUi();
+
+let last = performance.now();
+let rawHold = false;
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  for (const sp of list) {
+    const c = chars[sp];
+    if (!c.rig) continue;
+    if (sp === active) {
+      if (rawHold) continue;
+      if (auto && (state === 'walk' || state === 'idle')) tickPose(c.rig, dt, state, 1.7);
+      else posePreview(c.rig, state, auto ? ((now / 1000) % 1) : uVal);
+    } else {
+      tickPose(c.rig, dt, 'idle', 0);
+    }
+  }
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+window.lab = { chars, posePreview, poseInfo, setState: (s, u) => { state = s; uVal = u == null ? uVal : u; syncUi(); }, setActive: s => { active = s; syncUi(); layout(); }, cam: (which) => {
+  active = active || 'hero';
+  if (which === 'side') { camera.position.set(7.2, 2.0, 0.9); camera.lookAt(0.2, 1.3, 0); }
+  else if (which === 'back') { camera.position.set(-0.4, 2.1, -6.4); camera.lookAt(0, 1.3, 0); }
+  else if (which === 'wide') { camera.position.set(0.4, 2.4, 8.6); camera.lookAt(0.2, 1.2, 0); }
+  else { camera.position.set(0.4, 2.1, 6.4); camera.lookAt(0.2, 1.35, 0); }
+}};
+window.lab.release = () => { rawHold = false; };
+window.lab.outline = (show) => {
+  const c = chars[active];
+  c.root.traverse(o => { if (o.isMesh && /outline/i.test(o.name)) o.visible = !!show; });
+  return true;
+};
+document.getElementById('log').textContent = 'ready';
+</script>
+</body>
+</html>

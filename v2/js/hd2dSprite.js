@@ -1,10 +1,11 @@
 /* v2/js/hd2dSprite.js — v0.79 하데스풍 HD-2D 하이브리드 빌보드 스프라이트 엔진
-   - 기본 ON (`?render=3d` 또는 `?hd2d=0` 쿼리로 3D GLB 비교 모드 즉시 전환)
+   - v0.79.2 부터 기본 OFF — 기본 렌더는 3D GLB.
+     HD-2D 는 `?render=hd2d` 또는 `?hd2d=1` 쿼리에서만 켠다(비교·복귀용).
    - 3D 전장·조명·안개·바닥 접지 그림자·3D 검기/셰이더 VFX 위에 고해상도 2D 하데스풍 전투 스프라이트 배치
    - 방향 전환 2.5D 페이퍼 플립, 호흡/발걸음 바운스, 속도 기울기, 스쿼시·스트레치, 공격/피격 포즈 전환 지원 */
 import * as THREE from 'three';
 
-const V = 'v0791';
+const V = 'v0792';
 const ASSETS = {
   hero:   { idle: 'hero_idle.webp',   slash: 'hero_slash.webp', hit: 'hero_hit.webp' },
   minion: { idle: 'minion_idle.webp', atk: 'minion_atk.webp' },
@@ -22,13 +23,11 @@ const SCALE_MULT = {
   boss:   1.18
 };
 
-let enabled = true;
+let enabled = false;
 try {
   const q = new URLSearchParams(location.search);
   const r = (q.get('render') || '').toLowerCase();
-  if (r === '3d' || r === 'glb' || r === 'proc' || q.get('hd2d') === '0' || q.get('hero') === 'proc' || q.get('monsters') === 'proc') {
-    enabled = false;
-  }
+  if (r === 'hd2d' || r === '2d' || q.get('hd2d') === '1') enabled = true;
 } catch (e) {}
 
 export function hd2dEnabled() { return enabled; }

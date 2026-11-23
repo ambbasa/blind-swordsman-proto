@@ -1,10 +1,11 @@
 import * as THREE from 'three';
+import { makeRig, tickPose } from './glbpose.js?v=v0792';
 
 const MODEL_URLS = {
-  boss:   new URL('../assets/models/boss.glb?v=v0783', import.meta.url).href,
-  minion: new URL('../assets/models/minion.glb?v=v0783', import.meta.url).href,
-  heavy:  new URL('../assets/models/heavy.glb?v=v0783', import.meta.url).href,
-  stone:  new URL('../assets/models/stone.glb?v=v0783', import.meta.url).href
+  boss:   new URL('../assets/models/boss.glb?v=v0792', import.meta.url).href,
+  minion: new URL('../assets/models/minion.glb?v=v0792', import.meta.url).href,
+  heavy:  new URL('../assets/models/heavy.glb?v=v0792', import.meta.url).href,
+  stone:  new URL('../assets/models/stone.glb?v=v0792', import.meta.url).href
 };
 const sources = {};
 const pendings = {};
@@ -103,6 +104,10 @@ export function makeBossGlb(height, species) {
   fit.add(scene);
   const holder = new THREE.Group();
   holder.add(fit);
+  /* v0.79.2 — 절차 자세 레이어(대기·걷기·예비·공격·피격)용 리그. */
+  const rig = makeRig(scene);
+  if (rig) rig.species = sp;
+
   const mixer = new THREE.AnimationMixer(scene);
   const actions = {};
   (gltf.animations || []).forEach(function (c) { actions[c.name] = mixer.clipAction(c); });
@@ -113,7 +118,7 @@ export function makeBossGlb(height, species) {
   if (actions.idle) actions.idle.play();
   return {
     root: holder, body: body, outline: outline, bodyMeshes: bodyMeshes, outlineMeshes: outlineMeshes,
-    mixer: mixer, actions: actions, cur: 'idle', lockT: 0, prevBurst: null,
+    mixer: mixer, actions: actions, rig: rig, cur: 'idle', lockT: 0, prevBurst: null,
     mats: bodyMeshes.concat(outlineMeshes).map(function (m) { return m.material; }),
     tris: Math.round(tris), ktx2: false,
     bbox: [+size.x.toFixed(3), +size.y.toFixed(3), +size.z.toFixed(3)], fitScale: +k.toFixed(3)
@@ -169,4 +174,14 @@ export function tickBossGlb(G, H, dt) {
   }
   if (G.actions.walk && H.actions.walk) G.actions.walk.setEffectiveTimeScale(H.actions.walk.getEffectiveTimeScale());
   G.mixer.update(dt);
+  /* 클립 위에 절차 자세를 얹는다 — 대기·걷기·공격·피격의 실제 관절 움직임은 여기서 만든다. */
+  if (G.rig) {
+    let st = 'idle';
+    if (G.cur === 'attack') st = 'attack';
+    else if (G.cur === 'hit') st = 'hit';
+    else if (G.cur === 'cast') st = 'cast';
+    else if (G.cur === 'death') st = 'death';
+    else if (G.cur === 'walk' || H.base === 'walk' || H.burst === 'charge') st = 'walk';
+    tickPose(G.rig, dt, st, H.speed || 0);
+  }
 }

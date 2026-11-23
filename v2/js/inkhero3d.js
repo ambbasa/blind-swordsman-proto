@@ -28,11 +28,11 @@ import * as TEX from './inktex3d.js';
 import {
   heroGlbEnabled, preloadHeroGlb, makeHeroGlb,
   tickHeroGlb, triggerHeroGlbBurst, setHeroGlbOpacity, setHeroGlbTint, applyHeroGlbCloak
-} from './glbhero.js?v=v0791';
+} from './glbhero.js?v=v0792';
 import {
   hd2dEnabled, preloadHd2dAll, makeHd2dHero, tickHd2d,
   triggerHd2dPose, setHd2dOpacity, setHd2dTint, applyHd2dCloak, makeHd2dGhost
-} from './hd2dSprite.js?v=v0791';
+} from './hd2dSprite.js?v=v0792';
 let HERO_CAM = null;
 
 export const HERO_H = 2.45;          /* 기존 주인공(파츠 리그 m=2.45)과 같은 키 — 그림자·HUD 기준이 맞는다 */
@@ -318,6 +318,7 @@ export function build(opt) {
     H.glb = G;
     for (let i = 0; i < H.procMeshes.length; i++) H.procMeshes[i].visible = false;
     root.add(G.fit);
+    root.userData.poseSource = 'glb_hero';
     if (H.opacity < 0.999) setHeroGlbOpacity(G, H.opacity);
     if (H.lastCloakProf) applyHeroGlbCloak(G, H.lastCloakProf, H.lastForgeLv || 0);
     setHeroGlbTint(G, H.tint[0], H.tint[1], H.tint[2]);
