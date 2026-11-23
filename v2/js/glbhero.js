@@ -1,10 +1,10 @@
 /* v2/js/glbhero.js — v0.83 시안 B(하데스풍 주홍 먹선 검객) 3D GLB 로더·3연타 검술 콤보·회피·피격 상태 머신 */
 import * as THREE from 'three';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v093';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v093';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v094';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v094';
 
-const URL_GLB = new URL('../assets/models/hero.glb?v=v093', import.meta.url).href;
+const URL_GLB = new URL('../assets/models/hero.glb?v=v094', import.meta.url).href;
 let pending = null;
 let source = null;
 let cloneSkinned = null;
@@ -32,7 +32,7 @@ export function preloadHeroGlb() {
       return gltf;
     });
   }).catch(function (e) {
-    console.warn('[심안] hero.glb?v=v093', e);
+    console.warn('[심안] hero.glb?v=v094', e);
     pending = null;
     return null;
   });

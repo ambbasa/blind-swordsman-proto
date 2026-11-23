@@ -247,7 +247,7 @@ def main():
     for o in [body, outline]:
         bm = bmesh.new()
         bm.from_mesh(o.data)
-        to_del = [v for v in bm.verts if abs(v.co.x) < 0.11 and v.co.z > 1.465]
+        to_del = [v for v in bm.verts if abs(v.co.x) < 0.105 and (v.co.z > 1.462 or (v.co.z > 1.428 and v.co.y < 0.005))]
         bmesh.ops.delete(bm, geom=to_del, context="VERTS")
         bm.to_mesh(o.data)
         bm.free()
@@ -345,7 +345,30 @@ def main():
             cnt_b = sum(1 for p in pts if (p - p_b).length < 0.18)
             hilt_pt, tip_pt = (p_a, p_b) if cnt_a < cnt_b else (p_b, p_a)
             blade_vec = (tip_pt - hilt_pt).normalized()
-            target_dir = Vector((0.35, -0.78, -0.52)).normalized()
+            # Compute exact T-pose blade direction so that during M2M_Idle (idle-a.glb),
+            # the blade points cleanly OUTWARD-RIGHT (-X), FORWARD (-Y), DOWNWARD (-Z) — ZERO body/skirt clipping!
+            before_tmp = set(bpy.data.objects)
+            before_act_tmp = set(bpy.data.actions)
+            bpy.ops.import_scene.gltf(filepath=os.path.join(M2M_DIR, "idle-a.glb"))
+            tmp_objs = [o for o in bpy.data.objects if o not in before_tmp]
+            tmp_acts = [a for a in bpy.data.actions if a not in before_act_tmp]
+            target_dir = Vector((-0.55, -0.55, -0.62)).normalized()
+            if tmp_acts:
+                t_arm.animation_data_create()
+                t_arm.animation_data.action = tmp_acts[0]
+                bpy.context.scene.frame_set(20)
+                bpy.context.view_layer.update()
+                pb_hr = t_arm.pose.bones["hand_r"]
+                # World rotation of hand_r in M2M_Idle vs T-pose rest rotation
+                m_pose = (t_arm.matrix_world @ pb_hr.matrix).to_3x3()
+                m_rest = (t_arm.matrix_world @ t_arm.data.bones["hand_r"].matrix_local).to_3x3()
+                delta_rot = m_pose @ m_rest.inverted()
+                desired_idle_world = Vector((-0.62, -0.42, -0.66)).normalized()
+                target_dir = (delta_rot.inverted() @ desired_idle_world).normalized()
+                t_arm.animation_data.action = None
+                bpy.context.view_layer.update()
+            for o in tmp_objs: bpy.data.objects.remove(o, do_unlink=True)
+            for a in tmp_acts: bpy.data.actions.remove(a)
             rot_q = blade_vec.rotation_difference(target_dir)
             grip_origin = hilt_pt + blade_vec * 0.055
             for so in [sword, sword_out]:
