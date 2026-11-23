@@ -1,0 +1,19 @@
+{
+  "name": "심안: 묵검",
+  "short_name": "심안",
+  "description": "수묵 3D 액션 검술 게임 — 심안: 묵검",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0a0d",
+  "theme_color": "#0b0a0d",
+  "icons": [
+    {
+      "src": "assets/icon-512.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -31,12 +31,13 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb } from './glbboss.js?v=v085';
+import { makeBossGlb } from './glbboss.js?v=v086';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v085';
+import { probeAssets, buildArt } from './art.js?v=v086';
 import * as Anim from './anim.js';
-import { createAudio } from './audio.js?v=v085';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle } from './lobbyPreview3d.js?v=v085';
+import { createAudio } from './audio.js?v=v086';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle } from './lobbyPreview3d.js?v=v086';
+import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v086';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
@@ -6081,6 +6082,11 @@ function killZombie(z, rec) {
     codexBoss(S.stage);
     if (audio && audio.setBossMode) audio.setBossMode(false);
     bossFx.triggerGroggyBreak(z.x, z.z);
+    if (!reducedMotion()) {
+      S.slowMul = a11yShake() ? 0.62 : 0.28;
+      S.slowMulT = 0.45;
+      if (!a11yShake()) { S.camZoomT = 0.90; S.camZoomAmt = 5.5; }
+    }
   if (three && three.vfx3d) {
     three.vfx3d.spawnLightning({ x: z.x, y: 8.5, z: z.z }, { x: z.x, y: 0.2, z: z.z }, { color: 0xffd26a, core: 0xfffdf2, hold: 0.18, fade: 0.24, sparks: 22 });
     three.vfx3d.spawnSwirl(z.x, z.z, { r0: 1.6, r1: 5.4, accentHex: 0xf0c258, dur: 0.52 });
@@ -7957,6 +7963,7 @@ function bossGroggy(z) {
   bumpDaily('q_poise', 1);
   const gt = ((bossPat() && bossPat().groggyT) || 3.4) + (swordFx(save).groggyAdd || 0) + (relicOn(save, 'eye') ? 0.25 : 0);
   z.state = 'groggy'; z.stateT = 0; z.leapY = 0; z.poise = 0;
+  if (S && !a11yShake() && !reducedMotion()) { S.camZoomT = 2.2; S.camZoomAmt = 4.2; }
   z.openUntil = Math.max(z.openUntil || 0, (S.elapsed || 0) + gt);
   S.shake = Math.max(S.shake || 0, 0.72);
   S.hitstop = Math.max(S.hitstop || 0, 0.085);
@@ -8287,6 +8294,7 @@ function triggerPhaseCut(z, nextPhase, invulnDur, title, msg) {
   z.phase = nextPhase;
   if (nextPhase === 2) z.phase2 = true;
   if (nextPhase === 3) z.phase3 = true;
+  if (z.obj && art && art.setBossPhase) art.setBossPhase(z.obj, nextPhase);
   z.phaseCutInvulnUntil = nowT + invulnDur;
   const pMax = z.poiseMax || 6;
   z.poise = Math.min(pMax, (z.poise || 0) + pMax * (nextPhase === 3 ? 0.45 : 0.40));
@@ -10648,8 +10656,23 @@ function loop(ts) {
   if (S) {
     const floor = a11yShake() ? 0.6 : 0.05;
     const noSlow = reducedMotion();
-    if (!noSlow && S.slowMulT > 0 && S.slowMul < 1) scale *= Math.max(floor, S.slowMul);
+    if (!noSlow && S.slowMulT > 0 && S.slowMul < 1) {
+      scale *= Math.max(floor, S.slowMul);
+      S.slowMulT = Math.max(0, S.slowMulT - raw);
+    }
     if (!noSlow && S.tutSlow && S.tutSlow < 1) scale *= Math.max(floor, S.tutSlow);
+    if (three && three.camera && S.playing) {
+      let targetFov = activeFov();
+      if (S.camZoomT > 0) {
+        S.camZoomT = Math.max(0, S.camZoomT - raw);
+        const zf = Math.min(1, S.camZoomT / 0.35);
+        targetFov -= (S.camZoomAmt || 0) * zf;
+      }
+      if (Math.abs(three.camera.fov - targetFov) > 0.04) {
+        three.camera.fov += (targetFov - three.camera.fov) * Math.min(1, raw * 7.5);
+        three.camera.updateProjectionMatrix();
+      }
+    }
   }
   const dt = raw * scale;
   lastTs = ts;
@@ -11099,6 +11122,20 @@ async function boot() {
   persist(!idled);
   /* v0.35/v0.49: 타이틀이 즉시 조작 가능해진 뒤 백그라운드로 예열·디오라마 프리로드 수행 */
   try { titlePrewarm(); } catch (e) {}
+  try {
+    if (!heroGlbReady()) {
+      const playBtn = $('btnPlay');
+      const origTxt = playBtn ? playBtn.textContent : null;
+      if (playBtn && origTxt) playBtn.setAttribute('data-orig-label', origTxt);
+      const hp = preloadHeroGlb();
+      if (playBtn && hp && !heroGlbReady()) {
+        playBtn.textContent = '3D 검객 준비 중...';
+        Promise.resolve(hp).finally(function () {
+          if (playBtn.getAttribute('data-orig-label')) playBtn.textContent = playBtn.getAttribute('data-orig-label');
+        });
+      }
+    }
+  } catch (e) {}
   if (need2d || (typeof location !== 'undefined' && new URLSearchParams(location.search).get('arena') === '0')) { setTimeout(function () {
     try { preloadDiorama(); } catch (e) {}
     if (need2d) { try { preloadFigures().catch(function () {}); } catch (e) {} }

@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v085';
-import { createWeaponTrail, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v085';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v086';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v086';
 
 const MODEL_URLS = {
-  boss:   new URL('../assets/models/boss.glb?v=v085', import.meta.url).href,
-  minion: new URL('../assets/models/minion.glb?v=v085', import.meta.url).href,
-  heavy:  new URL('../assets/models/heavy.glb?v=v085', import.meta.url).href,
-  stone:  new URL('../assets/models/stone.glb?v=v085', import.meta.url).href
+  boss:   new URL('../assets/models/boss.glb?v=v086', import.meta.url).href,
+  minion: new URL('../assets/models/minion.glb?v=v086', import.meta.url).href,
+  heavy:  new URL('../assets/models/heavy.glb?v=v086', import.meta.url).href,
+  stone:  new URL('../assets/models/stone.glb?v=v086', import.meta.url).href
 };
 const sources = {};
 const pendings = {};
@@ -49,8 +49,12 @@ export function preloadMonsterGlb(species) {
 
 export function preloadBossGlb() {
   if (!flagOn) return null;
-  Object.keys(MODEL_URLS).forEach(function (sp) { preloadMonsterGlb(sp); });
-  return pendings.boss || null;
+  const p1 = Promise.all([preloadMonsterGlb('minion'), preloadMonsterGlb('heavy')]);
+  p1.then(function () {
+    preloadMonsterGlb('stone');
+    preloadMonsterGlb('boss');
+  });
+  return pendings.boss || p1;
 }
 
 export function bossGlbReady(species) {
@@ -92,6 +96,7 @@ export function makeBossGlb(height, species) {
       }
       o.material = mat;
       if (!body) body = o;
+      o.castShadow = true;
       bodyMeshes.push(o);
     }
   });
@@ -130,7 +135,10 @@ export function makeBossGlb(height, species) {
     root: holder,
     trail: trail,
     impactFired: false,
-    atkElapsed: 0, body: body, outline: outline, bodyMeshes: bodyMeshes, outlineMeshes: outlineMeshes,
+    atkElapsed: 0,
+    phase: 1,
+    phaseT: 0,
+    weaponMeshes: bodyMeshes.filter(function (m) { return /weapon/i.test(m.name); }), body: body, outline: outline, bodyMeshes: bodyMeshes, outlineMeshes: outlineMeshes,
     mixer: mixer, actions: actions, rig: rig, cur: 'idle', lockT: 0, prevBurst: null, atkAlt: 0,
     mats: bodyMeshes.concat(outlineMeshes).map(function (m) { return m.material; }),
     tris: Math.round(tris), ktx2: false,
@@ -198,7 +206,8 @@ export function tickBossGlb(G, H, dt) {
     }
   } else if ((enter('strike') || enter('attack') || enter('slash')) && G.actions.attack) {
     const useSlam = isBoss && G.actions.slam && (H.st === 'boss:leap' || H.st === 'boss:slam' || ((G.atkAlt++) % 2 === 1));
-    once(G, useSlam ? 'slam' : 'attack', 0.10, isBoss ? 1.15 : 1.10);
+    const pMul = (isBoss && (G.phase || 1) >= 3) ? 1.28 : (isBoss ? 1.15 : 1.10);
+    once(G, useSlam ? 'slam' : 'attack', 0.10, pMul);
     G.impactFired = false;
     G.atkElapsed = 0;
     if (G.trail) flashWeaponGlint(G.trail, useSlam ? 0xff4830 : 0xffd27a, 0.28);
@@ -229,6 +238,18 @@ export function tickBossGlb(G, H, dt) {
       }
     }
   }
+  if (isBoss && (G.phase || 1) >= 2) {
+    G.phaseT = (G.phaseT || 0) + dt * ((G.phase || 1) >= 3 ? 6.5 : 4.2);
+    const pulse = 0.5 + 0.5 * Math.sin(G.phaseT);
+    const glowHex = (G.phase || 1) >= 3 ? 0xffaa38 : 0xff3b24;
+    (G.weaponMeshes || []).forEach(function (wm) {
+      const m = wm.material;
+      if (m && m.emissive) {
+        m.emissive.setHex(glowHex);
+        m.emissiveIntensity = ((G.phase || 1) >= 3 ? 0.55 : 0.32) + pulse * 0.42;
+      }
+    });
+  }
   if (G.trail) {
     const swinging = G.lockT > 0.04 && (G.cur === 'attack' || G.cur === 'slam');
     updateWeaponTrail(G.trail, dt, swinging);
@@ -248,4 +269,15 @@ export function triggerMonsterDeathGlb(G) {
   if (!G || !G.actions || !G.actions.death) return false;
   if (G.cur !== 'death') once(G, 'death', 0, 1.35);
   return true;
+}
+
+export function setBossPhaseGlb(G, phase) {
+  if (!G) return;
+  G.phase = Math.max(1, phase | 0);
+  if (G.actions && G.actions.cast) once(G, 'cast', 0, 1.18);
+  if (G.trail) {
+    if (G.phase >= 3) setTrailStyle(G.trail, 0xfff2a6, 0xff2818);
+    else if (G.phase >= 2) setTrailStyle(G.trail, 0xffd27a, 0xe83220);
+    flashWeaponGlint(G.trail, G.phase >= 3 ? 0xffe488 : 0xff4a2e, 0.45);
+  }
 }
