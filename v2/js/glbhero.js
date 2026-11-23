@@ -1,10 +1,10 @@
 /* v2/js/glbhero.js — v0.83 시안 B(하데스풍 주홍 먹선 검객) 3D GLB 로더·3연타 검술 콤보·회피·피격 상태 머신 */
 import * as THREE from 'three';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v086';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v086';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v087';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v087';
 
-const URL_GLB = new URL('../assets/models/hero.glb?v=v086', import.meta.url).href;
+const URL_GLB = new URL('../assets/models/hero.glb?v=v087', import.meta.url).href;
 let pending = null;
 let source = null;
 let cloneSkinned = null;
@@ -32,7 +32,7 @@ export function preloadHeroGlb() {
       return gltf;
     });
   }).catch(function (e) {
-    console.warn('[심안] hero.glb?v=v086', e);
+    console.warn('[심안] hero.glb?v=v087', e);
     pending = null;
     return null;
   });
@@ -169,7 +169,10 @@ export function makeHeroGlb(height) {
     tris: Math.round(tris),
     cloakTint: new THREE.Color(0xffffff),
     cloakEmissive: new THREE.Color(0x000000),
-    cloakMix: 0
+    cloakMix: 0,
+    trailCoreHex: null,
+    trailHotHex: null,
+    swordGlowHex: null
   };
 }
 
@@ -203,9 +206,14 @@ export function triggerHeroGlbBurst(G, name) {
     G.comboTimer = 1.15;
     ts = clipKey === 'slash3' ? 2.55 : (clipKey === 'slash2' ? 1.45 : 1.25);
     if (G.trail) {
-      if (clipKey === 'slash3') setTrailStyle(G.trail, 0xffe49a, 0xe84838);
-      else if (clipKey === 'slash2') setTrailStyle(G.trail, 0xd8fff4, 0x3ec8a8);
-      else setTrailStyle(G.trail, 0xf6f8ff, 0x7cb8ff);
+      if (G.trailCoreHex != null && G.trailHotHex != null) {
+        if (clipKey === 'slash3') setTrailStyle(G.trail, 0xfff4c8, G.trailCoreHex);
+        else setTrailStyle(G.trail, G.trailHotHex, G.trailCoreHex);
+      } else {
+        if (clipKey === 'slash3') setTrailStyle(G.trail, 0xffe49a, 0xe84838);
+        else if (clipKey === 'slash2') setTrailStyle(G.trail, 0xd8fff4, 0x3ec8a8);
+        else setTrailStyle(G.trail, 0xf6f8ff, 0x7cb8ff);
+      }
     }
   } else if (name === 'dodge') {
     if (!G.actions.dodge) return;
@@ -306,4 +314,21 @@ export function applyHeroGlbCloak(G, prof, forgeLv) {
     if (flv > 0) m.emissive.lerp(new THREE.Color(prof.rimCol || 0xffe4ad), flv * 0.16);
   }
   setHeroGlbTint(G, 1, 1, 1);
+}
+
+export function applyHeroGlbSwordTrail(G, swordHex, coreHex, hotHex) {
+  if (!G) return;
+  G.swordGlowHex = swordHex != null ? swordHex : null;
+  G.trailCoreHex = coreHex != null ? coreHex : null;
+  G.trailHotHex = hotHex != null ? hotHex : null;
+  if (G.trail && coreHex != null && hotHex != null) setTrailStyle(G.trail, hotHex, coreHex);
+  for (let i = 0; i < (G.swordMeshes || []).length; i++) {
+    const m = G.swordMeshes[i].material;
+    if (!m || !m.userData.baseEmissive) continue;
+    m.emissive.copy(m.userData.baseEmissive);
+    if (swordHex != null) {
+      m.emissive.lerp(new THREE.Color(swordHex), 0.52);
+      m.emissiveIntensity = 1.15;
+    }
+  }
 }

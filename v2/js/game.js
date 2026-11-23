@@ -31,13 +31,13 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb } from './glbboss.js?v=v086';
+import { makeBossGlb } from './glbboss.js?v=v087';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v086';
+import { probeAssets, buildArt } from './art.js?v=v087';
 import * as Anim from './anim.js';
-import { createAudio } from './audio.js?v=v086';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle } from './lobbyPreview3d.js?v=v086';
-import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v086';
+import { createAudio } from './audio.js?v=v087';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle } from './lobbyPreview3d.js?v=v087';
+import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v087';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
@@ -1643,6 +1643,21 @@ function placeGroup(g, x, z, bob) {
 function a11yCb() { return !!(save.a11y && save.a11y.colorblind); }
 /** 화면 흔들림을 줄이는 설정(켜면 흔들림 ×0.3, 느린 화면은 0.6배까지). */
 function a11yShake() { return !!(save.a11y && save.a11y.shake); }
+function haptic(pat) {
+  if (typeof navigator !== 'undefined' && navigator.vibrate && !a11yShake() && !reducedMotion()) {
+    try { navigator.vibrate(pat); } catch (_) {}
+  }
+}
+const SWORD_GLOW_MAP = { muk: null, seori: 0x88e8ff, hwa: 0xff6838, maeng: 0x62f0bc, cheong: 0x78e8d8, gwi: 0xc078ff, thunder: 0xffe066, breaker: 0xff5240 };
+function syncHeroWeaponCosmetic() {
+  if (!art || !art.heroSwordTrail || !three || !three.hero) return;
+  const sw = swordOf ? swordOf(save) : null;
+  const tr = trailOf ? trailOf(save) : null;
+  const swHex = sw ? (SWORD_GLOW_MAP[sw.id] != null ? SWORD_GLOW_MAP[sw.id] : null) : null;
+  const cHex = tr && tr.id !== 'ink' ? tr.coreHex : null;
+  const hHex = tr && tr.id !== 'ink' ? tr.hotHex : null;
+  art.heroSwordTrail(three.hero, swHex, cHex, hHex);
+}
 function setA11y(key, v) {
   save.a11y = save.a11y || { colorblind: 0, shake: 0 };
   save.a11y[key] = v ? 1 : 0;
@@ -2060,6 +2075,7 @@ function startRun(opts) {
     }
   }
   if (!raf) loop(now());
+  syncHeroWeaponCosmetic();
   perfMark('startRun', performance.now() - _tRun, { stage: stageNo });
 }
 
@@ -2609,9 +2625,14 @@ function spawnBoss(opts) {
   S.bossVar = BV.var;
   e.obj = addEntityVisual('boss', vis, { bossVar: BV.var, bossScale: BV.scale });
   applySkin(e.obj);
+  if (art && art.applyMonsterAct && S && S.stage) art.applyMonsterAct(e.obj, actOf(S.stage.id));
   placeGroup(e.obj, e.x, e.z);
   S.zombies.push(e);
   art.tickChar(e.obj,'boss','boss:idle',1/60,S.hero.x-e.x,S.hero.z-e.z);
+  if (art.applyMonsterAct) art.applyMonsterAct(e.obj, actOf(S.stage.id));
+  if (art.bossIntroRoar) art.bossIntroRoar(e.obj);
+  if (!a11yShake() && !reducedMotion()) { S.camZoomT = 0.95; S.camZoomAmt = 3.2; }
+  haptic([24, 32, 44]);
   S.boss = e; S.bossSpawned = true;
   if ($('app')) $('app').classList.add('boss-active');
   /* v0.50: 보스 등장 장단 전환 + 웅장한 등장이펙트·사운드 */
@@ -5210,6 +5231,8 @@ function doParry(rec) {
     S.iframe = Math.max(S.iframe || 0, CFG.parryIframe || 0.2);
     S.parryFlash = 0.12;
     S.parryHits = hits;
+    S.parryOkN = (S.parryOkN || 0) + 1;
+    haptic([16, 26, 32]);
     S.shake = Math.max(S.shake || 0, 0.35);
     if (audio) audio.parry();
     addHitstop(CFG.parryHitstop || 0.05);
@@ -5609,6 +5632,7 @@ function hurtZombie(z, amount, why, rec) {
     /* v0.52: 보스 피격 타격감 전면 복구 — 소리·히트스톱·먹파편·피격 섬광·플로팅 데미지 */
     bossFx.spawnDamageNumber(z.x, z.z, dealt, isWeak);
     if (why === 'slash' || why === 'bang') {
+      haptic(isCombo3 || isWeak ? 24 : 12);
       if (rec && !rec.hitstopDone) { rec.hitstopDone = true; addStrokeHitstop(rec, (isWeak ? 0.05 : 0.035) + (isCombo3 ? 0.02 : 0)); }
       if (audio) audio.hit(isWeak || isCombo3 || !!(rec && rec.perfect), S ? (S.combo || 0) : 0);
       S.shake = Math.max(S.shake || 0, (isWeak ? 0.34 : 0.18) + (isCombo3 ? 0.10 : 0));
@@ -6082,6 +6106,7 @@ function killZombie(z, rec) {
     codexBoss(S.stage);
     if (audio && audio.setBossMode) audio.setBossMode(false);
     bossFx.triggerGroggyBreak(z.x, z.z);
+    haptic([30, 40, 65]);
     if (!reducedMotion()) {
       S.slowMul = a11yShake() ? 0.62 : 0.28;
       S.slowMulT = 0.45;
@@ -7961,6 +7986,8 @@ function bossPoise(z, n) {
 function bossGroggy(z) {
   endBossSide(z);
   bumpDaily('q_poise', 1);
+  if (S) S.poiseBreaksN = (S.poiseBreaksN || 0) + 1;
+  haptic([28, 36, 52]);
   const gt = ((bossPat() && bossPat().groggyT) || 3.4) + (swordFx(save).groggyAdd || 0) + (relicOn(save, 'eye') ? 0.25 : 0);
   z.state = 'groggy'; z.stateT = 0; z.leapY = 0; z.poise = 0;
   if (S && !a11yShake() && !reducedMotion()) { S.camZoomT = 2.2; S.camZoomAmt = 4.2; }
@@ -8613,6 +8640,25 @@ function endRun(win, msg) {
   const nextSt = STAGES[(S.stageNo || st.id)];
   $('resultKicker').textContent = S.stageNo ? (S.stageNo + '장 · ' + st.name + ' · ' + curMode().name) : '연습';
   $('resultTitle').textContent = win ? '베었다' : '쓰러졌다';
+  try {
+    const rt = $('resultTitle');
+    if (rt && rt.parentNode) {
+      let card = document.getElementById('resultMastery');
+      if (!card) {
+        card = document.createElement('div');
+        card.id = 'resultMastery';
+        card.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0 6px;padding:7px 8px;border-radius:10px;background:rgba(20,17,15,0.72);border:1px solid rgba(226,188,116,0.28);font:600 11px/1.3 sans-serif;color:#efe2c8;text-align:center';
+        rt.insertAdjacentElement('afterend', card);
+      }
+      const sec = Math.max(0, Math.round(S.elapsed || 0));
+      const mm = Math.floor(sec / 60), ss = String(sec % 60).padStart(2, '0');
+      card.innerHTML =
+        '<div><div style="font-size:10px;opacity:.72">패링</div><div>' + (S.parryOkN || 0) + '회</div></div>' +
+        '<div><div style="font-size:10px;opacity:.72">자세격파</div><div>' + (S.poiseBreaksN || 0) + '회</div></div>' +
+        '<div><div style="font-size:10px;opacity:.72">최고연타</div><div>' + (S.comboMax || 0) + '</div></div>' +
+        '<div><div style="font-size:10px;opacity:.72">시간</div><div>' + mm + ':' + ss + '</div></div>';
+    }
+  } catch (_) {}
   S.goldStar = !!(win && curMode().gold);
   const starsEl = $('resultStars');
   if (win) {
@@ -10681,6 +10727,18 @@ function loop(ts) {
     fps.samples.push(f);
     if (fps.samples.length > 300) fps.samples.shift();
     fps.last = f;
+    /* v0.87 모바일 60fps 자동 화질 조절기 (Dynamic FPS Governor) */
+    if ((_frameId % 120) === 0 && S && S.playing && three && three.renderer && fps.samples.length >= 60) {
+      let sum60 = 0;
+      for (let fi = fps.samples.length - 60; fi < fps.samples.length; fi++) sum60 += fps.samples[fi];
+      const avg60 = sum60 / 60;
+      const curDpr = three.renderer.getPixelRatio ? three.renderer.getPixelRatio() : 1;
+      if (avg60 < 42 && curDpr > 1.05) {
+        three.renderer.setPixelRatio(Math.max(1.0, +(curDpr - 0.35).toFixed(2)));
+      } else if (avg60 < 34 && three.moon && three.moon.castShadow) {
+        three.moon.castShadow = false;
+      }
+    }
   }
   if (toastT && now() > toastT) { $('toast').hidden = true; toastT = 0; }
   if (guideUntil && S && (S.elapsed || 0) >= guideUntil) hideGuide();
@@ -12723,7 +12781,9 @@ if (typeof window !== 'undefined') {
       const ck = cloakOf ? cloakOf(save) : null;
       const flv = swordForgeLv ? swordForgeLv(save) : 0;
       const prof = ck ? { tint: ck.tint != null ? ck.tint : 0xffffff, emissive: ck.emissive || 0, mix: ck.mix || 0, rimCol: ck.rimCol || 0xffe4ad } : { tint: 0xffffff, mix: 0 };
-      return { prof: prof, flv: flv };
+      const sw = swordOf ? swordOf(save) : null;
+      const swHex = sw ? (SWORD_GLOW_MAP[sw.id] != null ? SWORD_GLOW_MAP[sw.id] : null) : null;
+      return { prof: prof, flv: flv, swHex: swHex };
     }
     btn.addEventListener('click', function () {
       on = !on;
@@ -12755,7 +12815,7 @@ if (typeof window !== 'undefined') {
     if (stageEl && typeof MutationObserver !== 'undefined') {
       new MutationObserver(function () {
         const st = getCurStyle();
-        syncLobby3dStyle(st.prof, st.flv);
+        syncLobby3dStyle(st.prof, st.flv, st.swHex);
       }).observe(stageEl, { attributes: true, attributeFilter: ['data-cloak'] });
     }
   })();

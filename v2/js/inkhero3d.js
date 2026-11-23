@@ -27,8 +27,8 @@ import { applyThemeToInkUniforms } from './modules/actTheme3d.js';
 import * as TEX from './inktex3d.js';
 import {
   heroGlbEnabled, preloadHeroGlb, makeHeroGlb,
-  tickHeroGlb, triggerHeroGlbBurst, setHeroGlbOpacity, setHeroGlbTint, applyHeroGlbCloak
-} from './glbhero.js?v=v086';
+  tickHeroGlb, triggerHeroGlbBurst, setHeroGlbOpacity, setHeroGlbTint, applyHeroGlbCloak, applyHeroGlbSwordTrail
+} from './glbhero.js?v=v087';
 import {
   hd2dEnabled, preloadHd2dAll, makeHd2dHero, tickHd2d,
   triggerHd2dPose, setHd2dOpacity, setHd2dTint, applyHd2dCloak, makeHd2dGhost
@@ -944,3 +944,8 @@ export function applyHeroCloak3D(group, cloak, forgeLv) {
 }
 
 export function setCamera(c) { HERO_CAM = c; }
+
+export function applySwordTrail(group, swordHex, coreHex, hotHex) {
+  const H = group && group.userData && group.userData.h3d;
+  if (H && H.glb) applyHeroGlbSwordTrail(H.glb, swordHex, coreHex, hotHex);
+}

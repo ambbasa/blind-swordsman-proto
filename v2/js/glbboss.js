@@ -1,13 +1,13 @@
 import * as THREE from 'three';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v086';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v086';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v087';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v087';
 
 const MODEL_URLS = {
-  boss:   new URL('../assets/models/boss.glb?v=v086', import.meta.url).href,
-  minion: new URL('../assets/models/minion.glb?v=v086', import.meta.url).href,
-  heavy:  new URL('../assets/models/heavy.glb?v=v086', import.meta.url).href,
-  stone:  new URL('../assets/models/stone.glb?v=v086', import.meta.url).href
+  boss:   new URL('../assets/models/boss.glb?v=v087', import.meta.url).href,
+  minion: new URL('../assets/models/minion.glb?v=v087', import.meta.url).href,
+  heavy:  new URL('../assets/models/heavy.glb?v=v087', import.meta.url).href,
+  stone:  new URL('../assets/models/stone.glb?v=v087', import.meta.url).href
 };
 const sources = {};
 const pendings = {};
@@ -280,4 +280,26 @@ export function setBossPhaseGlb(G, phase) {
     else if (G.phase >= 2) setTrailStyle(G.trail, 0xffd27a, 0xe83220);
     flashWeaponGlint(G.trail, G.phase >= 3 ? 0xffe488 : 0xff4a2e, 0.45);
   }
+}
+
+const ACT_RIMS = [
+  null,
+  { hex: 0x62d6ff, int: 0.16 }, /* 2막: 설산 서리빛 */
+  { hex: 0xff5a36, int: 0.22 }, /* 3막: 홍련 불씨 */
+  { hex: 0xffcf54, int: 0.24 }  /* 4막: 금월 황금 림 */
+];
+export function applyMonsterActThemeGlb(G, actIdx) {
+  if (!G) return;
+  const prof = ACT_RIMS[Math.max(0, Math.min(3, actIdx | 0))];
+  if (!prof) return;
+  const c = new THREE.Color(prof.hex);
+  (G.bodyMeshes || []).forEach(function (mesh) {
+    const m = mesh.material;
+    if (m && m.color) m.color.lerp(c, 0.14);
+  });
+}
+export function triggerBossIntroRoarGlb(G) {
+  if (!G) return;
+  if (G.actions && G.actions.cast) once(G, 'cast', 0, 1.08);
+  if (G.trail) flashWeaponGlint(G.trail, 0xffd27a, 0.55);
 }

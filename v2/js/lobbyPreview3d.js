@@ -1,6 +1,6 @@
 /* v2/js/lobbyPreview3d.js — v0.85 로비·치장 화면 실시간 3D 주인공 미리보기 (M2M_Idle + 터치 회전 + 도포/검 강화 반영) */
 import * as THREE from 'three';
-import { preloadHeroGlb, makeHeroGlb, applyHeroGlbCloak } from './glbhero.js?v=v086';
+import { preloadHeroGlb, makeHeroGlb, applyHeroGlbCloak, applyHeroGlbSwordTrail } from './glbhero.js?v=v087';
 
 let renderer = null;
 let scene = null;
@@ -15,10 +15,13 @@ let lastT = 0;
 let pendingCloak = null;
 let pendingForge = 0;
 
-export function syncLobby3dStyle(cloakProf, forgeLv) {
+let pendingSwordHex = null;
+export function syncLobby3dStyle(cloakProf, forgeLv, swordHex) {
   pendingCloak = cloakProf || pendingCloak;
   if (forgeLv != null) pendingForge = forgeLv;
+  if (swordHex !== undefined) pendingSwordHex = swordHex;
   if (hero && pendingCloak) applyHeroGlbCloak(hero, pendingCloak, pendingForge);
+  if (hero && pendingSwordHex !== undefined) applyHeroGlbSwordTrail(hero, pendingSwordHex, null, null);
 }
 
 export function stopLobby3d() {
