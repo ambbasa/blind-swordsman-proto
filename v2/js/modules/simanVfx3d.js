@@ -363,7 +363,8 @@ export class SimanVfx3D {
       s.vz = Math.sin(a) * sp;
       s.age = 0;
       s.life = 0.28 + Math.random() * 0.28;
-      s.r = col.r; s.g = col.g; s.b = col.b;
+      /* v1.00 lightning-energy-skill-vfx: 뜨거운 백금/주황 → 심홍 냉각 스파크 시드 */
+      s.r = Math.min(1.0, col.r * 1.15); s.g = Math.min(1.0, col.g * 0.92); s.b = col.b * 0.65;
       spawned++;
     }
   }

@@ -4407,15 +4407,17 @@ function drawV31(ctx, r, hs, t) {
     }
     ctx.restore();
   }
-  /* 회전 호신부: 궤도와 부적 */
+  /* v1.00 회전 호신부: 이중 금박 궤도 + 잔광 호 + 회전 부적 */
   const w = wardInfo();
   if (w) {
+    const isManryun = !!(S.evo && S.evo.manryun);
     ctx.save();
-    ctx.strokeStyle = 'rgba(255,214,110,0.12)'; ctx.lineWidth = 1;
+    ctx.strokeStyle = isManryun ? 'rgba(130,248,216,0.34)' : 'rgba(255,214,110,0.26)';
+    ctx.lineWidth = isManryun ? 2.4 : 1.6;
     ctx.beginPath();
     for (let i = 0; i <= 40; i++) {
       const a = i / 40 * Math.PI * 2;
-      const p = projectXZ(S.hero.x + Math.cos(a) * w.r, S.hero.z + Math.sin(a) * w.r, 0.05);
+      const p = projectXZ(S.hero.x + Math.cos(a) * w.r, S.hero.z + Math.sin(a) * w.r, 0.06);
       if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y);
     }
     ctx.stroke();
@@ -4423,10 +4425,20 @@ function drawV31(ctx, r, hs, t) {
     for (let i = 0; i < w.n; i++) {
       const a = (S.wardSpin || 0) + i * Math.PI * 2 / w.n;
       const p = projectXZ(S.hero.x + Math.cos(a) * w.r, S.hero.z + Math.sin(a) * w.r, 0.6);
+      /* 잔광 꼬리(3점 호) */
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let ti = 1; ti <= 3; ti++) {
+        const ta = a - ti * 0.22;
+        const tp = projectXZ(S.hero.x + Math.cos(ta) * w.r, S.hero.z + Math.sin(ta) * w.r, 0.56);
+        ctx.fillStyle = isManryun ? ('rgba(120,248,216,' + (0.32 - ti * 0.08).toFixed(2) + ')') : ('rgba(255,216,118,' + (0.30 - ti * 0.08).toFixed(2) + ')');
+        ctx.beginPath(); ctx.arc(tp.x, tp.y, 9 - ti * 2, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(.32 * Math.sin(a));
-      paintSkill(ctx, 'ward', 0, 0, 32, 38);
+      paintSkill(ctx, 'ward', 0, 0, isManryun ? 36 : 32, isManryun ? 42 : 38);
       ctx.restore();
     }
   }
@@ -5423,7 +5435,7 @@ function castCleave(rec) {
   rec.hits = rec.hits || [];
   rec.targets = rec.targets || [];
   if ((S.charge || 0) < max) {
-    toast('참(斬)의 기운이 모자랍니다 — ' + Math.floor(S.charge || 0) + '/' + max);
+    toast('참의 기운이 모자랍니다 — ' + Math.floor(S.charge || 0) + '/' + max);
     showJudge('기운 ' + Math.floor(S.charge || 0));
     rec.cleave = false;
     return rec;
@@ -5459,10 +5471,13 @@ function castCleave(rec) {
   if (audio) { audio.explode(); audio.bell(0, 'bolt'); }
   if (three && three.ink) three.ink.hit(S.hero.x + 0.5, S.hero.z, 0, 1);
   inkFx.ring(R, FX_COLORS.jade, 0.7);
+  if (three && three.lights && S.hero) three.lights.burst(S.hero.x, 2.2, S.hero.z, { color: 0x62f2c8, intensity: 8.5, duration: 0.42, distance: 20 });
+  if (S && (!save || save.shake !== false)) S.impactFrameT = 0.085;
   if (three && three.vfx3d && S.hero) {
+    triggerGroundCrackHeat(S.hero.x, S.hero.z, 7.2, 0x5cf2c8);
     three.vfx3d.spawnSwirl(S.hero.x, S.hero.z, { r0: 1.8, r1: R * 1.15, accentHex: 0x4be8bc, dur: 0.52 });
     if (three.shaderFx3d) three.shaderFx3d.spawnShockwave(S.hero.x, S.hero.z, { r0: 1.2, r1: R * 1.25, colorHex: 0x5cf2c8, coreHex: 0xfffce8, dur: 0.48 });
-    three.vfx3d.spawnSparks(S.hero.x, S.hero.z, 26, { color: 0xffc85a, speed: 8.5 });
+    three.vfx3d.spawnSparks(S.hero.x, S.hero.z, 32, { color: 0xffc85a, speed: 9.2 });
     for (let li = 0; li < 2; li++) {
       const la = Math.random() * Math.PI * 2;
       three.vfx3d.spawnLightning(
@@ -6509,6 +6524,17 @@ function frostLanding(at) {
     const fx = art.playFx(three.scene, 'ink-splat', at.x, at.z, 3.4);
     if (fx) three.fx.push(fx);
   }
+  inkFx.ring(R, FX_COLORS.ice, 0.55);
+  inkFx.burst(at.x, at.z, FX_COLORS.ice, { r1: 56, n: 12, dur: 0.45, big: true });
+  if (three) {
+    if (three.lights) three.lights.burst(at.x, 1.4, at.z, { color: 0x8ce8ff, intensity: 6.2, duration: 0.34, distance: 15 });
+    if (three.shaderFx3d) three.shaderFx3d.spawnShockwave(at.x, at.z, { r0: 0.8, r1: R * 1.05, colorHex: 0x8ce8ff, coreHex: 0xeefbff, dur: 0.42 });
+    if (three.vfx3d) {
+      three.vfx3d.spawnSwirl(at.x, at.z, { r0: 0.9, r1: R, accentHex: 0x96e4ff, dur: 0.44 });
+      three.vfx3d.spawnSparks(at.x, at.z, 20, { color: 0xb8f0ff, speed: 7.4 });
+    }
+    triggerGroundCrackHeat(at.x, at.z, R, 0x8ce8ff);
+  }
   S.zombies.forEach(function (z) {
     if (!z.alive) return;
     if (dist(z, at) > R + z.r) return;
@@ -6527,6 +6553,16 @@ function fireLanding(at) {
     const fx = art.playFx(three.scene, 'ink-splat', at.x, at.z, 2.4);
     if (fx) three.fx.push(fx);
   }
+  inkFx.burst(at.x, at.z, FX_COLORS.fire, { r1: 48, n: 12, dur: 0.42, big: true });
+  if (three) {
+    if (three.lights) three.lights.burst(at.x, 1.3, at.z, { color: 0xff6a28, intensity: 6.5, duration: 0.32, distance: 14 });
+    if (three.shaderFx3d) three.shaderFx3d.spawnShockwave(at.x, at.z, { r0: 0.6, r1: R * 1.15, colorHex: 0xff6a28, coreHex: 0xfff0b8, dur: 0.36 });
+    if (three.vfx3d) {
+      three.vfx3d.spawnSwirl(at.x, at.z, { r0: 0.7, r1: R * 1.1, accentHex: 0xff7038, dur: 0.38 });
+      three.vfx3d.spawnSparks(at.x, at.z, 22, { color: 0xff9842, speed: 7.8 });
+    }
+    triggerGroundCrackHeat(at.x, at.z, R * 1.25, 0xff6a28);
+  }
   S.zombies.forEach(function (z) {
     if (!z.alive) return;
     if (dist(z, at) > R + z.r) return;
@@ -6543,6 +6579,13 @@ function manpoBurst(z, rec) {
   if (art && art.playFx && three) {
     const fx = art.playFx(three.scene, 'ink-splat', z.x, z.z, 2.8);
     if (fx) three.fx.push(fx);
+  }
+  inkFx.burst(z.x, z.z, FX_COLORS.poison, { r1: 48, n: 10, dur: 0.42, big: true });
+  if (three) {
+    if (three.lights) three.lights.burst(z.x, 1.2, z.z, { color: 0xb862ff, intensity: 5.5, duration: 0.30, distance: 13 });
+    if (three.shaderFx3d) three.shaderFx3d.spawnShockwave(z.x, z.z, { r0: 0.6, r1: R * 1.1, colorHex: 0xb862ff, coreHex: 0xf4dcff, dur: 0.38 });
+    if (three.vfx3d) three.vfx3d.spawnSparks(z.x, z.z, 18, { color: 0xc87eff, speed: 6.8 });
+    triggerGroundCrackHeat(z.x, z.z, R, 0xb862ff);
   }
   S.zombies.forEach(function (o) {
     if (o === z || !o.alive) return;
@@ -6603,6 +6646,8 @@ function stepWard(dt) {
       const damage = Math.min(w.dmg,autoBudget());
       if (damage < .001) return;
       hurtZombie(z, damage, 'ward', S.lastDash);
+      inkFx.burst(p.x, p.z, (S.evo && S.evo.manryun) ? FX_COLORS.jade : FX_COLORS.gold, { r1: 24, n: 6, dur: 0.24 });
+      if (three && three.vfx3d) three.vfx3d.spawnSparks(p.x, p.z, 6, { color: (S.evo && S.evo.manryun) ? 0x8ef5d4 : 0xffd26a, speed: 5.4 });
       if (z.alive && S.evo && S.evo.manryun) { z.slowT = Math.max(z.slowT || 0, CFG.ward.manryunSlow || 0.3); tintZombie(z); }
     });
   }
@@ -6642,7 +6687,19 @@ function stepBolts(dt) {
     b.t += dt;
     if (b.done || b.t < b.delay) return;
     b.done = true;
-    S.shake = Math.max(S.shake || 0, 0.3);
+    S.shake = Math.max(S.shake || 0, 0.34);
+    /* v1.00 벼락부적 3D 낙뢰 + 충격파 + 점광원 + 지면 균열 발열 */
+    const isNoebing = !!(S.evo && S.evo.noebing);
+    inkFx.burst(b.x, b.z, isNoebing ? FX_COLORS.ice : FX_COLORS.gold, { r1: 52, n: 12, dur: 0.42, big: true });
+    if (three) {
+      if (three.lights) three.lights.burst(b.x, 1.8, b.z, { color: isNoebing ? 0x8ce8ff : 0xffe48c, intensity: 7.2, duration: 0.32, distance: 16 });
+      if (three.vfx3d) {
+        three.vfx3d.spawnLightning({ x: b.x + (Math.random() - 0.5) * 1.2, y: 11.5, z: b.z + (Math.random() - 0.5) * 1.2 }, { x: b.x, y: 0.15, z: b.z }, { color: isNoebing ? 0x7ce4ff : 0x9ec4ff, core: 0xfffce8, hold: 0.14, fade: 0.20, sparks: 14 });
+        three.vfx3d.spawnSparks(b.x, b.z, 18, { color: isNoebing ? 0xa8f0ff : 0xffdc78, speed: 7.6 });
+      }
+      if (three.shaderFx3d) three.shaderFx3d.spawnShockwave(b.x, b.z, { r0: 0.5, r1: b.r * 1.25, colorHex: isNoebing ? 0x8ce8ff : 0xffd26a, coreHex: 0xfffce8, dur: 0.36 });
+      triggerGroundCrackHeat(b.x, b.z, b.r * 1.4, isNoebing ? 0x8ce8ff : 0xffd26a);
+    }
     const dmg = CFG.boltCard.dmg || 2.2;
     const targets = S.zombies.filter(z => z.alive && !z.isClone && !z.isPillar && !z.isTotem && dist(z,b) <= b.r + z.r);
     const perTarget = Math.min(dmg,autoBudget()/Math.max(1,targets.length));

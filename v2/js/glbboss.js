@@ -86,13 +86,34 @@ export function makeBossGlb(height, species) {
     } else {
       const srcMat = Array.isArray(o.material) ? o.material[0] : o.material;
       const mat = srcMat ? srcMat.clone() : new THREE.MeshStandardMaterial({ color: 0xffffff });
-      mat.roughness = 0.92;
-      mat.metalness = 0.0;
-      if (mat.color) mat.color.setHex(0x585654);
-      if (mat.map) {
-        mat.emissiveMap = mat.map;
-        mat.emissive = new THREE.Color(0xffffff);
-        mat.emissiveIntensity = 0.78;
+      const isWeapon = /weapon/i.test(o.name);
+      if (isWeapon) {
+        /* v1.00 단조 강철 무기 PBR: 보스 언월도·중장 철퇴 금속 광택 */
+        mat.roughness = 0.26;
+        mat.metalness = 0.82;
+        if (mat.color) mat.color.setHex(sp === 'boss' ? 0xc4c8d4 : 0xaeb2ba);
+        mat.emissive = new THREE.Color(sp === 'boss' ? 0x3a1816 : 0x261c14);
+        mat.emissiveIntensity = 0.32;
+      } else if (sp === 'stone') {
+        /* v1.00 석상: 화강암 질감 + 미세 비취 영기 발광 */
+        mat.roughness = 0.72;
+        mat.metalness = 0.08;
+        if (mat.color) mat.color.setHex(0x78828a);
+        if (mat.map) {
+          mat.emissiveMap = mat.map;
+          mat.emissive = new THREE.Color(0xd2ece8);
+          mat.emissiveIntensity = 0.56;
+        }
+      } else {
+        /* v1.00 보스·중장·잡귀: 전투 3D 림라이트·달빛 하이라이트가 살아나는 PBR 밸런스 */
+        mat.roughness = 0.68;
+        mat.metalness = 0.06;
+        if (mat.color) mat.color.setHex(sp === 'boss' ? 0x767074 : 0x6c6a68);
+        if (mat.map) {
+          mat.emissiveMap = mat.map;
+          mat.emissive = new THREE.Color(0xf6f0e6);
+          mat.emissiveIntensity = 0.62;
+        }
       }
       o.material = mat;
       if (!body) body = o;

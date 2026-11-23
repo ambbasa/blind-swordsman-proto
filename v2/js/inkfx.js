@@ -60,17 +60,34 @@ export class InkFx {
 
 function drawBurst(ctx, e, k, project) {
   const p = project(e.x, e.z, e.y);
-  const r = 6 + e.r1 * ease(k);
+  const ek = ease(k);
+  const r = 8 + e.r1 * ek;
+  const inv = 1 - k;
   ctx.globalCompositeOperation = 'lighter';
-  ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-  ctx.strokeStyle = rgba(e.color, (1 - k) * 0.9); ctx.lineWidth = (e.big ? 5 : 3) * (1 - k) + 1; ctx.stroke();
-  const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 0.8);
-  g.addColorStop(0, rgba(e.color, (1 - k) * 0.5)); g.addColorStop(1, rgba(e.color, 0));
+  /* 1) 핫 코어 플래시 + 다층 그라디언트 */
+  const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 0.95);
+  g.addColorStop(0, rgba([255, 252, 236], inv * 0.72));
+  g.addColorStop(0.35, rgba(e.color, inv * 0.52));
+  g.addColorStop(1, rgba(e.color, 0));
   ctx.fillStyle = g; ctx.fillRect(p.x - r, p.y - r, r * 2, r * 2);
+  /* 2) 이중 충격파 링 (외곽 브러시 + 내부 날카로운 코어) */
+  ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+  ctx.strokeStyle = rgba(e.color, inv * 0.92); ctx.lineWidth = (e.big ? 6 : 3.6) * inv + 1; ctx.stroke();
+  ctx.beginPath(); ctx.arc(p.x, p.y, r * 0.72, 0, Math.PI * 2);
+  ctx.strokeStyle = rgba([255, 248, 224], inv * 0.65); ctx.lineWidth = 1.6 * inv + 0.5; ctx.stroke();
+  /* 3) 붓끝 테이퍼 파편 + 비산 먹방울 */
   for (let i = 0; i < e.n; i++) {
-    const a = (i / e.n) * Math.PI * 2 + 0.3, r0 = r * 0.5, r2 = r * (1.05 + 0.25 * (i % 2));
-    ctx.beginPath(); ctx.moveTo(p.x + Math.cos(a) * r0, p.y + Math.sin(a) * r0 * 0.8); ctx.lineTo(p.x + Math.cos(a) * r2, p.y + Math.sin(a) * r2 * 0.8);
-    ctx.strokeStyle = rgba(e.color, (1 - k)); ctx.lineWidth = 2; ctx.stroke();
+    const a = (i / e.n) * Math.PI * 2 + 0.3 + k * 0.12;
+    const r0 = r * 0.38, r2 = r * (1.08 + 0.32 * (i % 3) * 0.5);
+    const ca = Math.cos(a), sa = Math.sin(a) * 0.82;
+    const nx = -sa * (2.6 * inv + 0.6), ny = ca * (2.6 * inv + 0.6);
+    ctx.beginPath();
+    ctx.moveTo(p.x + ca * r0 + nx, p.y + sa * r0 + ny);
+    ctx.lineTo(p.x + ca * r2, p.y + sa * r2);
+    ctx.lineTo(p.x + ca * r0 - nx, p.y + sa * r0 - ny);
+    ctx.closePath();
+    ctx.fillStyle = (i % 2 === 0) ? rgba([255, 250, 232], inv * 0.9) : rgba(e.color, inv * 0.85);
+    ctx.fill();
   }
 }
 
@@ -122,21 +139,56 @@ function groundEllipse(ctx, project, cx, cz, R) {
 }
 
 function drawRing(ctx, e, k, project, hero) {
-  groundEllipse(ctx, project, hero.x, hero.z, Math.max(0.2, e.R * ease(k)));
-  ctx.strokeStyle = rgba(e.color, (1 - k) * 0.9); ctx.lineWidth = 6 * (1 - k) + 1.5; ctx.stroke();
+  const rad = Math.max(0.2, e.R * ease(k));
+  const inv = 1 - k;
+  /* 1) 외곽 발광 붓 파동 */
+  ctx.globalCompositeOperation = 'lighter';
+  groundEllipse(ctx, project, hero.x, hero.z, rad);
+  ctx.strokeStyle = rgba(e.color, inv * 0.42); ctx.lineWidth = 11 * inv + 2.5; ctx.stroke();
+  /* 2) 중심 선명한 코어 파동 */
+  groundEllipse(ctx, project, hero.x, hero.z, rad);
+  ctx.strokeStyle = rgba([255, 250, 234], inv * 0.88); ctx.lineWidth = 3.2 * inv + 0.8; ctx.stroke();
+  /* 3) 내부 먹 잔향 링 + 12개 회전 불티 입자 */
+  if (rad > 0.5) {
+    groundEllipse(ctx, project, hero.x, hero.z, rad * 0.84);
+    ctx.strokeStyle = rgba(e.color, inv * 0.55); ctx.lineWidth = 1.8 * inv + 0.6; ctx.stroke();
+  }
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2 + k * 1.4;
+    const sp = project(hero.x + Math.cos(a) * rad, hero.z + Math.sin(a) * rad, 0.14 + 0.28 * Math.sin(k * Math.PI));
+    ctx.fillStyle = (i % 2 === 0) ? rgba([255, 250, 228], inv * 0.9) : rgba(e.color, inv * 0.8);
+    ctx.beginPath(); ctx.arc(sp.x, sp.y, 2.6 * inv + 0.8, 0, Math.PI * 2); ctx.fill();
+  }
 }
 
 function drawEvo(ctx, e, k, view) {
-  const w = view.width, h = view.height, cx = w / 2, cy = h * 0.42;
-  const a = k < 0.12 ? k / 0.12 : 1 - Math.max(0, (k - 0.7) / 0.3);
-  const R = Math.max(w, h) * (0.2 + 0.6 * ease(Math.min(1, k * 1.6)));
-  const g = ctx.createRadialGradient(cx, cy, R * 0.2, cx, cy, R);
-  g.addColorStop(0, rgba(e.color, 0.28 * a)); g.addColorStop(0.6, rgba([8, 7, 9], 0.45 * a)); g.addColorStop(1, rgba([8, 7, 9], 0));
+  const w = view.width, h = view.height, cx = w / 2, cy = h * 0.40;
+  const a = k < 0.12 ? k / 0.12 : 1 - Math.max(0, (k - 0.72) / 0.28);
+  const ek = ease(Math.min(1, k * 1.8));
+  const R = Math.max(w, h) * (0.18 + 0.58 * ek);
+  const g = ctx.createRadialGradient(cx, cy, R * 0.12, cx, cy, R);
+  g.addColorStop(0, rgba(e.color, 0.34 * a)); g.addColorStop(0.55, rgba([8, 7, 9], 0.52 * a)); g.addColorStop(1, rgba([8, 7, 9], 0));
   ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
-  ctx.font = '400 48px "InkBrush", serif';
+  /* 가로 먹 붓터치 배너 + 금박 상하 테두리 */
+  const bw = w * (0.25 + 0.75 * ek), bh = 88;
+  ctx.fillStyle = rgba([12, 10, 14], 0.76 * a);
+  ctx.fillRect(cx - bw * 0.5, cy - bh * 0.5, bw, bh);
+  ctx.fillStyle = rgba(e.color, 0.85 * a);
+  ctx.fillRect(cx - bw * 0.46, cy - bh * 0.5, bw * 0.92, 2.5);
+  ctx.fillRect(cx - bw * 0.46, cy + bh * 0.5 - 2.5, bw * 0.92, 2.5);
+  /* 금박 비산 불티 */
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 14; i++) {
+    const px = cx + Math.sin(i * 2.17 + k * 2.5) * bw * 0.44;
+    const py = cy + Math.cos(i * 3.11) * (bh * 0.45) - k * 22;
+    ctx.fillStyle = rgba(i % 2 ? [255, 244, 200] : e.color, 0.75 * a);
+    ctx.beginPath(); ctx.arc(px, py, 2.2, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.font = '400 44px "InkBrush", serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.lineWidth = 7; ctx.strokeStyle = rgba([8, 7, 9], a * 0.9); ctx.strokeText(e.text, cx, cy);
-  ctx.fillStyle = rgba(e.color, a); ctx.fillText(e.text, cx, cy);
-  ctx.font = '400 22px "InkBrush", serif';
-  ctx.fillStyle = rgba([240, 230, 206], a * 0.9); ctx.fillText('진화', cx, cy - 46);
+  ctx.lineWidth = 7; ctx.strokeStyle = rgba([8, 7, 9], a * 0.95); ctx.strokeText(e.text, cx, cy + 8);
+  ctx.fillStyle = rgba(e.color, a); ctx.fillText(e.text, cx, cy + 8);
+  ctx.font = '600 16px "InkBrush", serif';
+  ctx.fillStyle = rgba([255, 242, 204], a * 0.95); ctx.fillText('경지 진화', cx, cy - 26);
 }
