@@ -5,13 +5,13 @@ import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v103';
 import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v103';
 
 const MODEL_URLS = {
-  boss:      new URL('../assets/models/boss.glb?v=v106', import.meta.url).href,
-  boss_act2: new URL('../assets/models/boss_act2.glb?v=v106', import.meta.url).href,
-  boss_act3: new URL('../assets/models/boss_act3.glb?v=v106', import.meta.url).href,
-  boss_act4: new URL('../assets/models/boss_act4.glb?v=v106', import.meta.url).href,
-  minion:    new URL('../assets/models/minion.glb?v=v106', import.meta.url).href,
-  heavy:     new URL('../assets/models/heavy.glb?v=v106', import.meta.url).href,
-  stone:     new URL('../assets/models/stone.glb?v=v106', import.meta.url).href
+  boss:      new URL('../assets/models/boss.glb?v=v107', import.meta.url).href,
+  boss_act2: new URL('../assets/models/boss_act2.glb?v=v107', import.meta.url).href,
+  boss_act3: new URL('../assets/models/boss_act3.glb?v=v107', import.meta.url).href,
+  boss_act4: new URL('../assets/models/boss_act4.glb?v=v107', import.meta.url).href,
+  minion:    new URL('../assets/models/minion.glb?v=v107', import.meta.url).href,
+  heavy:     new URL('../assets/models/heavy.glb?v=v107', import.meta.url).href,
+  stone:     new URL('../assets/models/stone.glb?v=v107', import.meta.url).href
 };
 function isBossSp(sp) { return sp === 'boss' || sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4'; }
 const BOSS_WEAPON_FX = {
@@ -20,6 +20,7 @@ const BOSS_WEAPON_FX = {
   boss_act3: { em: 0x481010, col: 0xff8c66, tail: 0xc81818, glint: 0xff3a24 },
   boss_act4: { em: 0x3a2448, col: 0xffe07a, tail: 0x7a24c8, glint: 0xffcf54 }
 };
+const _impactWp = new THREE.Vector3();
 const sources = {};
 const pendings = {};
 let loaderPromise = null;
@@ -273,7 +274,7 @@ export function tickBossGlb(G, H, dt) {
     if (!G.impactFired && G.atkElapsed >= hitT) {
       G.impactFired = true;
       if (typeof window !== 'undefined' && window.__simanOnWeaponImpact) {
-        const wp = new THREE.Vector3();
+        const wp = _impactWp;
         G.root.getWorldPosition(wp);
         window.__simanOnWeaponImpact(G.species, G.cur, wp.x, wp.z);
       }

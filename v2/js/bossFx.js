@@ -258,11 +258,16 @@ export class BossFx {
       if (sw) sw.visible = false;
     }
 
-    /* 2) 다중 장판 마법진 풀 */
-    const activeH = (hazards || []).filter(function (h) { return h && !h.done && !h.dead; });
+    /* 2) 다중 장판 마법진 풀 (v1.07 Zero-GC 인덱스 순회) */
+    let hi = 0;
+    const hLen = hazards ? hazards.length : 0;
     for (let i = 0; i < g.hazardPool.length; i++) {
       const m = g.hazardPool[i];
-      const h = activeH[i];
+      let h = null;
+      while (hi < hLen) {
+        const cand = hazards[hi++];
+        if (cand && !cand.done && !cand.dead) { h = cand; break; }
+      }
       if (!h) { m.visible = false; continue; }
       const u = clamp(h.t / Math.max(0.01, h.delay), 0, 1);
       m.visible = true;
