@@ -8,7 +8,7 @@ export const SAVE_VERSION = 4;
 
 /* 정예 5축 상점 능력치 정의 */
 export const STAT_DEFS = [
-  { id: 'atk',   key: 'atkLv',   name: '공력', maxLv: 20, step: 0.05, unlock: 0, unit: '%', desc: '일섬 기본 피해 +5%/레벨 (최대 +100%)' },
+  { id: 'atk',   key: 'atkLv',   name: '공력', maxLv: 20, step: 0.06, unlock: 0, unit: '%', desc: '일섬 기본 피해 +6%/레벨 (최대 +120%)' },
   { id: 'hp',    key: 'hpLv',    name: '체력', maxLv: 20, step: 2,    unlock: 0, unit: '',  desc: '최대 체력 +2/레벨 (14 → 54)' },
   { id: 'gap',   key: 'gapLv',   name: '빈틈', maxLv: 10, step: 0.03, unlock: 4, unit: '%', desc: '보스 자세 붕괴·약점 일섬 피해 +3%/레벨 (최대 +30%)' },
   { id: 'poise', key: 'poiseLv', name: '파세', maxLv: 10, step: 0.04, unlock: 5, unit: '%', desc: '보스 강인도(자세) 타격량 +4%/레벨 (최대 +40%)' },
