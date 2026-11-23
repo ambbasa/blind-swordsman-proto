@@ -13,7 +13,7 @@ import { buildFigure, tickFigure, kick as rigKick, slashPose as rigSlash, setOpa
 /* v0.45: 주인공만 3D 관절 뼈대 + 수묵 툰 셰이더 캐릭터(inkhero3d.js)로 교체한다. */
 import * as HERO3D from './inkhero3d.js?v=v103';
 /* v0.46: 원귀·거한·돌덩이·보스도 주인공과 같은 3D 관절 뼈대(단일 SkinnedMesh)로 세운다. */
-import * as MON3D from './inkmonsters3d.js?v=v107';
+import * as MON3D from './inkmonsters3d.js?v=v108';
 let QA_HERO2D = false;
 try { QA_HERO2D = new URLSearchParams(location.search).has('hero2d'); } catch (e) {}
 let QA_MON2D = false;
@@ -1022,8 +1022,8 @@ export async function buildArt(THREE) {
     bossIntroRoar: function (group) {
       if (group && group.userData && group.userData.m3d) MON3D.bossIntroRoar(group);
     },
-    setBossPhase: function (group, phase) {
-      if (group && group.userData && group.userData.m3d) MON3D.setBossPhase(group, phase);
+    setBossPhase: function (group, phase, auraHex) {
+      if (group && group.userData && group.userData.m3d) MON3D.setBossPhase(group, phase, auraHex);
     },
     tickMonsterDeath: function (group, dt) {
       if (group && group.userData && group.userData.m3d) MON3D.tickDeath(group, dt);

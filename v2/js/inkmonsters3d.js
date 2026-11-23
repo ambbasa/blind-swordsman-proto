@@ -1,4 +1,4 @@
-import { preloadBossGlb, bossGlbReady, makeBossGlb, hookBossGlb, tickBossGlb, triggerMonsterDeathGlb, setBossPhaseGlb, applyMonsterActThemeGlb, triggerBossIntroRoarGlb } from './glbboss.js?v=v107';
+import { preloadBossGlb, bossGlbReady, makeBossGlb, hookBossGlb, tickBossGlb, triggerMonsterDeathGlb, setBossPhaseGlb, applyMonsterActThemeGlb, triggerBossIntroRoarGlb } from './glbboss.js?v=v108';
 import { hd2dEnabled, preloadHd2dAll, makeHd2dMonster, tickHd2d, triggerHd2dPose, setHd2dOpacity, setHd2dTint } from './hd2dSprite.js?v=v0792';
 /* v2/js/inkmonsters3d.js — v0.47 몬스터·보스 전종 **3D 관절 뼈대 + 수묵 툰 셰이더 + 동양 수묵 텍스처**.
 
@@ -662,9 +662,13 @@ export function tickDeath(group, dt) {
   if (H && H.glb && H.glb.mixer) H.glb.mixer.update(dt);
 }
 
-export function setBossPhase(group, phase) {
+export function setBossPhase(group, phase, auraHex) {
   const H = group && group.userData && group.userData.m3d;
-  if (H && H.glb) setBossPhaseGlb(H.glb, phase);
+  if (H && H.glb) setBossPhaseGlb(H.glb, phase, auraHex);
+  if (H && H.rim && auraHex != null) {
+    H.rim.material.color.setHex(auraHex);
+    H.rim.material.opacity = phase >= 3 ? 0.56 : 0.40;
+  }
 }
 
 export function applyActTheme(group, actIdx) {

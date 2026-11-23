@@ -341,3 +341,75 @@ import { ACT_THEMES_3D, actFromStageId, getActTheme3D, applyThemeToInkUniforms, 
   assert.equal(fxAct, 2);
   console.log('v0.50 ACT_THEME_3D SYNC TESTS PASSED');
 }
+
+/* --- v1.08 보스 패턴/페이즈 연출·수련장 6대 기믹 드릴·한자/이모지 0건·캐시 버전 일관성 검증 --- */
+import fs from 'node:fs';
+import path from 'node:path';
+import { PAT_COST, PAT_CUE, ACT_PHASE_FX, getActPhaseFx, bossPatternMean, buildBossBannerInfo } from '../../v2/js/modules/bossPatterns.js';
+import { GIMMICK_DRILLS, getDrillDef, createDrillState, handleDrillInput } from '../../v2/js/modules/trainingDrills.js';
+
+{
+  assert.equal(Object.keys(PAT_COST).length, 18);
+  assert.equal(Object.keys(PAT_CUE).length, 18);
+  assert.equal(Object.keys(ACT_PHASE_FX).length, 4);
+  for (let act = 1; act <= 4; act++) {
+    const p2 = getActPhaseFx(act, 2);
+    const p3 = getActPhaseFx(act, 3);
+    assert.ok(p2.title && p2.msg && p2.hex > 0 && p2.auraHex > 0);
+    assert.ok(p3.title && p3.msg && p3.hex > 0 && p3.auraHex > 0);
+  }
+  assert.ok(bossPatternMean(STAGES[0], 1) > 0);
+  const bDonut = buildBossBannerInfo({ alive: true, state: 'donut', stateT: 1.0, donut: { dur: 2.0, safeInside: true } }, {}, { teleT: 1 });
+  assert.equal(bDonut.name, '도넛 결계');
+  assert.equal(bDonut.f, 0.5);
+
+  assert.equal(GIMMICK_DRILLS.length, 7);
+  ['parry', 'donut', 'soak', 'rhythm', 'tether', 'gaze', 'pizza'].forEach((id) => {
+    const st = createDrillState(id);
+    assert.equal(getDrillDef(id).id, id);
+    if (id === 'parry') {
+      st.t = st.dur - 0.05;
+      assert.equal(handleDrillInput(st, 0.5, 0.5), 'just');
+      assert.equal(st.streak, 1);
+    } else if (id === 'rhythm') {
+      st.t = st.dur - 0.05;
+      assert.equal(handleDrillInput(st, 0.5, 0.5), 'just');
+      assert.equal(st.beatOk, 1);
+    } else {
+      const okT = st.targets.find((t) => t.ok);
+      assert.ok(okT, 'drill target missing for ' + id);
+      const r = handleDrillInput(st, okT.x, okT.y);
+      assert.ok(r === 'just' || r === 'step');
+    }
+  });
+
+  /* 캐시 버전 일치 검사: sw.js(siman-vXXX) === index.html(?v=vXXX) === glbboss.js(?v=vXXX) */
+  const swSrc = fs.readFileSync(path.resolve('v2/sw.js'), 'utf8');
+  const idxSrc = fs.readFileSync(path.resolve('v2/index.html'), 'utf8');
+  const bossSrc = fs.readFileSync(path.resolve('v2/js/glbboss.js'), 'utf8');
+  const swVer = (swSrc.match(/siman-(v\d+)/) || [])[1];
+  assert.ok(swVer, 'v2/sw.js must define siman-vXXX');
+  assert.ok(idxSrc.includes('game.js?' + 'v=' + swVer), 'v2/index.html game.js version mismatch: expected ' + swVer);
+  assert.ok(bossSrc.includes('boss.glb?v=' + swVer), 'v2/js/glbboss.js boss.glb version mismatch: expected ' + swVer);
+
+  /* 런타임 한자(U+4E00..U+9FFF) 0건 검사 (주석 제거 후 v2/js/*.js 및 v2/js/modules/*.js 전수) */
+  const walkJs = (dir) => {
+    const out = [];
+    for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) out.push(...walkJs(full));
+      else if (ent.name.endsWith('.js')) out.push(full);
+    }
+    return out;
+  };
+  const hanjaHits = [];
+  for (const fp of walkJs(path.resolve('v2/js'))) {
+    const code = fs.readFileSync(fp, 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:\\])\/\/[^\n]*/g, '$1');
+    const m = code.match(/[\u4E00-\u9FFF]/);
+    if (m) hanjaHits.push(path.relative(process.cwd(), fp) + ':' + m[0]);
+  }
+  assert.deepEqual(hanjaHits, [], 'Runtime Hanja found in v2/js: ' + hanjaHits.join(', '));
+  console.log('v1.08 BOSS_PATTERNS, TRAINING_DRILLS, CACHE_SYNC & ZERO-HANJA TESTS PASSED (' + swVer + ')');
+}

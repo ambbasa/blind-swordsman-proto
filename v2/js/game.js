@@ -31,12 +31,14 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v107';
+import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v108';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v107';
+import { probeAssets, buildArt } from './art.js?v=v108';
 import * as Anim from './anim.js';
 import { createAudio } from './audio.js?v=v103';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v107';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v108';
+import { PAT_COST, PAT_CUE, getActPhaseFx, bossPatternMean, buildBossBannerInfo } from './modules/bossPatterns.js?v=v108';
+import { GIMMICK_DRILLS, getDrillDef, createDrillState, resetDrillRound, stepDrill, handleDrillInput, drawDrillCanvas } from './modules/trainingDrills.js?v=v108';
 import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v103';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
@@ -830,30 +832,7 @@ function terrainDashingBlocked() {
      A = time − bossAt (가용), C = walk(2.6) + 패턴 평균 길이 P + 경직(1.2)
      N = ceil(무늬 수 / 2),  Need = N×C + 봉인 2초,  Slack = A / Need  → 목표 1.4~1.8
    패턴 길이는 문서의 P(추정) 대신 실제 패턴 지속 시간을 넣는다(예고는 모드 배율로 늘/줍힌다). */
-/* 실측한 패턴 지속 시간(초). `GPv2.cycleProbe`가 보스 상태기계를 1/30초로 돌려 잰 값
-   (걷기 2.6 · 경직 1.2 고정). 결계 수축은 기둥을 부수지 않으면 걷기로 풀리는 2.6초로 끝난다. */
-const PAT_COST = {
-  charge: [1.0, 0.03], kiai: [2.3, 0], slam: [1.03, 0], clones: [8.03, 0], veil: [5.03, 0],
-  volley: [0.83, 0], chant: [4.53, 0], shrink: [2.6, 0], seal: [2.0, 0],
-  /* v0.32 §4.4 막 보스 전용(실측: 합 3합 · 흉내 0.8+0.45 · 뒤석기 8초) */
-  clash: [5.4, 0], mimic: [1.45, 0], shuffle: [8.3, 0],
-  /* v1.06 신규 6대 기믹 실측/설계 지속 시간 */
-  donut: [3.3, 0], soak: [3.3, 0], rhythm: [1.9, 0], tether: [2.8, 0], gaze: [1.5, 0], pizza: [2.9, 0]
-};
-function bossPatternMean(st, tele, shapeAdj) {
-  const B = (st && st.boss) || {};
-  const list = (B.patterns || []).concat(B.phase2 || [], B.phase3 || []);
-  if (!list.length) return 2.5;
-  const tm = (tele == null ? 1 : tele);
-  /* 예고 배율은 예고로 시작하는 패턴에만 적용된다(분신·은신·결계는 고정 길이). */
-  const SCALED = { charge: 1, kiai: 1, slam: 1, volley: 1, chant: 1, donut: 1, soak: 1, tether: 1, gaze: 1, pizza: 1 };
-  const sum = list.reduce(function (a, id) {
-    const c = PAT_COST[id] || [2.5, 0];
-    const t = id === 'charge' ? (B.telegraph != null ? B.telegraph : 1.1) : c[0];
-    return a + (SCALED[id] ? t * tm : t) + c[1];
-  }, 0);
-  return sum / list.length;
-}
+/* 실측한 패턴 지속 시간(PAT_COST) 및 평균 패턴 길이(bossPatternMean)는 modules/bossPatterns.js에서 임포트. */
 function bossBudget(stageNo, modeId, opt) {
   opt = opt || {};
   const st = stageOf(stageNo || (save.stage || 1));
@@ -2001,7 +1980,7 @@ function startRun(opts) {
   if (!qa.skipWarm && !shadersWarmed()) warmShaders();
   const _curAct = actOf(stageNo);
   hudCtrl.syncActTheme(_curAct);
-  if (_curAct >= 2 && _curAct <= 4) preloadMonsterGlb('boss_act' + _curAct);
+  preloadMonsterGlb(_curAct >= 2 && _curAct <= 4 ? ('boss_act' + _curAct) : 'boss');
   S = createRunState({
     opts,
     stageNo,
@@ -7540,7 +7519,7 @@ const CUE_RGB = { red: '200,40,30', gold: '232,192,74', jade: '46,230,166' };
 /* v0.30 §11 색약 팔레트: 붉은→주황, 비취→청록. 모양 아이콘과 함께 쓴다. */
 const CUE_RGB_CB = { red: '255,140,50', gold: '242,206,96', jade: '70,214,236' };
 const CUE_LABEL = { red: '피하라', gold: '받아쳐라', jade: '그려라' };
-const PAT_CUE = { charge: 'red', slam: 'red', sweep: 'red', volley: 'red', kiai: 'gold', chant: 'jade', clones: 'jade', veil: 'jade', shrink: 'gold', clash: 'jade', mimic: 'red', shuffle: 'jade', donut: 'jade', soak: 'gold', rhythm: 'gold', tether: 'red', gaze: 'red', pizza: 'jade' };
+/* PAT_CUE는 modules/bossPatterns.js에서 임포트 */
 function cueRgb(c) { return (a11yCb() ? CUE_RGB_CB : CUE_RGB)[c] || CUE_RGB.red; }
 /** §11 대응 아이콘: 피하라 = 바깥 화살표, 받아쳐라 = 칼집, 그려라 = 붓. 색만으로 구분하지 않게. */
 function drawCueIcon(ctx, c, x, y, k, rgb, scale) {
@@ -9034,10 +9013,14 @@ function chantStroke(type) {
 }
 function triggerPhaseCut(z, nextPhase, invulnDur, title, msg) {
   const nowT = S.elapsed || 0;
+  const act = actOf(S.stageNo || 1);
+  const pfx = getActPhaseFx(act, nextPhase);
+  const cutTitle = title || pfx.title;
+  const cutMsg = msg || pfx.msg;
   z.phase = nextPhase;
   if (nextPhase === 2) z.phase2 = true;
   if (nextPhase === 3) z.phase3 = true;
-  if (z.obj && art && art.setBossPhase) art.setBossPhase(z.obj, nextPhase);
+  if (z.obj && art && art.setBossPhase) art.setBossPhase(z.obj, nextPhase, pfx.auraHex);
   z.phaseCutInvulnUntil = nowT + invulnDur;
   const pMax = z.poiseMax || 6;
   z.poise = Math.min(pMax, (z.poise || 0) + pMax * (nextPhase === 3 ? 0.45 : 0.40));
@@ -9051,26 +9034,34 @@ function triggerPhaseCut(z, nextPhase, invulnDur, title, msg) {
   }
   S.shake = Math.max(S.shake || 0, nextPhase === 3 ? 0.85 : 0.72);
   S.hitstop = Math.max(S.hitstop || 0, 0.07);
-  inkFx.ring(nextPhase === 3 ? arenaR() : 6.4, nextPhase === 3 ? FX_COLORS.gold : FX_COLORS.vermilion, 0.75);
+  inkFx.ring(nextPhase === 3 ? arenaR() : pfx.swirlR, pfx.ringCss || (nextPhase === 3 ? FX_COLORS.gold : FX_COLORS.vermilion), 0.78);
   if (three && three.vfx3d) {
-    const pCol = nextPhase === 3 ? 0xffd26a : 0xe84830;
-    three.vfx3d.spawnLightning({ x: z.x, y: 9.2, z: z.z }, { x: z.x, y: 0.2, z: z.z }, { color: pCol, core: 0xfff8ee, hold: 0.18, fade: 0.26, sparks: 24 });
-    three.vfx3d.spawnSwirl(z.x, z.z, { r0: 1.8, r1: nextPhase === 3 ? 7.8 : 6.0, accentHex: pCol, dur: 0.58 });
+    const pCol = pfx.hex;
+    const pCore = pfx.core || 0xfff8ee;
+    const bolts = pfx.bolts || 1;
+    for (let bi = 0; bi < bolts; bi++) {
+      const ang = (bi / bolts) * Math.PI * 2;
+      const rad = bi === 0 ? 0 : 2.6;
+      const bx = z.x + Math.cos(ang) * rad;
+      const bz = z.z + Math.sin(ang) * rad;
+      three.vfx3d.spawnLightning({ x: bx, y: 9.2, z: bz }, { x: bx, y: 0.2, z: bz }, { color: pCol, core: pCore, hold: 0.18, fade: 0.28, sparks: bi === 0 ? 24 : 12 });
+    }
+    three.vfx3d.spawnSwirl(z.x, z.z, { r0: 1.8, r1: pfx.swirlR, accentHex: pCol, dur: 0.62 });
     three.vfx3d.triggerImpactFrame({ dur: 0.085, safe: a11yShake() });
-    triggerGroundCrackHeat(z.x, z.z, nextPhase === 3 ? 7.5 : 5.8, pCol);
+    triggerGroundCrackHeat(z.x, z.z, pfx.swirlR, pCol);
   }
   if (audio && audio.gong) audio.gong();
   if (S && (!save || save.shake !== false)) S.impactFrameT = 0.075;
-  showJudge(title);
-  toast(msg);
-  telemetry.event('boss_phase', { stage: S.stageNo, phase: nextPhase, seqI: z.seqI, hpRatio: +(z.hp / Math.max(1, z.maxHp)).toFixed(2) });
+  showJudge(cutTitle);
+  toast(cutMsg);
+  telemetry.event('boss_phase', { stage: S.stageNo, act: act, phase: nextPhase, seqI: z.seqI, hpRatio: +(z.hp / Math.max(1, z.maxHp)).toFixed(2) });
 }
 function bossPhaseCheck(z) {
   const B = bossCfg();
   const ratio = z.hp / Math.max(1, z.maxHp);
   const hasP3 = !!(B.phase3 || (S.stageNo || 1) >= 12);
   if (!z.phase2 && ratio <= 0.605) {
-    triggerPhaseCut(z, 2, 1.15, '제2국면 — 기합!', '귀물이 기세를 끌어올립니다 — 새 패턴이 섞입니다');
+    triggerPhaseCut(z, 2, 1.15);
   }
   if (hasP3 && !z.phase3 && ratio <= 0.305) {
     S.phaseTele = CFG.phase3Tele || 0.9;
@@ -9083,67 +9074,12 @@ function bossPhaseCheck(z) {
         three.arena.group.scale.set(k, 1, k);
       }
     }
-    triggerPhaseCut(z, 3, 1.25, '제3국면 — 각성!', '심연이 조여 옵니다 — 예고가 빨라집니다');
+    triggerPhaseCut(z, 3, 1.25);
   }
 }
-/* v0.52: 보스 스킬명 + 대응 행동(회피/받아치기/파훼/봉인) + 정밀 타이밍 배너 데이터 생성 */
+/* v0.52 / v1.08: 보스 스킬명 + 대응 행동 + 정밀 타이밍 배너 데이터 (modules/bossPatterns.js 위임) */
 function bossBannerInfo(z) {
-  if (!z || !z.alive) return null;
-  const P = bossPat();
-  const bt = bossTiming();
-  const st = z.state;
-  if (st === 'telegraph') {
-    const dur = bt.teleT * (z.teleMul || 1);
-    return { mode: 'dodge', name: '언월 쇄도', hint: '옆으로 일섬 회피', f: clamp((z.stateT || 0) / Math.max(0.01, dur), 0, 1), sweetStart: 0.78 };
-  }
-  if (st === 'slamTele' && z.slam) {
-    return { mode: 'dodge', name: '혈월 내려찍기', hint: '원 밖으로 일섬', f: clamp((z.stateT || 0) / Math.max(0.01, z.slam.tele), 0, 1), sweetStart: 0.78 };
-  }
-  if (st === 'sweepTele' && z.sweep) {
-    return { mode: 'dodge', name: '언월 횡참', hint: '등 뒤로 일섬', f: clamp((z.stateT || 0) / Math.max(0.01, z.sweep.tele), 0, 1), sweetStart: 0.78 };
-  }
-  if (st === 'volleyTele') {
-    const dur = z.volleyTele || P.volley.tele;
-    return { mode: 'dodge', name: '살부적 난사', hint: '금빛 부적은 탭 반사!', f: clamp((z.stateT || 0) / Math.max(0.01, dur), 0, 1), sweetStart: 0.78 };
-  }
-  if (st === 'mimicTele' && z.mimic) {
-    return { mode: 'dodge', name: '궤적 흉내', hint: '직각으로 일섬 회피', f: clamp((z.mimic.t || 0) / Math.max(0.01, z.mimic.tele), 0, 1), sweetStart: 0.78 };
-  }
-  if (st === 'clones') {
-    return { mode: 'break', name: '환영 분신', hint: '방울 울리는 본체 베기', f: clamp(1 - (z.stateT || 0) / Math.max(0.01, P.clones.t), 0, 1), sweetStart: 0.85 };
-  }
-  if (st === 'veil') {
-    return { mode: 'break', name: '어둠 은신', hint: '비취 물결 쪽으로 베기', f: clamp(1 - (z.stateT || 0) / Math.max(0.01, P.veil.t), 0, 1), sweetStart: 0.85 };
-  }
-  if (st === 'shuffle' && z.shuffle) {
-    return { mode: 'break', name: '무늬 뒤섞기', hint: z.shuffle.gold > 0 ? '★ 지금 베면 고정!' : '금빛 순간을 노려라', f: clamp(1 - (z.shuffle.t || 0) / Math.max(0.01, z.shuffle.dur), 0, 1), sweetStart: 0.8, sweetOpen: z.shuffle.gold > 0 };
-  }
-  if (st === 'donut' && z.donut) {
-    return { mode: 'dodge', name: '도넛 결계', hint: z.donut.safeInside ? '안쪽 청록 혼령으로 일섬!' : '바깥 청록 혼령으로 일섬!', f: clamp((z.stateT || 0) / Math.max(0.01, z.donut.dur), 0, 1), sweetStart: 0.78 };
-  }
-  if (st === 'soak' && z.soak) {
-    const remP = (z.soak.pillars || []).filter(function (p) { return !p.done; });
-    const p0 = remP[0];
-    const f = p0 ? clamp((p0.t || 0) / Math.max(0.01, p0.dur), 0, 1) : 1;
-    return { mode: 'soak', name: '결계 기둥', hint: '기둥 혼령으로 일섬! (' + remP.length + '남음)', f: f, sweetStart: 0.72 };
-  }
-  if (st === 'gaze' && z.gaze) {
-    return { mode: 'dodge', name: '붉은 시선', hint: '보스 등 뒤 혼령으로 일섬!', f: clamp((z.stateT || 0) / Math.max(0.01, z.gaze.dur), 0, 1), sweetStart: 0.78 };
-  }
-  if (st === 'pizza' && z.pizza) {
-    return { mode: 'dodge', name: '부채꼴 절단', hint: '청록 안전 칸으로 일섬!', f: clamp((z.stateT || 0) / Math.max(0.01, z.pizza.dur), 0, 1), sweetStart: 0.78 };
-  }
-  if (st === 'rhythm' && z.rhythm) {
-    const dur = z.rhythm.beats[z.rhythm.idx] || 0.6;
-    const rem = dur - z.rhythm.t;
-    return { mode: 'parry', name: '삼연격 ' + (z.rhythm.idx + 1) + '/3', hint: '박자에 맞춰 탭! (' + (z.rhythm.ok || 0) + '/3)', f: clamp(z.rhythm.t / Math.max(0.01, dur), 0, 1), sweetStart: 0.62, sweetOpen: rem <= 0.24 && rem >= -0.06 };
-  }
-  if (st === 'tether' && z.tether) {
-    return { mode: 'dodge', name: '혈사슬 결속', hint: '외곽 혼령으로 일섬해 절단!', f: clamp((z.stateT || 0) / Math.max(0.01, z.tether.dur), 0, 1), sweetStart: 0.75 };
-  }
-  /* v0.53: kiai(기합)·chant(영창)·clash(합 겨루기)·seal(봉인)은 상단 대신
-     주인공 바로 아래 시선 고정대(drawKiaiFocalGauge / drawGestureFocalDock)에서 직접 표시해 시선 이동을 최소화한다. */
-  return null;
+  return buildBossBannerInfo(z, bossPat(), bossTiming());
 }
 /* 보스 패턴 그림: 예고 색 고리·문구, 기모으기 게이지, 내려찍기 원, 탄막 부채, 영창 무늬, 은신 방울, 기세, 봉인. */
 function drawBossPat(ctx, r, hs) {
@@ -11189,7 +11125,23 @@ const SHAPE_TIP = {
   star: '한붓으로 다섯 꼭짓점을 교차해 별(⛤)을 그립니다.',
   tap: '제자리에서 짧게 콕 — 패링입니다.'
 };
-const train = { shape: 'hline', pts: [], drawing: false, raf: 0, result: null, animT: 0, need: 0, parryMode: false, parryPhase: 0, parryWait: 1.4, parryStreak: 0, parryBest: 0, parryMsg: '' };
+const train = { shape: 'hline', pts: [], drawing: false, raf: 0, result: null, animT: 0, need: 0, parryMode: false, drill: createDrillState('parry') };
+function renderTrainDrills() {
+  const box = $('trainDrills');
+  if (!box) return;
+  box.innerHTML = GIMMICK_DRILLS.map(function (d) {
+    return '<button type="button" data-drill="' + d.id + '" class="' + (train.drill.kind === d.id ? 'on' : '') + '">' + d.name + '</button>';
+  }).join('');
+  Array.prototype.forEach.call(box.querySelectorAll('button'), function (b) {
+    b.addEventListener('click', function () {
+      const k = b.getAttribute('data-drill');
+      train.drill = createDrillState(k);
+      renderTrainDrills();
+      const noteEl = $('trainNote');
+      if (noteEl) noteEl.textContent = getDrillDef(k).tip;
+    });
+  });
+}
 function trainStatsOf(shape) {
   const arr = (save.train && save.train.stats && save.train.stats[shape]) || [];
   const last = arr.slice(-20);
@@ -11226,48 +11178,15 @@ function trainDraw() {
   const bg = ctx.createRadialGradient(W / 2, H / 2, 10, W / 2, H / 2, W * 0.62);
   bg.addColorStop(0, 'rgba(24,22,26,1)'); bg.addColorStop(1, 'rgba(9,8,11,1)');
   ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-  /* 목표 무늬의 옅은 유도선 */
+  /* 목표 무늬의 옅은 유도선 / 보스 기믹·패링 드릴 */
   if (train.parryMode) {
-    const cx = W * 0.5, cy = H * 0.52;
-    train.parryPhase += 0.016;
-    const cycle = train.parryWait;
-    const rem = cycle - train.parryPhase;
-    if (rem <= -0.16) {
-      train.parryStreak = 0;
-      train.parryMsg = '놓침 — 타이밍에 맞춰 탭하세요';
-      train.parryPhase = 0;
-      train.parryWait = 1.35 + Math.random() * 0.75;
-    } else if (rem <= 0.38 && rem > -0.16) {
-      const inJust = rem <= 0.18 && rem >= -0.04;
-      const frac = Math.max(0, Math.min(1, rem / 0.38));
-      const innerR = 30, outerR = 30 + 62 * frac;
-      ctx.save();
-      ctx.strokeStyle = inJust ? 'rgba(136,255,224,0.95)' : 'rgba(255,212,118,0.75)';
-      ctx.lineWidth = inJust ? 4 : 2.2;
-      ctx.beginPath(); ctx.arc(cx, cy, outerR, 0, Math.PI * 2); ctx.stroke();
-      ctx.strokeStyle = inJust ? 'rgba(255,246,196,0.9)' : 'rgba(255,212,118,0.32)';
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(cx, cy, innerR, 0, Math.PI * 2); ctx.stroke();
-      ctx.font = '700 13px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillStyle = inJust ? '#9effe4' : '#f2d9a0';
-      ctx.fillText(inJust ? '지금 막기!' : '예고 중...', cx, cy + 4);
-      ctx.restore();
-    } else {
-      ctx.save();
-      ctx.strokeStyle = 'rgba(226,188,116,0.28)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(cx, cy, 30, 0, Math.PI * 2); ctx.stroke();
-      ctx.font = '600 12px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(240,230,206,0.65)';
-      ctx.fillText('곧 공격이 옵니다...', cx, cy + 4);
-      ctx.restore();
-    }
-    if (train.parryMsg) {
-      ctx.font = '600 13px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillStyle = train.parryMsg.indexOf('완벽') >= 0 ? '#8ef5d4' : '#f0a288';
-      ctx.fillText(train.parryMsg, cx, 26);
-    }
+    stepDrill(train.drill, 0.016);
+    drawDrillCanvas(ctx, W, H, train.drill);
     const stEl = $('trainStats');
-    if (stEl) stEl.textContent = '연속 완벽 막기 ' + train.parryStreak + '회 · 최고 기록 ' + train.parryBest + '회';
-    train.raf = requestAnimationFrame(drawTrain);
+    if (stEl) {
+      const def = getDrillDef(train.drill.kind);
+      stEl.textContent = def.name + ' · 연속 성공 ' + train.drill.streak + '회 · 최고 기록 ' + train.drill.best + '회';
+    }
     return;
   }
   const ghost = syntheticPath(train.shape, W * 0.5, H * 0.5, Math.min(70, W * 0.26));
@@ -11344,34 +11263,28 @@ function wireTrain() {
   if (!cv) return;
   if ($('btnTrainParry')) $('btnTrainParry').addEventListener('click', function () {
     train.parryMode = !train.parryMode;
-    train.parryPhase = 0; train.parryWait = 1.4; train.parryMsg = '';
-    $('btnTrainParry').textContent = train.parryMode ? '무늬 연습으로' : '패링 훈련';
+    resetDrillRound(train.drill);
+    train.drill.msg = '';
+    $('btnTrainParry').textContent = train.parryMode ? '무늬 연습으로' : '기믹·패링 훈련';
     const noteEl = $('trainNote');
-    if (noteEl) noteEl.textContent = train.parryMode ? '옥빛 링이 안쪽 원에 닿는 순간(0.18초) 화면을 탭해 완벽 막기를 연습하세요.' : (SHAPE_TIP[train.shape] || '');
+    if (noteEl) noteEl.textContent = train.parryMode ? getDrillDef(train.drill.kind).tip : (SHAPE_TIP[train.shape] || '');
     if ($('trainShapes')) $('trainShapes').style.display = train.parryMode ? 'none' : '';
+    if ($('trainDrills')) {
+      $('trainDrills').hidden = !train.parryMode;
+      if (train.parryMode) renderTrainDrills();
+    }
   });
   cv.addEventListener('pointerdown', function (e) {
     e.preventDefault();
     if (train.parryMode) {
-      const rem = train.parryWait - train.parryPhase;
-      const ms = Math.round(Math.abs(rem) * 1000);
-      if (rem <= 0.18 && rem >= -0.04) {
-        train.parryStreak++;
-        if (train.parryStreak > train.parryBest) train.parryBest = train.parryStreak;
-        train.parryMsg = '완벽 막기! ' + ms + 'ms · 연속 ' + train.parryStreak + '회';
+      const pt = trainPoint(e);
+      const res = handleDrillInput(train.drill, pt.x / Math.max(1, cv.width), pt.y / Math.max(1, cv.height));
+      if (res === 'just' || res === 'step') {
         if (audio && audio.justParry) audio.justParry();
         haptic([24, 16, 36]);
-      } else if (rem > 0.18 && rem <= 0.45) {
-        train.parryStreak = 0;
-        train.parryMsg = '조금 빠름 (' + ms + 'ms 남음)';
-        if (audio && audio.whiff) audio.whiff();
-      } else {
-        train.parryStreak = 0;
-        train.parryMsg = '타이밍 어긋남 — 링이 모일 때 탭하세요';
+      } else if (res === 'fail') {
         if (audio && audio.whiff) audio.whiff();
       }
-      train.parryPhase = 0;
-      train.parryWait = 1.3 + Math.random() * 0.75;
       return;
     }
     train.drawing = true; train.result = null; train.pts = [trainPoint(e)];

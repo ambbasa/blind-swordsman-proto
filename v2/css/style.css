@@ -681,6 +681,13 @@ body { font-family: "InkSerif", "Apple SD Gothic Neo", "Noto Sans KR", serif; }
   background: rgba(239,228,204,.06); border: 1px solid rgba(217,180,90,.3); border-radius: 4px;
 }
 .train-shapes button.on { color: #0b0a09; background: var(--gold); }
+.train-drills { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin: 0 0 8px; }
+.train-drills[hidden] { display: none; }
+.train-drills button {
+  padding: 4px 8px; font: 700 11px/1.2 sans-serif; color: var(--paper);
+  background: rgba(239,228,204,.07); border: 1px solid rgba(95,232,194,.32); border-radius: 4px;
+}
+.train-drills button.on { color: #0b0a09; background: #5FE8C2; border-color: #5FE8C2; }
 #trainCanvas { display: block; width: 100%; height: auto; background: #0c0b0e; border: 1px solid rgba(217,180,90,.25); border-radius: 6px; touch-action: none; }
 .train-stats { margin: 8px 0; font-size: 11px; line-height: 1.5; color: var(--paper); min-height: 2.8em; }
 .train-foot { display: flex; gap: 8px; justify-content: center; }
