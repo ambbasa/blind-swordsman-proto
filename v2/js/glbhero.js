@@ -4,7 +4,7 @@
    - 4종 애니메이션(idle / walk / slash / hit) + 치장 도포/무기 틴트·투명도·스쿼시 연동 */
 import * as THREE from 'three';
 
-const URL_GLB = new URL('../assets/models/hero.glb?v=v0782', import.meta.url).href;
+const URL_GLB = new URL('../assets/models/hero.glb?v=v0783', import.meta.url).href;
 let pending = null;
 let source = null;
 let cloneSkinned = null;
@@ -32,7 +32,7 @@ export function preloadHeroGlb() {
       return gltf;
     });
   }).catch(function (e) {
-    console.warn('[심안] hero.glb 로드 실패 — 기본 3D 영웅 유지', e);
+    console.warn('[심안] hero.glb?v=v0783 로드 실패 — 기본 3D 영웅 유지', e);
     pending = null;
     return null;
   });

@@ -28,7 +28,7 @@ import * as TEX from './inktex3d.js';
 import {
   heroGlbEnabled, preloadHeroGlb, makeHeroGlb,
   tickHeroGlb, triggerHeroGlbBurst, setHeroGlbOpacity, setHeroGlbTint, applyHeroGlbCloak
-} from './glbhero.js';
+} from './glbhero.js?v=v0783';
 
 export const HERO_H = 2.45;          /* 기존 주인공(파츠 리그 m=2.45)과 같은 키 — 그림자·HUD 기준이 맞는다 */
 const WALK_SPEED = 1.7;              /* 걷기 위상의 기준 속도(m/s) */

@@ -1,12 +1,11 @@
 import * as THREE from 'three';
 
 const MODEL_URLS = {
-  boss:   new URL('../assets/models/boss.glb?v=v0782', import.meta.url).href,
-  minion: new URL('../assets/models/minion.glb?v=v0782', import.meta.url).href,
-  heavy:  new URL('../assets/models/heavy.glb?v=v0782', import.meta.url).href,
-  stone:  new URL('../assets/models/stone.glb?v=v0782', import.meta.url).href
+  boss:   new URL('../assets/models/boss.glb?v=v0783', import.meta.url).href,
+  minion: new URL('../assets/models/minion.glb?v=v0783', import.meta.url).href,
+  heavy:  new URL('../assets/models/heavy.glb?v=v0783', import.meta.url).href,
+  stone:  new URL('../assets/models/stone.glb?v=v0783', import.meta.url).href
 };
-const URL_BASIS = new URL('../vendor/addons/libs/basis/', import.meta.url).href;
 const sources = {};
 const pendings = {};
 let loaderPromise = null;
@@ -17,29 +16,22 @@ try {
   if (q.get('monsters') === 'proc' || q.get('boss') === 'proc' || q.get('monsters') === '0') flagOn = false;
 } catch (e) {}
 
-function ensureLoader(renderer) {
+function ensureLoader() {
   if (loaderPromise) return loaderPromise;
   loaderPromise = Promise.all([
     import('../vendor/addons/loaders/GLTFLoader.js'),
-    import('../vendor/addons/loaders/KTX2Loader.js'),
-    import('../vendor/addons/libs/meshopt_decoder.module.js'),
     import('../vendor/addons/utils/SkeletonUtils.js')
   ]).then(function (m) {
-    cloneSkinned = m[3].clone;
-    const loader = new m[0].GLTFLoader().setMeshoptDecoder(m[2].MeshoptDecoder);
-    if (renderer) {
-      const ktx2 = new m[1].KTX2Loader().setTranscoderPath(URL_BASIS).detectSupport(renderer);
-      loader.setKTX2Loader(ktx2);
-    }
-    return loader;
+    cloneSkinned = m[1].clone;
+    return new m[0].GLTFLoader();
   }).catch(function (e) { loaderPromise = null; throw e; });
   return loaderPromise;
 }
 
-export function preloadMonsterGlb(species, renderer) {
+export function preloadMonsterGlb(species) {
   if (!flagOn || !MODEL_URLS[species]) return null;
   if (pendings[species]) return pendings[species];
-  pendings[species] = ensureLoader(renderer).then(function (loader) {
+  pendings[species] = ensureLoader().then(function (loader) {
     return loader.loadAsync(MODEL_URLS[species]).then(function (gltf) {
       sources[species] = gltf;
       return gltf;
@@ -52,15 +44,16 @@ export function preloadMonsterGlb(species, renderer) {
   return pendings[species];
 }
 
-export function preloadBossGlb(renderer) {
+export function preloadBossGlb() {
   if (!flagOn) return null;
-  Object.keys(MODEL_URLS).forEach(function (sp) { preloadMonsterGlb(sp, renderer); });
+  Object.keys(MODEL_URLS).forEach(function (sp) { preloadMonsterGlb(sp); });
   return pendings.boss || null;
 }
+
 export function bossGlbReady(species) {
   const sp = species || 'boss';
   if (!flagOn || !MODEL_URLS[sp]) return null;
-  return pendings[sp] || preloadMonsterGlb(sp, null);
+  return pendings[sp] || preloadMonsterGlb(sp);
 }
 
 export function makeBossGlb(height, species) {
@@ -68,7 +61,7 @@ export function makeBossGlb(height, species) {
   const gltf = sources[sp];
   if (!gltf || !cloneSkinned) return null;
   const scene = cloneSkinned(gltf.scene);
-  let body = null, outline = null, tris = 0, ktx2 = false;
+  let body = null, outline = null, tris = 0;
   const bodyMeshes = [];
   const outlineMeshes = [];
   scene.traverse(function (o) {
@@ -86,8 +79,6 @@ export function makeBossGlb(height, species) {
     } else {
       const srcMat = Array.isArray(o.material) ? o.material[0] : o.material;
       const mat = srcMat ? srcMat.clone() : new THREE.MeshStandardMaterial({ color: 0xffffff });
-      if (mat.map && mat.map.isCompressedTexture) ktx2 = true;
-      /* 무대 등불 스포트라이트에 하데스풍 텍스처 색감이 하얗게 날아가지 않도록 보정 */
       mat.roughness = 0.92;
       mat.metalness = 0.0;
       if (mat.color) mat.color.setHex(0x585654);
@@ -124,7 +115,7 @@ export function makeBossGlb(height, species) {
     root: holder, body: body, outline: outline, bodyMeshes: bodyMeshes, outlineMeshes: outlineMeshes,
     mixer: mixer, actions: actions, cur: 'idle', lockT: 0, prevBurst: null,
     mats: bodyMeshes.concat(outlineMeshes).map(function (m) { return m.material; }),
-    tris: Math.round(tris), ktx2: ktx2,
+    tris: Math.round(tris), ktx2: false,
     bbox: [+size.x.toFixed(3), +size.y.toFixed(3), +size.z.toFixed(3)], fitScale: +k.toFixed(3)
   };
 }
