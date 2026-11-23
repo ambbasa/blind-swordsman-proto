@@ -67,8 +67,14 @@ export function createAudio() {
 
   function resume() {
     const c = ac();
-    if (c && c.state === 'suspended') c.resume();
+    if (c && c.state === 'suspended') c.resume().catch(function () {});
     return c;
+  }
+
+  function suspend() {
+    if (ctx && ctx.state === 'running') {
+      try { ctx.suspend().catch(function () {}); } catch (e) {}
+    }
   }
 
   function setQuiet(mute, noDelay) {
@@ -759,6 +765,8 @@ export function createAudio() {
     lastPans: function () { return lastPans.slice(); },
     startBgm: startBgm,
     stopBgm: stopBgm,
+    resume: resume,
+    suspend: suspend,
     tick: tick,
     info: function () {
       const b = busInfo ? busInfo.snapshot() : null;

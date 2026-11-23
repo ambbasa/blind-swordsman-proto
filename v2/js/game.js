@@ -31,15 +31,15 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v110';
+import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v111';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v110';
+import { probeAssets, buildArt } from './art.js?v=v111';
 import * as Anim from './anim.js';
-import { createAudio } from './audio.js?v=v103';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v110';
-import { PAT_COST, PAT_CUE, getActPhaseFx, bossPatternMean, buildBossBannerInfo } from './modules/bossPatterns.js?v=v110';
-import { GIMMICK_DRILLS, getDrillDef, createDrillState, resetDrillRound, stepDrill, handleDrillInput, drawDrillCanvas } from './modules/trainingDrills.js?v=v110';
-import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v110';
+import { createAudio } from './audio.js?v=v111';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v111';
+import { PAT_COST, PAT_CUE, getActPhaseFx, bossPatternMean, buildBossBannerInfo } from './modules/bossPatterns.js?v=v111';
+import { GIMMICK_DRILLS, getDrillDef, createDrillState, resetDrillRound, stepDrill, handleDrillInput, drawDrillCanvas } from './modules/trainingDrills.js?v=v111';
+import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v111';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
@@ -60,7 +60,7 @@ import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariant
 import { InkFx, FX_COLORS } from './inkfx.js';
 import { BossFx } from './bossFx.js';
 import { createTelemetry } from './telemetry.js';
-import { applyHeroCloak3D } from './inkhero3d.js?v=v110';
+import { applyHeroCloak3D } from './inkhero3d.js?v=v111';
 import {
   SAVE_VERSION, STAT_DEFS, FORGE_COSTS, SWORDS, RELICS, COSMETIC_CLOAKS, COSMETIC_TRAILS,
   DAILY_QUESTS, ATTENDANCE_REWARDS, STAR_CHESTS, CODEX_MILESTONES,
@@ -6361,23 +6361,37 @@ function startDying(obj) {
 }
 function stepDying(dt) {
   if (!three || !three.dying || !three.dying.length) return;
-  three.dying = three.dying.filter(function (d) {
+  const list = three.dying;
+  let w = 0;
+  for (let i = 0; i < list.length; i++) {
+    const d = list[i];
     d.t += dt;
     const k = Math.min(1, d.t / d.dur);
     if (d.hasAnim) {
       if (art && art.tickMonsterDeath) art.tickMonsterDeath(d.obj, dt);
       const fadeK = k > 0.62 ? (k - 0.62) / 0.38 : 0;
       if (fadeK > 0) {
-        d.mats.forEach(function (m) { m[0].opacity = m[1] * (1 - fadeK); m[0].transparent = true; });
+        for (let j = 0; j < d.mats.length; j++) {
+          d.mats[j][0].opacity = d.mats[j][1] * (1 - fadeK);
+          d.mats[j][0].transparent = true;
+        }
       }
     } else {
-      d.mats.forEach(function (m) { m[0].opacity = m[1] * (1 - k); m[0].transparent = true; });
+      for (let j = 0; j < d.mats.length; j++) {
+        d.mats[j][0].opacity = d.mats[j][1] * (1 - k);
+        d.mats[j][0].transparent = true;
+      }
       d.obj.scale.set(1 + 0.25 * k, 1 - 0.55 * k, 1);
       d.obj.position.y = d.y0 - 0.3 * k;
     }
-    if (k >= 1) { three.scene.remove(d.obj); return false; }
-    return true;
-  });
+    if (k >= 1) {
+      if (art && art.disposeChar) art.disposeChar(d.obj);
+      three.scene.remove(d.obj);
+    } else {
+      list[w++] = d;
+    }
+  }
+  list.length = w;
 }
 function killZombie(z, rec) {
   if (!z || !z.alive) return;
@@ -11989,15 +12003,49 @@ function bindUi() {
     setMode('train');
     startRun({ stage: (S && S.stageNo) || 1 });
   });
+  if ($('btnSaveExport')) $('btnSaveExport').addEventListener('click', function () {
+    try {
+      const code = btoa(unescape(encodeURIComponent(JSON.stringify(save))));
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(function () {
+          toast('세이브 백업 코드를 클립보드에 복사했습니다.');
+        }).catch(function () {
+          window.prompt('아래 백업 코드를 복사해 보관하세요:', code);
+        });
+      } else {
+        window.prompt('아래 백업 코드를 복사해 보관하세요:', code);
+      }
+    } catch (e) { toast('백업 코드 생성에 실패했습니다.'); }
+  });
+  if ($('btnSaveImport')) $('btnSaveImport').addEventListener('click', function () {
+    const raw = window.prompt('보관해 둔 세이브 백업 코드를 붙여넣으세요:');
+    if (!raw || !raw.trim()) return;
+    try {
+      const parsed = JSON.parse(decodeURIComponent(escape(atob(raw.trim()))));
+      if (!parsed || typeof parsed !== 'object' || typeof parsed.coins !== 'number') {
+        toast('올바르지 않은 백업 코드입니다.');
+        return;
+      }
+      Object.assign(save, parsed);
+      migrateMetaV4(save);
+      persist();
+      refreshTitleStages();
+      toast('세이브 데이터를 복원했습니다.');
+    } catch (e) { toast('백업 코드를 읽을 수 없습니다.'); }
+  });
 document.addEventListener('visibilitychange', function () {
   if (document.hidden) {
     if (S && S.playing && !S.paused) pauseRun();
     else if (audio) audio.stopBgm();
+    if (audio && audio.suspend) audio.suspend();
+  } else if (audio && audio.resume && !save.muted && !qa.mute) {
+    audio.resume();
   }
 });
 window.addEventListener('pagehide', function () {
   if (S && S.playing && !S.paused) pauseRun();
   else if (audio) audio.stopBgm();
+  if (audio && audio.suspend) audio.suspend();
 });
 }
 
