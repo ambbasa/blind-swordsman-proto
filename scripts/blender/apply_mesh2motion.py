@@ -34,7 +34,7 @@ CHARACTERS = [
             "a_deg": 74.0,
         },
         "clips": [
-            ("M2M_Idle",   "idle-sword.glb"),
+            ("M2M_Idle",   "idle-a.glb"),
             ("M2M_Walk",   "jog.glb"),
             ("M2M_Slash",  "sword-regular-a.glb"),
             ("M2M_Slash2", "sword-regular-b.glb"),
@@ -654,7 +654,7 @@ def process_character(cfg):
     cy = (bmin.y + bmax.y) * 0.5
     cz = bmin.z
 
-    for o in [body, outline, sword, sword_out]:
+    for o in [body, outline]:
         if o is None:
             continue
         for v in o.data.vertices:
@@ -704,15 +704,7 @@ def process_character(cfg):
         mod.object = a_arm
         print(f"  Outline weights transferred: {len(outline.data.vertices)} verts")
 
-    for so in [sword, sword_out]:
-        if so is None:
-            continue
-        so.vertex_groups.clear()
-        vg = so.vertex_groups.new(name="hand_r")
-        vg.add([v.index for v in so.data.vertices], 1.0, "REPLACE")
-        so.parent = a_arm
-        mod = so.modifiers.new(name="Armature", type="ARMATURE")
-        mod.object = a_arm
+    # Hero_Sword is positioned directly onto t_arm hand_r palm after T-pose bake so grip is 100% exact!
 
     # 4) Rotate Temp_APose_Arm arms BACK UP into fitted T-pose and bake meshes into T-pose!
     bpy.ops.object.select_all(action="DESELECT")
@@ -741,6 +733,41 @@ def process_character(cfg):
         mod.object = t_arm
 
     bpy.data.objects.remove(a_arm, do_unlink=True)
+
+    if cfg.get("keep_sword") and sword is not None:
+        hand_b = t_arm.data.bones["hand_r"]
+        palm = t_arm.matrix_world @ ((hand_b.head_local + hand_b.tail_local) * 0.5)
+        # Measure sword principal axis via PCA / farthest points so hilt snaps cleanly into palm
+        pts = [v.co.copy() for v in sword.data.vertices]
+        smin = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
+        smax = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
+        # Find the two farthest extreme vertices along the blade length
+        p_a = max(pts, key=lambda p: (p - (smin + smax) * 0.5).length_squared)
+        p_b = max(pts, key=lambda p: (p - p_a).length_squared)
+        # Hilt end has more vertices around it (guard/tsuba) than the sharp blade tip!
+        cnt_a = sum(1 for p in pts if (p - p_a).length < 0.18)
+        cnt_b = sum(1 for p in pts if (p - p_b).length < 0.18)
+        hilt_pt, tip_pt = (p_a, p_b) if cnt_a < cnt_b else (p_b, p_a)
+        blade_vec = (tip_pt - hilt_pt).normalized()
+        # In T-pose, hand_r points along -X; pointing blade along -Y (forward) with slight -Z tilt makes it hang naturally in upright idle-a!
+        target_dir = Vector((-0.18, -0.88, -0.44)).normalized()
+        rot_q = blade_vec.rotation_difference(target_dir)
+        # Shift hilt slightly (+0.11m along blade_vec from butt pommel) so hand grips the handle right behind the guard
+        grip_origin = hilt_pt + blade_vec * 0.11
+        for so in [sword, sword_out]:
+            if so is None:
+                continue
+            for v in so.data.vertices:
+                v.co = rot_q @ (v.co - grip_origin) + palm
+            so.data.update()
+            so.animation_data_clear()
+            so.vertex_groups.clear()
+            vg = so.vertex_groups.new(name="hand_r")
+            vg.add([v.index for v in so.data.vertices], 1.0, "REPLACE")
+            so.parent = t_arm
+            mod = so.modifiers.new(name="Armature", type="ARMATURE")
+            mod.object = t_arm
+        print(f"  + Hero_Sword snapped cleanly into hand_r palm at {tuple(round(c,3) for c in palm)}")
 
     if cfg.get("boss_weapon"):
         create_boss_glaive(t_arm)
