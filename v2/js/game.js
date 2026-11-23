@@ -31,13 +31,13 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb } from './glbboss.js?v=v097';
+import { makeBossGlb } from './glbboss.js?v=v098';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v097';
+import { probeAssets, buildArt } from './art.js?v=v098';
 import * as Anim from './anim.js';
-import { createAudio } from './audio.js?v=v097';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle } from './lobbyPreview3d.js?v=v097';
-import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v097';
+import { createAudio } from './audio.js?v=v098';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle } from './lobbyPreview3d.js?v=v098';
+import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v098';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
@@ -11725,7 +11725,7 @@ const GPv2 = {
       brush: { equipped: (save.brush && save.brush.equipped) || 'none', owned: Object.keys((save.brush && save.brush.owned) || {}) },
       codex: codexCounts(save), codexBonus: codexBonus(save),
       train: { seen: (save.train && save.train.seen) || 0, stats: JSON.parse(JSON.stringify((save.train && save.train.stats) || {})) },
-      relicFlags: { mirror: relicOn(save, 'mirror'), jar: relicOn(save, 'jar'), blood: relicOn(save, 'blood'), tower: relicOn(save, 'tower'), needle: relicOn(save, 'needle'), eye: relicOn(save, 'eye'), totem: relicOn(save, 'totem'), brush: relicOn(save, 'brush'), lantern: relicOn(save, 'lantern'), oldbell: relicOn(save, 'oldbell'), sheath: relicOn(save, 'sheath'), beads: relicOn(save, 'beads') },
+      relicFlags: { mirror: relicOn(save, 'mirror'), blood: relicOn(save, 'blood'), tower: relicOn(save, 'tower'), eye: relicOn(save, 'eye'), oldbell: relicOn(save, 'oldbell'), needle: relicOn(save, 'needle'), sheath: relicOn(save, 'sheath'), echo_bell: relicOn(save, 'echo_bell'), mono_seal: relicOn(save, 'mono_seal'), multi_seal: relicOn(save, 'multi_seal') },
       maxHp: S ? maxHp() : null, coinMult: coinMult(), dashDmg: S ? +dashDmg().toFixed(3) : null, ringR: S ? +ringR().toFixed(3) : null
     };
   },
