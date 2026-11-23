@@ -255,6 +255,10 @@ def main():
             plane_no=Vector((0.0, 0.0, 1.0)),
             clear_outer=True, clear_inner=False
         )
+        # Cleanly remove old blindfold ribbon tail stub protruding behind the neck (y > 0.064, z > 1.382)
+        rib_del = [v for v in bm.verts if v.co.z > 1.382 and abs(v.co.x) < 0.085 and v.co.y > 0.064]
+        if rib_del:
+            bmesh.ops.delete(bm, geom=rib_del, context="VERTS")
         bm.to_mesh(o.data)
         bm.free()
         o.data.update()
@@ -397,8 +401,23 @@ def main():
             else:
                 bpy.data.objects.remove(o, do_unlink=True)
         if sword is not None:
-            hand_b = t_arm.data.bones["hand_r"]
-            palm = t_arm.matrix_world @ ((hand_b.head_local + hand_b.tail_local) * 0.5)
+            # Measure REAL right-hand palm center directly from Hero_Body vertices weighted to hand_r (0mm palm contact!)
+            vg_hr = body.vertex_groups.get("hand_r")
+            hr_pts = []
+            if vg_hr:
+                for v in body.data.vertices:
+                    try:
+                        if vg_hr.weight(v.index) > 0.45 and v.co.x < -0.25:
+                            hr_pts.append(v.co.copy())
+                    except RuntimeError:
+                        pass
+            if hr_pts:
+                palm = sum(hr_pts, Vector((0, 0, 0))) / len(hr_pts)
+                # Slightly tuck inward toward palm hollow (-Y/inner +Z)
+                palm += Vector((0.015, -0.012, -0.008))
+            else:
+                hand_b = t_arm.data.bones["hand_r"]
+                palm = t_arm.matrix_world @ ((hand_b.head_local + hand_b.tail_local) * 0.5)
             # Scale sword from 1.85m space -> 1.72m space
             sw_s = 1.72 / 1.85
             pts = [v.co.copy() * sw_s for v in sword.data.vertices]
@@ -428,14 +447,14 @@ def main():
                 m_pose = (t_arm.matrix_world @ pb_hr.matrix).to_3x3()
                 m_rest = (t_arm.matrix_world @ t_arm.data.bones["hand_r"].matrix_local).to_3x3()
                 delta_rot = m_pose @ m_rest.inverted()
-                desired_idle_world = Vector((-0.62, -0.42, -0.66)).normalized()
+                desired_idle_world = Vector((-0.36, -0.58, -0.73)).normalized()
                 target_dir = (delta_rot.inverted() @ desired_idle_world).normalized()
                 t_arm.animation_data.action = None
                 bpy.context.view_layer.update()
             for o in tmp_objs: bpy.data.objects.remove(o, do_unlink=True)
             for a in tmp_acts: bpy.data.actions.remove(a)
             rot_q = blade_vec.rotation_difference(target_dir)
-            grip_origin = hilt_pt + blade_vec * 0.055
+            grip_origin = hilt_pt + blade_vec * 0.145
             for so in [sword, sword_out]:
                 if so is None: continue
                 for v in so.data.vertices:
@@ -472,6 +491,21 @@ def main():
                         kp.co.y *= pel_scale
                         kp.handle_left.y *= pel_scale
                         kp.handle_right.y *= pel_scale
+            # For M2M_Idle, subtly abduct upperarm_r outward (~9 deg) so sword hand clears the robe naturally!
+            if clip_name == "M2M_Idle":
+                from mathutils import Quaternion
+                q_out = Quaternion((0.0, 0.0, 1.0), math.radians(-9.0))
+                q_fcs = [fc for fc in act.fcurves if fc.data_path == 'pose.bones["upperarm_r"].rotation_quaternion']
+                if len(q_fcs) == 4:
+                    q_fcs.sort(key=lambda f: f.array_index)
+                    n_kp = len(q_fcs[0].keyframe_points)
+                    for ki in range(n_kp):
+                        q = Quaternion((q_fcs[0].keyframe_points[ki].co.y, q_fcs[1].keyframe_points[ki].co.y, q_fcs[2].keyframe_points[ki].co.y, q_fcs[3].keyframe_points[ki].co.y))
+                        q2 = (q @ q_out).normalized()
+                        for ci in range(4):
+                            q_fcs[ci].keyframe_points[ki].co.y = q2[ci]
+                            q_fcs[ci].keyframe_points[ki].handle_left.y = q2[ci]
+                            q_fcs[ci].keyframe_points[ki].handle_right.y = q2[ci]
             track = t_arm.animation_data.nla_tracks.new()
             track.name = clip_name
             track.strips.new(clip_name, int(act.frame_range[0]), act)
