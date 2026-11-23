@@ -1,9 +1,10 @@
 /* v2/js/glbhero.js — v0.83 시안 B(하데스풍 주홍 먹선 검객) 3D GLB 로더·3연타 검술 콤보·회피·피격 상태 머신 */
 import * as THREE from 'three';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v084';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v085';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v085';
 
-const URL_GLB = new URL('../assets/models/hero.glb?v=v084', import.meta.url).href;
+const URL_GLB = new URL('../assets/models/hero.glb?v=v085', import.meta.url).href;
 let pending = null;
 let source = null;
 let cloneSkinned = null;
@@ -31,7 +32,7 @@ export function preloadHeroGlb() {
       return gltf;
     });
   }).catch(function (e) {
-    console.warn('[심안] hero.glb?v=v084', e);
+    console.warn('[심안] hero.glb?v=v085', e);
     pending = null;
     return null;
   });
@@ -81,6 +82,25 @@ export function makeHeroGlb(height) {
           mat.emissive = new THREE.Color(0xffffff);
           mat.emissiveIntensity = 0.78;
         }
+        /* v0.85 의복 전용 셰이더 마스크: 피부 톤과 검은 머리카락을 보호하고 도포·허리띠만 치장 색감 반영 */
+        mat.userData.uCloakTint = { value: new THREE.Color(0xffffff) };
+        mat.userData.uCloakMix = { value: 0.0 };
+        mat.onBeforeCompile = function (shader) {
+          shader.uniforms.uCloakTint = mat.userData.uCloakTint;
+          shader.uniforms.uCloakMix = mat.userData.uCloakMix;
+          shader.fragmentShader = "uniform vec3 uCloakTint;\nuniform float uCloakMix;\n" + shader.fragmentShader;
+          shader.fragmentShader = shader.fragmentShader.replace(
+            "#include <emissivemap_fragment>",
+            "#include <emissivemap_fragment>\n" +
+            "if (uCloakMix > 0.001) {\n" +
+            "  float cLum = dot(totalEmissiveRadiance, vec3(0.299, 0.587, 0.114));\n" +
+            "  float isSkin = step(0.18, cLum) * step(totalEmissiveRadiance.g * 1.07, totalEmissiveRadiance.r) * step(totalEmissiveRadiance.b * 1.12, totalEmissiveRadiance.g);\n" +
+            "  float isCloth = (1.0 - isSkin) * smoothstep(0.03, 0.12, cLum);\n" +
+            "  vec3 tinted = mix(totalEmissiveRadiance, totalEmissiveRadiance * uCloakTint * 1.35 + uCloakTint * 0.14 * cLum, uCloakMix * isCloth);\n" +
+            "  totalEmissiveRadiance = tinted;\n" +
+            "}"
+          );
+        };
         bodyMeshes.push(o);
       }
       mat.userData.baseColor = mat.color ? mat.color.clone() : new THREE.Color(0xffffff);
@@ -116,9 +136,20 @@ export function makeHeroGlb(height) {
     actions.idle.setEffectiveWeight(1);
   }
 
+  let handR = null;
+  scene.traverse(function (o) { if (o.isBone && o.name === 'hand_r') handR = o; });
+  const trail = handR ? createWeaponTrail(fit, handR, {
+    baseLocal: new THREE.Vector3(0, 0.12, 0.0),
+    tipLocal: new THREE.Vector3(0, 1.05, 0.0),
+    color: 0xf4f8ff,
+    tailColor: 0x5be8c4,
+    glintScale: 0.95
+  }) : null;
+
   return {
     fit: fit,
     scene: scene,
+    trail: trail,
     mixer: mixer,
     actions: actions,
     rig: rig,
@@ -169,12 +200,18 @@ export function triggerHeroGlbBurst(G, name) {
     G.comboIdx = (idx + 1) % seq.length;
     G.comboTimer = 1.15;
     ts = clipKey === 'slash3' ? 2.55 : (clipKey === 'slash2' ? 1.45 : 1.25);
+    if (G.trail) {
+      if (clipKey === 'slash3') setTrailStyle(G.trail, 0xffe49a, 0xe84838);
+      else if (clipKey === 'slash2') setTrailStyle(G.trail, 0xd8fff4, 0x3ec8a8);
+      else setTrailStyle(G.trail, 0xf6f8ff, 0x7cb8ff);
+    }
   } else if (name === 'dodge') {
     if (!G.actions.dodge) return;
     ts = 3.1;
   } else if (name === 'block') {
     if (!G.actions.block) return;
     ts = 1.75;
+    if (G.trail) flashWeaponGlint(G.trail, 0xfff0a8, 0.24);
   } else if (!G.actions[name]) {
     return;
   }
@@ -215,6 +252,10 @@ export function tickHeroGlb(G, H, dt) {
   G.fit.scale.set(sqXZ, sqY, sqXZ);
 
   G.mixer.update(dt);
+  if (G.trail) {
+    const slashing = G.lockT > 0.03 && (G.cur === 'slash' || G.cur === 'slash2' || G.cur === 'slash3');
+    updateWeaponTrail(G.trail, dt, slashing);
+  }
   if (G.rig) {
     const st = H.burst === 'slash' ? 'attack'
       : (H.burst === 'hit' ? 'hit' : (H.base === 'walk' ? 'walk' : 'idle'));
@@ -239,11 +280,9 @@ export function setHeroGlbTint(G, r, g, b) {
     const m = G.bodyMeshes[i].material;
     if (!m || !m.userData.baseColor) continue;
     const bc = m.userData.baseColor;
-    const cm = G.cloakMix || 0;
-    const tr = (bc.r * (1 - cm * 0.35) + G.cloakTint.r * cm * 0.35) * r;
-    const tg = (bc.g * (1 - cm * 0.35) + G.cloakTint.g * cm * 0.35) * g;
-    const tb = (bc.b * (1 - cm * 0.35) + G.cloakTint.b * cm * 0.35) * b;
-    m.color.setRGB(tr, tg, tb);
+    m.color.setRGB(bc.r * r, bc.g * g, bc.b * b);
+    if (m.userData.uCloakTint) m.userData.uCloakTint.value.copy(G.cloakTint);
+    if (m.userData.uCloakMix) m.userData.uCloakMix.value = G.cloakMix || 0;
   }
 }
 

@@ -64,6 +64,7 @@ CHARACTERS = [
     {
         "name": "heavy",
         "keep_sword": False,
+        "heavy_weapon": True,
         "fit": {
             "z_ankle": 0.11, "z_knee": 0.42, "z_pelvis": 0.72,
             "z_shoulder": 1.24, "z_neck": 1.39, "z_head": 1.50,
@@ -494,6 +495,97 @@ def create_boss_glaive(t_arm):
     mod_o.object = t_arm
     print(f"  + Boss_Weapon (crescent glaive) attached to hand_r ({len(obj.data.vertices)} verts)")
 
+
+def create_heavy_club(t_arm):
+    import bmesh
+    hand_b = t_arm.data.bones["hand_r"]
+    grip = t_arm.matrix_world @ ((hand_b.head_local + hand_b.tail_local) * 0.5)
+
+    def make_mat(name, rgba, met=0.65, rough=0.45):
+        m = bpy.data.materials.new(name=name)
+        m.use_nodes = True
+        bsdf = m.node_tree.nodes.get("Principled BSDF")
+        if bsdf:
+            bsdf.inputs["Base Color"].default_value = rgba
+            bsdf.inputs["Metallic"].default_value = met
+            bsdf.inputs["Roughness"].default_value = rough
+        return m
+
+    mat_wood = make_mat("HeavyClub_Shaft", (0.18, 0.11, 0.07, 1.0), 0.15, 0.72)
+    mat_iron = make_mat("HeavyClub_Iron",  (0.24, 0.25, 0.29, 1.0), 0.82, 0.38)
+    mat_ring = make_mat("HeavyClub_Brass", (0.68, 0.48, 0.18, 1.0), 0.85, 0.30)
+
+    bm = bmesh.new()
+    # Heavy tapered war-club extending forward along -Y from hand_r
+    m_shaft = Euler((math.radians(90), 0, 0), "XYZ").to_matrix().to_4x4()
+    m_shaft.translation = grip + Vector((0.0, -0.05, 0.0))
+    ret = bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=10, radius1=0.028, radius2=0.040, depth=0.72, matrix=m_shaft)
+    for v in ret["verts"]:
+        for f in v.link_faces: f.material_index = 0
+
+    # Massive iron club head (-0.38 to -1.18 along -Y)
+    m_head = Euler((math.radians(90), 0, 0), "XYZ").to_matrix().to_4x4()
+    m_head.translation = grip + Vector((0.0, -0.78, 0.0))
+    ret = bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=10, radius1=0.052, radius2=0.095, depth=0.82, matrix=m_head)
+    for v in ret["verts"]:
+        for f in v.link_faces: f.material_index = 1
+
+    # Brass reinforcement bands
+    for y_off, r in [(-0.42, 0.056), (-0.78, 0.078), (-1.12, 0.098)]:
+        m_r = Euler((math.radians(90), 0, 0), "XYZ").to_matrix().to_4x4()
+        m_r.translation = grip + Vector((0.0, y_off, 0.0))
+        ret = bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=10, radius1=r, radius2=r, depth=0.055, matrix=m_r)
+        for v in ret["verts"]:
+            for f in v.link_faces: f.material_index = 2
+
+    # Iron studs around the heavy head (2 rings x 6 spikes)
+    for y_off, rad in [(-0.68, 0.072), (-0.98, 0.090)]:
+        for k in range(6):
+            ang = k * (math.pi * 2.0 / 6.0)
+            nx, nz = math.cos(ang), math.sin(ang)
+            pos = grip + Vector((nx * rad, y_off, nz * rad))
+            rot = Vector((nx, 0.0, nz)).to_track_quat("Z", "Y").to_matrix().to_4x4()
+            rot.translation = pos + Vector((nx * 0.025, 0.0, nz * 0.025))
+            ret = bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=6, radius1=0.020, radius2=0.002, depth=0.065, matrix=rot)
+            for v in ret["verts"]:
+                for f in v.link_faces: f.material_index = 1
+
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    mesh = bpy.data.meshes.new("Heavy_Weapon")
+    bm.to_mesh(mesh)
+    bm.free()
+
+    obj = bpy.data.objects.new("Heavy_Weapon", mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    for m in (mat_wood, mat_iron, mat_ring):
+        obj.data.materials.append(m)
+
+    vg = obj.vertex_groups.new(name="hand_r")
+    vg.add([v.index for v in obj.data.vertices], 1.0, "REPLACE")
+    obj.parent = t_arm
+    mod = obj.modifiers.new(name="Armature", type="ARMATURE")
+    mod.object = t_arm
+
+    out_mesh = mesh.copy()
+    out_mesh.name = "Heavy_Weapon_Outline"
+    out_mesh.materials.clear()
+    bm_o = bmesh.new()
+    bm_o.from_mesh(out_mesh)
+    bmesh.ops.recalc_face_normals(bm_o, faces=bm_o.faces)
+    for v in bm_o.verts:
+        v.co += v.normal * 0.008
+    bmesh.ops.reverse_faces(bm_o, faces=bm_o.faces)
+    bm_o.to_mesh(out_mesh)
+    bm_o.free()
+    out_obj = bpy.data.objects.new("Heavy_Weapon_Outline", out_mesh)
+    bpy.context.scene.collection.objects.link(out_obj)
+    vg_o = out_obj.vertex_groups.new(name="hand_r")
+    vg_o.add([v.index for v in out_obj.data.vertices], 1.0, "REPLACE")
+    out_obj.parent = t_arm
+    mod_o = out_obj.modifiers.new(name="Armature", type="ARMATURE")
+    mod_o.object = t_arm
+    print(f"  + Heavy_Weapon (iron war-club) attached to hand_r ({len(obj.data.vertices)} verts)")
+
 def process_character(cfg):
     name = cfg["name"]
     fit = cfg["fit"]
@@ -652,6 +744,8 @@ def process_character(cfg):
 
     if cfg.get("boss_weapon"):
         create_boss_glaive(t_arm)
+    if cfg.get("heavy_weapon"):
+        create_heavy_club(t_arm)
 
     # 5) Import curated Mesh2Motion CC0 animation actions & scale pelvis translation to fitted leg height
     pel_scale = fit["z_pelvis"] / 0.917

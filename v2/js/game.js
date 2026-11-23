@@ -31,11 +31,12 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb } from './glbboss.js?v=v084';
+import { makeBossGlb } from './glbboss.js?v=v085';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v084';
+import { probeAssets, buildArt } from './art.js?v=v085';
 import * as Anim from './anim.js';
-import { createAudio } from './audio.js';
+import { createAudio } from './audio.js?v=v085';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle } from './lobbyPreview3d.js?v=v085';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
@@ -1810,7 +1811,7 @@ function tutorialFirstSuccess() {
   if (!T || !T.on || T.first) return false;
   T.first = true; T.firstAt = T.t;
   addHitstop(0.05);
-  if (audio && audio.slash) audio.slash();
+  if (audio && audio.slash) audio.slash(null, S ? (S.combo || 0) : 0, (art && art.heroComboStep && three && three.hero) ? art.heroComboStep(three.hero) : 1);
   showGuide('일섬!', 1.6);
   return true;
 }
@@ -12658,3 +12659,67 @@ const GPv2 = {
 };
 window.GPv2 = GPv2;
 boot();
+
+/* v0.85 보스·중갑·석상 무기 스윙/내려찍기 임팩트 프레임 동기화 & 로비 실시간 3D 미리보기 */
+if (typeof window !== 'undefined') {
+  window.__simanOnWeaponSwing = function (species, kind) {
+    if (audio && audio.heavySweep && (species === 'boss' || species === 'heavy')) audio.heavySweep();
+  };
+  window.__simanOnWeaponImpact = function (species, kind, x, z) {
+    const heavyHit = (kind === 'slam' || species === 'stone' || species === 'heavy');
+    if (!heavyHit) return;
+    if (audio && audio.heavySlam) audio.heavySlam();
+    if (S) S.shake = Math.max(S.shake || 0, species === 'boss' ? 0.24 : 0.14);
+    try { triggerGroundCrackHeat(x, z, species === 'boss' ? 3.8 : 2.6, species === 'boss' ? 0xff7040 : 0xd4c2a0); } catch (_) {}
+    if (art && art.playFx && three && three.scene) {
+      const fx = art.playFx(three.scene, 'ink-splat', x, z, species === 'boss' ? 2.6 : 1.8);
+      if (fx) three.fx.push(fx);
+    }
+  };
+  (function initLobby3dToggle() {
+    const btn = document.getElementById('btnLobby3d');
+    const cv = document.getElementById('lobby3dCanvas');
+    const img = document.getElementById('lobbyHeroImg');
+    if (!btn || !cv || !img) return;
+    let on = false;
+    function getCurStyle() {
+      const ck = cloakOf ? cloakOf(save) : null;
+      const flv = swordForgeLv ? swordForgeLv(save) : 0;
+      const prof = ck ? { tint: ck.tint != null ? ck.tint : 0xffffff, emissive: ck.emissive || 0, mix: ck.mix || 0, rimCol: ck.rimCol || 0xffe4ad } : { tint: 0xffffff, mix: 0 };
+      return { prof: prof, flv: flv };
+    }
+    btn.addEventListener('click', function () {
+      on = !on;
+      if (on) {
+        cv.hidden = false;
+        img.style.opacity = '0';
+        btn.textContent = '일러스트';
+        const st = getCurStyle();
+        startLobby3d(cv, st.prof, st.flv);
+      } else {
+        stopLobby3d();
+        cv.hidden = true;
+        img.style.opacity = '';
+        btn.textContent = '3D 보기';
+      }
+    });
+    const titleEl = document.getElementById('title');
+    if (titleEl && typeof MutationObserver !== 'undefined') {
+      new MutationObserver(function () {
+        if (titleEl.hidden || titleEl.style.display === 'none') {
+          stopLobby3d();
+        } else if (on) {
+          const st = getCurStyle();
+          startLobby3d(cv, st.prof, st.flv);
+        }
+      }).observe(titleEl, { attributes: true, attributeFilter: ['hidden', 'style', 'class'] });
+    }
+    const stageEl = document.getElementById('lobbyHeroStage');
+    if (stageEl && typeof MutationObserver !== 'undefined') {
+      new MutationObserver(function () {
+        const st = getCurStyle();
+        syncLobby3dStyle(st.prof, st.flv);
+      }).observe(stageEl, { attributes: true, attributeFilter: ['data-cloak'] });
+    }
+  })();
+}

@@ -236,13 +236,19 @@ export function createAudio() {
   }
 
   /* 칼날 층: 발도 쇳소리 + 칼바람 + 저음 풍압 (획 길이·연타 콤보에 맞춰 음높이 미세 상승). */
-  function slash(lenRatio, combo) {
+  function slash(lenRatio, combo, step) {
     if (quiet) return;
     const c = resume(); if (!c) return;
     const t0 = c.currentTime;
-    const V = voice(1.0, 0.18); if (!V) return;
-    const cShift = Math.min(8, Math.max(0, combo || 0)) * 0.25;
+    const isFin = (step === 3);
+    const V = voice(isFin ? 1.15 : 1.0, isFin ? 0.24 : 0.18); if (!V) return;
+    const stepShift = step === 3 ? 2.2 : (step === 2 ? 1.0 : 0);
+    const cShift = Math.min(8, Math.max(0, combo || 0)) * 0.25 + stepShift;
     const k = Math.pow(2, ((lenRatio == null ? 1 : clamp01(lenRatio) * 2) + cShift) / 12);
+    if (isFin) {
+      tone(t0, 128, 0.18, 0.16, 'sine', V, 54);
+      tone(t0 + 0.01, 2480 * k, 0.12, 0.055, 'triangle', V, 1620 * k);
+    }
     const hasBlade = sample('blade', V, t0, k, 0.42);
     /* 맑은 발도 쇠울림 레이어 */
     tone(t0, 1780 * k, 0.075, 0.055, 'triangle', V, 1120 * k);
@@ -665,6 +671,25 @@ export function createAudio() {
     pickup: pickup,
     slash: slash,
     hit: hit,
+    heavySweep: function () {
+      if (quiet) return;
+      const c = resume(); if (!c) return;
+      const t0 = c.currentTime;
+      const V = voice(0.95, 0.28); if (!V) return;
+      tone(t0, 175, 0.22, 0.16, 'sawtooth', V, 68);
+      tone(t0 + 0.02, 820, 0.16, 0.05, 'triangle', V, 410);
+      noise(t0, 0.22, 'bandpass', 680, 1.4, 0.22, V);
+    },
+    heavySlam: function () {
+      if (quiet) return;
+      const c = resume(); if (!c) return;
+      const t0 = c.currentTime;
+      const V = voice(1.0, 0.36); if (!V) return;
+      tone(t0, 88, 0.28, 0.34, 'sine', V, 32);
+      tone(t0, 145, 0.14, 0.16, 'triangle', V, 52);
+      noise(t0, 0.18, 'lowpass', 520, 0.8, 0.28, V);
+      noise(t0 + 0.01, 0.09, 'bandpass', 1650, 1.8, 0.10, V);
+    },
     deflect: deflect,
     breakCue: breakCue,
     explode: explode,

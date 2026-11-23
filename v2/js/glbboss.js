@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v084';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v085';
+import { createWeaponTrail, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v085';
 
 const MODEL_URLS = {
-  boss:   new URL('../assets/models/boss.glb?v=v084', import.meta.url).href,
-  minion: new URL('../assets/models/minion.glb?v=v084', import.meta.url).href,
-  heavy:  new URL('../assets/models/heavy.glb?v=v084', import.meta.url).href,
-  stone:  new URL('../assets/models/stone.glb?v=v084', import.meta.url).href
+  boss:   new URL('../assets/models/boss.glb?v=v085', import.meta.url).href,
+  minion: new URL('../assets/models/minion.glb?v=v085', import.meta.url).href,
+  heavy:  new URL('../assets/models/heavy.glb?v=v085', import.meta.url).href,
+  stone:  new URL('../assets/models/stone.glb?v=v085', import.meta.url).href
 };
 const sources = {};
 const pendings = {};
@@ -113,9 +114,23 @@ export function makeBossGlb(height, species) {
   const mixer = new THREE.AnimationMixer(scene);
   const actions = mapGlbActions(mixer, gltf.animations, sp);
   if (actions.idle) actions.idle.play();
+  let handR = null;
+  scene.traverse(function (o) { if (o.isBone && o.name === 'hand_r') handR = o; });
+  const trail = (handR && (sp === 'boss' || sp === 'heavy')) ? createWeaponTrail(holder, handR, {
+    baseLocal: new THREE.Vector3(0, sp === 'boss' ? 0.55 : 0.30, 0),
+    tipLocal: new THREE.Vector3(0, sp === 'boss' ? 1.65 : 1.20, 0),
+    color: sp === 'boss' ? 0xffd27a : 0xe8d5b8,
+    tailColor: sp === 'boss' ? 0xd92b24 : 0x7c5840,
+    glintColor: sp === 'boss' ? 0xff5a3c : 0xffc864,
+    glintScale: sp === 'boss' ? 1.45 : 1.05
+  }) : null;
+
   return {
     species: sp,
-    root: holder, body: body, outline: outline, bodyMeshes: bodyMeshes, outlineMeshes: outlineMeshes,
+    root: holder,
+    trail: trail,
+    impactFired: false,
+    atkElapsed: 0, body: body, outline: outline, bodyMeshes: bodyMeshes, outlineMeshes: outlineMeshes,
     mixer: mixer, actions: actions, rig: rig, cur: 'idle', lockT: 0, prevBurst: null, atkAlt: 0,
     mats: bodyMeshes.concat(outlineMeshes).map(function (m) { return m.material; }),
     tris: Math.round(tris), ktx2: false,
@@ -184,8 +199,13 @@ export function tickBossGlb(G, H, dt) {
   } else if ((enter('strike') || enter('attack') || enter('slash')) && G.actions.attack) {
     const useSlam = isBoss && G.actions.slam && (H.st === 'boss:leap' || H.st === 'boss:slam' || ((G.atkAlt++) % 2 === 1));
     once(G, useSlam ? 'slam' : 'attack', 0.10, isBoss ? 1.15 : 1.10);
+    G.impactFired = false;
+    G.atkElapsed = 0;
+    if (G.trail) flashWeaponGlint(G.trail, useSlam ? 0xff4830 : 0xffd27a, 0.28);
+    if (typeof window !== 'undefined' && window.__simanOnWeaponSwing) window.__simanOnWeaponSwing(G.species, useSlam ? 'slam' : 'attack');
   } else if (enter('wind') && G.actions.cast) {
     once(G, 'cast', 0, 1.10);
+    if (G.trail) flashWeaponGlint(G.trail, 0xff5a3c, 0.36);
   }
 
   H.glbKick = false;
@@ -197,6 +217,22 @@ export function tickBossGlb(G, H, dt) {
   }
   if (G.actions.walk && H.actions.walk) G.actions.walk.setEffectiveTimeScale(H.actions.walk.getEffectiveTimeScale());
   G.mixer.update(dt);
+  if (G.cur === 'attack' || G.cur === 'slam') {
+    G.atkElapsed = (G.atkElapsed || 0) + dt;
+    const hitT = G.cur === 'slam' ? 0.42 : (G.species === 'stone' ? 0.58 : 0.36);
+    if (!G.impactFired && G.atkElapsed >= hitT) {
+      G.impactFired = true;
+      if (typeof window !== 'undefined' && window.__simanOnWeaponImpact) {
+        const wp = new THREE.Vector3();
+        G.root.getWorldPosition(wp);
+        window.__simanOnWeaponImpact(G.species, G.cur, wp.x, wp.z);
+      }
+    }
+  }
+  if (G.trail) {
+    const swinging = G.lockT > 0.04 && (G.cur === 'attack' || G.cur === 'slam');
+    updateWeaponTrail(G.trail, dt, swinging);
+  }
   if (G.rig) {
     let st = 'idle';
     if (G.cur === 'attack') st = 'attack';
