@@ -276,10 +276,39 @@ def bake_normal_map(high_obj, low_obj, img_name, size=1024):
     n_img.pack()
 
     nmap = nt.nodes.new("ShaderNodeNormalMap")
-    nmap.inputs["Strength"].default_value = 0.58
+    nmap.inputs["Strength"].default_value = 0.95
     nt.links.new(tex_node.outputs["Color"], nmap.inputs["Color"])
     nt.links.new(nmap.outputs["Normal"], bsdf.inputs["Normal"])
-    print(f"  + Baked 50k->15k Normal Map ({size}x{size}) onto {low_obj.name}")
+    print(f"  + Baked 50k->15k Normal Map ({size}x{size}, strength=0.95) onto {low_obj.name}")
+
+    # v1.31: Bake 50k->15k Ambient Occlusion (AO) and multiply onto Base Color for crisp sculpt depth
+    ao_img = bpy.data.images.new(f"{img_name}_AO", width=size, height=size, alpha=False)
+    ao_node = nt.nodes.new("ShaderNodeTexImage")
+    ao_node.image = ao_img
+    for n in nt.nodes:
+        n.select = False
+    ao_node.select = True
+    nt.nodes.active = ao_node
+    scene.cycles.samples = 12
+    bpy.ops.object.select_all(action="DESELECT")
+    high_obj.select_set(True)
+    low_obj.select_set(True)
+    bpy.context.view_layer.objects.active = low_obj
+    bpy.ops.object.bake(type="AO")
+    ao_img.pack()
+    scene.cycles.samples = 1
+
+    base_inp = bsdf.inputs.get("Base Color")
+    if base_inp and base_inp.is_linked:
+        orig_from = base_inp.links[0].from_socket
+        mix = nt.nodes.new("ShaderNodeMix")
+        mix.data_type = "RGBA"
+        mix.blend_type = "MULTIPLY"
+        mix.inputs["Factor"].default_value = 0.42
+        nt.links.new(orig_from, mix.inputs[6])
+        nt.links.new(ao_node.outputs["Color"], mix.inputs[7])
+        nt.links.new(mix.outputs[2], base_inp)
+        print(f"  + Baked & multiplied 50k->15k AO Map ({size}x{size}, factor=0.42) onto Base Color")
     return n_img
 
 
@@ -525,7 +554,7 @@ def build_one_boss(cfg):
         export_nla_strips=True,
         export_force_sampling=True,
         export_yup=True,
-        export_image_format="JPEG",
+        export_image_format="AUTO",  # v1.31: keep baked Normal Map lossless PNG
     )
     print(f"  [SAVED UNARMED] {out_path} ({os.path.getsize(out_path):,} bytes)")
 
