@@ -176,3 +176,8 @@ $RECYCLE.BIN/
 
 # === QA evidence (screenshots/audio proof, not runtime) ===
 production/qa/evidence/
+
+# Local 3D raw/concept build intermediates (v1.19)
+scripts/blender/_raw/
+scripts/blender/_raw_bosses/
+scripts/blender/_concepts/

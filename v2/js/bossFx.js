@@ -145,6 +145,7 @@ export class BossFx {
     this.chargeTrail = [];
     this.dmgNums = [];
     this.ground3d = null;
+    this.cb = false;
     this.sprites = {
       mandala:  loadSprite('assets/boss-fx/boss-mandala.webp'),
       impact:   loadSprite('assets/boss-fx/boss-impact.webp'),
@@ -289,6 +290,13 @@ export class BossFx {
       s.mesh.scale.set(sc, 1, sc);
       s.mesh.material.opacity = (1 - k) * 0.92;
     }
+  }
+
+  setColorblind(on) { this.cb = !!on; }
+  _pal() {
+    return this.cb
+      ? { danger: '#FF8C24', dangerFill: 'rgba(255,140,36,', safe: '#38B6FF', safeFill: 'rgba(56,182,255,', parry: '#38B6FF', parryLight: '#A8E2FF', soak: '#FFD24C', soakFill: 'rgba(255,210,76,' }
+      : { danger: '#FF4D3D', dangerFill: 'rgba(220,48,36,', safe: '#4DD4FF', safeFill: 'rgba(77,212,255,', parry: '#5FE8C2', parryLight: '#85F5D4', soak: '#F2B84B', soakFill: 'rgba(242,184,75,' };
   }
 
   clear() {
@@ -449,10 +457,11 @@ export class BossFx {
   /* v1.06 기믹 전용 혼령 시각 강조 링 + 주인공→안전지대 유도 점선 */
   drawZoneSpiritGuide(ctx, project, hero, sp, t) {
     if (!sp || !sp.alive || !sp.zoneTag) return;
+    const pal = this._pal();
     const isGold = sp.zoneTag === 'soak';
     const isJade = sp.zoneTag === 'rhythm' || sp.zoneTag === 'tether' || sp.zoneTag === 'gaze';
-    const col = isGold ? '#F2B84B' : (isJade ? '#5FE8C2' : '#4DD4FF');
-    const colRgba = isGold ? 'rgba(242,184,75,0.72)' : (isJade ? 'rgba(95,232,194,0.72)' : 'rgba(77,212,255,0.72)');
+    const col = isGold ? pal.soak : (isJade ? pal.parry : pal.safe);
+    const colRgba = isGold ? (pal.soakFill + '0.72)') : (pal.safeFill + '0.72)');
     const p = project(sp.x, sp.z, 1.32);
     const pulse = 0.5 + 0.5 * Math.sin((t || 0) * 14);
     ctx.save();
@@ -496,19 +505,20 @@ export class BossFx {
       ctx.lineTo(p.x, p.y);
     }
     ctx.closePath();
-    ctx.fillStyle = urgent ? 'rgba(255,77,61,0.28)' : ('rgba(220,48,36,' + (0.08 + 0.14 * u).toFixed(3) + ')');
+    const pal = this._pal();
+    ctx.fillStyle = urgent ? (pal.dangerFill + '0.30)') : (pal.dangerFill + (0.08 + 0.14 * u).toFixed(3) + ')');
     ctx.fill();
-    ctx.strokeStyle = '#FF4D3D'; ctx.lineWidth = 3.0; ctx.stroke();
+    ctx.strokeStyle = pal.danger; ctx.lineWidth = 3.0; ctx.stroke();
     /* 2) 보스 머리 위 붉은 눈 인장 */
     const ew = 28 + 10 * u, eh = 13 + 5 * u;
     ctx.beginPath(); ctx.ellipse(hp.x, hp.y, ew, eh, 0, 0, Math.PI * 2);
     ctx.fillStyle = 'rgba(20,8,10,0.85)'; ctx.fill();
-    ctx.strokeStyle = urgent ? '#FFF0C2' : '#FF4D3D'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.strokeStyle = urgent ? '#FFF0C2' : pal.danger; ctx.lineWidth = 3; ctx.stroke();
     ctx.beginPath(); ctx.arc(hp.x, hp.y, 7 + 3 * Math.sin(t * 20), 0, Math.PI * 2);
-    ctx.fillStyle = '#FF4D3D'; ctx.fill();
+    ctx.fillStyle = pal.danger; ctx.fill();
     ctx.font = '700 13px "InkSerif", "Gowun Batang", serif'; ctx.textAlign = 'center';
     ctx.strokeStyle = 'rgba(10,12,16,0.92)'; ctx.lineWidth = 4;
-    ctx.fillStyle = '#85F5D4';
+    ctx.fillStyle = pal.parryLight;
     ctx.strokeText('등 뒤로 일섬!', hp.x, hp.y - 24);
     ctx.fillText('등 뒤로 일섬!', hp.x, hp.y - 24);
     ctx.restore();
@@ -532,14 +542,17 @@ export class BossFx {
         ctx.lineTo(p.x, p.y);
       }
       ctx.closePath();
+      const pal = this._pal();
       if (danger) {
-        ctx.fillStyle = urgent ? 'rgba(255,77,61,0.30)' : ('rgba(220,48,36,' + (0.10 + 0.14 * u).toFixed(3) + ')');
+        ctx.fillStyle = urgent ? (pal.dangerFill + '0.30)') : (pal.dangerFill + (0.10 + 0.14 * u).toFixed(3) + ')');
         ctx.fill();
-        ctx.strokeStyle = '#FF4D3D'; ctx.lineWidth = 2.8; ctx.stroke();
+        if (this.cb) ctx.setLineDash([8, 4]);
+        ctx.strokeStyle = pal.danger; ctx.lineWidth = 2.8; ctx.stroke();
+        if (this.cb) ctx.setLineDash([]);
       } else {
-        ctx.fillStyle = 'rgba(77,212,255,0.08)';
+        ctx.fillStyle = pal.safeFill + '0.10)';
         ctx.fill();
-        ctx.strokeStyle = 'rgba(77,212,255,0.55)'; ctx.lineWidth = 1.6; ctx.stroke();
+        ctx.strokeStyle = pal.safe; ctx.lineWidth = 1.8; ctx.stroke();
       }
     }
     const tp = project(bx, bz, 2.3);
@@ -556,23 +569,28 @@ export class BossFx {
     const u = clamp(f, 0, 1);
     const urgent = u >= 0.78;
     ctx.save();
+    const pal = this._pal();
     if (safeInside) {
       groundPoly(ctx, project, bx, bz, outerR, 44, 0);
-      ctx.fillStyle = urgent ? 'rgba(255,77,61,0.24)' : ('rgba(220,48,36,' + (0.08 + 0.12 * u).toFixed(3) + ')');
+      ctx.fillStyle = urgent ? (pal.dangerFill + '0.26)') : (pal.dangerFill + (0.08 + 0.12 * u).toFixed(3) + ')');
       ctx.fill();
-      ctx.strokeStyle = 'rgba(255,77,61,0.92)'; ctx.lineWidth = 3.0; ctx.stroke();
+      if (this.cb) ctx.setLineDash([10, 5]);
+      ctx.strokeStyle = pal.danger; ctx.lineWidth = 3.0; ctx.stroke();
+      if (this.cb) ctx.setLineDash([]);
       groundPoly(ctx, project, bx, bz, innerR, 40, t * 0.4);
-      ctx.fillStyle = 'rgba(77,212,255,0.16)'; ctx.fill();
-      ctx.strokeStyle = '#4DD4FF'; ctx.lineWidth = urgent ? 4.0 : 3.0; ctx.stroke();
+      ctx.fillStyle = pal.safeFill + '0.18)'; ctx.fill();
+      ctx.strokeStyle = pal.safe; ctx.lineWidth = urgent ? 4.0 : 3.0; ctx.stroke();
     } else {
       groundPoly(ctx, project, bx, bz, innerR, 40, 0);
-      ctx.fillStyle = urgent ? 'rgba(255,77,61,0.28)' : ('rgba(220,48,36,' + (0.10 + 0.14 * u).toFixed(3) + ')');
+      ctx.fillStyle = urgent ? (pal.dangerFill + '0.28)') : (pal.dangerFill + (0.10 + 0.14 * u).toFixed(3) + ')');
       ctx.fill();
-      ctx.strokeStyle = '#FF4D3D'; ctx.lineWidth = 3.2; ctx.stroke();
+      if (this.cb) ctx.setLineDash([10, 5]);
+      ctx.strokeStyle = pal.danger; ctx.lineWidth = 3.2; ctx.stroke();
+      if (this.cb) ctx.setLineDash([]);
       groundPoly(ctx, project, bx, bz, innerR * u, 36, -t * 0.4);
       ctx.strokeStyle = 'rgba(255,240,192,0.9)'; ctx.lineWidth = 2.2; ctx.stroke();
       groundPoly(ctx, project, bx, bz, innerR + 1.2, 42, t * 0.3);
-      ctx.strokeStyle = '#4DD4FF'; ctx.lineWidth = 2.6; ctx.stroke();
+      ctx.strokeStyle = pal.safe; ctx.lineWidth = 2.6; ctx.stroke();
     }
     const c = project(bx, bz, 2.3);
     ctx.font = '700 14px "InkSerif", "Gowun Batang", serif'; ctx.textAlign = 'center';
@@ -620,7 +638,8 @@ export class BossFx {
     const hp = project(hx, hz, 1.0);
     const frac = clamp(curDist / Math.max(1, breakDist), 0, 1);
     ctx.save();
-    ctx.strokeStyle = frac >= 0.78 ? '#5FE8C2' : '#FF4D3D';
+    const pal = this._pal();
+    ctx.strokeStyle = frac >= 0.78 ? pal.parry : pal.danger;
     ctx.lineWidth = 3.6;
     ctx.setLineDash([10, 6]);
     ctx.lineDashOffset = -t * 60;
@@ -641,7 +660,8 @@ export class BossFx {
     const frac = clamp(rem / Math.max(0.1, beatDur), 0, 1);
     ctx.save();
     const innerR = 28, outerR = 28 + 56 * frac;
-    ctx.strokeStyle = inJust ? '#5FE8C2' : 'rgba(242,184,75,0.82)';
+    const pal = this._pal();
+    ctx.strokeStyle = inJust ? pal.parry : 'rgba(242,184,75,0.82)';
     ctx.lineWidth = inJust ? 4.0 : 2.4;
     ctx.beginPath(); ctx.arc(hs.x, hs.y, outerR, 0, Math.PI * 2); ctx.stroke();
     ctx.strokeStyle = inJust ? '#FFF8D6' : 'rgba(242,184,75,0.34)';

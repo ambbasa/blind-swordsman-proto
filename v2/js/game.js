@@ -31,15 +31,15 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v118';
+import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v119';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v118';
+import { probeAssets, buildArt } from './art.js?v=v119';
 import * as Anim from './anim.js';
-import { createAudio } from './audio.js?v=v118';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v118';
-import { PAT_COST, PAT_CUE, getActPhaseFx, getActSkillNames, bossPatternMean, buildBossBannerInfo } from './modules/bossPatterns.js?v=v118';
-import { GIMMICK_DRILLS, getDrillDef, createDrillState, resetDrillRound, stepDrill, handleDrillInput, drawDrillCanvas } from './modules/trainingDrills.js?v=v118';
-import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v118';
+import { createAudio } from './audio.js?v=v119';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v119';
+import { PAT_COST, PAT_CUE, getActPhaseFx, getActSkillNames, bossPatternMean, buildBossBannerInfo } from './modules/bossPatterns.js?v=v119';
+import { GIMMICK_DRILLS, getDrillDef, createDrillState, resetDrillRound, stepDrill, handleDrillInput, drawDrillCanvas } from './modules/trainingDrills.js?v=v119';
+import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v119';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
@@ -60,7 +60,7 @@ import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariant
 import { InkFx, FX_COLORS } from './inkfx.js';
 import { BossFx } from './bossFx.js';
 import { createTelemetry } from './telemetry.js';
-import { applyHeroCloak3D } from './inkhero3d.js?v=v118';
+import { applyHeroCloak3D } from './inkhero3d.js?v=v119';
 import {
   SAVE_VERSION, STAT_DEFS, FORGE_COSTS, SWORDS, RELICS, COSMETIC_CLOAKS, COSMETIC_TRAILS,
   DAILY_QUESTS, ATTENDANCE_REWARDS, STAR_CHESTS, CODEX_MILESTONES,
@@ -88,8 +88,8 @@ import { MODES, MODE_ORDER, MODE_NOTE, modeOf, CHALLENGES, challengeOf, RUN_UPGR
 import { PAT_CODE } from './modules/bossCatalog.js';
 import { createInputQueue, createDashLatencyTracker } from './modules/inputQueue.js';
 import { createRunState, resetRunStateOnQuit } from './modules/state.js';
-import { createHudController } from './modules/hudController.js?v=v118';
-import { createUiRouter } from './modules/uiRouter.js?v=v118';
+import { createHudController } from './modules/hudController.js?v=v119';
+import { createUiRouter } from './modules/uiRouter.js?v=v119';
 import { syncSceneActTheme3D } from './modules/actTheme3d.js';
 import { createInkRiver3D } from './modules/inkWater3d.js';
 import { createInkTerrain3D } from './modules/inkTerrain3d.js';
@@ -4045,8 +4045,6 @@ function drawOverlays(ctx, r, hs) {
     ctx.strokeText('참', cx, cy);
     ctx.restore();
   }
-  /* 7.5) v0.49 집중 개편: 심안의 원 붓경계 + 난전 주인공 발밑 시인성 비콘 */
-  drawHeroBeaconAndSightRing(ctx, r, hs, t);
   /* 8) 지금 일섬에 실린 원소: 주인공 발밑 오라, 바닥 부적은 남은 시간 고리 */
   drawHeroElement(ctx, t);
   /* 9) 체력이 깎인 원귀의 체력 막대 (심안 안이거나 혼령이 붙은 적만) */
@@ -4580,7 +4578,6 @@ function drawElementMote(ctx, el, x, y, u, color) {
 }
 /* v0.54: 주인공·심안 경계의 인위적 2D 원형 테두리 선을 제거해 한지 수묵화 몰입감을 높인다.
    (원 안/밖 대비는 3D 월드 먹안개가 자연스럽게 담당한다.) */
-function drawHeroBeaconAndSightRing() {}
 function drawHeroElement(ctx, t) {
   const el = curElem();
   if (!el || !S.hero) return;
@@ -8072,7 +8069,10 @@ function startPizza(z) {
 }
 function startRhythm(z) {
   z.state = 'rhythm'; z.stateT = 0; z.pat = 'rhythm';
-  z.rhythm = { idx: 0, beats: [0.62, 0.52, 0.72], t: 0, ok: 0, handled: false };
+  const ph = z.phase || 1;
+  const base = ph >= 3 ? [0.50, 0.40, 0.62] : (ph >= 2 ? [0.56, 0.44, 0.68] : [0.62, 0.52, 0.72]);
+  const tm = clamp(z.teleMul || 1, 0.85, 1.35);
+  z.rhythm = { idx: 0, beats: [+(base[0] * tm).toFixed(2), +(base[1] * tm).toFixed(2), +(base[2] * tm).toFixed(2)], t: 0, ok: 0, handled: false };
   bossCue(z, 'jade', 'rhythm');
   showJudge('삼연격 — 박자에 맞춰 탭 3회!');
   if (audio && audio.drum) audio.drum();
@@ -9164,6 +9164,7 @@ function bossBannerInfo(z) {
 function drawBossPat(ctx, r, hs) {
   const z = S.boss;
   if (z && z.alive) {
+    bossFx.setColorblind(a11yCb());
     const bInfo = bossBannerInfo(z);
     if (bInfo) bossFx.drawSkillBanner(ctx, r, bInfo, S.elapsed || 0);
   }
@@ -11292,8 +11293,22 @@ function trainDraw() {
   ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
   /* 목표 무늬의 옅은 유도선 / 보스 기믹·패링 드릴 */
   if (train.parryMode) {
-    stepDrill(train.drill, 0.016);
+    const nowMs = performance.now();
+    const drillDt = train._lastMs ? Math.min(0.05, Math.max(0.004, (nowMs - train._lastMs) / 1000)) : 0.016;
+    train._lastMs = nowMs;
+    stepDrill(train.drill, drillDt);
     drawDrillCanvas(ctx, W, H, train.drill);
+    if (train.drillDrag && train.pts && train.pts.length > 1) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(136,245,212,0.88)'; ctx.lineWidth = 4.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath();
+      for (let ti = 0; ti < train.pts.length; ti++) {
+        const tp = train.pts[ti];
+        if (ti === 0) ctx.moveTo(tp.x, tp.y); else ctx.lineTo(tp.x, tp.y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
     const stEl = $('trainStats');
     if (stEl) {
       const def = getDrillDef(train.drill.kind);
@@ -11974,14 +11989,12 @@ function bindUi() {
   if ($('btnStageGo')) $('btnStageGo').addEventListener('click', function (e) { e.stopPropagation(); goStageNow(); });
   if ($('ov-stage')) $('ov-stage').addEventListener('click', function () { goStageNow(); });
   $('btnIdleTake').addEventListener('click', function () { collectIdle(false); });
-  $('btnIdleDouble').addEventListener('click', function () {
-    $('btnIdleDouble').disabled = true;
-    $('btnIdleDouble').textContent = '광고 자리…';
-    setTimeout(function () {
-      $('btnIdleDouble').disabled = false;
-      $('btnIdleDouble').textContent = '광고로 두 배 받기';
-      collectIdle(true);
-    }, qa.noDelay ? 0 : 800);
+  if ($('btnDockHome')) $('btnDockHome').addEventListener('click', function () {
+    ['ov-stages', 'ov-shop', 'ov-cosmetic', 'ov-daily', 'ov-codex', 'ov-train'].forEach(function (id) {
+      const el = $(id); if (el) el.classList.remove('show');
+    });
+    try { stopCodex3d(); } catch (_) {}
+    showOv('ov-title');
   });
   document.querySelectorAll('[data-buy]').forEach(function (b) {
     b.addEventListener('click', function () { buy(b.getAttribute('data-buy')); });
@@ -12103,7 +12116,7 @@ function bindUi() {
     } catch (e) { toast('백업 코드 생성에 실패했습니다.'); }
   });
   if ($('btnSaveImport')) $('btnSaveImport').addEventListener('click', function () {
-    const raw = window.prompt('보관해 둔 세이브 백업 코드를 붙여넣으세요:');
+    const raw = window.prompt('보관해 둔 기록 백업 코드를 붙여넣으세요:');
     if (!raw || !raw.trim()) return;
     try {
       const parsed = JSON.parse(decodeURIComponent(escape(atob(raw.trim()))));
@@ -12115,7 +12128,9 @@ function bindUi() {
       migrateMetaV4(save);
       persist();
       refreshTitleStages();
-      toast('세이브 데이터를 복원했습니다.');
+      try { refreshShop(); } catch (_) {}
+      try { syncLobby3dStyle(cloakOf(save), trailOf(save)); } catch (_) {}
+      toast('기록을 복원했습니다.');
     } catch (e) { toast('백업 코드를 읽을 수 없습니다.'); }
   });
 document.addEventListener('visibilitychange', function () {
@@ -12191,7 +12206,7 @@ async function boot() {
   try { titlePrewarm(); } catch (e) {}
   try {
     if (!heroGlbReady()) {
-      const playBtn = $('btnPlay');
+      const playBtn = $('btnStart');
       const origTxt = playBtn ? playBtn.textContent : null;
       if (playBtn && origTxt) playBtn.setAttribute('data-orig-label', origTxt);
       const hp = preloadHeroGlb();
