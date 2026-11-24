@@ -53,3 +53,14 @@
   - **3막(혈월 무장)**: 리듬 패링·거리 절단 (`rhythm`, `tether`, `pizza`, 12장 `shuffle`/`mimic`).
   - **4막(무간의 검귀)**: 국면별 테마 전환 종합 시험.
 - **밸런스 & HUD 기준**: 보스 일반 타격 배율 `0.50`, 자세 붕괴(그로기) `2.00` (UI 안내 문구 통일), 기믹 실패 시 즉사 대신 취약 중첩(`vulnStacks` 최대 2, `8초`, `#vulnBadge` HUD 실시간 표시), 상점 `공력 +6%/Lv`, `재물운 +8%/Lv (전투 상한 ×2.5)`.
+
+## 5. 토큰 절감 & 빠른 코드 맵 (`v1.20`+)
+- 루트 AI Ignore 파일(`.geminiignore`·`.aiignore`·`.cursorignore`·`.claudeignore`)로 `v2/vendor/`, `v2/assets/`, `assets/`, `.claude/`, `studio-tests/`, 구버전 문서를 인덱싱에서 제외해 탐색 대상 파일 수를 `1,320개 → ~90개`로 축소.
+- **`v2/js/` 핵심 모듈 위치**:
+  - 보스 패턴·막별 스킬명·페이즈 연출: `v2/js/modules/bossPatterns.js`
+  - 보스 도감(19종): `v2/js/modules/bossCatalog.js`
+  - 수련장 6대 기믹·패링 드릴: `v2/js/modules/trainingDrills.js`
+  - 1~4막 16장 스테이지·보스 편성: `v2/js/modules/stages.js`
+  - 보스 3D/2D 예고·색약 팔레트: `v2/js/bossFx.js`
+  - 3D 보스 모델·비무장 모션: `v2/js/glbboss.js`, `v2/js/inkmonsters3d.js`
+  - 메타·무구·유물·도감 집계: `v2/js/meta.js`, `v2/js/modules/economy.js`

@@ -1,0 +1,41 @@
+# 심안: 묵검 (blind-swordsman-proto) AI 인덱싱·탐색 제외 규칙
+# 런타임·Git에는 영향 없이 새 세션 Repo Map / grep 토큰 소모를 약 93% 절감합니다.
+
+# 1. 대용량 압축 라이브러리 (minified JS — grep 시 수십만 토큰 유발)
+v2/vendor/
+
+# 2. 바이너리 에셋 폴더 (3D GLB, 텍스처, 스프라이트, 폰트, 오디오)
+v2/assets/
+v2/fonts/
+v2/img/
+assets/
+
+# 3. 대량 스캐폴드·테스트 템플릿 (전체 파일 수의 54%)
+.claude/
+studio-tests/
+
+# 4. 과거 버전 누적 문서·대형 참고 문서 (최신 규칙은 docs/SIMAN_HANDOFF.md 참조)
+UPGRADING.md
+docs/WORKFLOW-GUIDE.md
+docs/COLLABORATIVE-DESIGN-PRINCIPLE.md
+docs/skill-flow-diagrams.md
+docs/engine-reference/
+docs/심안_v0*.md
+docs/심안_참조스킬_레퍼런스_기획서.md
+design/
+
+# 5. 로컬 3D 빌드 중간 산출물
+scripts/blender/_raw/
+scripts/blender/_raw_bosses/
+scripts/blender/_concepts/
+
+# 6. 바이너리 확장자 일괄 제외
+*.glb
+*.png
+*.webp
+*.jpg
+*.jpeg
+*.wav
+*.mp3
+*.woff2
+*.zip
