@@ -2,7 +2,7 @@
 
 - **저장소**: `https://github.com/ambbasa/blind-swordsman-proto`
 - **라이브 데모**: `https://ambbasa.github.io/blind-swordsman-proto/v2/`
-- **최신 버전**: `v1.20` (2026-11-24 기준)
+- **최신 버전**: `v1.21` (2026-11-24 기준)
 - **기술 스택**: Vanilla JS ES Modules + Three.js r170 + Custom GLSL + Web Audio API (모바일 세로 웹/PWA, 100% 무료 로컬 파이프라인)
 
 ## 1. 절대 원칙 (Standing Rules)
@@ -64,3 +64,7 @@
   - 보스 3D/2D 예고·색약 팔레트: `v2/js/bossFx.js`
   - 3D 보스 모델·비무장 모션: `v2/js/glbboss.js`, `v2/js/inkmonsters3d.js`
   - 메타·무구·유물·도감 집계: `v2/js/meta.js`, `v2/js/modules/economy.js`
+  - 스테이지 지형 규칙: `v2/js/modules/stageTerrain.js`
+  - 리텐션(출석·일일수련·별상자): `v2/js/modules/retention.js`
+  - 3탭 도감 & 3D 뷰어: `v2/js/modules/codexView.js`
+  - 통합 스타일시트: `v2/css/siman.css` (기존 5중 CSS 통합)

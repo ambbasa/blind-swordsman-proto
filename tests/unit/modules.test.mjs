@@ -435,3 +435,47 @@ import { GIMMICK_DRILLS, getDrillDef, createDrillState, handleDrillInput } from 
   assert.deepEqual(dupImports, [], 'Duplicate ES module ?v= instances found: ' + dupImports.join(', '));
   console.log('v1.09 BOSS_PATTERNS, TRAINING_DRILLS, CACHE_SYNC, ZERO-HANJA/EMOJI & SINGLE-INSTANCE TESTS PASSED (' + swVer + ')');
 }
+
+/* --- v1.21 모듈 분리 검증: stageTerrain.js, retention.js, codexView.js --- */
+import { TERRAIN_CFG, tHash, getRiverCfg, tWaterCenter, tWaterAt, resolveZoneAt, resolveSegZone } from '../../v2/js/modules/stageTerrain.js';
+import {
+  ensureDailyFresh, bumpDailyProgress, actStarTotalOf, hasClaimableRetentionOf,
+  claimAttendanceReward, claimDailyQuestReward, claimStarChestReward, claimCodexMilestoneReward
+} from '../../v2/js/modules/retention.js';
+import { CODEX_SPECIES, CODEX_ANIM_KO } from '../../v2/js/modules/codexView.js';
+
+{
+  // stageTerrain.js: deterministic hash, river geometry, zoneAt/segZone
+  assert.equal(TERRAIN_CFG.water.lenMul, 0.7);
+  assert.equal(tHash(3, -5, 11), tHash(3, -5, 11));
+  assert.ok(tHash(3, -5, 11) >= 0 && tHash(3, -5, 11) < 1);
+  assert.equal(getRiverCfg(10).flowDir, 1);
+  assert.equal(getRiverCfg(14).flowDir, -1);
+  const c10 = tWaterCenter(0, 10);
+  assert.ok(tWaterAt(0, c10, 10) !== null, 'point on river centerline must be inside water');
+  assert.equal(resolveZoneAt(0, 0, { id: 1, terrain: { kind: 'none' } }, null), null);
+  const wz = resolveSegZone({ x: 0, z: c10 - 6 }, { x: 0, z: c10 + 6 }, { id: 10, terrain: { kind: 'water' } }, null);
+  assert.ok(wz && wz.kind === 'water', 'segment crossing stage 10 river must hit water');
+
+  // retention.js: attendance, daily quests, star chests, codex milestones
+  const rs = { coins: 0, ink: 0, stars: { 1: 3, 2: 3, 3: 3, 4: 3 } };
+  ensureDailyFresh(rs, '2026-11-24');
+  assert.equal(actStarTotalOf(rs, 1), 12);
+  assert.equal(hasClaimableRetentionOf(rs, '2026-11-24'), true);
+  const att1 = claimAttendanceReward(rs, '2026-11-24');
+  assert.ok(att1 && att1.day === 1);
+  assert.equal(claimAttendanceReward(rs, '2026-11-24'), null, 'cannot claim attendance twice same day');
+  bumpDailyProgress(rs, '2026-11-24', DAILY_QUESTS[0].id, DAILY_QUESTS[0].goal);
+  const dq = claimDailyQuestReward(rs, '2026-11-24', DAILY_QUESTS[0].id);
+  assert.ok(dq && dq.id === DAILY_QUESTS[0].id);
+  assert.equal(claimDailyQuestReward(rs, '2026-11-24', DAILY_QUESTS[0].id), null);
+  const sc = claimStarChestReward(rs, '2026-11-24', 1, STAR_CHESTS[0].stars);
+  assert.ok(sc && sc.stars === STAR_CHESTS[0].stars);
+  const cm = claimCodexMilestoneReward(rs, '2026-11-24', CODEX_MILESTONES[0].pct, 100);
+  assert.ok(cm && cm.pct === CODEX_MILESTONES[0].pct);
+
+  // codexView.js metadata integrity
+  assert.equal(CODEX_SPECIES.length, 8);
+  assert.equal(CODEX_ANIM_KO.stagger, '자세 붕괴');
+  console.log('v1.21 MODULES (stageTerrain, retention, codexView) PASSED');
+}
