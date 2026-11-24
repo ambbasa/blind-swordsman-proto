@@ -514,6 +514,7 @@ import { STAT_ICONS } from '../../v2/js/modules/shopView.js';
 /* --- v1.24 수련장 컨트롤러·별점 계산 모듈 검증: trainView.js, starRating.js --- */
 import { TRAIN_SHAPES, SHAPE_LABEL, trainStatsOfSave } from '../../v2/js/modules/trainView.js';
 import { computeStar3Info, computeStarsFor } from '../../v2/js/modules/starRating.js';
+import { rollRunMissions, evalRunMissions, computeStyleKillPoints, styleGradeOf } from '../../v2/js/modules/runMissions.js';
 
 {
   assert.equal(TRAIN_SHAPES.length, 10);
@@ -642,5 +643,20 @@ import { createShopLogic } from '../../v2/js/modules/shopLogic.js';
   assert.ok(SHAPE_STYLE.vee.landR > 1.4 && SHAPE_STYLE.vee.landDmgMul > 0, 'vee slam AoE');
   assert.ok(SHAPE_STYLE.bolt.chainN >= 2, 'bolt lightning chain');
   console.log('v1.30 SHAPE_STYLE & TIERED GAME FEEL PASSED');
+}
+
+// v1.32 RUN_MISSIONS, STYLE_SCORE & 3-STAR INTEGRATION TESTS
+{
+  const ms = rollRunMissions(STAGES[15], 42);
+  assert.equal(ms.length, 3);
+  for (const m of ms) assert.ok(!/[\u4E00-\u9FFF]/.test(m.label), 'no hanja in mission label');
+  assert.equal(computeStyleKillPoints({ multiN: 1, why: 'slash' }), 100);
+  assert.equal(computeStyleKillPoints({ multiN: 3, why: 'cleave' }), 1100);
+  assert.equal(styleGradeOf(0).label, '병');
+  assert.equal(styleGradeOf(10500).label, '극');
+  const mockS = { hp: 12, hits: 1, maxMultiHit: 4, comboMax: 30, parryOkN: 3, cleaveKills: 5, shapeKills: { vee: 5, bolt: 5, vline: 5 }, missions: ms };
+  assert.equal(evalRunMissions(ms, mockS, 14).doneCount, 3);
+  assert.equal(computeStarsFor(true, mockS, {}, 14, 3), 3);
+  console.log('v1.32 RUN_MISSIONS, STYLE_SCORE & 3-STAR TESTS PASSED');
 }
 }

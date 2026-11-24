@@ -36,6 +36,13 @@ function startRun(opts) {
   rt.terrainInit();
   rt.S.runNo = opts.sandbox ? rt.SHAPE_UNLOCK.length : stageNo;
   rt.S.pool = opts.sandbox ? rt.SHAPE_UNLOCK.slice() : (st.shapes || rt.SHAPE_UNLOCK.slice()).slice();
+  /* v1.32 판별 3종 임무 · 기예 점수 · 포위 러시 상태 초기화 */
+  rt.S.missions = (!opts.sandbox && !opts.challenge && rt.rollRunMissions) ? rt.rollRunMissions(st) : [];
+  rt.S.styleScore = 0;
+  rt.S.maxMultiHit = 0;
+  rt.S.shapeKills = {};
+  rt.S.cleaveKills = 0;
+  rt.S.rushT = 0;
   rt.initGoal(st, opts);
   if (opts.challenge) rt.initChallenge(opts.challenge, stageNo);
   /* §7.2·§7.3: 이 판의 예고 배율(모드 × 연패 보정)과 판 시작 도움. */

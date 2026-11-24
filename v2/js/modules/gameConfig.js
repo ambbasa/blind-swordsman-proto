@@ -17,10 +17,10 @@ export const SHAPE_STYLE = {
 };
 
 export const SHAPE_HINT = {
-  hline: '가로로 길게 그어 보세요',
-  vline: '세로로 길게 그어 보세요',
-  vee: 'V자를 그려 보세요',
-  bolt: '번개(Z)처럼 지그재그로 그어 보세요'
+  hline: '가로(—) 횡참: 넓은 폭으로 주변까지 휩쓸어 베기',
+  vline: '세로(ㅣ) 직선 관통: 긴 사거리, 관통 피해 감쇠 없음',
+  vee: 'V 도약 찍기: 착지 지점 광역 충격파와 경직',
+  bolt: '번개(Z) 뇌전 연쇄: 명중 주변 2체 자동 전격 연쇄'
 };
 /* v1 numbers reused where the new brief is silent. Documented as defaults. */
 export const CFG = {

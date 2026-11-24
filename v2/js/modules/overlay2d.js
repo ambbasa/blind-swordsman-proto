@@ -423,6 +423,7 @@ function drawOverlays(ctx, r, hs) {
   }
   rt.inkFx.draw(ctx, rt.projectXZ, rt.S.hero, r, rt.frameDt);
   rt.bossFx.draw(ctx, rt.projectXZ, rt.frameDt);
+  drawFloaters(ctx, rt.frameDt);
   if (rt.three && rt.three.vfx3d) rt.three.vfx3d.drawImpactFrame(ctx, r.width, r.height, rt.frameDt);
   /* §8.1·§8.2: 유도 획·참(O) 안내·기물 연습·첫 칼 튕김 화살표·제자리 탭 링 */
   rt.drawTutorial(ctx, r, hs);
@@ -1636,5 +1637,46 @@ function landingShock(at) {
   if (rt.S.lastDash) rt.S.lastDash.shock = { x: at.x, z: at.z, r: R, push: push };
 }
 /* 제자리 탭 → 칼집 패링: 반경 2.4m 넉백·경직·0.5 피해. 성공 시 parry 사운드 + 히트스톱. */
-  return { _proj, beginDash, beginOnebell, brushMark, clampHeroToArena, clampPointToArena, clearOnebell, clipBound, clipWorld, comboBreak, comboReward, consumeInputBuf, dashEndPoint, endOnebell, enqueueInputBuf, failHint, inkColorFor, landDash, landingShock, loadMarkImages, onebellSlash, resolveDash, resolvePropCollision, ringSpiritBell, scoreDash, secondScore, showJudge, stampSkill, startSeg, syncGroundEffects, triggerSightWave, updateMarks, worldBounds };
+/* v1.32 제로-GC 수묵 플로팅 데미지 & 기예 점수 팝업 풀 */
+const _floaters = [];
+for (let _fi = 0; _fi < 28; _fi++) _floaters.push({ alive: false, x: 0, z: 0, text: '', kind: 'dmg', t: 0, dur: 0.65, ox: 0 });
+let _floaterNext = 0;
+function spawnFloater(x, z, text, kind) {
+  if (!text) return;
+  const f = _floaters[_floaterNext];
+  _floaterNext = (_floaterNext + 1) % _floaters.length;
+  f.alive = true; f.x = x; f.z = z; f.text = String(text); f.kind = kind || 'dmg';
+  f.t = 0; f.dur = kind === 'score' ? 0.85 : (kind === 'weak' ? 0.78 : 0.58);
+  f.ox = ((_floaterNext % 5) - 2) * 7;
+}
+function drawFloaters(ctx, dt) {
+  const stepDt = Math.min(0.05, dt || 0.016);
+  let any = false;
+  for (let i = 0; i < _floaters.length; i++) if (_floaters[i].alive) { any = true; break; }
+  if (!any) return;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i < _floaters.length; i++) {
+    const f = _floaters[i];
+    if (!f.alive) continue;
+    f.t += stepDt;
+    if (f.t >= f.dur) { f.alive = false; continue; }
+    const u = f.t / f.dur;
+    const p = rt.projectXZ(f.x, f.z, f.kind === 'score' ? 1.55 : 1.15);
+    const rise = (1 - Math.pow(1 - u, 2)) * (f.kind === 'score' ? 38 : 26);
+    const alpha = u < 0.7 ? 1 : Math.max(0, 1 - (u - 0.7) / 0.3);
+    const sc = u < 0.14 ? (0.75 + (u / 0.14) * 0.45) : (1.2 - Math.min(0.2, (u - 0.14) * 0.4));
+    const px = f.kind === 'weak' ? 20 : (f.kind === 'score' ? 16 : (f.kind === 'crit' ? 17 : 13));
+    ctx.globalAlpha = alpha;
+    ctx.font = '800 ' + Math.round(px * sc) + 'px system-ui, -apple-system, sans-serif';
+    ctx.lineWidth = 3.2;
+    ctx.strokeStyle = 'rgba(10, 9, 12, 0.88)';
+    ctx.fillStyle = f.kind === 'weak' ? '#ff644c' : (f.kind === 'score' ? '#7ef5d4' : (f.kind === 'crit' ? '#ffd978' : '#f4efe6'));
+    ctx.strokeText(f.text, p.x + f.ox, p.y - rise);
+    ctx.fillText(f.text, p.x + f.ox, p.y - rise);
+  }
+  ctx.restore();
+}
+  return { _proj, beginDash, beginOnebell, brushMark, clampHeroToArena, clampPointToArena, clearOnebell, clipBound, clipWorld, comboBreak, comboReward, consumeInputBuf, dashEndPoint, endOnebell, enqueueInputBuf, failHint, inkColorFor, landDash, landingShock, loadMarkImages, onebellSlash, resolveDash, resolvePropCollision, ringSpiritBell, scoreDash, secondScore, showJudge, spawnFloater, stampSkill, startSeg, syncGroundEffects, triggerSightWave, updateMarks, worldBounds };
 }

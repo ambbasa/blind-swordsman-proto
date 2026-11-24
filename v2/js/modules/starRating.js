@@ -1,5 +1,7 @@
 /* v2/js/modules/starRating.js — 심안: 묵검 v1.24 스테이지 별점·도전 조건 계산 순수 모듈 */
 
+import { evalRunMissions } from './runMissions.js?v=v132';
+
 export function computeStar3Info(st, S, cfg) {
   const s3 = (st && st.star3) || { kind: 'combo' };
   if (s3.kind === 'goal') {
@@ -50,6 +52,13 @@ export function computeStar3Info(st, S, cfg) {
 export function computeStarsFor(win, S, cfg, maxHpVal, starCapVal) {
   if (!S || !win) return 0;
   if (S.challenge) return 0;
+  if (S.missions && S.missions.length === 3) {
+    const ev = evalRunMissions(S.missions, S, maxHpVal);
+    let mStars = 1;
+    if (ev.doneCount >= 2) mStars++;
+    if (ev.doneCount >= 3) mStars++;
+    return Math.min(starCapVal, mStars);
+  }
   const st = S.stage || {};
   let n = 1;
   if (S.hp / Math.max(1, maxHpVal) >= 0.5 || (S.hits || 0) <= ((cfg && cfg.star2Hits) || 3)) n++;

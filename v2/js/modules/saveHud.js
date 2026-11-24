@@ -183,13 +183,18 @@ function fillHp() {
   const n = maxHp(), cur = rt.S ? rt.S.hp : n;
   if (n === shownMaxHp && cur === shownHp) return;
   shownMaxHp = n; shownHp = cur;
-  /* 12개까지만 핍으로 그리고, 넘는 최대 체력은 +N으로 적는다(2줄로 넘치지 않게). */
-  const show = Math.min(12, n);
-  let h = '', i;
-  for (i = 0; i < show; i++) h += '<i' + (i < cur ? '' : ' class="off"') + '></i>';
-  $('hpPips').innerHTML = h;
+  /* v1.32 상단 HUD 다이어트: 최대 체력 10 초과 시 컴팩트 HP 바 + 숫자로 시야 확보 */
   const more = $('hpMore');
-  if (more) more.textContent = n > show ? '+' + (n - show) : '';
+  if (n > 10) {
+    const pct = Math.max(0, Math.min(100, (cur / Math.max(1, n)) * 100)).toFixed(1);
+    $('hpPips').innerHTML = '<span class="hp-bar-wrap"><i class="hp-bar-fill" style="width:' + pct + '%"></i></span>';
+    if (more) more.textContent = Math.max(0, Math.ceil(cur)) + '/' + n;
+  } else {
+    let h = '', i;
+    for (i = 0; i < n; i++) h += '<i' + (i < cur ? '' : ' class="off"') + '></i>';
+    $('hpPips').innerHTML = h;
+    if (more) more.textContent = '';
+  }
 }
 /* v0.31 §5.5 판 안 경험치 곡선: 7 + 4(lv-1) + 0.6(lv-1)^2 — 첫 3레벨은 빠르고 8레벨 이후는 느리다. */
 function xpNeed(lv) {
@@ -202,11 +207,16 @@ function setHudText(el, value) {
 }
 function renderHud() {
   const appEl = $('app');
-  if (appEl) appEl.classList.toggle('boss-active', !!(rt.S && rt.S.playing && rt.S.boss && rt.S.boss.alive));
+  if (appEl) {
+    appEl.classList.toggle('boss-active', !!(rt.S && rt.S.playing && rt.S.boss && rt.S.boss.alive));
+    appEl.classList.toggle('rush-active', !!(rt.S && rt.S.playing && (rt.S.rushT || 0) > 0));
+  }
   if (!rt.S) {
     setHudText($('stageLabel'), '심안');
     $('judgeFlash').hidden = true;
     $('goalLabel').hidden = true;
+    if ($('missionHud')) $('missionHud').hidden = true;
+    if ($('styleHud')) $('styleHud').hidden = true;
     setHudText($('timer'), '—');
     setHudText($('dashLabel'), '일섬 1');
     setHudText($('coinLabel'), '엽전 ' + rt.save.coins);
@@ -243,6 +253,31 @@ function renderHud() {
   const xpW = Math.min(100, (rt.S.xp / xpNeed(rt.S.level)) * 100).toFixed(1) + '%';
   const xpEl = $('xpFill');
   if (xpEl && xpEl._w !== xpW) { xpEl._w = xpW; xpEl.style.width = xpW; }
+  /* v1.32 판별 3종 임무 진행도 & 실시간 기예 등급 HUD */
+  const mh = $('missionHud');
+  if (mh) {
+    if (rt.S.missions && rt.S.missions.length === 3 && rt.evalRunMissions) {
+      const mev = rt.evalRunMissions(rt.S.missions, rt.S, maxHp());
+      const nextTodo = mev.items.find(function (x) { return !x.done; });
+      const mTxt = mev.doneCount >= 3 ? '임무 3/3 완료' : ('임무 ' + mev.doneCount + '/3 · ' + (nextTodo ? nextTodo.label : ''));
+      mh.hidden = false;
+      mh.classList.toggle('done', mev.doneCount >= 3);
+      setHudText(mh, mTxt);
+    } else {
+      mh.hidden = true;
+    }
+  }
+  const sh = $('styleHud');
+  if (sh) {
+    const sc = rt.S.styleScore || 0;
+    if (sc > 0 && rt.styleGradeOf) {
+      const sg = rt.styleGradeOf(sc);
+      sh.hidden = false;
+      setHudText(sh, sg.label + ' · ' + sc.toLocaleString());
+    } else {
+      sh.hidden = true;
+    }
+  }
   renderCharge();
   fillHp();
 }

@@ -348,7 +348,8 @@ function fireWave(w) {
     setTimeout(function () { if (rt.audio) rt.audio.drum(); }, 140);
     setTimeout(function () { if (rt.audio) rt.audio.drum(); }, 280);
   }
-  rt.showJudge(form === 'pincer' ? '반원 협공!' : form === 'rows' ? '두 줄 행렬!' : '포위!');
+  rt.S.rushT = 10.0;
+  rt.showJudge(form === 'pincer' ? '포위 러시 · 반원 협공!' : form === 'rows' ? '포위 러시 · 두 줄 행렬!' : '포위 러시! 한 줄로 꿰뚫으세요');
 }
 /* 중간 엘리트: 보스 전에 금테 원귀 한 마리와 그 패거리가 몰려온다. */
 function spawnEliteEvent() {
@@ -423,6 +424,8 @@ function applyPath(from, to, rec, skip) {
   });
   /* Nearest along the cut takes full damage; each one after it a little less. */
   hit.sort(function (a, b) { return ((a.x - from.x) * dx + (a.z - from.z) * dz) / L2 - ((b.x - from.x) * dx + (b.z - from.z) * dz) / L2; });
+  if (rt.S && hit.length > (rt.S.maxMultiHit || 0)) rt.S.maxMultiHit = hit.length;
+  if (rec) rec._multiN = hit.length;
   if (swordF.dashInvuln && rt.S) rt.S.iframe = Math.max(rt.S.iframe || 0, swordF.dashInvuln);
   let killN = 0;
   const zPts = [];
@@ -658,6 +661,7 @@ function hurtZombie(z, amount, why, rec) {
     const d = inkDir(rec, z);
     if (rt.three && rt.three.ink) { rt.three.ink.hit(z.x, z.z, d.x, d.z); rt.fxinkStat.hits++; }
     if (rt.three && rt.three.paper) rt.three.paper.hit(z.x, 1.5, z.z, { size: isWeak ? 1.7 : 1.25 });
+    if (rt.spawnFloater && dealt >= 0.4) rt.spawnFloater(z.x, z.z, (dealt >= 10 ? Math.round(dealt) : dealt.toFixed(1)) + (isWeak ? '!' : ''), isWeak ? 'weak' : (rec && rec.perfect ? 'crit' : 'dmg'));
     z.flinchT = rt.CFG.flinchDur || 0.14;
     if (z.obj && rt.art.kickChar) rt.art.kickChar(z.obj, 1);
     z.seqI = Math.min(z.seq.length - 1, Math.floor((1 - z.hp / z.maxHp) * z.seq.length));
@@ -699,6 +703,7 @@ function hurtZombie(z, amount, why, rec) {
     const d = inkDir(rec, z);
     if (rt.three && rt.three.ink) { rt.three.ink.hit(z.x, z.z, d.x, d.z); rt.fxinkStat.hits++; }
     if (rt.three && rt.three.paper) rt.three.paper.hit(z.x, 1.0, z.z, { size: z.type === 'stone' ? 1.6 : 1.1 });
+    if (rt.spawnFloater && effectiveDamage >= 0.4) rt.spawnFloater(z.x, z.z, effectiveDamage >= 10 ? String(Math.round(effectiveDamage)) : effectiveDamage.toFixed(1), (rec && rec.perfect) || why === 'shatter' || why === 'explode' ? 'crit' : 'dmg');
     /* Stagger: a white flash and a short shove along the cut; the boss and status ticks do not shove. */
     z.flinchT = rt.CFG.flinchDur || 0.14;
     if (z.obj && rt.art.kickChar) rt.art.kickChar(z.obj, 1);
@@ -1192,7 +1197,23 @@ function killZombie(z, rec) {
     const edgeHex = z.isBoss ? 0xffd65a : (tr && tr.id !== 'ink' ? tr.coreHex : (z.burning ? 0xff6e38 : (z.frozen ? 0x86ecff : (z.poison ? 0xc27aff : 0xff9a44))));
     rt.three.shaderFx3d.spawnDissolve(z.x, z.z, { scale: z.isBoss ? 2.1 : 1.05, edgeHex: edgeHex, dur: z.isBoss ? 0.85 : 0.50 });
   }
-  if (rt.S) rt.S.kills = (rt.S.kills || 0) + 1;
+  if (rt.S) {
+    rt.S.kills = (rt.S.kills || 0) + 1;
+    const kShape = (rec && (rec.type || rec.shape)) || (rt.S.lastDash && rt.S.lastDash.type) || null;
+    if (kShape) { rt.S.shapeKills = rt.S.shapeKills || {}; rt.S.shapeKills[kShape] = (rt.S.shapeKills[kShape] || 0) + 1; }
+    if (rec && rec.type === 'circle') rt.S.cleaveKills = (rt.S.cleaveKills || 0) + 1;
+    if (rt.computeStyleKillPoints) {
+      const kPts = rt.computeStyleKillPoints({
+        multiN: (rec && rec._multiN) || 1,
+        why: (rec && rec.type === 'circle') ? 'cleave' : ((rec && rec.why) || 'slash'),
+        perfect: !!(rec && rec.perfect),
+        groggy: !!(z.isBoss && z.state === 'groggy'),
+        boss: !!z.isBoss
+      });
+      rt.S.styleScore = (rt.S.styleScore || 0) + kPts;
+      if (rt.spawnFloater && kPts >= 180) rt.spawnFloater(z.x, z.z + 0.35, '+' + kPts, 'score');
+    }
+  }
   if (rt.S && rt.S.spirits) rt.S.spirits.forEach(function (s) { if (s.target === z) s.target = null; });
   rt.assignSpiritTargets();
   z.marked = false;

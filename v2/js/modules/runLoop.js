@@ -18,7 +18,7 @@ function endRun(win, msg) {
   if (win && rt.S.goal && rt.S.goal.id === 'timed' && !rt.S.goal.fail) rt.goalPass('줄어든 시간에 베었습니다');
   const stars = rt.starsFor(win);
   const coinsGain = Math.max(0, rt.save.coins - (rt.S.coin0 || 0));
-  const score = (rt.S.kills || 0) * 10 + (rt.S.comboMax || 0) * 5 + stars * 100 + (win ? 150 : 0);
+  const score = (rt.S.styleScore || 0) + (rt.S.kills || 0) * 10 + (rt.S.comboMax || 0) * 5 + stars * 300 + (win ? 500 : 0);
   rt.S.stars = stars; rt.S.coinGain = coinsGain; rt.S.score = score;
   if (!rt.S.noScore) rt.telemetry.event('income', { source: 'run', stage: st.id, seconds: Math.round(rt.S.elapsed), coins: coinsGain });
   /* 타이틀 "수련" 다시 보기는 점수·별에 반영하지 않는다. */
@@ -105,6 +105,7 @@ function endRun(win, msg) {
   $('resultBody').textContent = win ? (msg || '') : (msg || '') + ' 다시 한 번.';
   const hpPct = Math.round((rt.S.hp / Math.max(1, rt.maxHp())) * 100);
   $('resultStats').innerHTML = [
+    ['기예 점수', (rt.S.styleScore || 0).toLocaleString() + ' (' + (rt.styleGradeOf ? rt.styleGradeOf(rt.S.styleScore || 0).label : '병') + ')'],
     ['처치', (rt.S.kills || 0) + '기'],
     ['최대 콤보', (rt.S.comboMax || 0)],
     ['획득 엽전', '+' + coinsGain],
@@ -120,6 +121,9 @@ function endRun(win, msg) {
     if (c && rt.S.challenge === 'bossrush') note = '보스 러시 ' + (rt.S.bossIdx || 0) + '/' + rt.STAGES.length + ' · 최고 기록 ' + (rt.save.records.bossrush || 0);
     else if (c && rt.S.challenge === 'endless') note = '무한 심연 — 귀물 ' + (rt.S.endlessBossN || 0) + ' · 최고 기록 ' + (rt.save.records.endless || 0);
     else if (c) note = c.name + ' — 무늬 ' + (rt.S.trialPool || []).map(function (k) { return rt.SHAPE_MARK[k] || k; }).join(' ');
+  } else if (rt.S.missions && rt.S.missions.length === 3 && rt.evalRunMissions) {
+    const mev = rt.evalRunMissions(rt.S.missions, rt.S, rt.maxHp());
+    note = '판별 임무 (' + mev.doneCount + '/3): ' + mev.items.map(function (it) { return (it.done ? '[완료] ' : '[미달] ') + it.label + ' (' + it.prog + ')'; }).join(' · ');
   } else if (win && stars < 3 && stars < rt.starCap()) {
     const lack = [];
     if (rt.S.hp / Math.max(1, rt.maxHp()) < 0.5 && (rt.S.hits || 0) > (rt.CFG.star2Hits || 3)) lack.push('체력 50% 이상 또는 피격 3회 이하(지금 ' + (rt.S.hits || 0) + '회)');
@@ -219,6 +223,7 @@ function step(dt) {
   }
   rt.S.elapsed += dt; rt.S.timeLeft -= dt;
   if (rt.S.iframe > 0) rt.S.iframe -= dt;
+  if (rt.S.rushT > 0) rt.S.rushT = Math.max(0, rt.S.rushT - dt);
   if (rt.S.parryCd > 0) rt.S.parryCd = Math.max(0, rt.S.parryCd - dt);
   if (rt.S.vulnT > 0) { rt.S.vulnT = Math.max(0, rt.S.vulnT - dt); if (rt.S.vulnT <= 0) rt.S.vulnStacks = 0; rt.renderVulnBadge(); }
   rt.syncBossOrbitSpirits(dt);
@@ -384,7 +389,8 @@ function step(dt) {
     }
   }
   rt.tickStatuses(dt);
-  const zsp = rt.CFG.zombieSpeed * wave * (rt.S.elapsed < 20 ? 0.65 : 1) * rt.modeSpd() * rt.terrainSpeedMul();
+  const rushMul = (rt.S.rushT > 0) ? 1.24 : 1.0;
+  const zsp = rt.CFG.zombieSpeed * wave * rushMul * (rt.S.elapsed < 20 ? 0.65 : 1) * rt.modeSpd() * rt.terrainSpeedMul();
   /* §6.1 지형 주기 효과(4장 달빛·5장 안개·9장 재생·11장 포대·12장 끌림) */
   rt.onTick(dt);
   /* §6.2 장별 부목표 */

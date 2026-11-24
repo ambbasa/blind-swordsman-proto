@@ -8,7 +8,7 @@ import {
   stepDrill,
   handleDrillInput,
   drawDrillCanvas
-} from './trainingDrills.js?v=v131';
+} from './trainingDrills.js?v=v132';
 
 export const TRAIN_SHAPES = Object.freeze(['hline', 'vline', 'vee', 'bolt', 'circle', 'square', 'tri', 'spiral', 'star', 'tap']);
 
@@ -18,10 +18,10 @@ export const SHAPE_LABEL = Object.freeze({
 });
 
 export const SHAPE_TIP = Object.freeze({
-  hline: '가로로 곧게, 화면 폭의 절반쯤. 끝에서 멈칫하지 마세요.',
-  vline: '위에서 아래로 한 번에. 좌우로 흔들리면 번개로 읽힙니다.',
-  vee: '내려갔다가 같은 기울기로 올라옵니다. 바닥은 뾰족하게.',
-  bolt: '세 마디 지그재그. 가로로 눕히지 말고 세로로 길게.',
+  hline: '[횡참 · 폭 ×1.4] 가로로 곧게 화면 폭의 절반쯤 그어 넓게 베세요.',
+  vline: '[직선 관통 · 사거리 +28% · 감쇠 0] 위에서 아래로 일직선으로 꿰뚫으세요.',
+  vee: '[도약 찍기 · 착지 광역 피해] 내려갔다 뾰족하게 올려 충격파를 터뜨리세요.',
+  bolt: '[뇌전 연쇄 · 주변 2체 전격] 세 마디 지그재그로 연쇄 번개를 일으키세요.',
   circle: '한 바퀴 크게, 시계 방향이든 반대로든 상관없습니다.',
   square: '네 모서리를 각지게. 모서리를 둥글리면 원으로 읽힙니다.',
   tri: '세 변을 한 번에. 마지막 변을 짧게 끝내세요.',
