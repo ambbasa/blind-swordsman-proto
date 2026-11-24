@@ -31,20 +31,23 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v124';
+import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v125';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v124';
+import { probeAssets, buildArt } from './art.js?v=v125';
 import * as Anim from './anim.js';
-import { createAudio } from './audio.js?v=v124';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v124';
-import { PAT_COST, PAT_CUE, getActPhaseFx, getActSkillNames, bossPatternMean, buildBossBannerInfo, pickBossOrbitShapes, pickZoneSpiritShape } from './modules/bossPatterns.js?v=v124';
-import { TERRAIN_CFG, tHash, tPatchAt, tPatchesNear, tRootAt, getRiverCfg, tWaterCenter as terrainWaterCenter, tWaterAt as terrainWaterAt, resolveZoneAt, resolveSegZone } from './modules/stageTerrain.js?v=v124';
-import { ensureDailyFresh as ensureDailyFreshState, bumpDailyProgress, actStarTotalOf, hasClaimableRetentionOf, claimAttendanceReward, claimDailyQuestReward, claimStarChestReward, claimCodexMilestoneReward, renderDailyView } from './modules/retention.js?v=v124';
-import { renderCodexView } from './modules/codexView.js?v=v124';
-import { renderShopOverview, renderShopTabView, renderCosmeticView } from './modules/shopView.js?v=v124';
-import { TRAIN_SHAPES, SHAPE_LABEL, SHAPE_TIP, createTrainController } from './modules/trainView.js?v=v124';
-import { computeStar3Info, computeStarsFor } from './modules/starRating.js?v=v124';
-import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v124';
+import { createAudio } from './audio.js?v=v125';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v125';
+import { PAT_COST, PAT_CUE, getActPhaseFx, getActSkillNames, bossPatternMean, buildBossBannerInfo, pickBossOrbitShapes, pickZoneSpiritShape } from './modules/bossPatterns.js?v=v125';
+import { TERRAIN_CFG, tHash, tPatchAt, tPatchesNear, tRootAt, getRiverCfg, tWaterCenter as terrainWaterCenter, tWaterAt as terrainWaterAt, resolveZoneAt, resolveSegZone } from './modules/stageTerrain.js?v=v125';
+import { ensureDailyFresh as ensureDailyFreshState, bumpDailyProgress, actStarTotalOf, hasClaimableRetentionOf, claimAttendanceReward, claimDailyQuestReward, claimStarChestReward, claimCodexMilestoneReward, renderDailyView } from './modules/retention.js?v=v125';
+import { renderCodexView } from './modules/codexView.js?v=v125';
+import { renderShopOverview, renderShopTabView, renderCosmeticView } from './modules/shopView.js?v=v125';
+import { TRAIN_SHAPES, SHAPE_LABEL, SHAPE_TIP, createTrainController } from './modules/trainView.js?v=v125';
+import { computeStar3Info, computeStarsFor } from './modules/starRating.js?v=v125';
+import { createStageGoalController } from './modules/stageGoal.js?v=v125';
+import { createChallengeController } from './modules/challengeMode.js?v=v125';
+import { isElemKey, cardNameOfKey, rollUpgradePicks, evoPartsOf, evoMatInfoFor, evoHintsFor, pickRecommendedId } from './modules/runUpgrades.js?v=v125';
+import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v125';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
@@ -65,7 +68,7 @@ import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariant
 import { InkFx, FX_COLORS } from './inkfx.js';
 import { BossFx } from './bossFx.js';
 import { createTelemetry } from './telemetry.js';
-import { applyHeroCloak3D } from './inkhero3d.js?v=v124';
+import { applyHeroCloak3D } from './inkhero3d.js?v=v125';
 import {
   SAVE_VERSION, STAT_DEFS, FORGE_COSTS, SWORDS, RELICS, COSMETIC_CLOAKS, COSMETIC_TRAILS,
   DAILY_QUESTS, ATTENDANCE_REWARDS, STAR_CHESTS, CODEX_MILESTONES,
@@ -93,8 +96,8 @@ import { MODES, MODE_ORDER, MODE_NOTE, modeOf, CHALLENGES, challengeOf, RUN_UPGR
 import { PAT_CODE } from './modules/bossCatalog.js';
 import { createInputQueue, createDashLatencyTracker } from './modules/inputQueue.js';
 import { createRunState, resetRunStateOnQuit } from './modules/state.js';
-import { createHudController } from './modules/hudController.js?v=v124';
-import { createUiRouter } from './modules/uiRouter.js?v=v124';
+import { createHudController } from './modules/hudController.js?v=v125';
+import { createUiRouter } from './modules/uiRouter.js?v=v125';
 import { syncSceneActTheme3D } from './modules/actTheme3d.js';
 import { createInkRiver3D } from './modules/inkWater3d.js';
 import { createInkTerrain3D } from './modules/inkTerrain3d.js';
@@ -408,141 +411,28 @@ function terrainInit() {
 /* ---------- v0.34 §6.2 장마다 부목표 ----------
    3막 장에 목적이 다른 목표 하나를 둔다: 수호(5) · 사냥(7) · 무늬 제한(9) · 어둠(10) · 시간 공격(11).
    목표는 별 3(§7.4)과 이어진다. */
-function initGoal(st, opts) {
-  if (!S) return;
-  if (!st || !st.subgoal || opts.sandbox || opts.challenge) { S.goal = null; renderGoalHud(); return; }
-  const g = st.subgoal;
-  S.goal = {
-    id: g.id, label: g.label || '', t: 0, ok: false, fail: false, hp: g.hp || 0, hpMax: g.hp || 0,
-    n: 0, need: g.n || 0, win: g.t || 0, at: g.at || 0, ringMul: 1, shape: null,
-    pos: g.id === 'guard' ? { x: S.hero.x + 4.2, z: S.hero.z - 1.0 } : null, ids: []
-  };
-  if (g.id === 'shapeLock') {
-    const pool = (st.shapes && st.shapes.length) ? st.shapes : SHAPE_UNLOCK;
-    S.goal.shape = pool[pool.length - 1];
-  }
-  if (g.id === 'timed') S.timeLeft = Math.max(30, Math.round((S.timeLeft || st.time) * (1 - (g.cut || 0.3))));
-  renderGoalHud();
-}
-function goalWindowOn() {
-  const g = S && S.goal;
-  if (!g) return false;
-  if (g.id === 'shapeLock') return g.t >= g.at && g.t < g.at + g.win;
-  if (g.id === 'dark') return g.t < g.win;
-  return false;
-}
-function goalOnStroke(type) {
-  const g = S && S.goal;
-  if (!g || g.fail || g.ok) return false;
-  if (g.id === 'shapeLock' && goalWindowOn() && type !== 'tap' && type !== 'circle' && TOTEM_SHAPES.indexOf(type) < 0 && type !== g.shape) {
-    g.fail = true;
-    renderGoalHud();
-    showJudge('다른 무늬 — 목표 실패');
-    toast('부목표 실패: ' + g.label + ' — ' + (SHAPE_MARK[g.shape] || '') + '만 써야 했습니다');
-    telemetry.event('subgoal', { id: g.id, result: 'fail', got: type, want: g.shape });
-    return true;
-  }
-  return false;
-}
-function goalOnKill(z) {
-  const g = S && S.goal;
-  if (!g || g.fail) return;
-  if (g.id === 'hunt' && g.ids.indexOf(z.id) >= 0) {
-    g.n++;
-    if (g.n >= g.need) goalPass('사냥 완료');
-  }
-  if (g.id === 'timed') S.timeLeft = Math.min((S.stage && S.stage.time) || 999, (S.timeLeft || 0) + (S.stage.subgoal.add || 0.5));
-}
-function goalPass(msg) {
-  const g = S && S.goal;
-  if (!g || g.ok) return;
-  g.ok = true;
-  showJudge('부목표 달성');
-  toast('부목표 달성 — ' + g.label + (msg ? ' · ' + msg : ''));
-  S.goldEdge = Math.max(S.goldEdge || 0, 0.25);
-  if (audio && audio.gong) audio.gong();
-  renderGoalHud();
-  telemetry.event('subgoal', { id: g.id, result: 'pass' });
-}
-function goalFail(msg) {
-  const g = S && S.goal;
-  if (!g || g.fail || g.ok) return;
-  g.fail = true;
-  renderGoalHud();
-  toast('부목표 실패 — ' + (msg || g.label));
-  telemetry.event('subgoal', { id: g.id, result: 'fail', why: msg || null });
-}
-function tickGoal(dt) {
-  const g = S && S.goal;
-  if (!g || g.ok || g.fail) { renderGoalHud(); return; }
-  g.t += dt;
-  if (g.id === 'guard') {
-    /* 석등: 원귀가 닿을 때마다 체력 1씩 (1.2초 간격). 석등으로 향하는 무리가 주기적으로 온다. */
-    g.hitT = (g.hitT || 0) + dt;
-    g.spawnT = (g.spawnT || 0) + dt;
-    const guardN = (S.zombies || []).filter(function (z) { return z.alive && z.goalTarget; }).length;
-    if (g.spawnT >= 6 && guardN < 5 && g.t < g.win) {
-      g.spawnT = 0;
-      const a = Math.random() * Math.PI * 2;
-      const z = spawnZombie({ x: g.pos.x + Math.cos(a) * 8, z: g.pos.z + Math.sin(a) * 8, type: Math.random() < 0.3 ? 'brute' : 'imp' });
-      if (z) z.goalTarget = true;
-    }
-    if (g.hitT >= 1.2) {
-      const near = (S.zombies || []).some(function (z) { return z.alive && !z.isBoss && dist(z, g.pos) < 1.5; });
-      if (near) {
-        g.hitT = 0;
-        g.hp -= 1;
-        S.shake = Math.max(S.shake || 0, 0.3);
-        if (audio && audio.drum) audio.drum();
-        if (g.hp <= 0) { g.hp = 0; goalFail('석등이 꺼졌습니다'); }
-      }
-    }
-    if (g.t >= g.win && g.hp > 0) goalPass('석등이 살아 있습니다');
-  } else if (g.id === 'hunt') {
-    if (!g.ids.length && g.t >= 2) {
-      for (let i = 0; i < g.need; i++) {
-        const a = i / g.need * Math.PI * 2 + 0.4;
-        const z = spawnZombie({ x: S.hero.x + Math.cos(a) * 9, z: S.hero.z + Math.sin(a) * 9, type: 'elite' });
-        if (z) { z.elite = true; z.goalTarget = true; g.ids.push(z.id); }
-      }
-      toast('사냥감 — 정예 셋이 골짜기에 들어섰습니다');
-    }
-    if (g.ids.length && g.ids.every(function (id) { return !(S.zombies || []).some(function (z) { return z.id === id && z.alive; }); })) goalPass('셋 다 베었습니다');
-    else if (g.t > g.win) goalFail('시간이 지났습니다');
-  } else if (g.id === 'shapeLock') {
-    if (g.t >= g.at && !g.announced) { g.announced = true; toast('한 무늬 구간 — ' + (SHAPE_MARK[g.shape] || '') + '만 쓸 수 있습니다'); }
-    if (g.t >= g.at + g.win) goalPass('한 무늬로 버텼습니다');
-  } else if (g.id === 'dark') {
-    g.ringMul = g.t < g.win ? 0.78 : 1;
-    if (g.t >= g.win) goalPass('어둠을 버텼습니다');
-  }
-  renderGoalHud();
-}
-function goalHudText() {
-  const g = S && S.goal;
-  if (!g) return '';
-  const left = Math.max(0, Math.ceil((g.win || 0) - g.t));
-  if (g.ok) return '✔ ' + g.label;
-  if (g.fail) return '✘ ' + g.label;
-  if (g.id === 'guard') return '석등 ' + g.hp + '/' + g.hpMax + ' · ' + left + '초';
-  if (g.id === 'hunt') return '정예 ' + g.n + '/' + g.need + ' · ' + left + '초';
-  if (g.id === 'shapeLock') return (g.t >= g.at ? '한 무늬 ' + Math.max(0, Math.ceil(g.at + g.win - g.t)) + '초' : '한 무늬까지 ' + Math.ceil(g.at - g.t) + '초');
-  if (g.id === 'dark') return '어둠 ' + left + '초';
-  if (g.id === 'timed') return '시간 사냥 · 처치 +' + (S.stage.subgoal.add || 0.5) + '초';
-  return g.label;
-}
-let _goalHudCache = '';
-function renderGoalHud() {
-  const el = $('goalLabel');
-  if (!el) return;
-  const txt = goalHudText();
-  if (txt === _goalHudCache) return;
-  _goalHudCache = txt;
-  el.textContent = txt;
-  el.hidden = !txt;
-  el.classList.toggle('ok', !!(S && S.goal && S.goal.ok));
-  el.classList.toggle('fail', !!(S && S.goal && S.goal.fail));
-}
+const _goalCtrl = createStageGoalController({
+  getState: function () { return S; },
+  elById: $,
+  shapeUnlock: SHAPE_UNLOCK,
+  totemShapes: TOTEM_SHAPES,
+  shapeMark: SHAPE_MARK,
+  dist: dist,
+  spawnZombie: function (o) { return spawnZombie(o); },
+  showJudge: showJudge,
+  toast: toast,
+  getAudio: function () { return audio; },
+  telemetry: telemetry
+});
+function initGoal(st, opts) { return _goalCtrl.initGoal(st, opts); }
+function goalWindowOn() { return _goalCtrl.goalWindowOn(); }
+function goalOnStroke(type) { return _goalCtrl.goalOnStroke(type); }
+function goalOnKill(z) { return _goalCtrl.goalOnKill(z); }
+function goalPass(msg) { return _goalCtrl.goalPass(msg); }
+function goalFail(msg) { return _goalCtrl.goalFail(msg); }
+function tickGoal(dt) { return _goalCtrl.tickGoal(dt); }
+function goalHudText() { return _goalCtrl.goalHudText(); }
+function renderGoalHud() { return _goalCtrl.renderGoalHud(); }
 function tcount(key, n) {
   if (!S || !S.terrain) return 0;
   S.terrain.counts[key] = (S.terrain.counts[key] || 0) + (n == null ? 1 : n);
@@ -6814,76 +6704,22 @@ function upCardLevelText(u) {
 /* ---------- v0.31 §5.2 멈추지 않는 선택 ----------
    레벨업이 판을 멈추지 않는다. 0.3배 1.5초 + 화면 아래 카드 3장, 4초 안에 탭하면 고르고 아니면 추천이 자동 선택된다.
    보스전과 부적 상자(3연속)는 지금처럼 멈추는 창을 쓴다. 설정에서 '멈추고 고르기'로 되돌릴 수 있다. */
-function rollPicks(n) {
-  const pool = RUN_UPGRADES.filter(function (u) { return (S.upLv[u.id] || 0) < (u.maxLv || 99); }), picks = [];
-  for (let i = 0; i < (n || 3) && pool.length; i++) {
-    const k = Math.floor(Math.random() * pool.length);
-    picks.push(pool.splice(k, 1)[0]);
-  }
-  return picks;
-}
-/* 진화 레시피의 재료 목록 — 각인은 elemLv, 카드는 upLv로 센다. */
-function evoParts(r) {
-  const parts = [];
-  (r.a || []).forEach(function (k) { parts.push({ k: k, lv: r.aLv || 1 }); });
-  if (r.b) parts.push({ k: r.b, lv: r.bLv || 1 });
-  return parts;
-}
-function isElemKey(k) { return k === 'ice' || k === 'fire' || k === 'poison'; }
+function rollPicks(n) { return rollUpgradePicks(n, upLv, elemLv, secondElemOpen()); }
+function evoParts(r) { return evoPartsOf(r, upLv, elemLv); }
 function partLv(k) { return isElemKey(k) ? elemLv(k) : upLv(k); }
-function cardNameOf(k) {
-  const u = RUN_UPGRADES.filter(function (x) { return x.id === k; })[0];
-  if (u) return u.name;
-  return isElemKey(k) ? elemNameOf(k) + ' 각인' : k;
-}
+function cardNameOf(k) { return cardNameOfKey(k); }
 function evoBorn(r) { return !!(S && S.evo && S.evo[r.key]); }
-/** 이 카드를 집으면 짝이 다 갖춰진 진화의 재료가 되는가 → 진화 이름 목록. */
-function evoMatInfo(id) {
-  if (!S) return [];
-  return EVO_RECIPES.filter(function (r) {
-    if (evoBorn(r)) return false;
-    const parts = evoParts(r);
-    const mine = parts.filter(function (p) { return p.k === id; })[0];
-    if (!mine || partLv(id) >= mine.lv) return false;
-    return parts.every(function (p) { return p.k === id || partLv(p.k) >= p.lv; });
-  }).map(function (r) { return r.name; });
-}
-function evoHints() {
-  if (!S) return [];
-  return EVO_RECIPES.filter(function (r) {
-    if (evoBorn(r)) return false;
-    return evoParts(r).some(function (p) { return partLv(p.k) > 0; });
-  }).map(function (r) {
-    const parts = evoParts(r);
-    return {
-      key: r.key, name: r.name, done: parts.every(function (p) { return partLv(p.k) >= p.lv; }),
-      text: r.name + ': ' + parts.map(function (p) {
-        return cardNameOf(p.k) + (partLv(p.k) >= p.lv ? ' ✓' : ' Lv' + partLv(p.k) + '/' + p.lv);
-      }).join(' · ')
-    };
-  });
-}
+function evoMatInfo(id) { return evoMatInfoFor(id, S, upLv, elemLv); }
+function evoHints() { return evoHintsFor(S, upLv, elemLv); }
 function renderEvoHint() {
   const el = $('evoHint');
-  if (!el) return null;
+  if (!el) return;
   const hs = evoHints();
-  if (!hs.length) { el.hidden = true; el.textContent = ''; return null; }
-  hs.sort(function (a, b) { return (b.done ? 1 : 0) - (a.done ? 1 : 0); });
+  if (!hs.length) { el.hidden = true; el.textContent = ''; return; }
   el.hidden = false;
-  el.textContent = '진화까지 — ' + hs.slice(0, 2).map(function (h) { return h.text; }).join(' / ');
-  return el.textContent;
+  el.textContent = '진화까지 — ' + hs.slice(0, 2).join(' · ');
 }
-/** 4초가 지나면 고르는 카드: 진화 재료 → 빌드에 없는 카드 → 무작위. */
-function recommendedPick() {
-  if (!S) return null;
-  const picks = (S.levelPicks || []).slice();
-  if (!picks.length) return null;
-  const mat = picks.filter(function (u) { return evoMatInfo(u.id).length; });
-  if (mat.length) return mat[0].id;
-  const fresh = picks.filter(function (u) { return !upLv(u.id); });
-  if (fresh.length) return fresh[0].id;
-  return picks[Math.floor(Math.random() * picks.length)].id;
-}
+function recommendedPick() { return pickRecommendedId(S && S.levelPicks, S, upLv, elemLv); }
 function closeQuickCards() {
   const wrap = $('quickCards');
   if (wrap) wrap.hidden = true;
@@ -10402,133 +10238,33 @@ function doResetStats() {
 
 /* ---------- v0.34 §10 도전 모드 ----------
    무한 심연: 끝없는 웨이브 + 179초마다 보스. 보스 러시: 열두 보스 연속(체력 유지). 무늬 시련: 1~2종만. */
-function initChallenge(id, stageNo) {
-  if (!S) return;
-  const c = challengeOf(id);
-  if (!c || !challengeUnlocked(id)) { S.challenge = null; return; }
-  S.challenge = id;
-  S.challengeT = 0;
-  if (id === 'endless') {
-    S.timeLeft = 99999;
-    S.endlessKills = 0; S.endlessBossN = 0; S.endlessNextBoss = 180;
-  } else if (id === 'bossrush') {
-    S.timeLeft = 99999;
-    S.bossIdx = 0; S.rushNext = 0.8;
-  } else if (id === 'trial') {
-    const pool = (S.stage.shapes || SHAPE_UNLOCK).slice(0, 2);
-    S.pool = pool.slice(0, Math.max(1, Math.min(2, pool.length)));
-    S.trialPool = S.pool.slice();
-  }
-  telemetry.event('challenge_start', { id: id, stage: stageNo, record: challengeRecord(id) });
-  toast(c.name + ' — ' + c.desc);
-}
-function challengeProgress() {
-  if (!S || !S.challenge) return;
-  const b = S.boss;
-  if (S.challenge === 'bossrush') {
-    if (S.rushNext > 0) {
-      S.rushNext -= 1 / 60;
-      if (S.rushNext <= 0) spawnRushBoss();
-      return;
-    }
-    if (b && !b.alive) {
-      S.bossIdx = (S.bossIdx || 0) + 1;
-      if (S.bossIdx >= STAGES.length) {
-        save.records = save.records || {};
-        save.records.bossrush = Math.max(save.records.bossrush || 0, STAGES.length);
-        persist();
-        endRun(true, '열두 보스를 모두 베었습니다');
-        return;
-      }
-      closeArena(true);
-      S.boss = null; S.bossSpawned = false;
-      /* 보스 사이 카드 1장 */
-      S.rushNext = 1.2;
-      /* 보스 사이 카드 1장: 다음 레벨까지 조금만 남긴 혼백을 준다. */
-      gainXp(xpNeed(S.level) - (S.xp || 0));
-      openLevelUp();
-      return;
-    }
-    return;
-  }
-  if (S.challenge === 'endless') {
-    if (b && !b.alive) {
-      S.endlessBossN = (S.endlessBossN || 0) + 1;
-      save.records = save.records || {};
-      save.records.endless = Math.max(save.records.endless || 0, S.endlessBossN);
-      persist();
-      closeArena(true);
-      S.boss = null; S.bossSpawned = false;
-      S.endlessNextBoss = (S.elapsed || 0) + 180;
-      gainXp(60);
-      toast('귀물을 베었다 — 3분 뒤 다음 귀물');
-      return;
-    }
-    if (!b && !S.bossSpawned && (S.elapsed || 0) >= (S.endlessNextBoss || 180)) {
-      endlessBoss();
-    }
-  }
-}
-/* 무한 심연의 보스: 장을 돌며 무늬 수·패턴을 무작위로 섮는다. */
-function endlessBoss() {
-  if (!S) return null;
-  const n = (S.endlessBossN || 0);
-  const stageNo = 1 + (n % STAGES.length);
-  const st = stageOf(stageNo);
-  const shapes = 4 + Math.floor(Math.random() * 5);
-  const prev = S.stage;
-  S.stage = st;
-  S.bossShapeAdj = curMode().bossShapes;
-  const b = spawnBoss({ r: CFG.bossSpawnR, nShapes: shapes });
-  S.stage = prev;
-  if (b) {
-    toast('무한 심연 — ' + (st.bossName || '귀물') + ' (무늬 ' + shapes + ')');
-    telemetry.event('endless_boss', { n: n + 1, stage: stageNo, shapes: shapes });
-  }
-  S.bossSpawned = true;
-  return b;
-}
-/* 보스 러시: 1장 보스부터 12장 보스까지. 체력은 이어지고, 보스 사이에 카드 한 장. */
-function spawnRushBoss() {
-  if (!S || S.challenge !== 'bossrush') return null;
-  const idx = S.bossIdx || 0;
-  const st = stageOf(Math.min(STAGES.length, idx + 1));
-  const prev = S.stage, prevAdj = S.bossShapeAdj;
-  S.stage = st;
-  const shapes = Math.max(3, st.bossShapes + (curMode().bossShapes || 0));
-  const b = spawnBoss({ r: CFG.bossSpawnR, nShapes: shapes });
-  S.stage = prev; S.bossShapeAdj = prevAdj;
-  S.bossSpawned = true;
-  S.rushNext = 0;
-  if (b) {
-    toast('보스 러시 ' + (idx + 1) + '/' + STAGES.length + ' — ' + (st.bossName || st.name));
-    showBossCard(st);
-    telemetry.event('rush_boss', { n: idx + 1, stage: st.id, shapes: shapes });
-  }
-  return b;
-}
-function startChallenge(id) {
-  if (!challengeUnlocked(id)) { toast('아직 잠긴 도전입니다'); return false; }
-  startRun({ stage: save.stage || 1, challenge: id });
-  return true;
-}
-function renderChallenges() {
-  const box = $('titleChallenges');
-  if (!box) return;
-  const rows = CHALLENGES.map(function (c) {
-    const on = challengeUnlocked(c.id);
-    const rec = challengeRecord(c.id);
-    const recTxt = c.id === 'endless' ? (rec ? '최고 ' + rec + '귀물' : '기록 없음')
-      : c.id === 'bossrush' ? (rec ? '최고 ' + rec + '/' + STAGES.length : '기록 없음')
-      : (rec ? '기록 ' + rec : '기록 없음');
-    return '<button type="button" class="btn chal' + (on ? '' : ' locked') + '" data-chal="' + c.id + '"' + (on ? '' : ' disabled') + '>'
-      + '<b>' + c.name + '</b><span>' + (on ? recTxt : c.unlock + '장 클리어로 해금') + '</span></button>';
-  });
-  box.innerHTML = rows.join('');
-  Array.prototype.forEach.call(box.querySelectorAll('button[data-chal]'), function (b) {
-    b.addEventListener('click', function () { startChallenge(b.getAttribute('data-chal')); });
-  });
-}
+const _challengeCtrl = createChallengeController({
+  getState: function () { return S; },
+  getSave: function () { return save; },
+  persist: function () { persist(); },
+  cfg: CFG,
+  shapeUnlock: SHAPE_UNLOCK,
+  elById: $,
+  challengeUnlocked: challengeUnlocked,
+  challengeRecord: challengeRecord,
+  curMode: curMode,
+  spawnBoss: function (o) { return spawnBoss(o); },
+  closeArena: closeArena,
+  gainXp: gainXp,
+  xpNeed: xpNeed,
+  openLevelUp: openLevelUp,
+  endRun: endRun,
+  startRun: startRun,
+  showBossCard: showBossCard,
+  toast: toast,
+  telemetry: telemetry
+});
+function initChallenge(id, stageNo) { return _challengeCtrl.initChallenge(id, stageNo); }
+function challengeProgress() { return _challengeCtrl.challengeProgress(); }
+function endlessBoss() { return _challengeCtrl.endlessBoss(); }
+function spawnRushBoss() { return _challengeCtrl.spawnRushBoss(); }
+function startChallenge(id) { return _challengeCtrl.startChallenge(id); }
+function renderChallenges() { return _challengeCtrl.renderChallenges(); }
 let shopTab = 'stat';
 let cosTab = 'cloak';
 function swordBlueprint(stageNo) { return !stageNo || ((save.stars || {})[stageNo] || 0) > 0; }

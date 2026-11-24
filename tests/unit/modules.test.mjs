@@ -529,3 +529,71 @@ import { computeStar3Info, computeStarsFor } from '../../v2/js/modules/starRatin
   assert.equal(computeStarsFor(true, { hp: 10, hits: 1, comboMax: 8, challenge: 'endless', stage: { starCombo: 10 } }, {}, 14, 3), 0);
   console.log('v1.24 MODULES (trainView, starRating) PASSED');
 }
+
+/* --- v1.25 부목표·도전모드·강화픽커 모듈 검증: stageGoal.js, challengeMode.js, runUpgrades.js --- */
+import { createStageGoalController } from '../../v2/js/modules/stageGoal.js';
+import { createChallengeController } from '../../v2/js/modules/challengeMode.js';
+import { isElemKey, cardNameOfKey, rollUpgradePicks, evoMatInfoFor, pickRecommendedId } from '../../v2/js/modules/runUpgrades.js';
+
+{
+  // stageGoal.js
+  let gState = { hero: { x: 0, z: 0 }, elapsed: 0, timeLeft: 60, stage: { time: 60, subgoal: { id: 'timed', add: 0.5 } } };
+  const gc = createStageGoalController({
+    getState: () => gState,
+    elById: () => null,
+    shapeUnlock: ['hline', 'vline'],
+    totemShapes: ['tri', 'square', 'spiral'],
+    shapeMark: { hline: '—' },
+    dist: (a, b) => Math.hypot(a.x - b.x, a.z - b.z),
+    spawnZombie: () => null,
+    showJudge: () => {},
+    toast: () => {},
+    getAudio: () => null,
+    telemetry: { event: () => {} }
+  });
+  gc.initGoal({ time: 60, subgoal: { id: 'shapeLock', label: '한 무늬', at: 5, t: 10 }, shapes: ['hline', 'vline'] }, {});
+  assert.equal(gState.goal.shape, 'vline');
+  gState.goal.t = 6;
+  assert.equal(gc.goalWindowOn(), true);
+  assert.equal(gc.goalOnStroke('hline'), true);
+  assert.equal(gState.goal.fail, true);
+
+  // challengeMode.js
+  let cState = { stage: { shapes: ['hline', 'vline', 'vee'] }, pool: [] };
+  const cc = createChallengeController({
+    getState: () => cState,
+    getSave: () => ({ stage: 1, records: {} }),
+    persist: () => {},
+    cfg: { bossSpawnR: 7 },
+    shapeUnlock: ['hline', 'vline', 'vee'],
+    elById: () => null,
+    challengeUnlocked: () => true,
+    challengeRecord: () => 0,
+    curMode: () => ({ bossShapes: 0 }),
+    spawnBoss: () => null,
+    closeArena: () => {},
+    gainXp: () => {},
+    xpNeed: () => 10,
+    openLevelUp: () => {},
+    endRun: () => {},
+    startRun: () => {},
+    showBossCard: () => {},
+    toast: () => {},
+    telemetry: { event: () => {} }
+  });
+  cc.initChallenge('trial', 1);
+  assert.equal(cState.challenge, 'trial');
+  assert.equal(cState.pool.length, 2);
+
+  // runUpgrades.js
+  assert.equal(isElemKey('ice'), true);
+  assert.equal(isElemKey('dmg'), false);
+  assert.equal(cardNameOfKey('dmg'), '일섬 위력');
+  const picks = rollUpgradePicks(3, () => 0, () => 0, false);
+  assert.equal(picks.length, 3);
+  const rec = pickRecommendedId(picks, { evo: {} }, () => 0, () => 0);
+  assert.ok(rec !== null);
+  const mats = evoMatInfoFor('fire', { evo: {} }, () => 0, (k) => (k === 'ice' ? 1 : 0));
+  assert.ok(mats.includes('증기 폭발'));
+  console.log('v1.25 MODULES (stageGoal, challengeMode, runUpgrades) PASSED');
+}
