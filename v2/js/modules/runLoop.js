@@ -261,7 +261,7 @@ function step(dt) {
     const k = 1 - (1 - u) * (1 - u);
     rt.S.hero.x = rt.S.bounce.from.x + (rt.S.bounce.to.x - rt.S.bounce.from.x) * k;
     rt.S.hero.z = rt.S.bounce.from.z + (rt.S.bounce.to.z - rt.S.bounce.from.z) * k;
-    if (rt.three && rt.three.heroSpr) rt.placeGroup(rt.three.heroSpr, rt.S.hero.x, rt.S.hero.z);
+    if (rt.three && rt.three.heroSpr) rt.placeGroup(rt.three.heroSpr, rt.S.hero.x, rt.S.hero.z, 0);
     if (u >= 1) rt.S.bounce = null;
   }
   if (rt.S.hurtFlash > 0) {
@@ -636,11 +636,23 @@ function stepDash(dt) {
   const d = rt.S.dash;
   d.t += dt;
   const u = rt.clamp(d.t / d.dur, 0, 1);
-  const k = u * u * (3 - 2 * u);
-  /* v0.74: 일섬 돌진 중에는 먹그림자 영체로 기물을 통과하고, 최종 착지점(d.to)만 빈 바닥으로 보정(dashEndPoint) */
-  rt.S.hero.x = d.from.x + (d.to.x - d.from.x) * k;
-  rt.S.hero.z = d.from.z + (d.to.z - d.from.z) * k;
-  if (rt.three && rt.three.heroSpr) rt.placeGroup(rt.three.heroSpr, rt.S.hero.x, rt.S.hero.z);
+  const sh = d.shape || (rt.S.lastDash && rt.S.lastDash.type) || null;
+  /* v1.33 무늬별 이동 궤적 분화: ㅣ(쾌속 직선 돌진) · —(횡참 곡선) · V(도약 포물선 점프) · Z(번개 3꺾임 지그재그) */
+  const k = sh === 'vline' ? (1 - Math.pow(1 - u, 3)) : (u * u * (3 - 2 * u));
+  const dx = d.to.x - d.from.x, dz = d.to.z - d.from.z;
+  const distL = Math.hypot(dx, dz) || 1;
+  const px = -dz / distL, pz = dx / distL;
+  let lat = 0, liftY = 0;
+  if (sh === 'vee') {
+    liftY = Math.sin(u * Math.PI) * 1.65;
+  } else if (sh === 'bolt') {
+    lat = Math.sin(u * Math.PI * 3) * Math.sin(u * Math.PI) * 1.05;
+  } else if (sh === 'hline') {
+    lat = Math.sin(u * Math.PI) * 0.55;
+  }
+  rt.S.hero.x = d.from.x + dx * k + px * lat;
+  rt.S.hero.z = d.from.z + dz * k + pz * lat;
+  if (rt.three && rt.three.heroSpr) rt.placeGroup(rt.three.heroSpr, rt.S.hero.x, rt.S.hero.z, liftY);
   if (u >= 0.85) rt.resolveDash(d);
   /* v0.49.2 테일 캔슬: 판정이 끝난 뒤(u>=0.88) 예약된 후속 획이 대기 중이면 잔여 프레임을 생략하고 즉시 다음 일섬으로 연결 */
   const tailCancel = u >= 0.88 && d.judged && !(rt.S.dashQueue && rt.S.dashQueue.length) && rt.S.inputQueue && rt.S.inputQueue.size() > 0;

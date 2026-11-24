@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { applyForgedMetal } from './modules/metalStudioEnv.js';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
 import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v103';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v132';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v133';
 
 const URL_GLB = new URL('../assets/models/hero.glb?v=v103', import.meta.url).href;
 let pending = null;
@@ -225,23 +225,43 @@ function playOnly(G, name, fade, timeScale) {
   return true;
 }
 
-export function triggerHeroGlbBurst(G, name) {
+export function triggerHeroGlbBurst(G, name, shape) {
   if (!G) return;
   let clipKey = name;
   let ts = 1.25;
   if (name === 'slash') {
     const seq = ['slash', 'slash2', 'slash3'].filter(function (k) { return !!G.actions[k]; });
     if (!seq.length) return;
-    const idx = (G.comboTimer > 0) ? (G.comboIdx % seq.length) : 0;
-    clipKey = seq[idx];
-    G.lastComboStep = idx + 1;
-    G.comboIdx = (idx + 1) % seq.length;
+    /* v1.33 무늬별 전용 공격 모션 매핑: —(횡베기) · ㅣ(관통베기) · V(도약 내려찍기) · Z(초고속 연쇄베기) */
+    if (shape === 'hline' && G.actions.slash) {
+      clipKey = 'slash'; ts = 1.45; G.lastComboStep = 1;
+    } else if (shape === 'vline' && G.actions.slash2) {
+      clipKey = 'slash2'; ts = 1.85; G.lastComboStep = 2;
+    } else if (shape === 'vee' && G.actions.slash3) {
+      clipKey = 'slash3'; ts = 2.65; G.lastComboStep = 3;
+    } else if (shape === 'bolt') {
+      clipKey = ((G.comboIdx & 1) && G.actions.slash2) ? 'slash2' : (G.actions.slash ? 'slash' : seq[0]);
+      ts = 2.45; G.lastComboStep = clipKey === 'slash2' ? 2 : 1;
+    } else {
+      const idx = (G.comboTimer > 0) ? (G.comboIdx % seq.length) : 0;
+      clipKey = seq[idx];
+      G.lastComboStep = idx + 1;
+      ts = clipKey === 'slash3' ? 2.55 : (clipKey === 'slash2' ? 1.45 : 1.25);
+    }
+    G.comboIdx = (G.comboIdx + 1) % seq.length;
     G.comboTimer = 1.15;
-    ts = clipKey === 'slash3' ? 2.55 : (clipKey === 'slash2' ? 1.45 : 1.25);
     if (G.trail) {
       if (G.trailCoreHex != null && G.trailHotHex != null) {
         if (clipKey === 'slash3') setTrailStyle(G.trail, 0xfff4c8, G.trailCoreHex);
         else setTrailStyle(G.trail, G.trailHotHex, G.trailCoreHex);
+      } else if (shape === 'vee') {
+        setTrailStyle(G.trail, 0xffe8ff, 0xc07eff);
+      } else if (shape === 'vline') {
+        setTrailStyle(G.trail, 0xffe4b8, 0xff5a42);
+      } else if (shape === 'bolt') {
+        setTrailStyle(G.trail, 0xfffbe0, 0xffd25a);
+      } else if (shape === 'hline') {
+        setTrailStyle(G.trail, 0xd8fff4, 0x48e0b8);
       } else {
         if (clipKey === 'slash3') setTrailStyle(G.trail, 0xffe49a, 0xe84838);
         else if (clipKey === 'slash2') setTrailStyle(G.trail, 0xd8fff4, 0x3ec8a8);

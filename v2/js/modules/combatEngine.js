@@ -975,7 +975,7 @@ function makeSlash(from, to, shape) {
   /* v0.41: 검기 시트(초승달 종이 아크) — 원소면 그 원소 시트가 함께 터진다. */
   if (rt.three.paper) rt.three.paper.slash(from, to, elemNow);
   /* v0.41: 베기 자세 프레임 — 주인공 팔·몸통이 베는 그림으로 빠르게 넘어간다 */
-  if (rt.three.heroSpr && rt.art.slashChar) rt.art.slashChar(rt.three.heroSpr, 1.0);
+  if (rt.three.heroSpr && rt.art.slashChar) rt.art.slashChar(rt.three.heroSpr, 1.0, shape);
   if (rt.three.lights) {
     const burstCol = isCustomTrail ? tr.coreHex : rt.palColor('jade');
     const burstInt = trId === 'gold_leaf' ? 8.5 : (trId === 'crimson_moon' ? 7.2 : (trId === 'jade_bamboo' ? 6.4 : 4.5));

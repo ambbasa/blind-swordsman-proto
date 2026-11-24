@@ -28,7 +28,7 @@ import * as TEX from './inktex3d.js';
 import {
   heroGlbEnabled, preloadHeroGlb, makeHeroGlb,
   tickHeroGlb, triggerHeroGlbBurst, setHeroGlbOpacity, setHeroGlbTint, applyHeroGlbCloak, applyHeroGlbSwordTrail
-} from './glbhero.js?v=v132';
+} from './glbhero.js?v=v133';
 import {
   hd2dEnabled, preloadHd2dAll, makeHd2dHero, tickHd2d,
   triggerHd2dPose, setHd2dOpacity, setHd2dTint, applyHd2dCloak, makeHd2dGhost
@@ -573,13 +573,14 @@ export function kick(group, k) {
   if (H.hd2d) triggerHd2dPose(H.hd2d, 'hit', 0.22);
   if (H.glb) triggerHeroGlbBurst(H.glb, 'hit');
 }
-export function slashPose(group, k) {
+export function slashPose(group, k, shape) {
   const H = group && group.userData && group.userData.hero3d;
   if (!H) return;
-  H.squash = 0.09; H.squashV = -1.9;
+  H.squash = shape === 'vee' ? 0.14 : (shape === 'vline' ? -0.07 : 0.09);
+  H.squashV = shape === 'vee' ? -2.6 : -1.9;
   startBurst(H, 'slash', 0.06);
   if (H.hd2d) triggerHd2dPose(H.hd2d, 'slash', 0.28);
-  if (H.glb) triggerHeroGlbBurst(H.glb, 'slash');
+  if (H.glb) triggerHeroGlbBurst(H.glb, 'slash', shape);
 }
 export function block(group) {
   const H = group && group.userData && group.userData.h3d;
