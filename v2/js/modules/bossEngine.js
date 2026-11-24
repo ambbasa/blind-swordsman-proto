@@ -512,6 +512,7 @@ function bossHasNewGimmick() {
   return all.some(function (id) { return id === 'donut' || id === 'soak' || id === 'rhythm' || id === 'tether' || id === 'gaze' || id === 'pizza'; });
 }
 /** The boss's standing totems (기물): fixed dash targets that take turns throwing a slow charm. */
+const _bmList = [];
 function bossMinions() {
   const zs = (rt.S && rt.S.zombies) || [];
   let n = 0;

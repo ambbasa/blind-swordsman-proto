@@ -66,14 +66,14 @@ function endRun(win, msg) {
   $('resultKicker').textContent = rt.S.stageNo ? (rt.S.stageNo + '장 · ' + st.name + ' · ' + rt.curMode().name) : '연습';
   $('resultTitle').textContent = win ? '베었다' : '쓰러졌다';
   try {
-    const rt = $('resultTitle');
-    if (rt && rt.parentNode) {
+    const rtEl = $('resultTitle');
+    if (rtEl && rtEl.parentNode) {
       let card = document.getElementById('resultMastery');
       if (!card) {
         card = document.createElement('div');
         card.id = 'resultMastery';
         card.className = 'result-mastery-bar';
-        rt.insertAdjacentElement('afterend', card);
+        rtEl.insertAdjacentElement('afterend', card);
       }
       const sec = Math.max(0, Math.round(rt.S.elapsed || 0));
       const mm = Math.floor(sec / 60), ss = String(sec % 60).padStart(2, '0');

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { applyForgedMetal } from './modules/metalStudioEnv.js';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
 import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v103';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v128';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v129';
 
 const URL_GLB = new URL('../assets/models/hero.glb?v=v103', import.meta.url).href;
 let pending = null;
@@ -328,7 +328,7 @@ export function setHeroGlbTint(G, r, g, b) {
     if (m.userData.uCloakMix) m.userData.uCloakMix.value = G.cloakMix || 0;
       /* v1.01 3d-cloth-material: 도포별 직물(무명/설산비단/진홍비단/금사비단) sheen 차별화 */
       if (m.isMeshPhysicalMaterial) {
-        const cid = (cloakProf && cloakProf.id) || 'ink';
+        const cid = G.cloakId || 'ink';
         if (cid === 'gilded_eclipse') { m.roughness = 0.42; m.sheen = 0.78; m.sheenRoughness = 0.26; m.sheenColor.setHex(0xd8b45c); }
         else if (cid === 'crimson_guard') { m.roughness = 0.48; m.sheen = 0.68; m.sheenRoughness = 0.28; m.sheenColor.setHex(0xc86454); }
         else if (cid === 'snow_sage') { m.roughness = 0.54; m.sheen = 0.62; m.sheenRoughness = 0.30; m.sheenColor.setHex(0x98d6ea); }
@@ -342,6 +342,7 @@ export function applyHeroGlbCloak(G, prof, forgeLv) {
   G.cloakTint.setHex(prof.tint != null ? prof.tint : 0xffffff);
   G.cloakEmissive.setHex(prof.emissive != null ? prof.emissive : 0x000000);
   G.cloakMix = prof.mix || 0;
+  G.cloakId = prof.id || 'ink';
   const flv = Math.max(0, Math.min(3, forgeLv | 0));
   for (let i = 0; i < G.bodyMeshes.length; i++) {
     const m = G.bodyMeshes[i].material;

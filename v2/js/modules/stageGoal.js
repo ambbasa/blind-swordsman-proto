@@ -189,6 +189,7 @@ export function createStageGoalController(deps) {
     goalFail,
     tickGoal,
     goalHudText,
-    renderGoalHud
+    renderGoalHud,
+    resetCache: function () { _goalHudCache = ''; }
   };
 }

@@ -1169,7 +1169,7 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
         putStage(buildKasumideraPavilion3D({ lacquerHex, glowHex: talismanGlow }), -5.8, 12.4, 0.30, 2.5, 1.8);
         putStage(buildArchedBridge3D({ length: 6.8, width: 2.2, archH: 0.90, railHex: 0xb53226 }), 6.6, 2.4, -0.52, 3.2, 0);
         {
-          const b4x = camWorldX(6.6, 2.4), b4z = camWorldZ(6.6, 2.4);
+          const [b4x, b4z] = toStageXZ(6.6, 2.4);
           addBridge(b4x, b4z, -0.52, 6.8, 2.2, 0.90);
         }
         putTalismanGate(-1.6, 13.0, 0.10);

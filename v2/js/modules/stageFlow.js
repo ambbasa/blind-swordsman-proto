@@ -354,7 +354,7 @@ function isOnScreen(ent, margin) {
 /* 프레임당 한 번만 레이아웃을 읽는다 — 이제 viewBox 캐시를 그대로 쓴다(창 크기가 바뀔 때만 잰다). */
 let _rectCache = { id: -1, r: null };
 function hostRect() { return viewBox(); }
-const _ltList = [], _stList = [], _bmList = [];
+const _ltList = [], _stList = [];
 function livingThreats() {
   if (!rt.S) { _ltList.length = 0; return _ltList; }
   const zs = rt.S.zombies || [];
@@ -1439,7 +1439,6 @@ function projectXZ(x, z, y) {
    레이아웃을 강제했다(모바일에서 프레임 비용의 큰 몫). */
 const _vb = { width: 375, height: 667, left: 0, top: 0 };
 let _vbKey = '';
-let _heroCssY = '';
 function viewBox() {
   const key = (window.innerWidth || 0) + 'x' + (window.innerHeight || 0) + 'x' + (window.devicePixelRatio || 1);
   if (key !== _vbKey) {

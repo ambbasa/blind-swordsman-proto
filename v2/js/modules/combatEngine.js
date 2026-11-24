@@ -150,8 +150,8 @@ function doParry(rec) {
   r.targets = r.targets || [];
   r.hits = r.hits || [];
   /* v1.02 세키로식 3연속 리듬 패링 탭 판정 (쿨다운 무관 최우선) */
-  const rt = rt.rhythmTap();
-  if (rt) { r.parry = rt; return r; }
+  const rRes = rt.rhythmTap();
+  if (rRes) { r.parry = rRes; return r; }
   /* 기모으기 중의 탭은 게이지 판정이 먼저다(쿨다운과 무관). */
   const kt = rt.kiaiTap();
   if (kt) { r.parry = kt; return r; }
@@ -1671,7 +1671,7 @@ function upCardLevelText(u) {
 /* ---------- v0.31 §5.2 멈추지 않는 선택 ----------
    레벨업이 판을 멈추지 않는다. 0.3배 1.5초 + 화면 아래 카드 3장, 4초 안에 탭하면 고르고 아니면 추천이 자동 선택된다.
    보스전과 부적 상자(3연속)는 지금처럼 멈추는 창을 쓴다. 설정에서 '멈추고 고르기'로 되돌릴 수 있다. */
-function rollPicks(n) { return rt.rollUpgradePicks(n, upLv, rt.elemLv, secondElemOpen()); }
+function rollPicks(n) { return rt.rollUpgradePicks(n, upLv, rt.elemLv, !!(rt.S && (rt.S.elemSlotN || 1) >= 2)); }
 function evoParts(r) { return rt.evoPartsOf(r, upLv, rt.elemLv); }
 function partLv(k) { return rt.isElemKey(k) ? rt.elemLv(k) : upLv(k); }
 function cardNameOf(k) { return rt.cardNameOfKey(k); }

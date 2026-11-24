@@ -449,7 +449,7 @@ export function createQaBridge(ctx) {
   trainStroke: function (pts, shape) {
     if (shape) ctx.train.shape = shape;
     ctx.train.pts = (pts || []).slice();
-    trainFinish();
+    ctx.trainFinish();
     return { result: ctx.train.result, stats: ctx.trainStatsOf(ctx.train.shape) };
   },
   shopInfo: function () { return { tab: ctx.shopTab, body: $('shopBody') ? $('shopBody').innerHTML.length : 0, statHidden: $('shopStatList') ? !!$('shopStatList').hidden : null }; },
@@ -459,7 +459,7 @@ export function createQaBridge(ctx) {
     if (!g) return null;
     return { id: g.id, label: g.label, t: +g.t.toFixed(2), ok: !!g.ok, fail: !!g.fail, hp: g.hp, hpMax: g.hpMax, n: g.n, need: g.need, win: g.win, at: g.at, shape: g.shape, ringMul: g.ringMul, pos: g.pos, ids: (g.ids || []).slice(), hud: $('goalLabel') ? $('goalLabel').textContent : '' };
   },
-  goalSet: function (o) { if (ctx.S && ctx.S.goal) { Object.assign(ctx.S.goal, o); _goalHudCache = ''; ctx.renderGoalHud(); } return this.goalInfo(); },
+  goalSet: function (o) { if (ctx.S && ctx.S.goal) { Object.assign(ctx.S.goal, o); if (ctx._goalCtrl && ctx._goalCtrl.resetCache) ctx._goalCtrl.resetCache(); ctx.renderGoalHud(); } return this.goalInfo(); },
   waveInfo: function () { return { form: ctx.S && ctx.S.waveForm, fired: ctx.S ? (ctx.S.wavesFired || []).slice() : [], ids: ctx.S ? (ctx.S.waveIds || []).length : 0, forms: ['circle', 'pincer', 'rows'] }; },
   eliteInfo: function () {
     return (ctx.S ? ctx.S.zombies.filter(function (z) { return z.alive && (z.elite || z.goalTarget); }) : []).map(function (z) {

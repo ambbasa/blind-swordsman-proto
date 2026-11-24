@@ -130,8 +130,8 @@ function spiritOrbScreen(s) {
   const offx = (ud.bellLocal && ud.bellLocal.x) || 0;
   const rw = H * (58 / 256);
   const up = rt.projectXZ((s && s.x) || 0, (s && s.z) || 0, yc + rw);
-  const rt = rt.projectXZ((s && s.x) || 0, (s && s.z) || 0, yc - rw);
-  return { x: c.x, y: c.y, r: Math.max(5, Math.max(Math.abs(c.y - up.y), Math.abs(rt.y - c.y))), x0: offx };
+  const dn = rt.projectXZ((s && s.x) || 0, (s && s.z) || 0, yc - rw);
+  return { x: c.x, y: c.y, r: Math.max(5, Math.max(Math.abs(c.y - up.y), Math.abs(dn.y - c.y))), x0: offx };
 }
 /* 드로잉 프리뷰: 인식 중인 기호의 잉크 색 — v0.39 팔레트 토큰에서만 꺼낸다(2D 캔버스는 hex 문자열). */
 const INK_OF = {

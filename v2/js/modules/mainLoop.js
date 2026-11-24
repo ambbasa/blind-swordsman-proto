@@ -143,6 +143,7 @@ function fogRgb() {
      (b) 심안 파동 순간 대기 레이어에 뚫리는 구멍(punchAtmoRing)
      (c) 착지 소나의 3D 지면 uniform (예전 그대로)
    혼령 창(punchSpiritLights)은 필요 없어졌다 — 혼령은 안개 면제 프로필이라 어둠에 잠기지 않는다. */
+let _heroCssY = '';
 function syncHeroCss(hs) {
   const host = $('app');
   if (!host || !hs) return;
@@ -163,8 +164,8 @@ function syncWorldFade() {
     fx = -e[8]; fz = -e[10];
     if (Math.hypot(fx, fz) < 1e-4) { fx = 0; fz = -1; }
   }
-  rt.updateWorldFade(rt.arenaActive()?rt.S.arena:hero, rt.arenaActive()?rt.arenaR()*1.65:R, (rt.S && rt.S.fogPulse) || 0, 12.5, qaFadeColor ? '#00ff00' : fogRgb(), rt.qaFadeMat > 0, fx, fz);
-  rt.WF_POST.post = rt.arenaActive() ? 0 : 0.50 * qaFadePostK;
+  rt.updateWorldFade(rt.arenaActive()?rt.S.arena:hero, rt.arenaActive()?rt.arenaR()*1.65:R, (rt.S && rt.S.fogPulse) || 0, 12.5, rt.qaFadeColor ? '#00ff00' : fogRgb(), rt.qaFadeMat > 0, fx, fz);
+  rt.WF_POST.post = rt.arenaActive() ? 0 : 0.50 * rt.qaFadePostK;
   const hs = rt.heroScreen();
   rt.WF_POST.heroScreen.set(hs.x, hs.y);
   return hs;
