@@ -1,6 +1,7 @@
 /* v2/js/modules/mainLoop.js — 심안: 묵검 v1.26 카메라 렌즈·안개·메인 프레임 루프 */
 
 export function createMainLoop(rt) {
+  const $ = rt.$;
 function activeFov() {
   if (!rt.three || !rt.three.view) return rt.CFG.fov || 62;
   return viewFov(rt.three.view.clientWidth || 390, Math.max(1, rt.three.view.clientHeight || 844));

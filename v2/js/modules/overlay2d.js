@@ -1,7 +1,9 @@
 /* v2/js/modules/overlay2d.js — 심안: 묵검 v1.26 2D 오버레이·혼령 마크·지형 표시 렌더러 */
 
 export function createOverlay2d(rt) {
+  const $ = rt.$;
 function loadMarkImages() {
+  if (!rt.art) return;
   const dabUrl = rt.art.images && rt.art.images.inkDab && rt.art.images.inkDab.image ? null : (rt.art.images && rt.art.fx);
   if (rt.art.images && rt.art.images.inkDab && rt.art.images.inkDab.image) {
     rt.paintInk._dab = rt.art.images.inkDab.image;

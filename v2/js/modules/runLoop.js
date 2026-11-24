@@ -1,6 +1,7 @@
 /* v2/js/modules/runLoop.js — 심안: 묵검 v1.26 전투 스텝·군중 분리·카메라·런 종료 엔진 */
 
 export function createRunLoop(rt) {
+  const $ = rt.$;
 function endRun(win, msg) {
   if (!rt.S || rt.S.won || rt.S.lost) return;
   if (rt.audio && rt.audio.setBossMode) rt.audio.setBossMode(false);
@@ -62,7 +63,7 @@ function endRun(win, msg) {
   rt.telemetry.save();
   if (rt.audio) rt.audio.stopBgm();
   const nextSt = rt.STAGES[(rt.S.stageNo || st.id)];
-  $('resultKicker').textContent = rt.S.stageNo ? (rt.S.stageNo + '장 · ' + st.name + ' · ' + curMode().name) : '연습';
+  $('resultKicker').textContent = rt.S.stageNo ? (rt.S.stageNo + '장 · ' + st.name + ' · ' + rt.curMode().name) : '연습';
   $('resultTitle').textContent = win ? '베었다' : '쓰러졌다';
   try {
     const rt = $('resultTitle');
@@ -88,7 +89,7 @@ function endRun(win, msg) {
         '<div class="rm-cell"><span class="rm-lbl">소요 시간</span><strong>' + mm + ':' + ss + '</strong></div>';
     }
   } catch (_) {}
-  rt.S.goldStar = !!(win && curMode().gold);
+  rt.S.goldStar = !!(win && rt.curMode().gold);
   const starsEl = $('resultStars');
   if (win) {
     starsEl.classList.remove('defeat-seal');
@@ -119,13 +120,13 @@ function endRun(win, msg) {
     if (c && rt.S.challenge === 'bossrush') note = '보스 러시 ' + (rt.S.bossIdx || 0) + '/' + rt.STAGES.length + ' · 최고 기록 ' + (rt.save.records.bossrush || 0);
     else if (c && rt.S.challenge === 'endless') note = '무한 심연 — 귀물 ' + (rt.S.endlessBossN || 0) + ' · 최고 기록 ' + (rt.save.records.endless || 0);
     else if (c) note = c.name + ' — 무늬 ' + (rt.S.trialPool || []).map(function (k) { return rt.SHAPE_MARK[k] || k; }).join(' ');
-  } else if (win && stars < 3 && stars < starCap()) {
+  } else if (win && stars < 3 && stars < rt.starCap()) {
     const lack = [];
     if (rt.S.hp / Math.max(1, rt.maxHp()) < 0.5 && (rt.S.hits || 0) > (rt.CFG.star2Hits || 3)) lack.push('체력 50% 이상 또는 피격 3회 이하(지금 ' + (rt.S.hits || 0) + '회)');
     const s3i = rt.star3Info(st);
     if (!s3i.done) lack.push(s3i.short);
     note = '★ 더 받으려면: ' + lack.join(' · ');
-  } else if (win && starCap() < 3) {
+  } else if (win && rt.starCap() < 3) {
     note = '수련 모드는 별 2개까지입니다 — 정석에서 세 번째 별을 노리세요.';
   } else if (!win && timeUp) {
     note = '시간이 모자랐습니다 — 보스의 빈틈에 집중하거나 모드를 바꿔 보세요.';
@@ -144,7 +145,7 @@ function endRun(win, msg) {
   const offerKey = st.id + ':' + (rt.S.streakAfter || 0);
   const offerBox = $('btnTrainOffer');
   if (offerBox) {
-    const offer = !win && (rt.S.streakAfter || 0) >= 3 && curMode().id === 'jeongseok' && rt.save.trainOffered !== offerKey;
+    const offer = !win && (rt.S.streakAfter || 0) >= 3 && rt.curMode().id === 'jeongseok' && rt.save.trainOffered !== offerKey;
     offerBox.hidden = !offer;
     if (offer) offerBox.textContent = '수련 모드로 한 판';
   }
@@ -383,7 +384,7 @@ function step(dt) {
     }
   }
   rt.tickStatuses(dt);
-  const zsp = rt.CFG.zombieSpeed * wave * (rt.S.elapsed < 20 ? 0.65 : 1) * modeSpd() * rt.terrainSpeedMul();
+  const zsp = rt.CFG.zombieSpeed * wave * (rt.S.elapsed < 20 ? 0.65 : 1) * rt.modeSpd() * rt.terrainSpeedMul();
   /* §6.1 지형 주기 효과(4장 달빛·5장 안개·9장 재생·11장 포대·12장 끌림) */
   rt.onTick(dt);
   /* §6.2 장별 부목표 */
@@ -488,7 +489,7 @@ function step(dt) {
         if (z.eliteAttr === 'ice') { rt.addSlow(0.6, 1.2); rt.showJudge('얼음 — 느려진다'); }
         if (rt.mirrorSave('contact')) return;
         rt.noteHit();
-        rt.S.hp -= modeDmg(z.isBoss ? (rt.CFG.bossDmg || 2) : ((rt.CFG.zombieTypes[z.type] || {}).dmg || rt.CFG.dmg)) + rt.relicDmgAdd();
+        rt.S.hp -= rt.modeDmg(z.isBoss ? (rt.CFG.bossDmg || 2) : ((rt.CFG.zombieTypes[z.type] || {}).dmg || rt.CFG.dmg)) + rt.relicDmgAdd();
         if (rt.S.hp <= 0) rt.S.deathWhy = z.isBoss ? 'boss-contact' : ('zombie:' + z.type);
         rt.S.iframe = rt.CFG.iframeMs / 1000;
         rt.S.hitstop = Math.max(rt.S.hitstop || 0, rt.CFG.hitHitstop || 0.08);

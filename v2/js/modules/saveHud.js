@@ -1,6 +1,7 @@
 /* v2/js/modules/saveHud.js — 심안: 묵검 v1.26 세이브·마이그레이션·HUD·오버레이·일시정지 */
 
 export function createSaveHud(rt) {
+  const $ = rt.$;
 function atkBonus() { return rt.computeAtkBonus(rt.save.atkLv, rt.CFG); }
 function gapBonus() { return rt.computeGapBonus(rt.save.gapLv); }
 function poiseBonus() { return rt.computePoiseBonus(rt.save.poiseLv); }
@@ -75,7 +76,7 @@ function loadSave() {
   rt.save.a11y.shake = rt.save.a11y.shake ? 1 : 0;
   if (!rt.MODES[rt.save.mode]) rt.save.mode = 'jeongseok';
   rt.save.levelMode = 'pause';
-  if (rt.save.mode === 'gosu' && !gosuUnlocked()) rt.save.mode = 'jeongseok';
+  if (rt.save.mode === 'gosu' && !rt.gosuUnlocked()) rt.save.mode = 'jeongseok';
   rt.save.tutorialDone = rt.save.tutorialDone ? 1 : 0;
   rt.save.stage = rt.clamp(rt.save.stage | 0 || 1, 1, rt.STAGES.length);
   rt.save.version = rt.SAVE_VERSION;
@@ -206,7 +207,6 @@ function renderHud() {
     setHudText($('stageLabel'), '심안');
     $('judgeFlash').hidden = true;
     $('goalLabel').hidden = true;
-    _goalHudCache = null;
     setHudText($('timer'), '—');
     setHudText($('dashLabel'), '일섬 1');
     setHudText($('coinLabel'), '엽전 ' + rt.save.coins);

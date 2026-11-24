@@ -1,6 +1,7 @@
 /* v2/js/modules/shopLogic.js — 심안: 묵검 v1.26 무구·유물·치장 구매/장착/벼림 로직 */
 
 export function createShopLogic(rt) {
+  const $ = rt.$;
 function swordBlueprint(stageNo) { return !stageNo || ((rt.save.stars || {})[stageNo] || 0) > 0; }
 function buySword(id) {
   const sw = rt.SWORDS.filter(function (s) { return s.id === id; })[0];

@@ -1,6 +1,7 @@
 /* v2/js/modules/tutorialSys.js — 심안: 묵검 v1.26 접근성·첫 경험·튜토리얼·모드 UI */
 
 export function createTutorialSys(rt) {
+  const $ = rt.$;
 /* ---------- v0.30 §11 접근성 · §8.2 '처음 보는 순간' · §7.3 동적 보정 · §8.1 몸통 튜토리얼 ----------
    난이도·연패·첫 경험은 모두 save에 남긴다(기기 안, 개인정보 없음). */
 function a11yCb() { return !!(rt.save.a11y && rt.save.a11y.colorblind); }
@@ -284,7 +285,7 @@ function drawTutorial(ctx, r, hs) {
 function renderModes() {
   const box = $('titleModes');
   if (!box) return;
-  const gosu = gosuUnlocked();
+  const gosu = rt.gosuUnlocked();
   const cur = rt.MODES[rt.save.mode] ? rt.save.mode : 'jeongseok';
   box.querySelectorAll('[data-mode]').forEach(function (b) { b.remove(); });
   box.innerHTML = rt.MODE_ORDER.map(function (id) {
@@ -297,7 +298,7 @@ function renderModes() {
   box.querySelectorAll('[data-mode]').forEach(function (b) {
     b.addEventListener('click', function () {
       const id = b.getAttribute('data-mode');
-      if (id === 'gosu' && !gosuUnlocked()) { rt.toast('고수 모드는 12장을 깨면 열립니다'); return; }
+      if (id === 'gosu' && !rt.gosuUnlocked()) { rt.toast('고수 모드는 12장을 깨면 열립니다'); return; }
       setMode(id);
       if (rt.audio && rt.audio.bell) rt.audio.bell(0, 'hline');
     });
@@ -307,7 +308,7 @@ function renderModes() {
 }
 function setMode(id) {
   if (!rt.MODES[id]) return rt.save.mode;
-  if (id === 'gosu' && !gosuUnlocked()) return rt.save.mode;
+  if (id === 'gosu' && !rt.gosuUnlocked()) return rt.save.mode;
   rt.save.mode = id;
   rt.persist();
   renderModes();

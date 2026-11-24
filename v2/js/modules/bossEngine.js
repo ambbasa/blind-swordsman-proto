@@ -1,6 +1,7 @@
 /* v2/js/modules/bossEngine.js — 심안: 묵검 v1.26 보스 AI · 19종 패턴/기믹 엔진 */
 
 export function createBossEngine(rt) {
+  const $ = rt.$;
 function stepBoss(z, dt) {
   if (!z || !z.alive || !rt.S) return false;
   const B = (rt.S.stage && rt.S.stage.boss) || {};
@@ -77,7 +78,7 @@ function stepBoss(z, dt) {
     if ((rt.S.iframe || 0) <= 0 && !rt.S.dash && rt.dist(z, rt.S.hero) < z.r + 0.7) {
       if (mirrorSave('boss-charge')) return true;
       noteHit();
-      rt.S.hp -= modeDmg(rt.CFG.bossDmg || 2) + relicDmgAdd();
+      rt.S.hp -= rt.modeDmg(rt.CFG.bossDmg || 2) + relicDmgAdd();
       rt.S.iframe = rt.CFG.iframeMs / 1000;
       rt.S.hurtFlash = rt.CFG.hurtVignette || 0.3;
       const d = rt.dist(z, rt.S.hero) || 1;
@@ -200,7 +201,7 @@ function heroHurt(n, why) {
   noteHit();
   /* v0.30 §7.2: 모드별 받는 피해(수련 ×0.5 최소 1 · 고수 ×1.5). */
   const vulnAdd = (rt.S && (rt.S.vulnStacks || 0) > 0 && (rt.S.vulnT || 0) > 0) ? rt.S.vulnStacks : 0;
-  rt.S.hp -= modeDmg(n) + relicDmgAdd() + vulnAdd;
+  rt.S.hp -= rt.modeDmg(n) + relicDmgAdd() + vulnAdd;
   if (rt.S.hp <= 0) rt.S.deathWhy = why || '귀물에게 닿았습니다.';
   rt.S.iframe = rt.CFG.iframeMs / 1000;
   rt.S.hurtFlash = rt.CFG.hurtVignette || 0.3;
@@ -705,7 +706,7 @@ function startBossPattern(z, id) {
   /* v0.30 §8.2: 이 패턴을 처음 보는 순간이면 예고 ×1.6 + 0.5배 느린 화면 0.6초 + 대응 아이콘. */
   const first = rt.markSeen('pat:' + id);
   z.teleBoost = first ? (rt.CFG.firstPatTele || 1.6) : 1;
-  z.teleMul = teleMul() * z.teleBoost;
+  z.teleMul = rt.teleMul() * z.teleBoost;
   if (first && rt.S) {
     rt.addSlow(rt.CFG.firstPatSlow || 0.5, rt.CFG.firstPatSlowDur || 0.6);
     rt.S.firstPatIcon = { id: id, c: rt.PAT_CUE[id] || 'red', t: 1.6 };
@@ -959,7 +960,7 @@ function startTether(z) {
 function startCharge(z) {
   z.state = 'telegraph'; z.stateT = 0; z.pat = 'charge'; z._warnTicked = false;
   z.reflectUsed = false;
-  z.teleMul = teleMul() * (z.teleBoost || 1);
+  z.teleMul = rt.teleMul() * (z.teleBoost || 1);
   z.aim = { x: rt.S.hero.x, z: rt.S.hero.z };
   z.dodged = false;
   bossHazards(z);
@@ -1550,7 +1551,7 @@ function heroHurtForce(n, why, opts) {
     rt.showJudge('처음은 가볍게');
   }
   /* v0.30 §7.2 모드 배율. */
-  dmg = modeDmg(dmg) + relicDmgAdd();
+  dmg = rt.modeDmg(dmg) + relicDmgAdd();
   noteHit();
   rt.S.hp -= dmg;
   if (rt.S.hp <= 0) rt.S.deathWhy = why;

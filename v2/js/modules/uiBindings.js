@@ -1,6 +1,7 @@
 /* v2/js/modules/uiBindings.js — 심안: 묵검 v1.26 DOM 이벤트 가드·UI 바인딩 */
 
 export function createUiBindings(rt) {
+  const $ = rt.$;
 function guardEvents() {
   const app = $('app');
   function stop(e) { e.preventDefault(); }

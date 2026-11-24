@@ -1,6 +1,7 @@
 /* v2/js/modules/strokeInput.js — 심안: 묵검 v1.26 잉크 드로잉·제스처 인식·선입력 버퍼 */
 
 export function createStrokeInput(rt) {
+  const $ = rt.$;
 /* ---------- ink + input ---------- */
 function resizeInk() {
   const c = $('ink'), r = c.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);

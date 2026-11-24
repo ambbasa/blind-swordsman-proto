@@ -1,6 +1,7 @@
 /* v2/js/modules/combatEngine.js — 심안: 묵검 v1.26 전투 코어(일섬·패링·피해·상태이상·강화적용) */
 
 export function createCombatEngine(rt) {
+  const $ = rt.$;
 /* v0.31 §3.5: 지금 닿기 직전(W초 안)인 공격을 찾는다 — 돌진·투척 부적·자폭 점화·보스 돌진. */
 function incomingParryThreat(maxWin) {
   if (!rt.S || !rt.S.hero) return null;
@@ -1212,7 +1213,7 @@ function dropType() {
 }
 function grantKill(mul) {
   /* v0.30 §7.2: 엽전에도 모드 배율(수련 ×0.7 · 고수 ×1.4). v0.32 §6.1: 4장 붉은 달빛에는 두 배. */
-  const c = Math.round(rt.CFG.coinPerKill * (mul || 1) * rt.coinMult() * modeCoin() * rt.terrainCoinMul());
+  const c = Math.round(rt.CFG.coinPerKill * (mul || 1) * rt.coinMult() * rt.modeCoin() * rt.terrainCoinMul());
   rt.save.coins += c; rt.persist();
 }
 /* Screen point (inside #app) of a HUD element, for pickups flying to it. */

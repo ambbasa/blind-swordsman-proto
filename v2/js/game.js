@@ -31,36 +31,36 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v127';
+import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v128';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v127';
+import { probeAssets, buildArt } from './art.js?v=v128';
 import * as Anim from './anim.js';
-import { createAudio } from './audio.js?v=v127';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v127';
-import { PAT_COST, PAT_CUE, getActPhaseFx, getActSkillNames, bossPatternMean, buildBossBannerInfo, pickBossOrbitShapes, pickZoneSpiritShape } from './modules/bossPatterns.js?v=v127';
-import { TERRAIN_CFG, tHash, tPatchAt, tPatchesNear, tRootAt, getRiverCfg, tWaterCenter as terrainWaterCenter, tWaterAt as terrainWaterAt, resolveZoneAt, resolveSegZone } from './modules/stageTerrain.js?v=v127';
-import { ensureDailyFresh as ensureDailyFreshState, bumpDailyProgress, actStarTotalOf, hasClaimableRetentionOf, claimAttendanceReward, claimDailyQuestReward, claimStarChestReward, claimCodexMilestoneReward, renderDailyView } from './modules/retention.js?v=v127';
-import { renderCodexView } from './modules/codexView.js?v=v127';
-import { renderShopOverview, renderShopTabView, renderCosmeticView } from './modules/shopView.js?v=v127';
-import { TRAIN_SHAPES, SHAPE_LABEL, SHAPE_TIP, createTrainController } from './modules/trainView.js?v=v127';
-import { computeStar3Info, computeStarsFor } from './modules/starRating.js?v=v127';
-import { createStageGoalController } from './modules/stageGoal.js?v=v127';
-import { createChallengeController } from './modules/challengeMode.js?v=v127';
-import { isElemKey, cardNameOfKey, rollUpgradePicks, evoPartsOf, evoMatInfoFor, evoHintsFor, pickRecommendedId } from './modules/runUpgrades.js?v=v127';
-import { createQaBridge } from './modules/qaBridge.js?v=v127';
-import { createOverlay2d } from './modules/overlay2d.js?v=v127';
-import { createWorld3d } from './modules/world3d.js?v=v127';
-import { createUiBindings } from './modules/uiBindings.js?v=v127';
-import { createShopLogic } from './modules/shopLogic.js?v=v127';
-import { createMainLoop } from './modules/mainLoop.js?v=v127';
-import { createSaveHud } from './modules/saveHud.js?v=v127';
-import { createTutorialSys } from './modules/tutorialSys.js?v=v127';
-import { createRunLoop } from './modules/runLoop.js?v=v127';
-import { createStrokeInput } from './modules/strokeInput.js?v=v127';
-import { createStageFlow } from './modules/stageFlow.js?v=v127';
-import { createCombatEngine } from './modules/combatEngine.js?v=v127';
-import { createBossEngine } from './modules/bossEngine.js?v=v127';
-import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v127';
+import { createAudio } from './audio.js?v=v128';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v128';
+import { PAT_COST, PAT_CUE, getActPhaseFx, getActSkillNames, bossPatternMean, buildBossBannerInfo, pickBossOrbitShapes, pickZoneSpiritShape } from './modules/bossPatterns.js?v=v128';
+import { TERRAIN_CFG, tHash, tPatchAt, tPatchesNear, tRootAt, getRiverCfg, tWaterCenter as terrainWaterCenter, tWaterAt as terrainWaterAt, resolveZoneAt, resolveSegZone } from './modules/stageTerrain.js?v=v128';
+import { ensureDailyFresh as ensureDailyFreshState, bumpDailyProgress, actStarTotalOf, hasClaimableRetentionOf, claimAttendanceReward, claimDailyQuestReward, claimStarChestReward, claimCodexMilestoneReward, renderDailyView } from './modules/retention.js?v=v128';
+import { renderCodexView } from './modules/codexView.js?v=v128';
+import { renderShopOverview, renderShopTabView, renderCosmeticView } from './modules/shopView.js?v=v128';
+import { TRAIN_SHAPES, SHAPE_LABEL, SHAPE_TIP, createTrainController } from './modules/trainView.js?v=v128';
+import { computeStar3Info, computeStarsFor } from './modules/starRating.js?v=v128';
+import { createStageGoalController } from './modules/stageGoal.js?v=v128';
+import { createChallengeController } from './modules/challengeMode.js?v=v128';
+import { isElemKey, cardNameOfKey, rollUpgradePicks, evoPartsOf, evoMatInfoFor, evoHintsFor, pickRecommendedId } from './modules/runUpgrades.js?v=v128';
+import { createQaBridge } from './modules/qaBridge.js?v=v128';
+import { createOverlay2d } from './modules/overlay2d.js?v=v128';
+import { createWorld3d } from './modules/world3d.js?v=v128';
+import { createUiBindings } from './modules/uiBindings.js?v=v128';
+import { createShopLogic } from './modules/shopLogic.js?v=v128';
+import { createMainLoop } from './modules/mainLoop.js?v=v128';
+import { createSaveHud } from './modules/saveHud.js?v=v128';
+import { createTutorialSys } from './modules/tutorialSys.js?v=v128';
+import { createRunLoop } from './modules/runLoop.js?v=v128';
+import { createStrokeInput } from './modules/strokeInput.js?v=v128';
+import { createStageFlow } from './modules/stageFlow.js?v=v128';
+import { createCombatEngine } from './modules/combatEngine.js?v=v128';
+import { createBossEngine } from './modules/bossEngine.js?v=v128';
+import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v128';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
@@ -81,7 +81,7 @@ import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariant
 import { InkFx, FX_COLORS } from './inkfx.js';
 import { BossFx } from './bossFx.js';
 import { createTelemetry } from './telemetry.js';
-import { applyHeroCloak3D } from './inkhero3d.js?v=v127';
+import { applyHeroCloak3D } from './inkhero3d.js?v=v128';
 import {
   SAVE_VERSION, STAT_DEFS, FORGE_COSTS, SWORDS, RELICS, COSMETIC_CLOAKS, COSMETIC_TRAILS,
   DAILY_QUESTS, ATTENDANCE_REWARDS, STAR_CHESTS, CODEX_MILESTONES,
@@ -94,7 +94,7 @@ import { InkLightPool, createWorldInkUniforms, attachGroundInkShader } from './i
 import { initOverlayShell } from './ui/overlayShell.js';
 import { installCssVars, color as palColor, hex as palHex } from './palette.js';
 import { WF, paint as paintCard, updateFade as updateWorldFade, stats as cardStats } from './cardstock.js';
-import { SHAPE_MARK, TOTEM_SHAPES, SHAPE_KEY, SHAPE_UNLOCK, COMBAT, SHAPE_HINT, CFG } from './modules/gameConfig.js?v=v127';
+import { SHAPE_MARK, TOTEM_SHAPES, SHAPE_KEY, SHAPE_UNLOCK, COMBAT, SHAPE_HINT, CFG } from './modules/gameConfig.js?v=v128';
 import {
   getShopTabNote, statUpgradeCost, statTotalSpent, resetAllStats,
   computeCombatPower, stageRecommendedPower, forgeCostOf,
@@ -109,8 +109,8 @@ import { MODES, MODE_ORDER, MODE_NOTE, modeOf, CHALLENGES, challengeOf, RUN_UPGR
 import { PAT_CODE } from './modules/bossCatalog.js';
 import { createInputQueue, createDashLatencyTracker } from './modules/inputQueue.js';
 import { createRunState, resetRunStateOnQuit } from './modules/state.js';
-import { createHudController } from './modules/hudController.js?v=v127';
-import { createUiRouter } from './modules/uiRouter.js?v=v127';
+import { createHudController } from './modules/hudController.js?v=v128';
+import { createUiRouter } from './modules/uiRouter.js?v=v128';
 import { syncSceneActTheme3D } from './modules/actTheme3d.js';
 import { createInkRiver3D } from './modules/inkWater3d.js';
 import { createInkTerrain3D } from './modules/inkTerrain3d.js';
@@ -253,8 +253,8 @@ const _goalCtrl = createStageGoalController({
   shapeMark: SHAPE_MARK,
   dist: dist,
   spawnZombie: function (o) { return spawnZombie(o); },
-  showJudge: showJudge,
-  toast: toast,
+  showJudge: (...a) => showJudge(...a),
+  toast: (...a) => toast(...a),
   getAudio: function () { return audio; },
   telemetry: telemetry
 });
@@ -503,6 +503,7 @@ const fps = { samples: [], last: 0 };
 let lastStroke = null, inkFade = 0;
 
 const _rt = {
+  get $() { return $; },
   get ACT_NAMES() { return ACT_NAMES; },
   get Anim() { return Anim; },
   get AutoQuality() { return AutoQuality; },
@@ -1088,14 +1089,14 @@ const _challengeCtrl = createChallengeController({
   challengeRecord: challengeRecord,
   curMode: curMode,
   spawnBoss: function (o) { return spawnBoss(o); },
-  closeArena: closeArena,
-  gainXp: gainXp,
-  xpNeed: xpNeed,
-  openLevelUp: openLevelUp,
-  endRun: endRun,
-  startRun: startRun,
-  showBossCard: showBossCard,
-  toast: toast,
+  closeArena: (...a) => closeArena(...a),
+  gainXp: (...a) => gainXp(...a),
+  xpNeed: (...a) => xpNeed(...a),
+  openLevelUp: (...a) => openLevelUp(...a),
+  endRun: (...a) => endRun(...a),
+  startRun: (...a) => startRun(...a),
+  showBossCard: (...a) => showBossCard(...a),
+  toast: (...a) => toast(...a),
   telemetry: telemetry
 });
 function initChallenge(id, stageNo) { return _challengeCtrl.initChallenge(id, stageNo); }
@@ -1204,13 +1205,13 @@ const _trainCtrl = createTrainController({
   getSave: function () { return save; },
   persist: function () { persist(); },
   getG: function () { return G; },
-  titleChip: titleChip,
-  syntheticPath: syntheticPath,
+  titleChip: (...a) => titleChip(...a),
+  syntheticPath: (...a) => syntheticPath(...a),
   brushOf: brushOf,
-  showOv: showOv,
-  hideOvs: hideOvs,
+  showOv: (...a) => showOv(...a),
+  hideOvs: (...a) => hideOvs(...a),
   getAudio: function () { return audio; },
-  haptic: haptic,
+  haptic: (...a) => haptic(...a),
   telemetry: telemetry
 });
 const train = _trainCtrl.train;
@@ -1296,7 +1297,7 @@ async function boot() {
   }, 800); }
   if (!raf) loop(now());
   window.GPv2.ready = true;
-  window.GPv2.assetsUsed = art.used;
+  window.GPv2.assetsUsed = art ? art.used : null;
   perfMark('boot_ready', performance.now() - _tBoot, { need2d: need2d });
 }
 

@@ -1,6 +1,7 @@
 /* v2/js/modules/qaBridge.js — 심안: 묵검 v1.26 QA/디버그 프로브 브리지 */
 
 export function createQaBridge(ctx) {
+  const $ = ctx.$;
   return {
   CFG: ctx.CFG, SHAPE_MARK: ctx.SHAPE_MARK,
   get save() { return ctx.save; },

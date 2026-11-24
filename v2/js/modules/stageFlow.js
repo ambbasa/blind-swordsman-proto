@@ -1,6 +1,7 @@
 /* v2/js/modules/stageFlow.js — 심안: 묵검 v1.26 스테이지 진입·스폰·결계·예열·타이틀 UI 흐름 */
 
 export function createStageFlow(rt) {
+  const $ = rt.$;
 function startRun(opts) {
   const _tRun = performance.now();
   opts = opts || {};
@@ -1213,7 +1214,7 @@ function refreshTitleHelp() {
   const chSub = $('lobbyChapterSub');
   const chMode = $('lobbyModeTag');
   if (chTitle) chTitle.textContent = '제 ' + st.id + ' 장 · ' + st.name;
-  if (chMode) chMode.textContent = curMode().name;
+  if (chMode) chMode.textContent = rt.curMode().name;
   if (chSub) {
     const stars = (rt.save.stars || {})[st.id] || 0;
     const recPw = rt.stageRecommendedPower(st.id);
@@ -1228,7 +1229,7 @@ function refreshTitleHelp() {
     note.innerHTML = '제' + rt.actOf(st.id) + '막 ' + rt.ACT_NAMES[rt.actOf(st.id)] + ' · ' + st.tag + ' · 목표 ' + st.time + '초 · 별 '
       + '★'.repeat(stars) + '☆'.repeat(Math.max(0, 3 - stars))
       + (rt.save.bestScore ? ' · 최고 ' + rt.save.bestScore : '')
-      + ' · ' + curMode().name;
+      + ' · ' + rt.curMode().name;
   }
   rt.renderModes();
   renderStageSelect(sel);
@@ -1300,7 +1301,7 @@ function subgoalExplain(sg) {
 }
 function fillStageIntro(st) {
   setChapterArt(st);
-  $('stageKicker').textContent = '제 ' + st.id + ' 장 · ' + curMode().name;
+  $('stageKicker').textContent = '제 ' + st.id + ' 장 · ' + rt.curMode().name;
   $('stageName').textContent = st.name;
   $('stageSub').textContent = st.sub;
   $('stageGoal').textContent = st.goal;

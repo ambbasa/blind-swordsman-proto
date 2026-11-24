@@ -1,6 +1,7 @@
 /* v2/js/modules/world3d.js — 심안: 묵검 v1.26 Three.js 월드·그림자 프러스텀·청크·포스트패스 */
 
 export function createWorld3d(rt) {
+  const $ = rt.$;
 function switchMap(id, stageNo) {
   if (!rt.art || !rt.three) return Promise.resolve(null);
   const want = (id && rt.art.atlas && rt.art.atlas.maps && rt.art.atlas.maps[id]) ? id : 'map1';
