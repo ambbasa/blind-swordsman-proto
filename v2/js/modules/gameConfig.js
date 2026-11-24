@@ -8,6 +8,13 @@ export const TOTEM_SHAPES = ['tri', 'square', 'spiral'];
 export const SHAPE_KEY = { hline: 'H', vline: 'I', vee: 'V', bolt: 'Z' };
 export const SHAPE_UNLOCK = ['hline', 'vline', 'vee', 'bolt'];
 export const COMBAT = SHAPE_UNLOCK.slice();
+/* v1.30 무늬별 타격 개성 분화: 횡참(넓은 폭) · 직선 관통(긴 사거리·감쇠 0) · 도약 찍기(착지 광역) · 뇌전 연쇄(전격 체인) */
+export const SHAPE_STYLE = {
+  hline: { name: '횡참', widthMul: 1.40, reachMul: 1.00, falloff: null, landR: 1.15, landDmgMul: 0, landStun: 0.35, chainN: 0, dur: 0.14, chainDur: 0.10, accentHex: 0x62f2c8 },
+  vline: { name: '직선 관통', widthMul: 0.88, reachMul: 1.28, falloff: 1.0, landR: 0.90, landDmgMul: 0, landStun: 0.25, chainN: 0, dur: 0.12, chainDur: 0.09, accentHex: 0xff6b52 },
+  vee:   { name: '도약 찍기', widthMul: 1.05, reachMul: 1.00, falloff: null, landR: 1.65, landDmgMul: 0.45, landStun: 0.55, chainN: 0, dur: 0.16, chainDur: 0.12, accentHex: 0xc07eff },
+  bolt:  { name: '뇌전 연쇄', widthMul: 1.00, reachMul: 1.06, falloff: null, landR: 1.05, landDmgMul: 0, landStun: 0.30, chainN: 2, dur: 0.13, chainDur: 0.10, accentHex: 0xffd25a }
+};
 
 export const SHAPE_HINT = {
   hline: '가로로 길게 그어 보세요',
@@ -122,7 +129,7 @@ export const CFG = {
   gapPeriod: 1.6, gapFlash: 0.5, gapBufWait: 0.5,
   /* v0.29 §3.4 공정성: 판에서 처음 맞는 '피할 수 없는' 공격은 피해 1, 피격 무적 중에는 다음 공격이 발동하지 않는다. */
   firstForcedDmg: 1, chainGuard: 0.8,
-  recoilU: 0.12, recoilT: 0.12, hurtVignette: 0.3,
+  recoilU: 0.34, recoilT: 0.13, hurtVignette: 0.3,
   aimConeCos: 0.5, aimNearW: 0.35, telegraphRange: 3.2,
   zombieRing: [6, 8.5],
   zombieSpeed: 2.15,

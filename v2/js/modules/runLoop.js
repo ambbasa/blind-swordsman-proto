@@ -551,6 +551,21 @@ function step(dt) {
   rt.stepBolts(dt);
   rt.stepEchoes(dt);
   rt.stepInkSteps(dt);
+  /* v1.30 잔심(지연 파열) 인플레이스 갱신 — 주인공 흐름을 끊지 않고 0.07초 뒤 먹물 폭발 */
+  if (rt.S.zanshin && rt.S.zanshin.length) {
+    let zw = 0;
+    for (let zi = 0; zi < rt.S.zanshin.length; zi++) {
+      const zf = rt.S.zanshin[zi];
+      zf.t -= dt;
+      if (zf.t > 0) { rt.S.zanshin[zw++] = zf; continue; }
+      const big = zf.tier >= 3;
+      rt.inkFx.burst(zf.x, zf.z, big ? rt.FX_COLORS.gold : rt.FX_COLORS.jade, { r1: big ? 48 : 34, n: big ? 10 : 6, dur: big ? 0.38 : 0.28, big: big });
+      if (rt.three && rt.three.vfx3d) rt.three.vfx3d.spawnSparks(zf.x, zf.z, big ? 16 : 8, { color: zf.col || 0xffd25a, speed: big ? 7.6 : 5.6 });
+      if (big && rt.three && rt.three.shaderFx3d) rt.three.shaderFx3d.spawnShockwave(zf.x, zf.z, { r0: 0.4, r1: 3.4, colorHex: zf.col || 0xffd25a, coreHex: 0xfffce8, dur: 0.30 });
+      if (zf.sfx && rt.audio && rt.audio.hit) rt.audio.hit(true, (rt.S.combo || 0) + (big ? 4 : 1));
+    }
+    rt.S.zanshin.length = zw;
+  }
   if (rt.S.quick) rt.tickQuick();
   if (rt.S.goldEdge > 0) rt.S.goldEdge = Math.max(0, rt.S.goldEdge - dt);
   if (rt.S.sealFx > 0) rt.S.sealFx = Math.max(0, rt.S.sealFx - dt);
@@ -699,7 +714,7 @@ function updateCam(dt) {
     rt.S.shake = Math.max(0, rt.S.shake - dt * 1.45);
     rt.S._shakePhase = (rt.S._shakePhase || 0) + dt * 32.0;
     const trauma = Math.min(1.0, rt.S.shake);
-    const a = trauma * trauma * 0.42 * (rt.a11yShake() ? 0.3 : 1);
+    const a = trauma * trauma * 1.15 * (rt.a11yShake() ? 0.25 : 1);
     const ph = rt.S._shakePhase;
     sx += Math.sin(ph * 1.7) * a;
     sy = Math.sin(ph * 2.3 + 0.8) * a * 0.65;

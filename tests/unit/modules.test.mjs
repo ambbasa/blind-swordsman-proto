@@ -599,7 +599,7 @@ import { isElemKey, cardNameOfKey, rollUpgradePicks, evoMatInfoFor, pickRecommen
 }
 
 /* --- v1.26 대규모 모듈화 스모크 검증: gameConfig + 10개 팩토리 모듈 --- */
-import { CFG, SHAPE_MARK, TOTEM_SHAPES, SHAPE_UNLOCK } from '../../v2/js/modules/gameConfig.js';
+import { CFG, SHAPE_MARK, TOTEM_SHAPES, SHAPE_UNLOCK, SHAPE_STYLE } from '../../v2/js/modules/gameConfig.js';
 import { createQaBridge } from '../../v2/js/modules/qaBridge.js';
 import { createOverlay2d } from '../../v2/js/modules/overlay2d.js';
 import { createBossEngine } from '../../v2/js/modules/bossEngine.js';
@@ -629,4 +629,18 @@ import { createShopLogic } from '../../v2/js/modules/shopLogic.js';
     assert.ok(api && typeof api === 'object' && Object.keys(api).length >= 2);
   });
   console.log('v1.26 FULL MODULARIZATION (gameConfig + 13 factory modules) PASSED');
+
+// v1.30 SHAPE_STYLE & 3-tier game feel assertions
+{
+  for (const sh of ['hline', 'vline', 'vee', 'bolt']) {
+    const st = SHAPE_STYLE[sh];
+    assert.ok(st && typeof st.name === 'string' && st.dur > 0 && st.chainDur > 0 && st.chainDur < st.dur, 'SHAPE_STYLE valid for ' + sh);
+    assert.ok(!/[\u4E00-\u9FFF]/.test(st.name), 'no hanja in SHAPE_STYLE.' + sh);
+  }
+  assert.ok(SHAPE_STYLE.hline.widthMul > 1.25, 'hline wide sweep');
+  assert.ok(SHAPE_STYLE.vline.reachMul > 1.2 && SHAPE_STYLE.vline.falloff === 1.0, 'vline long pierce no falloff');
+  assert.ok(SHAPE_STYLE.vee.landR > 1.4 && SHAPE_STYLE.vee.landDmgMul > 0, 'vee slam AoE');
+  assert.ok(SHAPE_STYLE.bolt.chainN >= 2, 'bolt lightning chain');
+  console.log('v1.30 SHAPE_STYLE & TIERED GAME FEEL PASSED');
+}
 }

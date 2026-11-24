@@ -385,7 +385,9 @@ function magnetPull(at) {
 }
 
 function applyPath(from, to, rec, skip) {
-  const r = rt.pathR();
+  const shHint = (rec && (rec.shape || rec.type)) || (rt.S && rt.S.lastStroke) || null;
+  const stStyle = (rt.SHAPE_STYLE && shHint && rt.SHAPE_STYLE[shHint]) || null;
+  const r = rt.pathR() * ((stStyle && stStyle.widthMul) || 1.0);
   /* v0.23 정확한 획: 획의 인식 점수가 기준 이상이면 일섬 피해가 배로 든다. */
   const pLv = upLv('perfect');
   const quality = (rec && rec.quality != null) ? rec.quality : (rt.S.dashQuality || 0);
@@ -422,14 +424,18 @@ function applyPath(from, to, rec, skip) {
   /* Nearest along the cut takes full damage; each one after it a little less. */
   hit.sort(function (a, b) { return ((a.x - from.x) * dx + (a.z - from.z) * dz) / L2 - ((b.x - from.x) * dx + (b.z - from.z) * dz) / L2; });
   if (swordF.dashInvuln && rt.S) rt.S.iframe = Math.max(rt.S.iframe || 0, swordF.dashInvuln);
+  let killN = 0;
+  const zPts = [];
+  const effFalloff = (stStyle && stStyle.falloff != null) ? stStyle.falloff : (rt.CFG.pierceFalloff || 1);
   hit.forEach(function (z, k) {
+    const wasAlive = !!z.alive;
     /* v0.98 안개 바늘: 1타 지연 버그 수정 — 타격 대상별 즉시 원 안 판정(+15%) */
     const inRing = rt.S && rt.S.hero && rt.dist(z, rt.S.hero) <= rt.ringR() * 1.05;
     if (rt.S) rt.S.lastTargetInRing = !!inRing;
     const needleMul = (rt.relicOn(rt.save, 'needle') && inRing) ? 1.15 : 1;
     /* v0.98 묵은 방울: 방울 0.8초 내 일섬 시 피해 +12% */
     const bellBonus = (rt.relicOn(rt.save, 'oldbell') && z.bellMarkedAt != null && (nowEl - z.bellMarkedAt) <= 0.8) ? 1.12 : 1;
-    const hitDmg = dmg * needleMul * bellBonus * Math.pow(rt.CFG.pierceFalloff || 1, k);
+    const hitDmg = dmg * needleMul * bellBonus * Math.pow(effFalloff, k);
     hurtZombie(z, hitDmg, 'slash', rec);
     /* v0.98 여음 청: 방울이 울린 혼령을 1초 안에 베면 근처 같은 무늬 적에게 공명 피해 */
     if (rt.relicOn(rt.save, 'echo_bell') && z.bellMarkedAt != null && (nowEl - z.bellMarkedAt) <= 1.0 && z.shape) {
@@ -438,9 +444,12 @@ function applyPath(from, to, rec, skip) {
         if (rt.dist(o, z) <= 5.5) hurtZombie(o, hitDmg * 0.45, 'reson', rec);
       });
     }
-    /* v0.98 뇌전검: 번개 획 명중 시 주변 2~3체 연쇄 전격 */
-    if (k === 0 && swordF.boltChain && shNow === 'bolt') {
-      const chainMax = Math.max(1, swordF.boltChain | 0);
+    /* v1.30 뇌전 연쇄(Z) 기본 2체 + 뇌전검 추가 연쇄 */
+    const baseChain = (stStyle && stStyle.chainN) || 0;
+    const swordChain = (swordF.boltChain && shNow === 'bolt') ? Math.max(1, swordF.boltChain | 0) : 0;
+    const chainTotal = Math.min(4, baseChain + swordChain);
+    if (k === 0 && chainTotal > 0 && shNow === 'bolt') {
+      const chainMax = chainTotal;
       const nears = rt.S.zombies
         .filter(function (o) { return o.alive && o !== z && !o.isClone && rt.dist(o, z) <= 5.0; })
         .sort(function (a, b) { return rt.dist(a, z) - rt.dist(b, z); })
@@ -450,9 +459,36 @@ function applyPath(from, to, rec, skip) {
         if (rt.three && rt.three.vfx3d) rt.three.vfx3d.spawnLightning({ x: z.x, y: 0.9, z: z.z }, { x: near.x, y: 0.5, z: near.z }, { color: 0x7ab4ff, core: 0xf4f9ff, hold: 0.12, fade: 0.16, sparks: 6 });
       });
     }
+    if (wasAlive && !z.alive) killN++;
+    zPts.push({ x: z.x, z: z.z, killed: wasAlive && !z.alive });
     if (z.alive) applyElement(z, rt.curElem(), rec);
     else spreadElement(z, rt.curElem(), rec);
   });
+  /* v1.30 3단계 강약 티어링 + 잔심 지연 파열 (단타는 쾌속 유지, 다중 관통/몰살에만 강약 대비) */
+  if (rt.S && (hit.length >= 2 || killN >= 2 || perfect)) {
+    const tier = (hit.length >= 4 || killN >= 4) ? 3 : 2;
+    const zCol = (stStyle && stStyle.accentHex) || 0xffd25a;
+    if (tier === 3) {
+      rt.S.shake = Math.max(rt.S.shake || 0, 0.74);
+      if (!rt.a11yShake() && !rt.reducedMotion()) {
+        rt.S.camZoomT = Math.max(rt.S.camZoomT || 0, 0.28);
+        rt.S.camZoomAmt = Math.max(rt.S.camZoomAmt || 0, 3.8);
+        rt.S.impactFrameT = Math.max(rt.S.impactFrameT || 0, 0.065);
+      }
+      addCharge(12);
+      rt.showJudge('일섬다살! ' + hit.length + '연');
+    } else {
+      rt.S.shake = Math.max(rt.S.shake || 0, 0.42);
+      if (hit.length >= 2) {
+        addCharge(4 * (hit.length - 1));
+        rt.showJudge(hit.length === 2 ? '이연 관통!' : (hit.length + '연 관통!'));
+      }
+    }
+    rt.S.zanshin = rt.S.zanshin || [];
+    for (let zi = 0; zi < zPts.length && zi < 6; zi++) {
+      rt.S.zanshin.push({ x: zPts[zi].x, z: zPts[zi].z, t: tier === 3 ? 0.075 : 0.065, tier: tier, col: zCol, sfx: zi === 0 });
+    }
+  }
   rt.S.items.slice().forEach(function (it) {
     if (!it.alive) return;
     if (rt.segDist(it.x, it.z, from.x, from.z, to.x, to.z) <= r + it.r) collectItem(it, rec);
@@ -853,7 +889,9 @@ function triggerGroundCrackHeat(x, z, radius, hex) {
   rt.three.inkUniforms.uCrackHeatAmt.value = 1.0;
   if (hex != null) rt.three.inkUniforms.uCrackHeatCol.value.setHex(hex);
 }
-function makeSlash(from, to) {
+function makeSlash(from, to, shape) {
+  const stShape = (rt.SHAPE_STYLE && shape && rt.SHAPE_STYLE[shape]) || null;
+  const wMul = (stShape && stShape.widthMul) || 1.0;
   const dx = to.x - from.x, dz = to.z - from.z;
   const len = Math.max(0.2, Math.hypot(dx, dz));
   const yaw = Math.atan2(dx, dz);
@@ -871,7 +909,7 @@ function makeSlash(from, to) {
   const slashElem = isCustomTrail ? null : elemNow;
   const s = rt.createInkSlash({
     from: from, to: to,
-    width: rt.pathR() * (isCustomTrail ? 2.15 : 1.92),
+    width: rt.pathR() * (isCustomTrail ? 2.15 : 1.92) * wMul,
     elem: slashElem,
     color: customCore,
     coreGain: (q === 'off' ? 1.25 : 1.65) * trailGainBoost * (1 + flv * 0.12)
@@ -889,7 +927,7 @@ function makeSlash(from, to) {
       trailColor: customCore, trailHot: customHot, forgeLv: flv,
       coreGain: (q === 'off' ? 1.15 : 1.55) * trailGainBoost,
       height: (trId === 'gold_leaf' ? 0.85 : (isCustomTrail ? 0.70 : 0.50)) + rt.pathR() * 0.14,
-      width: Math.max(isCustomTrail ? 1.25 : 0.9, rt.pathR() * (isCustomTrail ? 1.18 : 0.95))
+      width: Math.max(isCustomTrail ? 1.25 : 0.9, rt.pathR() * (isCustomTrail ? 1.18 : 0.95) * wMul)
     });
     rt.three.scene.add(arc.mesh);
     rt.three.slashes.push(arc);
@@ -899,7 +937,7 @@ function makeSlash(from, to) {
   if (rt.three.vfx3d) {
     rt.three.vfx3d.spawnInkTrail(from, to, (isCustomTrail ? 6 : 4) + (flv > 0 ? 1 : 0));
     const sparkCol = isCustomTrail ? tr.coreHex
-      : (elemNow === 'ice' ? 0x98ecff : elemNow === 'poison' ? 0xc27aff : elemNow === 'fire' ? 0xff7038 : 0xffb85c);
+      : (elemNow === 'ice' ? 0x98ecff : elemNow === 'poison' ? 0xc27aff : elemNow === 'fire' ? 0xff7038 : ((stShape && stShape.accentHex) || 0xffb85c));
     const sparkCnt = trId === 'gold_leaf' ? 22 : (trId === 'crimson_moon' ? 18 : (trId === 'jade_bamboo' ? 15 : 9));
     rt.three.vfx3d.spawnSparks(to.x, to.z, sparkCnt + flv * 2, {
       color: sparkCol,

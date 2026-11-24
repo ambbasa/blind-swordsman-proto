@@ -1353,23 +1353,25 @@ function clampHeroToArena() {
   if (rt.three && rt.three.heroSpr) rt.placeGroup(rt.three.heroSpr, rt.S.hero.x, rt.S.hero.z);
   return true;
 }
-function dashEndPoint(from, tgt) {
+function dashEndPoint(from, tgt, shape) {
   /* v1.06 기믹·회전 전용 혼령(worldAnchor)은 관통 오버슈트 없이 지정 안전 좌표에 정확히 착지 */
   if (tgt && tgt.worldAnchor && tgt.wx != null && tgt.wz != null) {
     const raw = clipBound({ x: tgt.wx, z: tgt.wz });
     const land = safeLand(from, raw);
     return { x: land.x, z: land.z, raw: raw };
   }
+  const st = (rt.SHAPE_STYLE && shape && rt.SHAPE_STYLE[shape]) || null;
+  const reachMul = (st && st.reachMul) || 1.0;
   const dir = dashDirOf(tgt, from);
   const R = rt.ringR();
-  let len = R * (rt.CFG.dashThroughMul || 1.5);
+  let len = R * (rt.CFG.dashThroughMul || 1.5) * reachMul;
   const lock = tgt && (tgt.target && tgt.target.alive ? tgt.target : (tgt.kind === 'zombie' ? tgt : null));
   /* Land clear of the target: bigger bodies need a longer run-out. */
   if (lock) {
-    const past = (rt.CFG.dashPastTarget || 0.8) + (lock.r || 0) * (rt.CFG.dashPastBodyMul || 1.5);
+    const past = ((rt.CFG.dashPastTarget || 0.8) + (lock.r || 0) * (rt.CFG.dashPastBodyMul || 1.5)) * reachMul;
     len = Math.max(len, rt.dist(from, lock) + past);
     /* 상대를 베고 너무 멀리 달려나가지 않는다 — 다음 혼령이 사거리 안에 남도록. */
-    len = Math.min(len, rt.dist(from, lock) + past + (rt.CFG.dashPastExtra || 2.0));
+    len = Math.min(len, rt.dist(from, lock) + past + (rt.CFG.dashPastExtra || 2.0) * reachMul);
   }
   const raw = clipBound({ x: from.x + dir.x * len, z: from.z + dir.z * len });
   const land = safeLand(from, raw);
@@ -1480,7 +1482,8 @@ function startSeg() {
   const tgt = rt.S.dashQueue.shift();
   if (!tgt.alive) { startSeg(); return; }
   const from = { x: rt.S.hero.x, z: rt.S.hero.z };
-  const end = dashEndPoint(from, tgt);
+  const shapeNow = (rt.S.lastDash && rt.S.lastDash.type) || null;
+  const end = dashEndPoint(from, tgt, shapeNow);
   const to0 = { x: end.x, z: end.z };
   let raw = end.raw ? { x: end.raw.x, z: end.raw.z } : to0;
   /* §6.1 지형: 대숲(느려짐·피해) · 물길(길이 −30%) · 종 · 혈석 */
@@ -1494,12 +1497,14 @@ function startSeg() {
     raw = { x: from.x + (raw.x - from.x) * u, z: from.z + (raw.z - from.z) * u };
     to = { x: from.x + (to0.x - from.x) * u, z: from.z + (to0.z - from.z) * u };
   }
-  const slash = rt.makeSlash(from, raw);
-  /* v0.50: 일섬 연타 가속 — 선입력/연속 궤적 체인 시 0.19초로 경쾌하게 이어진다 */
-  const baseDashDur = (rt.S.lastDash && rt.S.lastDash.chained) ? Math.min(rt.CFG.dashDur || 0.24, 0.19) : (rt.CFG.dashDur || 0.24);
-  rt.S.dash = { from: from, to: to, raw: raw, t: 0, dur: baseDashDur + (tadj.dur || 0), target: tgt, slash: slash, judged: false, dmgMul: tadj.dmgMul || 1 };
-  rt.S.iframe = Math.max(rt.S.iframe || 0, baseDashDur + 0.06);
-  rt.S.shake = 0.28;
+  const stStyle = (rt.SHAPE_STYLE && shapeNow && rt.SHAPE_STYLE[shapeNow]) || null;
+  const slash = rt.makeSlash(from, raw, shapeNow);
+  /* v1.30 발도술 가속 & 무늬별 리듬: 단타 0.12~0.16초, 연타 0.09~0.12초로 쾌속 절단 */
+  const chained = !!(rt.S.lastDash && rt.S.lastDash.chained);
+  const baseDashDur = chained ? ((stStyle && stStyle.chainDur) || 0.11) : ((stStyle && stStyle.dur) || 0.15);
+  rt.S.dash = { from: from, to: to, raw: raw, t: 0, dur: baseDashDur + (tadj.dur || 0), target: tgt, slash: slash, judged: false, dmgMul: tadj.dmgMul || 1, shape: shapeNow };
+  rt.S.iframe = Math.max(rt.S.iframe || 0, baseDashDur + 0.12);
+  rt.S.shake = Math.max(rt.S.shake || 0, 0.16);
   rt.S.lastDash.segs.push({ from: from, to: raw, r: rt.pathR() });
   rt.S.lastDash.dmgMul = tadj.dmgMul || 1;
   rt.S.lastDash.vfxAt = rt.S.lastDash.vfxAt || rt.now();
@@ -1570,7 +1575,17 @@ function landDash(d) {
 }
 function landingShock(at) {
   if (!rt.S) return;
-  const R = rt.CFG.landShockR || 1.6, push = rt.CFG.landPush || 1.2, stun = rt.CFG.landStun || 0.3;
+  const sh = (rt.S.lastDash && rt.S.lastDash.type) || null;
+  const st = (rt.SHAPE_STYLE && sh && rt.SHAPE_STYLE[sh]) || null;
+  const R = (rt.CFG.landShockR || 1.6) * ((st && st.landR) || 1.0);
+  const push = (rt.CFG.landPush || 1.2) * (sh === 'hline' ? 1.2 : (sh === 'vee' ? 1.35 : 1.0));
+  const stun = Math.max(rt.CFG.landStun || 0.3, (st && st.landStun) || 0);
+  const landDmg = (st && st.landDmgMul > 0) ? (rt.dashDmg() * st.landDmgMul) : 0;
+  if (landDmg > 0 && at) {
+    rt.inkFx.ring(R, rt.FX_COLORS.violet || 0xc07eff, 0.42);
+    if (rt.three && rt.three.shaderFx3d) rt.three.shaderFx3d.spawnShockwave(at.x, at.z, { r0: 0.45, r1: R * 1.18, colorHex: 0xc07eff, coreHex: 0xfff0ff, dur: 0.34 });
+    if (rt.three && rt.three.vfx3d) rt.three.vfx3d.spawnSparks(at.x, at.z, 14, { color: 0xd09aff, speed: 6.4 });
+  }
   rt.magnetPull(at);
   if (rt.three && rt.three.chunks) rt.three.chunks.jarsNear(at.x, at.z, R + 0.7).forEach(rt.breakJar);
   if (rt.S.evo && rt.S.evo.frostNova) rt.frostLanding(at);
@@ -1615,6 +1630,7 @@ function landingShock(at) {
     z.x = pushed.x;
     z.z = pushed.z;
     z.stun = Math.max(z.stun || 0, stun);
+    if (landDmg > 0 && !z.isClone) rt.hurtZombie(z, landDmg, 'slam-land', rt.S.lastDash);
     if (z.obj) rt.placeGroup(z.obj, z.x, z.z);
   });
   if (rt.S.lastDash) rt.S.lastDash.shock = { x: at.x, z: at.z, r: R, push: push };
