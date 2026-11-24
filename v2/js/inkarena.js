@@ -19,7 +19,7 @@
 import * as THREE from 'three';
 import * as TEX from './inktex3d.js';
 import { SKIN_VERT } from './inkbody3d.js';
-import { INK3D } from './inkhero3d.js?v=v121';
+import { INK3D } from './inkhero3d.js?v=v122';
 import { actFromStageId, getActTheme3D, applyThemeToInkUniforms } from './modules/actTheme3d.js';
 import { mulberry } from './inkbake.js';
 import { createFracturedRockGeo } from './modules/skillAssets3d.js';

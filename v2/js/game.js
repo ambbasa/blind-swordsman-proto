@@ -31,18 +31,18 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v121';
+import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v122';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v121';
+import { probeAssets, buildArt } from './art.js?v=v122';
 import * as Anim from './anim.js';
-import { createAudio } from './audio.js?v=v121';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v121';
-import { PAT_COST, PAT_CUE, getActPhaseFx, getActSkillNames, bossPatternMean, buildBossBannerInfo } from './modules/bossPatterns.js?v=v121';
-import { GIMMICK_DRILLS, getDrillDef, createDrillState, resetDrillRound, stepDrill, handleDrillInput, drawDrillCanvas } from './modules/trainingDrills.js?v=v121';
-import { TERRAIN_CFG, tHash, tPatchAt, tPatchesNear, tRootAt, getRiverCfg, tWaterCenter as terrainWaterCenter, tWaterAt as terrainWaterAt, resolveZoneAt, resolveSegZone } from './modules/stageTerrain.js?v=v121';
-import { ensureDailyFresh as ensureDailyFreshState, bumpDailyProgress, actStarTotalOf, hasClaimableRetentionOf, claimAttendanceReward, claimDailyQuestReward, claimStarChestReward, claimCodexMilestoneReward, renderDailyView } from './modules/retention.js?v=v121';
-import { renderCodexView } from './modules/codexView.js?v=v121';
-import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v121';
+import { createAudio } from './audio.js?v=v122';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v122';
+import { PAT_COST, PAT_CUE, getActPhaseFx, getActSkillNames, bossPatternMean, buildBossBannerInfo, pickBossOrbitShapes, pickZoneSpiritShape } from './modules/bossPatterns.js?v=v122';
+import { GIMMICK_DRILLS, getDrillDef, createDrillState, resetDrillRound, stepDrill, handleDrillInput, drawDrillCanvas } from './modules/trainingDrills.js?v=v122';
+import { TERRAIN_CFG, tHash, tPatchAt, tPatchesNear, tRootAt, getRiverCfg, tWaterCenter as terrainWaterCenter, tWaterAt as terrainWaterAt, resolveZoneAt, resolveSegZone } from './modules/stageTerrain.js?v=v122';
+import { ensureDailyFresh as ensureDailyFreshState, bumpDailyProgress, actStarTotalOf, hasClaimableRetentionOf, claimAttendanceReward, claimDailyQuestReward, claimStarChestReward, claimCodexMilestoneReward, renderDailyView } from './modules/retention.js?v=v122';
+import { renderCodexView } from './modules/codexView.js?v=v122';
+import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v122';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
@@ -63,7 +63,7 @@ import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariant
 import { InkFx, FX_COLORS } from './inkfx.js';
 import { BossFx } from './bossFx.js';
 import { createTelemetry } from './telemetry.js';
-import { applyHeroCloak3D } from './inkhero3d.js?v=v121';
+import { applyHeroCloak3D } from './inkhero3d.js?v=v122';
 import {
   SAVE_VERSION, STAT_DEFS, FORGE_COSTS, SWORDS, RELICS, COSMETIC_CLOAKS, COSMETIC_TRAILS,
   DAILY_QUESTS, ATTENDANCE_REWARDS, STAR_CHESTS, CODEX_MILESTONES,
@@ -91,8 +91,8 @@ import { MODES, MODE_ORDER, MODE_NOTE, modeOf, CHALLENGES, challengeOf, RUN_UPGR
 import { PAT_CODE } from './modules/bossCatalog.js';
 import { createInputQueue, createDashLatencyTracker } from './modules/inputQueue.js';
 import { createRunState, resetRunStateOnQuit } from './modules/state.js';
-import { createHudController } from './modules/hudController.js?v=v121';
-import { createUiRouter } from './modules/uiRouter.js?v=v121';
+import { createHudController } from './modules/hudController.js?v=v122';
+import { createUiRouter } from './modules/uiRouter.js?v=v122';
 import { syncSceneActTheme3D } from './modules/actTheme3d.js';
 import { createInkRiver3D } from './modules/inkWater3d.js';
 import { createInkTerrain3D } from './modules/inkTerrain3d.js';
@@ -2637,14 +2637,8 @@ function openArena(cx, cz) {
   a.group.scale.set(1, 1, 1);
   a.t = 0;
   a.group.position.set(S.arena.x, 0, S.arena.z);
-  /* v1.03 보스전 외곽 테두리 결계 시각 링 제거 (열린 전장 시야 확보) */
+  /* v1.03 / v1.22 보스전 외곽 테두리 결계 시각 링 완전 숨김 (열린 전장 시야 확보) */
   a.group.visible = false;
-  a.group.visible = true;
-  /* v0.40 5단계: 결계 벽이 바닥에서 종이처럼 펴져 솟는다(1자유도 접힘 스프링). */
-  try {
-    if (a.wall) foldPop(a.wall, { from: 0.03, stiff: 145, damp: 10.5, anchorY: 1.4 });
-    if (audio && !qa.mute && audio.paperFold) audio.paperFold(1.1);
-  } catch (e) {}
   /* 예열 때 만든 결계를 그대로 장면에 둔다(보스 순간에 처음 붙이지 않는다). */
   if (a.group.parent !== three.scene) three.scene.add(a.group);
   three.arena = a;
@@ -5253,8 +5247,15 @@ function preciseParry(prec, rec) {
   }
   /* §5.3 칼집 반격: 정확한 패링 성공 시 가장 가까운 혼령으로 자동 일섬 1회. */
   if (upLv('counter') > 0) sheathCounter();
-  /* §5.4 귀검(歸劍): 정확한 패링이 보스에게도 1칸 절단. */
-  if (S.evo && S.evo.gwigeom && prec.kind === 'boss' && S.boss && S.boss.alive) cutBoss(S.boss);
+  /* §5.4 귀검(歸劍): 정확한 패링 시 보스에게 추가 절단 피해 + 강인도 타격 + 금빛 검기 */
+  if (S.evo && S.evo.gwigeom && prec.kind === 'boss' && S.boss && S.boss.alive) {
+    const gDmg = dashDmg() * 0.85;
+    hurtZombie(S.boss, gDmg, 'gwigeom', rec);
+    bossPoise(S.boss, 1.0);
+    if (three && three.vfx3d) three.vfx3d.spawnSparks(S.boss.x, S.boss.z, 16, { color: 0xffd26a, speed: 7.5 });
+    inkFx.burst(S.boss.x, S.boss.z, FX_COLORS.gold, { r1: 38, n: 8, dur: 0.36 });
+    showJudge('귀검 — 보스 절단!');
+  }
   showJudge(isJust ? '완벽 막기 — 강인도 2배!' : '챙—!');
   triggerSightWave();
   return rec;
@@ -6157,6 +6158,18 @@ function gapInfo(s) {
 function cutSpirit(s) {
   if (!s || !s.alive) return;
   if (s.kind === 'spirit') return;
+  if (s.isBoss && s.state === 'shuffle' && s.shuffle && !s.shuffle.locked && s.shuffle.gold > 0) {
+    s.shuffle.locked = true;
+    s.shuffle.gold = 0;
+    if (S) S.shuffleLock = (S.shuffleLock || 0) + 1;
+    notePatSeen('shuffle', 'lock');
+    bossPoise(s, 1.5);
+    bossFx.triggerSmokeBurst(s.x, s.z, true);
+    showJudge('무늬 고정! 강인도 타격!');
+    if (audio) audio.breakCue();
+    if (s.state === 'shuffle') { s.openUntil = Math.max(s.openUntil || 0, S.elapsed + 1.8); }
+    return;
+  }
   if (s.isBoss && s.hp && !s.hidden && !(s.openUntil>S.elapsed) &&
       ['telegraph','slamTele','sweepTele','volleyTele','charge','stun','groggy','clones','veil','shuffle'].includes(s.state)) {
     endBossSide(s);
@@ -6684,11 +6697,13 @@ function queueEcho(rec) {
 }
 function stepEchoes(dt) {
   if (!S.echoes || !S.echoes.length) return;
-  const out = [];
-  S.echoes.forEach(function (e) {
+  const list = S.echoes;
+  let w = 0;
+  for (let i = 0; i < list.length; i++) {
+    const e = list[i];
     e.t -= dt;
-    if (e.t > 0) { out.push(e); return; }
-    if (Math.hypot(e.to.x - S.hero.x, e.to.z - S.hero.z) > ringR() * 2.4) return;
+    if (e.t > 0) { list[w++] = e; continue; }
+    if (Math.hypot(e.to.x - S.hero.x, e.to.z - S.hero.z) > ringR() * 2.4) continue;
     stampSkill('echo', e.to.x, e.to.z);
     const r = pathR(), dmg = dashDmg() * e.mul;
     S.zombies.slice().forEach(function (z) {
@@ -6696,10 +6711,11 @@ function stepEchoes(dt) {
       if (segDist(z.x, z.z, e.from.x, e.from.z, e.to.x, e.to.z) > r + z.r) return;
       hurtZombie(z, dmg, 'echo', S.lastDash);
     });
+    if (three && three.vfx3d) three.vfx3d.spawnInkTrail(e.from, e.to, 3);
     inkFx.burst(e.to.x, e.to.z, FX_COLORS.jade, { r1: 26, n: 4, dur: 0.3 });
     if (S.lastDash && S.lastDash.segs) S.lastDash.echo = e.mul;
-  });
-  S.echoes = out;
+  }
+  list.length = w;
 }
 /* 먹 발자국: 착지 자리에 2초 웅덩이 — 지나는 적이 느려진다. */
 function dropInkStep(at) {
@@ -7669,6 +7685,7 @@ function refreshBossGlyphs(z) {
   livingMarks().forEach(function (m) {
     if ((m.target === z || (m.target && m.target.isClone)) && art.setSpiritShape) art.setSpiritShape(m.obj, spiritShape(m));
   });
+  if (S && S.boss === z && z && z.alive) syncBossOrbitSpirits(0);
 }
 /** Shows the colour cue over the boss, plays its sound, and teaches the pattern once per run. */
 function bossCue(z, color, id) {
@@ -7768,35 +7785,39 @@ function clearOrbitSpirits() {
     }
   }
 }
+function bossActiveShape(z) {
+  if (!z) return '';
+  if (z.state === 'seal' || z.state === 'sealing') return 'star';
+  return z.shape || (z.seq && z.seq[z.seqI]) || 'hline';
+}
 function spawnZoneSpirit(x, z, tag, ttl, preferredShape) {
   if (!S) return null;
-  const pool = (S.pool && S.pool.length) ? S.pool.filter(function (s) { return s !== 'circle'; }) : ['hline', 'vline'];
-  const orbitUsed = {};
+  const used = [];
+  if (S.boss && S.boss.alive) used.push(bossActiveShape(S.boss));
   (S.spirits || []).forEach(function (sp) {
-    if (sp && sp.alive && sp.orbitSlot != null) orbitUsed[spiritShape(sp)] = true;
+    if (sp && sp.alive && (sp.orbitSlot != null || sp.zoneTag)) {
+      used.push(sp.shape || spiritShape(sp));
+    }
   });
-  const freeShapes = pool.filter(function (s) { return !orbitUsed[s]; });
-  let sh = (preferredShape && freeShapes.indexOf(preferredShape) >= 0) ? preferredShape
-    : (freeShapes.length ? freeShapes[0]
-      : ((preferredShape && pool.indexOf(preferredShape) >= 0) ? preferredShape : (pool[0] || 'hline')));
+  const sh = pickZoneSpiritShape(preferredShape, used, S.pool, SHAPE_UNLOCK, TOTEM_SHAPES);
   const c = clampPointToArena(x, z, 1.2);
   return spawnSpirit({ worldAnchor: true, wx: c.x, wz: c.z, shape: sh, zoneTag: tag, zoneTtl: ttl || 3.5 });
 }
-/* v1.03 보스 중심 삼각형 대형 시계방향 회전 혼령 3개 (반경 5.8m > 보스 원형 공격 반경) */
+/* v1.03 / v1.22 보스 중심 삼각형 대형 시계방향 회전 혼령 3개 — 보스 무늬 및 3개 상호 중복 완전 차단 */
 function syncBossOrbitSpirits(dt) {
   if (!S || !S.boss || !S.boss.alive) return;
   const z = S.boss;
   const orbitR = 5.8; /* 보스 내려찍기(3.4m)·도넛 내부(3.3m)보다 넉넉히 큰 안전 탈출 반경 */
-  S.bossOrbitAng = (S.bossOrbitAng || 0) + 0.34 * dt; /* 시계방향 천천히 회전 */
-  const pool = (S.pool && S.pool.length) ? S.pool.filter(function (s) { return s !== 'circle'; }) : ['hline', 'vline'];
-  const baseShapes = [pool[0] || 'hline', pool[1] || pool[0] || 'vline', pool[2] || pool[0] || 'hline'];
+  if (dt) S.bossOrbitAng = (S.bossOrbitAng || 0) + 0.34 * dt; /* 시계방향 천천히 회전 */
+  const bossSh = bossActiveShape(z);
+  const baseShapes = pickBossOrbitShapes(bossSh, S.pool, SHAPE_UNLOCK, TOTEM_SHAPES);
   const existing = [null, null, null];
   for (let i = 0; i < (S.spirits || []).length; i++) {
     const sp = S.spirits[i];
     if (sp && sp.alive && sp.orbitSlot != null && sp.orbitSlot >= 0 && sp.orbitSlot < 3) {
       existing[sp.orbitSlot] = sp;
     }
-    if (sp && sp.alive && sp.zoneTag && sp.zoneTtl > 0) {
+    if (dt && sp && sp.alive && sp.zoneTag && sp.zoneTtl > 0) {
       sp.zoneTtl -= dt;
       if (sp.zoneTtl <= 0) {
         sp.alive = false;
@@ -7805,12 +7826,17 @@ function syncBossOrbitSpirits(dt) {
     }
   }
   for (let slot = 0; slot < 3; slot++) {
-    const a = S.bossOrbitAng + slot * ((Math.PI * 2) / 3);
+    const a = (S.bossOrbitAng || 0) + slot * ((Math.PI * 2) / 3);
     const pt = clampPointToArena(z.x + Math.cos(a) * orbitR, z.z + Math.sin(a) * orbitR, 1.2);
+    const desired = baseShapes[slot];
     let sp = existing[slot];
     if (!sp) {
-      sp = spawnSpirit({ worldAnchor: true, wx: pt.x, wz: pt.z, shape: baseShapes[slot], orbitSlot: slot });
+      sp = spawnSpirit({ worldAnchor: true, wx: pt.x, wz: pt.z, shape: desired, orbitSlot: slot });
     } else {
+      if (sp.shape !== desired) {
+        sp.shape = desired;
+        if (sp.obj && art && art.setSpiritShape) art.setSpiritShape(sp.obj, desired);
+      }
       sp.wx = pt.x; sp.wz = pt.z;
       placeSpirit(sp);
     }
@@ -8109,7 +8135,7 @@ function stepBossPat(z, dt) {
     if (s.gold > 0) s.gold = Math.max(0, s.gold - dt);
     if (z.rimFlash > 0) z.rimFlash = Math.max(0, z.rimFlash - dt);
     if (!s.locked && s.t >= s.every) { s.t = 0; changeBossShape(z, true); }
-    if (s.t >= s.dur) { z.state = 'walk'; z.stateT = 0; z.shuffle = null; }
+    if (z.stateT >= s.dur) { z.state = 'walk'; z.stateT = 0; z.shuffle = null; }
     return true;
   }
   if (st === 'kiai') {
@@ -8196,7 +8222,7 @@ function stepBossPat(z, dt) {
         else {
           heroHurt(L.dmg, '내려찍기에 맞았습니다.');
           const k = d > 0.01 ? d : 1;
-          S.hero.x += (S.hero.x - z.x) / k * 2.0; S.hero.z += (S.hero.z - z.z) / k * 2.0;
+          const kb = clipBound({ x: S.hero.x + (S.hero.x - z.x) / k * 2.0, z: S.hero.z + (S.hero.z - z.z) / k * 2.0 }); S.hero.x = kb.x; S.hero.z = kb.z; if (three && three.hero) placeGroup(three.hero, S.hero.x, S.hero.z);
         }
       }
       if (z.state === 'slamTele') { z.state = 'stun'; z.stateT = 0; z.stunT = L.stun; }
@@ -8226,6 +8252,7 @@ function stepBossPat(z, dt) {
         if (audio && audio.justParry) audio.justParry();
         showJudge('도넛 파훼! 빈틈 노출!');
       }
+      if (z.state !== 'donut') { clearZoneSpirits('donut'); z.donut = null; return true; }
       if (dn.step === 0) {
         dn.step = 1; dn.safeInside = !dn.safeInside; z.stateT = 0;
         spawnDonutZoneSpirit(z, dn);
@@ -8264,7 +8291,7 @@ function stepBossPat(z, dt) {
         remain++;
       }
     }
-    if (remain === 0) { z.soak = null; z.state = 'walk'; z.stateT = 0; }
+    if (remain === 0) { clearZoneSpirits('soak'); z.soak = null; if (z.state === 'soak') { z.state = 'walk'; z.stateT = 0; } }
     return true;
   }
   /* v1.02 신규 기믹 3: 세키로식 3연속 리듬 패링 */
@@ -8285,7 +8312,7 @@ function stepBossPat(z, dt) {
           if (S && (!a11yShake() && !reducedMotion())) S.justParryInvertT = 0.14;
           showJudge('삼연파훼 — 대경직!');
         }
-        z.rhythm = null; z.state = 'walk'; z.stateT = 0;
+        z.rhythm = null; if (z.state === 'rhythm') { z.state = 'walk'; z.stateT = 0; }
       } else {
         if (audio && audio.drum) audio.drum();
       }
@@ -8296,6 +8323,7 @@ function stepBossPat(z, dt) {
   if (st === 'tether' && z.tether) {
     const d = dist(z, S.hero);
     if (d >= z.tether.breakDist) {
+      clearZoneSpirits('tether');
       z.tether = null;
       z.openUntil = Math.max(z.openUntil || 0, S.elapsed + 1.8);
       bossPoise(z, 1.5);
@@ -8303,7 +8331,7 @@ function stepBossPat(z, dt) {
       if (three && three.vfx3d) three.vfx3d.spawnSparks(S.hero.x, S.hero.z, 20, { color: 0x85f5d4, speed: 7.5 });
       notePatSeen('tether', 'break');
       showJudge('사슬 절단 — 빈틈 노출!');
-      z.state = 'stun'; z.stateT = 0; z.stunT = 1.6;
+      if (z.state === 'tether') { z.state = 'stun'; z.stateT = 0; z.stunT = 1.6; }
       return true;
     }
     if (!S.dash && d > 1.8) {
@@ -8336,7 +8364,7 @@ function stepBossPat(z, dt) {
         if (audio && audio.justParry) audio.justParry();
         showJudge('배후 회피 성공 — 빈틈 노출!');
       }
-      z.gaze = null; z.state = 'walk'; z.stateT = 0;
+      z.gaze = null; if (z.state === 'gaze') { z.state = 'walk'; z.stateT = 0; }
     }
     return true;
   }
@@ -8362,6 +8390,7 @@ function stepBossPat(z, dt) {
         if (audio && audio.justParry) audio.justParry();
         showJudge('안전 칸 파훼! 빈틈 노출!');
       }
+      if (z.state !== 'pizza') { clearZoneSpirits('pizza'); z.pizza = null; return true; }
       if (pz.step === 0) {
         pz.step = 1; pz.oddDanger = !pz.oddDanger; z.stateT = 0;
         spawnPizzaSafeSpirit(z, pz);
@@ -8418,7 +8447,7 @@ function stepBossPat(z, dt) {
           else {
             heroHurt(sw.dmg, getActSkillNames((S && S.stage) ? actOf(S.stage.id) : 1).sweepHit);
             const k = d > 0.01 ? d : 1;
-            S.hero.x += dx / k * 1.8; S.hero.z += dz / k * 1.8;
+            const kb = clipBound({ x: S.hero.x + dx / k * 1.8, z: S.hero.z + dz / k * 1.8 }); S.hero.x = kb.x; S.hero.z = kb.z; if (three && three.hero) placeGroup(three.hero, S.hero.x, S.hero.z);
           }
         }
       }
@@ -10185,7 +10214,10 @@ function finishStroke(pts, opts) {
   if (rec.type !== 'circle' && !totemStroke && chantStroke(rec.type)) { rec.chant = true; return rec; }
   /* O = 전 화면 참(斬) 필살기 */
   if (rec.type === 'circle') { rec.cleave = true; return castCleave(rec); }
-  if (!S.sandbox && S.pool && S.pool.indexOf(rec.type) < 0 && TOTEM_SHAPES.indexOf(rec.type) < 0) {
+  const activeAnchorStroke = (S.spirits || []).some(function (m) {
+    return m && m.alive && (m.orbitSlot != null || m.zoneTag) && (m.shape === rec.type || spiritShape(m) === rec.type);
+  });
+  if (!S.sandbox && !activeAnchorStroke && S.pool && S.pool.indexOf(rec.type) < 0 && TOTEM_SHAPES.indexOf(rec.type) < 0) {
     toast((read ? read + ' ' : '') + '지금은 ' + failHint());
     inkFade = 0.16;
     setTimeout(clearInk, qa.noDelay ? 80 : 160);

@@ -479,3 +479,26 @@ import { CODEX_SPECIES, CODEX_ANIM_KO } from '../../v2/js/modules/codexView.js';
   assert.equal(CODEX_ANIM_KO.stagger, '자세 붕괴');
   console.log('v1.21 MODULES (stageTerrain, retention, codexView) PASSED');
 }
+
+/* --- v1.22 보스 회전 혼령·기믹 혼령 비중복 배정 및 추가 배너 검증 --- */
+import { pickBossOrbitShapes, pickZoneSpiritShape } from '../../v2/js/modules/bossPatterns.js';
+
+{
+  for (const bossSh of ['hline', 'vline', 'vee', 'bolt']) {
+    // 1장(풀이 2개뿐인 경우)에서도 보스와 겹치지 않고 3개끼리도 모두 달라야 한다
+    const orb1 = pickBossOrbitShapes(bossSh, ['hline', 'vline'], ['hline', 'vline', 'vee', 'bolt'], ['tri', 'square', 'spiral']);
+    assert.equal(orb1.length, 3);
+    assert.equal(new Set(orb1).size, 3, 'orbit shapes must be pairwise distinct');
+    assert.ok(!orb1.includes(bossSh), 'orbit shapes must not overlap boss shape: ' + bossSh);
+
+    // 기믹 전용 혼령도 보스 + 회전 혼령 3개와 겹치지 않아야 한다
+    const used = [bossSh, ...orb1];
+    const zSh = pickZoneSpiritShape('hline', used, ['hline', 'vline'], ['hline', 'vline', 'vee', 'bolt'], ['tri', 'square', 'spiral']);
+    assert.ok(!used.includes(zSh), 'zone spirit shape must not overlap boss or orbit shapes');
+  }
+  assert.equal(buildBossBannerInfo({ alive: true, state: 'kiai', stateT: 1.0, kiai: { t: 2.0, open: true } }, {}, { teleT: 1 }, 1).mode, 'parry');
+  assert.equal(buildBossBannerInfo({ alive: true, state: 'chant', stateT: 1.0, chant: { i: 0 }, chantT: 4.0 }, {}, { teleT: 1 }, 1).name, '영창 저지');
+  assert.equal(buildBossBannerInfo({ alive: true, state: 'clash', stateT: 0.4, clash: { i: 1, need: 3, t: 0.4, win: 1.2 } }, {}, { teleT: 1 }, 2).name, '합 겨루기 2/3');
+  assert.equal(buildBossBannerInfo({ alive: true, state: 'seal', stateT: 1.0 }, { seal: { t: 3.5 } }, { teleT: 1 }, 1).name, '봉인 마무리');
+  console.log('v1.22 ORBIT_SPIRITS_NO_OVERLAP & BOSS_BANNER TESTS PASSED');
+}

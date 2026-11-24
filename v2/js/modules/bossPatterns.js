@@ -211,7 +211,7 @@ export function buildBossBannerInfo(z, P, bt, act) {
     return {
       mode: 'break', name: '무늬 뒤섞기',
       hint: z.shuffle.gold > 0 ? '★ 지금 베어 고정!' : '금빛 순간 포착!',
-      f: clamp01(1 - (z.shuffle.t || 0) / Math.max(0.01, z.shuffle.dur)),
+      f: clamp01(1 - (z.stateT || 0) / Math.max(0.01, z.shuffle.dur)),
       sweetStart: 0.8, sweetOpen: z.shuffle.gold > 0
     };
   }
@@ -257,5 +257,54 @@ export function buildBossBannerInfo(z, P, bt, act) {
   if (st === 'tether' && z.tether) {
     return { mode: 'dodge', name: '혈사슬 결속', hint: '외곽 혼령으로 일섬해 절단!', f: clamp01((z.stateT || 0) / Math.max(0.01, z.tether.dur)), sweetStart: 0.75 };
   }
+  if (st === 'kiai' && z.kiai) {
+    return { mode: 'parry', name: '기합 파동', hint: z.kiai.open ? '지금 탭으로 받아치기!' : '금빛 순간에 탭!', f: clamp01((z.stateT || 0) / Math.max(0.01, z.kiai.t)), sweetStart: 0.75, sweetOpen: !!z.kiai.open };
+  }
+  if (st === 'chant' && z.chant) {
+    const dur = z.chantT || (P && P.chant && P.chant.t) || 4.5;
+    return { mode: 'break', name: '영창 저지', hint: '뜬 무늬 순서대로 베기!', f: clamp01(1 - (z.stateT || 0) / Math.max(0.01, dur)), sweetStart: 0.85 };
+  }
+  if (st === 'clash' && z.clash) {
+    return { mode: 'break', name: '합 겨루기 ' + ((z.clash.i || 0) + 1) + '/' + (z.clash.need || 3), hint: '뜬 무늬를 즉시 그어 파훼!', f: clamp01((z.clash.t || 0) / Math.max(0.01, z.clash.win || 1.2)), sweetStart: 0.7 };
+  }
+  if (st === 'seal') {
+    const dur = (P && P.seal && P.seal.t) || 3.5;
+    return { mode: 'break', name: '봉인 마무리', hint: '별(⛤) 무늬를 그려 봉인!', f: clamp01(1 - (z.stateT || 0) / Math.max(0.01, dur)), sweetStart: 0.8 };
+  }
   return null;
+}
+
+/* v1.22: 보스 회전 혼령 3개 제스처 배정 — 보스 현재 무늬와 겹치지 않고 3개끼리도 서로 중복 불가 */
+export function pickBossOrbitShapes(bossShape, stagePool, combatShapes, extraShapes) {
+  const combat = (combatShapes && combatShapes.length) ? combatShapes : ['hline', 'vline', 'vee', 'bolt'];
+  const extra = (extraShapes && extraShapes.length) ? extraShapes : ['tri', 'square', 'spiral'];
+  const pool = (stagePool && stagePool.length) ? stagePool : combat;
+  const banned = bossShape || '';
+  const picked = [];
+  const tryAdd = (s) => {
+    if (!s || s === 'circle' || s === banned || picked.indexOf(s) >= 0) return;
+    picked.push(s);
+  };
+  for (let i = 0; i < pool.length && picked.length < 3; i++) tryAdd(pool[i]);
+  for (let i = 0; i < combat.length && picked.length < 3; i++) tryAdd(combat[i]);
+  for (let i = 0; i < extra.length && picked.length < 3; i++) tryAdd(extra[i]);
+  return picked;
+}
+
+/* v1.22: 기믹 전용 혼령 제스처 배정 — 보스·회전 혼령·기존 기믹 혼령과 겹치지 않는 무늬 우선 */
+export function pickZoneSpiritShape(preferredShape, usedShapes, stagePool, combatShapes, extraShapes) {
+  const combat = (combatShapes && combatShapes.length) ? combatShapes : ['hline', 'vline', 'vee', 'bolt'];
+  const extra = (extraShapes && extraShapes.length) ? extraShapes : ['tri', 'square', 'spiral'];
+  const pool = (stagePool && stagePool.length) ? stagePool : combat;
+  const used = new Set(usedShapes || []);
+  const ordered = [];
+  const pushU = (s) => { if (s && s !== 'circle' && ordered.indexOf(s) < 0) ordered.push(s); };
+  if (preferredShape) pushU(preferredShape);
+  pool.forEach(pushU);
+  combat.forEach(pushU);
+  extra.forEach(pushU);
+  for (let i = 0; i < ordered.length; i++) {
+    if (!used.has(ordered[i])) return ordered[i];
+  }
+  return ordered[0] || 'hline';
 }
