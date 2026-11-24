@@ -196,7 +196,7 @@ def main():
     out_glb = os.path.join(MODELS_DIR, "hero.glb")
 
     assert os.path.isfile(body_raw), f"Missing {body_raw}"
-    assert os.path.isfile(head_raw), f"Missing {head_raw}"
+    use_head_graft = (body_raw != raw_mv_hero) and os.path.isfile(head_raw)
 
     print("\n================ [HERO MASTER v0.91] 2048px Body + Normal Map + 8x Head ================")
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -324,144 +324,148 @@ def main():
         mod.object = t_arm
     bpy.data.objects.remove(a_arm, do_unlink=True)
 
-    # 5) SURGICAL NECK CIRCUMFERENCE MATCHING: razor-flat bisect_plane + X/Y ellipse scale match + 0mm BVH boundary snap!
-    from mathutils.bvhtree import BVHTree
-    Z_CUT = 1.440
+    if use_head_graft:
+        # 5) SURGICAL NECK CIRCUMFERENCE MATCHING: razor-flat bisect_plane + X/Y ellipse scale match + 0mm BVH boundary snap!
+        from mathutils.bvhtree import BVHTree
+        Z_CUT = 1.440
 
-    # 5a) Clean horizontal bisect on Hero_Body & Hero_Outline at Z_CUT (zero jagged sawtooth edges, V-collar 100% intact!)
-    for o in [body, outline]:
-        bm = bmesh.new()
-        bm.from_mesh(o.data)
-        geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
-        bmesh.ops.bisect_plane(
-            bm, geom=geom,
-            plane_co=Vector((0.0, 0.0, Z_CUT)),
-            plane_no=Vector((0.0, 0.0, 1.0)),
-            clear_outer=True, clear_inner=False
-        )
-        # Cleanly remove old blindfold ribbon tail stub protruding behind the neck (y > 0.064, z > 1.382)
-        rib_del = [v for v in bm.verts if v.co.z > 1.382 and abs(v.co.x) < 0.085 and v.co.y > 0.064]
-        if rib_del:
-            bmesh.ops.delete(bm, geom=rib_del, context="VERTS")
-        bm.to_mesh(o.data)
-        bm.free()
-        o.data.update()
+        # 5a) Clean horizontal bisect on Hero_Body & Hero_Outline at Z_CUT (zero jagged sawtooth edges, V-collar 100% intact!)
+        for o in [body, outline]:
+            bm = bmesh.new()
+            bm.from_mesh(o.data)
+            geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+            bmesh.ops.bisect_plane(
+                bm, geom=geom,
+                plane_co=Vector((0.0, 0.0, Z_CUT)),
+                plane_no=Vector((0.0, 0.0, 1.0)),
+                clear_outer=True, clear_inner=False
+            )
+            # Cleanly remove old blindfold ribbon tail stub protruding behind the neck (y > 0.064, z > 1.382)
+            rib_del = [v for v in bm.verts if v.co.z > 1.382 and abs(v.co.x) < 0.085 and v.co.y > 0.064]
+            if rib_del:
+                bmesh.ops.delete(bm, geom=rib_del, context="VERTS")
+            bm.to_mesh(o.data)
+            bm.free()
+            o.data.update()
 
-    # Measure exact cut-ring neck ellipse on Hero_Body at Z_CUT (exclude thin back hair tail y > 0.075)
-    cut_pts = [v.co for v in body.data.vertices if abs(v.co.z - Z_CUT) < 0.006 and abs(v.co.x) < 0.12 and v.co.y < 0.075]
-    cx_b = (min(p.x for p in cut_pts) + max(p.x for p in cut_pts)) * 0.5
-    cy_b = (min(p.y for p in cut_pts) + max(p.y for p in cut_pts)) * 0.5
-    rx_b = (max(p.x for p in cut_pts) - min(p.x for p in cut_pts)) * 0.5
-    ry_b = (max(p.y for p in cut_pts) - min(p.y for p in cut_pts)) * 0.5
-    print(f"  + Body cut-ring @ z={Z_CUT}: center=({cx_b:+.4f},{cy_b:+.4f}) rx={rx_b:.4f} ry={ry_b:.4f} ({len(cut_pts)} verts)")
+        # Measure exact cut-ring neck ellipse on Hero_Body at Z_CUT (exclude thin back hair tail y > 0.075)
+        cut_pts = [v.co for v in body.data.vertices if abs(v.co.z - Z_CUT) < 0.006 and abs(v.co.x) < 0.12 and v.co.y < 0.075]
+        cx_b = (min(p.x for p in cut_pts) + max(p.x for p in cut_pts)) * 0.5
+        cy_b = (min(p.y for p in cut_pts) + max(p.y for p in cut_pts)) * 0.5
+        rx_b = (max(p.x for p in cut_pts) - min(p.x for p in cut_pts)) * 0.5
+        ry_b = (max(p.y for p in cut_pts) - min(p.y for p in cut_pts)) * 0.5
+        print(f"  + Body cut-ring @ z={Z_CUT}: center=({cx_b:+.4f},{cy_b:+.4f}) rx={rx_b:.4f} ry={ry_b:.4f} ({len(cut_pts)} verts)")
 
-    # 5b) Import high-res Hero_Head, decimate gently, scale to exact 8-head height (0.332m)
-    before = set(bpy.data.objects)
-    bpy.ops.import_scene.gltf(filepath=head_raw)
-    head = [o for o in bpy.data.objects if o not in before and o.type == "MESH"][0]
-    head.name = "Hero_Head"
-    for o in list(bpy.data.objects):
-        if o not in before and o != head:
-            bpy.data.objects.remove(o, do_unlink=True)
-    head.parent = None
-    bpy.ops.object.select_all(action="DESELECT")
-    head.select_set(True)
-    bpy.context.view_layer.objects.active = head
-    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+        # 5b) Import high-res Hero_Head, decimate gently, scale to exact 8-head height (0.332m)
+        before = set(bpy.data.objects)
+        bpy.ops.import_scene.gltf(filepath=head_raw)
+        head = [o for o in bpy.data.objects if o not in before and o.type == "MESH"][0]
+        head.name = "Hero_Head"
+        for o in list(bpy.data.objects):
+            if o not in before and o != head:
+                bpy.data.objects.remove(o, do_unlink=True)
+        head.parent = None
+        bpy.ops.object.select_all(action="DESELECT")
+        head.select_set(True)
+        bpy.context.view_layer.objects.active = head
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 
-    dec_h = head.modifiers.new(name="DecHead", type="DECIMATE")
-    dec_h.ratio = 0.13
-    bpy.ops.object.modifier_apply(modifier=dec_h.name)
-    for poly in head.data.polygons:
-        poly.use_smooth = True
+        dec_h = head.modifiers.new(name="DecHead", type="DECIMATE")
+        dec_h.ratio = 0.13
+        bpy.ops.object.modifier_apply(modifier=dec_h.name)
+        for poly in head.data.polygons:
+            poly.use_smooth = True
 
-    hmin, hmax = m2m.get_world_bbox(head)
-    hs = 0.332 / max(1e-4, hmax.z - hmin.z)
-    hcx = (hmin.x + hmax.x) * 0.5
-    hcy = (hmin.y + hmax.y) * 0.5
-    for v in head.data.vertices:
-        v.co.x = (v.co.x - hcx) * hs
-        v.co.y = (v.co.y - hcy) * hs
-        v.co.z = (v.co.z - hmin.z) * hs + 1.390
-    head.data.update()
+        hmin, hmax = m2m.get_world_bbox(head)
+        hs = 0.332 / max(1e-4, hmax.z - hmin.z)
+        hcx = (hmin.x + hmax.x) * 0.5
+        hcy = (hmin.y + hmax.y) * 0.5
+        for v in head.data.vertices:
+            v.co.x = (v.co.x - hcx) * hs
+            v.co.y = (v.co.y - hcy) * hs
+            v.co.z = (v.co.z - hmin.z) * hs + 1.390
+        head.data.update()
 
-    # Measure Hero_Head actual neck ellipse at Z_CUT
-    h_pts = [v.co for v in head.data.vertices if abs(v.co.z - Z_CUT) < 0.008]
-    cx_h = (min(p.x for p in h_pts) + max(p.x for p in h_pts)) * 0.5
-    cy_h = (min(p.y for p in h_pts) + max(p.y for p in h_pts)) * 0.5
-    rx_h = max(0.02, (max(p.x for p in h_pts) - min(p.x for p in h_pts)) * 0.5)
-    ry_h = max(0.02, (max(p.y for p in h_pts) - min(p.y for p in h_pts)) * 0.5)
-    sx_neck = max(0.72, min(1.32, (rx_b * 0.97) / rx_h))
-    sy_neck = max(0.72, min(1.32, (ry_b * 0.97) / ry_h))
-    print(f"  + Head neck @ z={Z_CUT}: rx={rx_h:.4f}->{rx_b:.4f} (sx={sx_neck:.3f}), ry={ry_h:.4f}->{ry_b:.4f} (sy={sy_neck:.3f})")
+        # Measure Hero_Head actual neck ellipse at Z_CUT
+        h_pts = [v.co for v in head.data.vertices if abs(v.co.z - Z_CUT) < 0.008]
+        cx_h = (min(p.x for p in h_pts) + max(p.x for p in h_pts)) * 0.5
+        cy_h = (min(p.y for p in h_pts) + max(p.y for p in h_pts)) * 0.5
+        rx_h = max(0.02, (max(p.x for p in h_pts) - min(p.x for p in h_pts)) * 0.5)
+        ry_h = max(0.02, (max(p.y for p in h_pts) - min(p.y for p in h_pts)) * 0.5)
+        sx_neck = max(0.72, min(1.32, (rx_b * 0.97) / rx_h))
+        sy_neck = max(0.72, min(1.32, (ry_b * 0.97) / ry_h))
+        print(f"  + Head neck @ z={Z_CUT}: rx={rx_h:.4f}->{rx_b:.4f} (sx={sx_neck:.3f}), ry={ry_h:.4f}->{ry_b:.4f} (sy={sy_neck:.3f})")
 
-    # Align head neck center to body cut-ring center, and smoothly morph ONLY lower neck (z < Z_CUT+0.048) to match (rx_b, ry_b)!
-    for v in head.data.vertices:
-        lx = v.co.x - cx_h
-        ly = v.co.y - cy_h
-        if v.co.z < Z_CUT + 0.048:
-            t = max(0.0, min(1.0, (Z_CUT + 0.048 - v.co.z) / 0.048))
-            sm = t * t * (3.0 - 2.0 * t)
-            lx *= (1.0 + (sx_neck - 1.0) * sm)
-            ly *= (1.0 + (sy_neck - 1.0) * sm)
-            # Slightly tuck below Z_CUT so zero skin pokes out of collar
-            if v.co.z < Z_CUT:
-                t2 = max(0.0, min(1.0, (Z_CUT - v.co.z) / 0.035))
-                lx *= (1.0 - 0.14 * t2)
-                ly *= (1.0 - 0.14 * t2)
-        v.co.x = cx_b + lx
-        v.co.y = cy_b + ly
-    head.data.update()
+        # Align head neck center to body cut-ring center, and smoothly morph ONLY lower neck (z < Z_CUT+0.048) to match (rx_b, ry_b)!
+        for v in head.data.vertices:
+            lx = v.co.x - cx_h
+            ly = v.co.y - cy_h
+            if v.co.z < Z_CUT + 0.048:
+                t = max(0.0, min(1.0, (Z_CUT + 0.048 - v.co.z) / 0.048))
+                sm = t * t * (3.0 - 2.0 * t)
+                lx *= (1.0 + (sx_neck - 1.0) * sm)
+                ly *= (1.0 + (sy_neck - 1.0) * sm)
+                # Slightly tuck below Z_CUT so zero skin pokes out of collar
+                if v.co.z < Z_CUT:
+                    t2 = max(0.0, min(1.0, (Z_CUT - v.co.z) / 0.035))
+                    lx *= (1.0 - 0.14 * t2)
+                    ly *= (1.0 - 0.14 * t2)
+            v.co.x = cx_b + lx
+            v.co.y = cy_b + ly
+        head.data.update()
 
-    # 5c) Snap Hero_Body cut-ring boundary vertices (0.00mm gap!) directly onto Hero_Head neck surface via BVHTree!
-    bm_h = bmesh.new()
-    bm_h.from_mesh(head.data)
-    bvh_h = BVHTree.FromBMesh(bm_h)
-    bm_h.free()
+        # 5c) Snap Hero_Body cut-ring boundary vertices (0.00mm gap!) directly onto Hero_Head neck surface via BVHTree!
+        bm_h = bmesh.new()
+        bm_h.from_mesh(head.data)
+        bvh_h = BVHTree.FromBMesh(bm_h)
+        bm_h.free()
 
-    snapped = 0
-    for v in body.data.vertices:
-        if abs(v.co.z - Z_CUT) < 0.008 and abs(v.co.x) < 0.12:
-            loc, _, _, dist = bvh_h.find_nearest(v.co)
-            if loc is not None and dist < 0.045:
-                # Blend 90% onto exact head neck surface at cut edge (0mm gap!)
-                w = max(0.0, min(1.0, 1.0 - abs(v.co.z - Z_CUT) / 0.008))
-                v.co.x = v.co.x + (loc.x - v.co.x) * (0.92 * w)
-                v.co.y = v.co.y + (loc.y - v.co.y) * (0.92 * w)
-                snapped += 1
-    body.data.update()
-    print(f"  + Snapped {snapped} body neck-ring verts to 0.00mm flush on Hero_Head!")
+        snapped = 0
+        for v in body.data.vertices:
+            if abs(v.co.z - Z_CUT) < 0.008 and abs(v.co.x) < 0.12:
+                loc, _, _, dist = bvh_h.find_nearest(v.co)
+                if loc is not None and dist < 0.045:
+                    # Blend 90% onto exact head neck surface at cut edge (0mm gap!)
+                    w = max(0.0, min(1.0, 1.0 - abs(v.co.z - Z_CUT) / 0.008))
+                    v.co.x = v.co.x + (loc.x - v.co.x) * (0.92 * w)
+                    v.co.y = v.co.y + (loc.y - v.co.y) * (0.92 * w)
+                    snapped += 1
+        body.data.update()
+        print(f"  + Snapped {snapped} body neck-ring verts to 0.00mm flush on Hero_Head!")
 
-    # Lock BOTH sides of Z_CUT to neck_01=1.0 so the seam NEVER cracks during animations!
-    vg_b_neck = body.vertex_groups.get("neck_01") or body.vertex_groups.new(name="neck_01")
-    for v in body.data.vertices:
-        if abs(v.co.z - Z_CUT) < 0.012 and abs(v.co.x) < 0.12:
-            for vg in body.vertex_groups:
-                try: vg.remove([v.index])
-                except RuntimeError: pass
-            vg_b_neck.add([v.index], 1.0, "REPLACE")
+        # Lock BOTH sides of Z_CUT to neck_01=1.0 so the seam NEVER cracks during animations!
+        vg_b_neck = body.vertex_groups.get("neck_01") or body.vertex_groups.new(name="neck_01")
+        for v in body.data.vertices:
+            if abs(v.co.z - Z_CUT) < 0.012 and abs(v.co.x) < 0.12:
+                for vg in body.vertex_groups:
+                    try: vg.remove([v.index])
+                    except RuntimeError: pass
+                vg_b_neck.add([v.index], 1.0, "REPLACE")
 
-    # Re-transfer weights to outline after bisect+snap
-    m2m.transfer_vertex_weights(body, outline)
+        # Re-transfer weights to outline after bisect+snap
+        m2m.transfer_vertex_weights(body, outline)
 
-    head.vertex_groups.clear()
-    vg_head = head.vertex_groups.new(name="head")
-    vg_neck = head.vertex_groups.new(name="neck_01")
-    for v in head.data.vertices:
-        t = max(0.0, min(1.0, (v.co.z - (Z_CUT + 0.006)) / 0.055))
-        if t > 0.01: vg_head.add([v.index], t, "REPLACE")
-        if 1.0 - t > 0.01: vg_neck.add([v.index], 1.0 - t, "REPLACE")
-    head.parent = t_arm
-    mod_h = head.modifiers.new(name="Armature", type="ARMATURE")
-    mod_h.object = t_arm
+        head.vertex_groups.clear()
+        vg_head = head.vertex_groups.new(name="head")
+        vg_neck = head.vertex_groups.new(name="neck_01")
+        for v in head.data.vertices:
+            t = max(0.0, min(1.0, (v.co.z - (Z_CUT + 0.006)) / 0.055))
+            if t > 0.01: vg_head.add([v.index], t, "REPLACE")
+            if 1.0 - t > 0.01: vg_neck.add([v.index], 1.0 - t, "REPLACE")
+        head.parent = t_arm
+        mod_h = head.modifiers.new(name="Armature", type="ARMATURE")
+        mod_h.object = t_arm
 
-    head_out = make_outline(head, "Hero_Head_Outline", offset=0.0028, dec_ratio=0.45)
-    m2m.transfer_vertex_weights(head, head_out)
-    head_out.parent = t_arm
-    mod_ho = head_out.modifiers.new(name="Armature", type="ARMATURE")
-    mod_ho.object = t_arm
+        head_out = make_outline(head, "Hero_Head_Outline", offset=0.0028, dec_ratio=0.45)
+        m2m.transfer_vertex_weights(head, head_out)
+        head_out.parent = t_arm
+        mod_ho = head_out.modifiers.new(name="Armature", type="ARMATURE")
+        mod_ho.object = t_arm
 
-    print(f"  + Merged Hero_Head ({len(head.data.polygons)} tris) with 0mm ellipse-matched neck seam!")
+        print(f"  + Merged Hero_Head ({len(head.data.polygons)} tris) with 0mm ellipse-matched neck seam!")
+
+    else:
+        print("  + Full-body hero_raw.glb mode: keeping unified head & neck (no separate head graft)")
 
     # 6) Import Hero_Sword (+ outline) and snap handle center dead-center into hand_r palm
     if os.path.isfile(sword_src):
