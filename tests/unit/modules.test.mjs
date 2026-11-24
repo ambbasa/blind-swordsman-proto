@@ -502,3 +502,11 @@ import { pickBossOrbitShapes, pickZoneSpiritShape } from '../../v2/js/modules/bo
   assert.equal(buildBossBannerInfo({ alive: true, state: 'seal', stateT: 1.0 }, { seal: { t: 3.5 } }, { teleT: 1 }, 1).name, '봉인 마무리');
   console.log('v1.22 ORBIT_SPIRITS_NO_OVERLAP & BOSS_BANNER TESTS PASSED');
 }
+
+/* --- v1.23 상점·치장 뷰 모듈 검증: shopView.js --- */
+import { STAT_ICONS } from '../../v2/js/modules/shopView.js';
+
+{
+  assert.equal(Object.keys(STAT_ICONS).length, 5);
+  console.log('v1.23 SHOP_VIEW MODULE PASSED');
+}
