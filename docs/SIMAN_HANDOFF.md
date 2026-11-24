@@ -2,7 +2,7 @@
 
 - **저장소**: `https://github.com/ambbasa/blind-swordsman-proto`
 - **라이브 데모**: `https://ambbasa.github.io/blind-swordsman-proto/v2/`
-- **최신 버전**: `v1.25` (2026-11-24 기준)
+- **최신 버전**: `v1.26` (2026-11-24 기준)
 - **기술 스택**: Vanilla JS ES Modules + Three.js r170 + Custom GLSL + Web Audio API (모바일 세로 웹/PWA, 100% 무료 로컬 파이프라인)
 
 ## 1. 절대 원칙 (Standing Rules)
@@ -73,4 +73,5 @@
   - 스테이지 부목표 엔진: `v2/js/modules/stageGoal.js`
   - 도전 모드 컨트롤러: `v2/js/modules/challengeMode.js`
   - 강화 카드·진화 판정: `v2/js/modules/runUpgrades.js`
+  - 코어 엔진 모듈화(`game.js` 13,847→1,365줄, -90.1%): `gameConfig.js`, `saveHud.js`, `world3d.js`, `tutorialSys.js`, `stageFlow.js`, `overlay2d.js`, `combatEngine.js`, `bossEngine.js`, `runLoop.js`, `strokeInput.js`, `uiBindings.js`, `mainLoop.js`, `shopLogic.js`, `qaBridge.js`
   - 통합 스타일시트: `v2/css/siman.css` (기존 5중 CSS 통합)

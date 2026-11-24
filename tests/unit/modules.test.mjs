@@ -597,3 +597,36 @@ import { isElemKey, cardNameOfKey, rollUpgradePicks, evoMatInfoFor, pickRecommen
   assert.ok(mats.includes('증기 폭발'));
   console.log('v1.25 MODULES (stageGoal, challengeMode, runUpgrades) PASSED');
 }
+
+/* --- v1.26 대규모 모듈화 스모크 검증: gameConfig + 10개 팩토리 모듈 --- */
+import { CFG, SHAPE_MARK, TOTEM_SHAPES, SHAPE_UNLOCK } from '../../v2/js/modules/gameConfig.js';
+import { createQaBridge } from '../../v2/js/modules/qaBridge.js';
+import { createOverlay2d } from '../../v2/js/modules/overlay2d.js';
+import { createBossEngine } from '../../v2/js/modules/bossEngine.js';
+import { createCombatEngine } from '../../v2/js/modules/combatEngine.js';
+import { createStageFlow } from '../../v2/js/modules/stageFlow.js';
+import { createStrokeInput } from '../../v2/js/modules/strokeInput.js';
+import { createWorld3d } from '../../v2/js/modules/world3d.js';
+import { createRunLoop } from '../../v2/js/modules/runLoop.js';
+import { createTutorialSys } from '../../v2/js/modules/tutorialSys.js';
+import { createUiBindings } from '../../v2/js/modules/uiBindings.js';
+import { createSaveHud } from '../../v2/js/modules/saveHud.js';
+import { createMainLoop } from '../../v2/js/modules/mainLoop.js';
+import { createShopLogic } from '../../v2/js/modules/shopLogic.js';
+
+{
+  assert.ok(CFG.hpBase === 14 && SHAPE_UNLOCK.length === 4 && TOTEM_SHAPES.length === 3 && SHAPE_MARK.star === '⛤');
+  const mkVec = class { constructor(x=0,y=0,z=0){this.x=x;this.y=y;this.z=z;} normalize(){return this;} };
+  const dummyRt = new Proxy({ THREE: { Vector2: mkVec, Vector3: mkVec, Color: mkVec }, WF: {} }, {
+    get: (t, k) => (k in t ? t[k] : () => ({}))
+  });
+  [
+    createQaBridge, createOverlay2d, createBossEngine, createCombatEngine,
+    createStageFlow, createStrokeInput, createWorld3d, createRunLoop,
+    createTutorialSys, createUiBindings, createSaveHud, createMainLoop, createShopLogic
+  ].forEach((fn) => {
+    const api = fn(dummyRt);
+    assert.ok(api && typeof api === 'object' && Object.keys(api).length >= 2);
+  });
+  console.log('v1.26 FULL MODULARIZATION (gameConfig + 13 factory modules) PASSED');
+}
