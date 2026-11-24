@@ -192,8 +192,10 @@ def main():
     raw_mv_hero = os.path.join(ROOT, "scripts", "blender", "_raw_bosses", "hero_raw.glb")
     body_raw = raw_mv_hero if os.path.isfile(raw_mv_hero) else os.path.join(MODELS_DIR, "hero_body_raw.glb")
     head_raw = os.path.join(MODELS_DIR, "hero_head_raw.glb")
-    sword_src = "/tmp/models_png/hero_new.glb"
     out_glb = os.path.join(MODELS_DIR, "hero.glb")
+    sword_src = "/tmp/models_png/hero_new.glb"
+    if not os.path.isfile(sword_src) and os.path.isfile(out_glb):
+        sword_src = out_glb
 
     assert os.path.isfile(body_raw), f"Missing {body_raw}"
     use_head_graft = (body_raw != raw_mv_hero) and os.path.isfile(head_raw)
@@ -242,11 +244,36 @@ def main():
     # Create clean ink outline for Hero_Body
     outline = make_outline(body, "Hero_Outline", offset=0.0038, dec_ratio=0.50)
 
-    # 2) Import & fit Mesh2Motion 66-bone T-pose skeleton
-    bpy.ops.import_scene.gltf(filepath=os.path.join(M2M_DIR, "skeleton.glb"))
-    t_arm = [o for o in bpy.data.objects if o.type == "ARMATURE"][0]
-    t_arm.name = "Hero_Armature"
-    m2m.fit_skeleton_to_profile(t_arm, HERO_FIT)
+    # 2) Import & fit Mesh2Motion 66-bone T-pose skeleton (fallback to existing hero.glb on Windows)
+    skel_path = os.path.join(M2M_DIR, "skeleton.glb")
+    use_template_glb = not os.path.isfile(skel_path)
+    if use_template_glb:
+        assert os.path.isfile(out_glb), f"Missing both {skel_path} and template {out_glb}"
+        before_skel = set(bpy.data.objects)
+        bpy.ops.import_scene.gltf(filepath=out_glb)
+        t_arm = [o for o in bpy.data.objects if o not in before_skel and o.type == "ARMATURE"][0]
+        t_arm.name = "Hero_Armature"
+        t_arm.parent = None
+        for o in list(bpy.data.objects):
+            if o not in before_skel and o != t_arm:
+                bpy.data.objects.remove(o, do_unlink=True)
+        bpy.ops.object.select_all(action="DESELECT")
+        t_arm.select_set(True)
+        bpy.context.view_layer.objects.active = t_arm
+        bpy.ops.object.mode_set(mode="POSE")
+        for pb in t_arm.pose.bones:
+            pb.location = (0.0, 0.0, 0.0)
+            pb.rotation_quaternion = (1.0, 0.0, 0.0, 0.0)
+            pb.rotation_euler = (0.0, 0.0, 0.0)
+            pb.scale = (1.0, 1.0, 1.0)
+        bpy.ops.object.mode_set(mode="OBJECT")
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+        print(f"  + Loaded 66-bone Hero_Armature from template {out_glb}")
+    else:
+        bpy.ops.import_scene.gltf(filepath=skel_path)
+        t_arm = [o for o in bpy.data.objects if o.type == "ARMATURE"][0]
+        t_arm.name = "Hero_Armature"
+        m2m.fit_skeleton_to_profile(t_arm, HERO_FIT)
 
     # Temp A-pose rig matching sculpted arm angle (74 deg)
     bpy.ops.object.select_all(action="DESELECT")
@@ -521,7 +548,11 @@ def main():
             # the blade points cleanly OUTWARD-RIGHT (-X), FORWARD (-Y), DOWNWARD (-Z) — ZERO body/skirt clipping!
             before_tmp = set(bpy.data.objects)
             before_act_tmp = set(bpy.data.actions)
-            bpy.ops.import_scene.gltf(filepath=os.path.join(M2M_DIR, "idle-a.glb"))
+            idle_path = os.path.join(M2M_DIR, "idle-a.glb")
+            if os.path.isfile(idle_path):
+                bpy.ops.import_scene.gltf(filepath=idle_path)
+            else:
+                bpy.ops.import_scene.gltf(filepath=out_glb)
             tmp_objs = [o for o in bpy.data.objects if o not in before_tmp]
             tmp_acts = [a for a in bpy.data.actions if a not in before_act_tmp]
             target_dir = Vector((-0.55, -0.55, -0.62)).normalized()
@@ -560,7 +591,26 @@ def main():
     # 7) Import 8 Mesh2Motion CC0 animation clips & scale pelvis translation
     pel_scale = HERO_FIT["z_pelvis"] / 0.917
     t_arm.animation_data_create()
-    for clip_name, anim_file in HERO_CLIPS:
+    if use_template_glb:
+        before_acts = set(bpy.data.actions)
+        before_objs = set(bpy.data.objects)
+        bpy.ops.import_scene.gltf(filepath=out_glb)
+        new_objs = [o for o in bpy.data.objects if o not in before_objs]
+        want_clips = [c[0] for c in HERO_CLIPS]
+        for act in list(bpy.data.actions):
+            base_name = act.name.split(".")[0]
+            if base_name in want_clips and (act not in before_acts or act.name == base_name):
+                act.name = base_name
+                act.use_fake_user = True
+                if not any(tr.name == base_name for tr in t_arm.animation_data.nla_tracks):
+                    track = t_arm.animation_data.nla_tracks.new()
+                    track.name = base_name
+                    track.strips.new(base_name, int(act.frame_range[0]), act)
+                    track.mute = True
+                    print(f"  + Action {base_name} <- template hero.glb")
+        for o in new_objs:
+            bpy.data.objects.remove(o, do_unlink=True)
+    for clip_name, anim_file in ([] if use_template_glb else HERO_CLIPS):
         anim_path = os.path.join(M2M_DIR, anim_file)
         before_objs = set(bpy.data.objects)
         before_acts = set(bpy.data.actions)
