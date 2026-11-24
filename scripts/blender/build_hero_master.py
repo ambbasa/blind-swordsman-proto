@@ -74,10 +74,93 @@ def bake_normal_map(high_obj, low_obj, size=1024):
     n_img.pack()
 
     nmap = nt.nodes.new("ShaderNodeNormalMap")
-    nmap.inputs["Strength"].default_value = 0.55
+    nmap.inputs["Strength"].default_value = 0.95
     nt.links.new(tex_node.outputs["Color"], nmap.inputs["Color"])
     nt.links.new(nmap.outputs["Normal"], bsdf.inputs["Normal"])
-    print(f"  + Baked 50k->15k Normal Map ({size}x{size}) onto Hero_Body!")
+    print(f"  + Baked 50k->15k Normal Map ({size}x{size}, strength=0.95) onto Hero_Body!")
+
+    # v1.31: Bake 50k->15k AO Map and multiply onto Base Color
+    img_name = "Hero_Body"
+    ao_img = bpy.data.images.new(f"{img_name}_AO", width=size, height=size, alpha=False)
+    ao_node = nt.nodes.new("ShaderNodeTexImage")
+    ao_node.image = ao_img
+    for n in nt.nodes:
+        n.select = False
+    ao_node.select = True
+    nt.nodes.active = ao_node
+    scene.cycles.samples = 12
+    bpy.ops.object.select_all(action="DESELECT")
+    high_obj.select_set(True)
+    low_obj.select_set(True)
+    bpy.context.view_layer.objects.active = low_obj
+    bpy.ops.object.bake(type="AO")
+    ao_img.pack()
+    scene.cycles.samples = 1
+
+    base_inp = bsdf.inputs.get("Base Color")
+    if base_inp and base_inp.is_linked:
+        orig_from = base_inp.links[0].from_socket
+        mix = nt.nodes.new("ShaderNodeMix")
+        mix.data_type = "RGBA"
+        mix.blend_type = "MULTIPLY"
+        mix.inputs["Factor"].default_value = 0.38
+        nt.links.new(orig_from, mix.inputs[6])
+        nt.links.new(ao_node.outputs["Color"], mix.inputs[7])
+        nt.links.new(mix.outputs[2], base_inp)
+        print(f"  + Baked & multiplied 50k->15k AO Map ({size}x{size}, factor=0.38) onto Hero_Body")
+
+    # v1.31: Bake 50k->15k Curvature (Pointiness edge highlight) via temporary EMIT material on high_obj
+    curv_img = bpy.data.images.new(f"{img_name}_Curv", width=size, height=size, alpha=False)
+    curv_node = nt.nodes.new("ShaderNodeTexImage")
+    curv_node.image = curv_img
+    for n in nt.nodes:
+        n.select = False
+    curv_node.select = True
+    nt.nodes.active = curv_node
+
+    orig_mats = list(high_obj.data.materials)
+    cmat = bpy.data.materials.new(name=f"{img_name}_CurvTemp")
+    cmat.use_nodes = True
+    cnt = cmat.node_tree
+    cnt.nodes.clear()
+    geom = cnt.nodes.new("ShaderNodeNewGeometry")
+    ramp = cnt.nodes.new("ShaderNodeValToRGB")
+    ramp.color_ramp.elements[0].position = 0.44
+    ramp.color_ramp.elements[0].color = (0.30, 0.30, 0.30, 1.0)
+    ramp.color_ramp.elements[1].position = 0.56
+    ramp.color_ramp.elements[1].color = (0.85, 0.85, 0.85, 1.0)
+    emit = cnt.nodes.new("ShaderNodeEmission")
+    out_n = cnt.nodes.new("ShaderNodeOutputMaterial")
+    cnt.links.new(geom.outputs["Pointiness"], ramp.inputs["Fac"])
+    cnt.links.new(ramp.outputs["Color"], emit.inputs["Color"])
+    cnt.links.new(emit.outputs["Emission"], out_n.inputs["Surface"])
+    high_obj.data.materials.clear()
+    high_obj.data.materials.append(cmat)
+
+    scene.cycles.samples = 1
+    bpy.ops.object.select_all(action="DESELECT")
+    high_obj.select_set(True)
+    low_obj.select_set(True)
+    bpy.context.view_layer.objects.active = low_obj
+    bpy.ops.object.bake(type="EMIT")
+    curv_img.pack()
+
+    high_obj.data.materials.clear()
+    for om in orig_mats:
+        high_obj.data.materials.append(om)
+    bpy.data.materials.remove(cmat, do_unlink=True)
+
+    base_inp2 = bsdf.inputs.get("Base Color")
+    if base_inp2 and base_inp2.is_linked:
+        cur_from = base_inp2.links[0].from_socket
+        cmix = nt.nodes.new("ShaderNodeMix")
+        cmix.data_type = "RGBA"
+        cmix.blend_type = "OVERLAY"
+        cmix.inputs["Factor"].default_value = 0.24
+        nt.links.new(cur_from, cmix.inputs[6])
+        nt.links.new(curv_node.outputs["Color"], cmix.inputs[7])
+        nt.links.new(cmix.outputs[2], base_inp2)
+        print(f"  + Baked & overlaid 50k->15k Curvature Map ({size}x{size}, factor=0.24) onto Base Color")
     return n_img
 
 
@@ -106,7 +189,8 @@ def make_outline(src_obj, name, offset, dec_ratio=0.55):
 
 
 def main():
-    body_raw = os.path.join(MODELS_DIR, "hero_body_raw.glb")
+    raw_mv_hero = os.path.join(ROOT, "scripts", "blender", "_raw_bosses", "hero_raw.glb")
+    body_raw = raw_mv_hero if os.path.isfile(raw_mv_hero) else os.path.join(MODELS_DIR, "hero_body_raw.glb")
     head_raw = os.path.join(MODELS_DIR, "hero_head_raw.glb")
     sword_src = "/tmp/models_png/hero_new.glb"
     out_glb = os.path.join(MODELS_DIR, "hero.glb")
@@ -528,7 +612,7 @@ def main():
         export_nla_strips=True,
         export_force_sampling=True,
         export_yup=True,
-        export_image_format="JPEG",
+        export_image_format="AUTO",  # v1.31: keep baked Normal Map lossless PNG
     )
     print(f"  [SAVED MASTER HERO] {out_glb} ({os.path.getsize(out_glb):,} bytes)")
 

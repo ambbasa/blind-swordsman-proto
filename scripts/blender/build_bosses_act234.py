@@ -52,6 +52,21 @@ UNARMED_ACTIONS = [
 # Exact per-boss anatomical landmarks measured from normalized H=1.72m raw GLBs
 BOSS_CONFIGS = [
     {
+        "id": "boss_act1",
+        "label": "1막 붉은 달의 사냥꾼 (맨손)",
+        "raw": "boss_act1_raw.glb",
+        "out": "boss.glb",
+        "fit": {
+            "z_ankle": 0.11, "z_knee": 0.43, "z_pelvis": 0.76,
+            "z_shoulder": 1.29, "z_neck": 1.42, "z_head": 1.52,
+            "hip_x": 0.165, "shoulder_x": 0.21, "arm_len": 0.48,
+        },
+        "torso_clean_z": 1.20,
+        "torso_clean_x": 0.22,
+        "cape_clean": False,
+        "arm_floor_z": 0.72,
+    },
+    {
         "id": "boss_act2",
         "label": "2막 설산 묵승 (맨손)",
         "raw": "boss_act2_raw.glb",
@@ -309,6 +324,58 @@ def bake_normal_map(high_obj, low_obj, img_name, size=1024):
         nt.links.new(ao_node.outputs["Color"], mix.inputs[7])
         nt.links.new(mix.outputs[2], base_inp)
         print(f"  + Baked & multiplied 50k->15k AO Map ({size}x{size}, factor=0.42) onto Base Color")
+    # v1.31: Bake 50k->15k Curvature (Pointiness edge highlight) via temporary EMIT material on high_obj
+    curv_img = bpy.data.images.new(f"{img_name}_Curv", width=size, height=size, alpha=False)
+    curv_node = nt.nodes.new("ShaderNodeTexImage")
+    curv_node.image = curv_img
+    for n in nt.nodes:
+        n.select = False
+    curv_node.select = True
+    nt.nodes.active = curv_node
+
+    orig_mats = list(high_obj.data.materials)
+    cmat = bpy.data.materials.new(name=f"{img_name}_CurvTemp")
+    cmat.use_nodes = True
+    cnt = cmat.node_tree
+    cnt.nodes.clear()
+    geom = cnt.nodes.new("ShaderNodeNewGeometry")
+    ramp = cnt.nodes.new("ShaderNodeValToRGB")
+    ramp.color_ramp.elements[0].position = 0.44
+    ramp.color_ramp.elements[0].color = (0.30, 0.30, 0.30, 1.0)
+    ramp.color_ramp.elements[1].position = 0.56
+    ramp.color_ramp.elements[1].color = (0.85, 0.85, 0.85, 1.0)
+    emit = cnt.nodes.new("ShaderNodeEmission")
+    out_n = cnt.nodes.new("ShaderNodeOutputMaterial")
+    cnt.links.new(geom.outputs["Pointiness"], ramp.inputs["Fac"])
+    cnt.links.new(ramp.outputs["Color"], emit.inputs["Color"])
+    cnt.links.new(emit.outputs["Emission"], out_n.inputs["Surface"])
+    high_obj.data.materials.clear()
+    high_obj.data.materials.append(cmat)
+
+    scene.cycles.samples = 1
+    bpy.ops.object.select_all(action="DESELECT")
+    high_obj.select_set(True)
+    low_obj.select_set(True)
+    bpy.context.view_layer.objects.active = low_obj
+    bpy.ops.object.bake(type="EMIT")
+    curv_img.pack()
+
+    high_obj.data.materials.clear()
+    for om in orig_mats:
+        high_obj.data.materials.append(om)
+    bpy.data.materials.remove(cmat, do_unlink=True)
+
+    base_inp2 = bsdf.inputs.get("Base Color")
+    if base_inp2 and base_inp2.is_linked:
+        cur_from = base_inp2.links[0].from_socket
+        cmix = nt.nodes.new("ShaderNodeMix")
+        cmix.data_type = "RGBA"
+        cmix.blend_type = "OVERLAY"
+        cmix.inputs["Factor"].default_value = 0.24
+        nt.links.new(cur_from, cmix.inputs[6])
+        nt.links.new(curv_node.outputs["Color"], cmix.inputs[7])
+        nt.links.new(cmix.outputs[2], base_inp2)
+        print(f"  + Baked & overlaid 50k->15k Curvature Map ({size}x{size}, factor=0.24) onto Base Color")
     return n_img
 
 
@@ -341,7 +408,9 @@ def build_one_boss(cfg):
     raw_path = os.path.join(RAW_DIR, cfg["raw"])
     out_path = os.path.join(MODELS_DIR, cfg["out"])
     fit = dict(cfg["fit"])
-    assert os.path.isfile(raw_path), f"Missing {raw_path}"
+    if not os.path.isfile(raw_path):
+        print(f"  [SKIP] Missing {raw_path}")
+        return
     assert os.path.isfile(TEMPLATE_BOSS_GLB), f"Missing {TEMPLATE_BOSS_GLB}"
 
     print(f"\n================ [{bid.upper()}] {cfg['label']} ================")
