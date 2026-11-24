@@ -2,7 +2,7 @@
 
 - **저장소**: `https://github.com/ambbasa/blind-swordsman-proto`
 - **라이브 데모**: `https://ambbasa.github.io/blind-swordsman-proto/v2/`
-- **최신 버전**: `v1.23` (2026-11-24 기준)
+- **최신 버전**: `v1.24` (2026-11-24 기준)
 - **기술 스택**: Vanilla JS ES Modules + Three.js r170 + Custom GLSL + Web Audio API (모바일 세로 웹/PWA, 100% 무료 로컬 파이프라인)
 
 ## 1. 절대 원칙 (Standing Rules)
@@ -68,4 +68,6 @@
   - 리텐션(출석·일일수련·별상자): `v2/js/modules/retention.js`
   - 3탭 도감 & 3D 뷰어: `v2/js/modules/codexView.js`
   - 상점·무구·유물·치장 뷰어: `v2/js/modules/shopView.js`
+  - 무늬 수련장 컨트롤러: `v2/js/modules/trainView.js`
+  - 별점·도전 조건 계산: `v2/js/modules/starRating.js`
   - 통합 스타일시트: `v2/css/siman.css` (기존 5중 CSS 통합)

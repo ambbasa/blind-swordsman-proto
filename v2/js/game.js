@@ -31,19 +31,20 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v123';
+import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v124';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v123';
+import { probeAssets, buildArt } from './art.js?v=v124';
 import * as Anim from './anim.js';
-import { createAudio } from './audio.js?v=v123';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v123';
-import { PAT_COST, PAT_CUE, getActPhaseFx, getActSkillNames, bossPatternMean, buildBossBannerInfo, pickBossOrbitShapes, pickZoneSpiritShape } from './modules/bossPatterns.js?v=v123';
-import { GIMMICK_DRILLS, getDrillDef, createDrillState, resetDrillRound, stepDrill, handleDrillInput, drawDrillCanvas } from './modules/trainingDrills.js?v=v123';
-import { TERRAIN_CFG, tHash, tPatchAt, tPatchesNear, tRootAt, getRiverCfg, tWaterCenter as terrainWaterCenter, tWaterAt as terrainWaterAt, resolveZoneAt, resolveSegZone } from './modules/stageTerrain.js?v=v123';
-import { ensureDailyFresh as ensureDailyFreshState, bumpDailyProgress, actStarTotalOf, hasClaimableRetentionOf, claimAttendanceReward, claimDailyQuestReward, claimStarChestReward, claimCodexMilestoneReward, renderDailyView } from './modules/retention.js?v=v123';
-import { renderCodexView } from './modules/codexView.js?v=v123';
-import { renderShopOverview, renderShopTabView, renderCosmeticView } from './modules/shopView.js?v=v123';
-import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v123';
+import { createAudio } from './audio.js?v=v124';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v124';
+import { PAT_COST, PAT_CUE, getActPhaseFx, getActSkillNames, bossPatternMean, buildBossBannerInfo, pickBossOrbitShapes, pickZoneSpiritShape } from './modules/bossPatterns.js?v=v124';
+import { TERRAIN_CFG, tHash, tPatchAt, tPatchesNear, tRootAt, getRiverCfg, tWaterCenter as terrainWaterCenter, tWaterAt as terrainWaterAt, resolveZoneAt, resolveSegZone } from './modules/stageTerrain.js?v=v124';
+import { ensureDailyFresh as ensureDailyFreshState, bumpDailyProgress, actStarTotalOf, hasClaimableRetentionOf, claimAttendanceReward, claimDailyQuestReward, claimStarChestReward, claimCodexMilestoneReward, renderDailyView } from './modules/retention.js?v=v124';
+import { renderCodexView } from './modules/codexView.js?v=v124';
+import { renderShopOverview, renderShopTabView, renderCosmeticView } from './modules/shopView.js?v=v124';
+import { TRAIN_SHAPES, SHAPE_LABEL, SHAPE_TIP, createTrainController } from './modules/trainView.js?v=v124';
+import { computeStar3Info, computeStarsFor } from './modules/starRating.js?v=v124';
+import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v124';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
@@ -64,7 +65,7 @@ import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariant
 import { InkFx, FX_COLORS } from './inkfx.js';
 import { BossFx } from './bossFx.js';
 import { createTelemetry } from './telemetry.js';
-import { applyHeroCloak3D } from './inkhero3d.js?v=v123';
+import { applyHeroCloak3D } from './inkhero3d.js?v=v124';
 import {
   SAVE_VERSION, STAT_DEFS, FORGE_COSTS, SWORDS, RELICS, COSMETIC_CLOAKS, COSMETIC_TRAILS,
   DAILY_QUESTS, ATTENDANCE_REWARDS, STAR_CHESTS, CODEX_MILESTONES,
@@ -92,8 +93,8 @@ import { MODES, MODE_ORDER, MODE_NOTE, modeOf, CHALLENGES, challengeOf, RUN_UPGR
 import { PAT_CODE } from './modules/bossCatalog.js';
 import { createInputQueue, createDashLatencyTracker } from './modules/inputQueue.js';
 import { createRunState, resetRunStateOnQuit } from './modules/state.js';
-import { createHudController } from './modules/hudController.js?v=v123';
-import { createUiRouter } from './modules/uiRouter.js?v=v123';
+import { createHudController } from './modules/hudController.js?v=v124';
+import { createUiRouter } from './modules/uiRouter.js?v=v124';
 import { syncSceneActTheme3D } from './modules/actTheme3d.js';
 import { createInkRiver3D } from './modules/inkWater3d.js';
 import { createInkTerrain3D } from './modules/inkTerrain3d.js';
@@ -9188,42 +9189,8 @@ function maybeEnd() {
 }
 /* 별점 (v0.32 §7.4): 클리어 1 + (체력 50% 이상 **또는** 피격 3회 이하) 1 + 도전 과제 1.
    정점 장(4·8·12)의 세 번째 별은 패턴 공략, 나머지 장은 콤보(0.8배) 또는 지형 도전. 수련 모드는 2개까지(§7.2). */
-function star3Info(st) {
-  const s3 = (st && st.star3) || { kind: 'combo' };
-  if (s3.kind === 'goal') {
-    const g = S && S.goal;
-    const done = !!(g && g.ok);
-    return { kind: 'goal', text: s3.text || (g && g.label) || '부목표', have: done ? 1 : 0, need: 1, done: done,
-      short: (s3.text || (g && g.label) || '부목표') + (g && g.fail ? ' (실패)' : ' ' + (done ? '1/1' : '0/1')) };
-  }
-  if (s3.kind === 'pattern') {
-    const have = s3.counter === 'goldReflect' ? (S.goldReflectN || 0) : s3.counter === 'clashWin' ? (S.clashWin || 0) : (S.shuffleLock || 0);
-    const need = s3.need || 2;
-    return { kind: 'pattern', text: s3.text, have: have, need: need, done: have >= need, short: s3.text + ' ' + Math.min(have, need) + '/' + need };
-  }
-  const comboNeed = Math.ceil((st.starCombo || 10) * (CFG.star3ComboMul || 0.8));
-  const byCombo = (S.comboMax || 0) >= comboNeed;
-  let alt = null;
-  if (s3.alt) {
-    const have = (S.terrain && S.terrain.counts && S.terrain.counts[s3.alt.key]) || 0;
-    alt = { text: s3.alt.text, have: have, need: s3.alt.need || 1, done: have >= (s3.alt.need || 1) };
-  }
-  return {
-    kind: 'combo', comboNeed: comboNeed, byCombo: byCombo, alt: alt,
-    text: '콤보 ' + comboNeed + (alt ? ' 또는 ' + alt.text : ''),
-    done: byCombo || !!(alt && alt.done),
-    short: '콤보 ' + Math.min(S.comboMax || 0, comboNeed) + '/' + comboNeed + (alt ? ' · ' + alt.text + ' ' + Math.min(alt.have, alt.need) + '/' + alt.need : '')
-  };
-}
-function starsFor(win) {
-  if (!S || !win) return 0;
-  if (S.challenge) return 0;   /* 도전 모드는 별이 아니라 기록으로 남긴다 */
-  const st = S.stage || {};
-  let n = 1;
-  if (S.hp / Math.max(1, maxHp()) >= 0.5 || (S.hits || 0) <= (CFG.star2Hits || 3)) n++;
-  if (star3Info(st).done) n++;
-  return Math.min(starCap(), n);
-}
+function star3Info(st) { return computeStar3Info(st, S, CFG); }
+function starsFor(win) { return computeStarsFor(win, S, CFG, maxHp(), starCap()); }
 function endRun(win, msg) {
   if (!S || S.won || S.lost) return;
   if (audio && audio.setBossMode) audio.setBossMode(false);
@@ -10779,239 +10746,28 @@ function renderCodex() {
   });
 }
 
-/* §8.3 무늬 수련장: 10종 자유 연습 + 최근 20회 인식률 + 그리는 요령 애니메이션 */
-const TRAIN_SHAPES = ['hline', 'vline', 'vee', 'bolt', 'circle', 'square', 'tri', 'spiral', 'star', 'tap'];
-const SHAPE_LABEL = { hline: '—', vline: 'ㅣ', vee: 'V', bolt: 'Z', circle: 'O', star: '⛤', square: 'ㅁ', tri: '△', arc: '◡', spiral: '@', tap: '•' };
-const SHAPE_TIP = {
-  hline: '가로로 곧게, 화면 폭의 절반쯤. 끝에서 멈칫하지 마세요.',
-  vline: '위에서 아래로 한 번에. 좌우로 흔들리면 번개로 읽힙니다.',
-  vee: '내려갔다가 같은 기울기로 올라옵니다. 바닥은 뾰족하게.',
-  bolt: '세 마디 지그재그. 가로로 눕히지 말고 세로로 길게.',
-  circle: '한 바퀴 크게, 시계 방향이든 반대로든 상관없습니다.',
-  square: '네 모서리를 각지게. 모서리를 둥글리면 원으로 읽힙니다.',
-  tri: '세 변을 한 번에. 마지막 변을 짧게 끝내세요.',
-  arc: '반달을 옆으로 눕힌 모양. 위로 볼록하게.',
-  spiral: '안에서 밖으로 말아 올리며 두 바퀴.',
-  star: '한붓으로 다섯 꼭짓점을 교차해 별(⛤)을 그립니다.',
-  tap: '제자리에서 짧게 콕 — 패링입니다.'
-};
-const train = { shape: 'hline', pts: [], drawing: false, raf: 0, result: null, animT: 0, need: 0, parryMode: false, drill: createDrillState('parry') };
-function renderTrainDrills() {
-  const box = $('trainDrills');
-  if (!box) return;
-  box.innerHTML = GIMMICK_DRILLS.map(function (d) {
-    return '<button type="button" data-drill="' + d.id + '" class="' + (train.drill.kind === d.id ? 'on' : '') + '">' + d.name + '</button>';
-  }).join('');
-  Array.prototype.forEach.call(box.querySelectorAll('button'), function (b) {
-    b.addEventListener('click', function () {
-      const k = b.getAttribute('data-drill');
-      train.drill = createDrillState(k);
-      renderTrainDrills();
-      const noteEl = $('trainNote');
-      if (noteEl) noteEl.textContent = getDrillDef(k).tip;
-    });
-  });
-}
-function trainStatsOf(shape) {
-  const arr = (save.train && save.train.stats && save.train.stats[shape]) || [];
-  const last = arr.slice(-20);
-  const hit = last.filter(function (v) { return v; }).length;
-  return { n: last.length, hit: hit, rate: last.length ? hit / last.length : 0 };
-}
-function renderTrainShapes() {
-  const box = $('trainShapes');
-  if (!box) return;
-  box.innerHTML = TRAIN_SHAPES.map(function (sh) {
-    const st = trainStatsOf(sh);
-    const label = (G && G.NAMES && G.NAMES[sh]) || SHAPE_LABEL[sh] || sh;
-    return '<button type="button" data-shape="' + sh + '" class="' + (sh === train.shape ? 'on' : '') + '" aria-label="' + label + ' (' + (SHAPE_LABEL[sh] || sh) + ')" title="' + label + ' · ' + (st.n ? Math.round(st.rate * 100) + '%' : '—') + '">' + titleChip(sh) + '</button>';
-  }).join('');
-  Array.prototype.forEach.call(box.querySelectorAll('button'), function (b) {
-    b.addEventListener('click', function () { train.shape = b.getAttribute('data-shape'); train.pts = []; train.result = null; renderTrainShapes(); });
-  });
-  const noteEl = $('trainNote');
-  if (noteEl && SHAPE_TIP[train.shape]) noteEl.textContent = SHAPE_TIP[train.shape];
-  const st = trainStatsOf(train.shape);
-  const el = $('trainStats');
-  if (el) {
-    el.textContent = (SHAPE_LABEL[train.shape] + ' 최근 ' + st.n + '회 · 인식 ' + (st.n ? Math.round(st.rate * 100) : 0) + '%'
-      + (st.n && st.rate < 0.8 ? ' — 요령 애니메이션을 봅니다' : ''));
-  }
-  train.need = st.n >= 3 && st.rate < 0.8 ? 1 : 0;
-}
-function trainDraw() {
-  const cv = $('trainCanvas');
-  if (!cv) return;
-  const ctx = cv.getContext('2d');
-  const W = cv.width, H = cv.height;
-  ctx.clearRect(0, 0, W, H);
-  const bg = ctx.createRadialGradient(W / 2, H / 2, 10, W / 2, H / 2, W * 0.62);
-  bg.addColorStop(0, 'rgba(24,22,26,1)'); bg.addColorStop(1, 'rgba(9,8,11,1)');
-  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-  /* 목표 무늬의 옅은 유도선 / 보스 기믹·패링 드릴 */
-  if (train.parryMode) {
-    const nowMs = performance.now();
-    const drillDt = train._lastMs ? Math.min(0.05, Math.max(0.004, (nowMs - train._lastMs) / 1000)) : 0.016;
-    train._lastMs = nowMs;
-    stepDrill(train.drill, drillDt);
-    drawDrillCanvas(ctx, W, H, train.drill);
-    if (train.drillDrag && train.pts && train.pts.length > 1) {
-      ctx.save();
-      ctx.strokeStyle = 'rgba(136,245,212,0.88)'; ctx.lineWidth = 4.5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      ctx.beginPath();
-      for (let ti = 0; ti < train.pts.length; ti++) {
-        const tp = train.pts[ti];
-        if (ti === 0) ctx.moveTo(tp.x, tp.y); else ctx.lineTo(tp.x, tp.y);
-      }
-      ctx.stroke();
-      ctx.restore();
-    }
-    const stEl = $('trainStats');
-    if (stEl) {
-      const def = getDrillDef(train.drill.kind);
-      stEl.textContent = def.name + ' · 연속 성공 ' + train.drill.streak + '회 · 최고 기록 ' + train.drill.best + '회';
-    }
-    return;
-  }
-  const ghost = syntheticPath(train.shape, W * 0.5, H * 0.5, Math.min(70, W * 0.26));
-  if (ghost && ghost.length) {
-    ctx.save();
-    ctx.strokeStyle = 'rgba(239,228,204,0.16)'; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.beginPath(); ghost.forEach(function (p, i) { if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); });
-    ctx.stroke();
-    ctx.restore();
-  }
-  /* 요령 애니메이션: 붓끝이 무늬를 따라간다(80% 미만일 때) */
-  if (train.need && ghost && ghost.length) {
-    const k = (train.animT % 2.2) / 1.8;
-    if (k <= 1) {
-      const i = Math.min(ghost.length - 1, Math.floor(k * (ghost.length - 1)));
-      const p = ghost[i];
-      ctx.beginPath(); ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(232,192,74,0.85)'; ctx.fill();
-    }
-  }
-  /* 내가 그은 획 */
-  if (train.pts.length) {
-    const bs = brushOf(save);
-    ctx.strokeStyle = 'rgba(' + bs.color + ',0.9)';
-    ctx.lineWidth = 7 * (bs.width || 1); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.beginPath(); train.pts.forEach(function (p, i) { if (i) ctx.lineTo(p.x, p.y); else ctx.moveTo(p.x, p.y); });
-    ctx.stroke();
-  }
-  if (train.result) {
-    ctx.save();
-    ctx.font = '700 15px "InkSerif", serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-    ctx.fillStyle = train.result.ok ? 'rgba(46,230,166,0.95)' : 'rgba(232,120,90,0.95)';
-    ctx.fillText(train.result.text, W / 2, H - 10);
-    ctx.restore();
-  }
-}
-function trainLoop(ts) {
-  train.animT = (ts || 0) / 1000;
-  trainDraw();
-  train.raf = requestAnimationFrame(trainLoop);
-}
-function openTrain() {
-  showOv('ov-train');
-  renderTrainShapes();
-  train.pts = []; train.result = null;
-  if (!train.raf) train.raf = requestAnimationFrame(trainLoop);
-  telemetry.event('train_open', { shape: train.shape });
-}
-function closeTrain() {
-  if (train.raf) cancelAnimationFrame(train.raf);
-  train.raf = 0;
-  hideOvs(); showOv('ov-title');
-}
-function trainPoint(e) {
-  const cv = $('trainCanvas');
-  if (!cv) return { x: 0, y: 0 };
-  const r = cv.getBoundingClientRect();
-  return { x: (e.clientX - r.left) * cv.width / Math.max(1, r.width), y: (e.clientY - r.top) * cv.height / Math.max(1, r.height) };
-}
-function trainFinish() {
-  if (!train.pts.length) return;
-  const rec = G.recognize(train.pts, { allowBolt: true, seal: train.shape === 'star', totem: ['tri', 'square', 'spiral'].includes(train.shape) });
-  const ok = rec.type === train.shape;
-  save.train = save.train || { stats: {}, seen: 0 };
-  save.train.stats[train.shape] = (save.train.stats[train.shape] || []).concat([ok ? 1 : 0]).slice(-20);
-  save.train.seen = (save.train.seen || 0) + 1;
-  persist();
-  train.result = { ok: ok, text: ok ? ('맞았습니다 — ' + SHAPE_LABEL[train.shape]) : ('읽힌 무늬: ' + (SHAPE_LABEL[rec.type] || rec.type || '?')) };
-  renderTrainShapes();
-  telemetry.event('train_stroke', { shape: train.shape, got: rec.type || null, ok: ok, score: +(rec.bestScore || 0).toFixed(2) });
-}
-function wireTrain() {
-  const cv = $('trainCanvas');
-  if (!cv) return;
-  if ($('btnTrainParry')) $('btnTrainParry').addEventListener('click', function () {
-    train.parryMode = !train.parryMode;
-    resetDrillRound(train.drill);
-    train.drill.msg = '';
-    $('btnTrainParry').textContent = train.parryMode ? '무늬 연습으로' : '기믹·패링 훈련';
-    const noteEl = $('trainNote');
-    if (noteEl) noteEl.textContent = train.parryMode ? getDrillDef(train.drill.kind).tip : (SHAPE_TIP[train.shape] || '');
-    if ($('trainShapes')) $('trainShapes').style.display = train.parryMode ? 'none' : '';
-    if ($('trainDrills')) {
-      $('trainDrills').hidden = !train.parryMode;
-      if (train.parryMode) renderTrainDrills();
-    }
-  });
-  cv.addEventListener('pointerdown', function (e) {
-    e.preventDefault();
-    if (train.parryMode) {
-      const pt = trainPoint(e);
-      const isSpatial = train.drill && train.drill.kind !== 'parry' && train.drill.kind !== 'rhythm';
-      if (isSpatial) {
-        train.drillDrag = true;
-        train.pts = [pt];
-        try { cv.setPointerCapture(e.pointerId); } catch (err) {}
-      }
-      const res = handleDrillInput(train.drill, pt.x / Math.max(1, cv.width), pt.y / Math.max(1, cv.height));
-      if (res === 'just' || res === 'step') {
-        train.drillDrag = false;
-        if (audio && audio.justParry) audio.justParry();
-        haptic([24, 16, 36]);
-      } else if (res === 'fail') {
-        train.drillDrag = false;
-        if (audio && audio.whiff) audio.whiff();
-      }
-      return;
-    }
-    train.drawing = true; train.result = null; train.pts = [trainPoint(e)];
-    try { cv.setPointerCapture(e.pointerId); } catch (err) {}
-  });
-  cv.addEventListener('pointermove', function (e) {
-    if (train.drillDrag && train.parryMode) {
-      e.preventDefault();
-      const p = trainPoint(e);
-      train.pts.push(p);
-      const res = handleDrillInput(train.drill, p.x / Math.max(1, cv.width), p.y / Math.max(1, cv.height));
-      if (res === 'just' || res === 'step') {
-        train.drillDrag = false; train.pts = [];
-        if (audio && audio.justParry) audio.justParry();
-        haptic([24, 16, 36]);
-      } else if (res === 'fail') {
-        train.drillDrag = false; train.pts = [];
-        if (audio && audio.whiff) audio.whiff();
-      }
-      return;
-    }
-    if (!train.drawing) return;
-    e.preventDefault();
-    const p = trainPoint(e), last = train.pts[train.pts.length - 1];
-    if (!last || Math.hypot(p.x - last.x, p.y - last.y) > 1.5) train.pts.push(p);
-  });
-  cv.addEventListener('pointerup', function (e) {
-    if (train.drillDrag) { train.drillDrag = false; train.pts = []; return; }
-    if (!train.drawing) return;
-    train.drawing = false;
-    e.preventDefault();
-    trainFinish();
-  });
-  cv.addEventListener('pointercancel', function () { train.drawing = false; train.drillDrag = false; });
-}
+/* §8.3 무늬 수련장 · 기믹/패링 드릴 컨트롤러 (modules/trainView.js 위임) */
+const _trainCtrl = createTrainController({
+  elById: $,
+  getSave: function () { return save; },
+  persist: function () { persist(); },
+  getG: function () { return G; },
+  titleChip: titleChip,
+  syntheticPath: syntheticPath,
+  brushOf: brushOf,
+  showOv: showOv,
+  hideOvs: hideOvs,
+  getAudio: function () { return audio; },
+  haptic: haptic,
+  telemetry: telemetry
+});
+const train = _trainCtrl.train;
+function renderTrainDrills() { return _trainCtrl.renderTrainDrills(); }
+function trainStatsOf(shape) { return (save.train && save.train.stats && save.train.stats[shape]) ? (function(a){ const l=a.slice(-20),h=l.filter(Boolean).length; return {n:l.length,hit:h,rate:l.length?h/l.length:0}; })(save.train.stats[shape]) : {n:0,hit:0,rate:0}; }
+function renderTrainShapes() { return _trainCtrl.renderTrainShapes(); }
+function openTrain() { return _trainCtrl.openTrain(); }
+function closeTrain() { return _trainCtrl.closeTrain(); }
+function wireTrain() { return _trainCtrl.wireTrain(); }
 
 function activeFov() {
   if (!three || !three.view) return CFG.fov || 62;

@@ -510,3 +510,22 @@ import { STAT_ICONS } from '../../v2/js/modules/shopView.js';
   assert.equal(Object.keys(STAT_ICONS).length, 5);
   console.log('v1.23 SHOP_VIEW MODULE PASSED');
 }
+
+/* --- v1.24 수련장 컨트롤러·별점 계산 모듈 검증: trainView.js, starRating.js --- */
+import { TRAIN_SHAPES, SHAPE_LABEL, trainStatsOfSave } from '../../v2/js/modules/trainView.js';
+import { computeStar3Info, computeStarsFor } from '../../v2/js/modules/starRating.js';
+
+{
+  assert.equal(TRAIN_SHAPES.length, 10);
+  assert.equal(SHAPE_LABEL.star, '⛤');
+  const st = trainStatsOfSave({ train: { stats: { hline: [1, 0, 1, 1] } } }, 'hline');
+  assert.equal(st.n, 4);
+  assert.equal(st.hit, 3);
+  assert.equal(st.rate, 0.75);
+
+  const s3 = computeStar3Info({ starCombo: 10 }, { comboMax: 8 }, { star3ComboMul: 0.8 });
+  assert.equal(s3.done, true);
+  assert.equal(computeStarsFor(true, { hp: 10, hits: 1, comboMax: 8, stage: { starCombo: 10 } }, { star3ComboMul: 0.8, star2Hits: 3 }, 14, 3), 3);
+  assert.equal(computeStarsFor(true, { hp: 10, hits: 1, comboMax: 8, challenge: 'endless', stage: { starCombo: 10 } }, {}, 14, 3), 0);
+  console.log('v1.24 MODULES (trainView, starRating) PASSED');
+}
