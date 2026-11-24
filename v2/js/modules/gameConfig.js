@@ -183,22 +183,3 @@ export const CFG = {
 applyBalanceV049(CFG);
 /* v0.49: MODES, CHALLENGES, RUN_UPGRADES, EVO_RECIPES, STAGES, HANJI_TONE, ACT_NAMES 는
    v2/js/modules/upgrades.js 및 stages.js 로 분리했습니다. */
-function curMode() { return modeOf((S && S.mode) || save.mode || 'jeongseok'); }
-/** 고수 모드는 12장을 깨야 열린다. */
-function gosuUnlocked() { return ((save.stars || {})[STAGES.length] || 0) > 0; }
-function challengeUnlocked(id) {
-  const c = challengeOf(id);
-  if (!c) return false;
-  return ((save.stars || {})[c.unlock] || 0) > 0 || ((save.stars || {})[STAGES.length] || 0) > 0;
-}
-function challengeRecord(id) { return (save.records && save.records[id]) || 0; }
-/** 이 판의 예고 배율(모드 × 동적 보정). 첫 등장 연출은 이 값 위에 한 번 더 곱한다. */
-function teleMul() { return ((S && S.teleMul) || curMode().tele) * ((S && S.phaseTele) || 1); }
-/** 받는 피해: 모드 배율(최소 1). */
-function modeDmg(n) { return Math.max(1, Math.round((n || 0) * curMode().dmg)); }
-function modeSpd() { return curMode().spd; }
-function modeCoin() { return curMode().coin; }
-/** 별 상한: 수련은 2개까지. */
-function starCap() { return curMode().starCap; }
-
-

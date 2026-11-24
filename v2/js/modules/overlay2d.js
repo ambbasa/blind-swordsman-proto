@@ -52,7 +52,6 @@ function clearOnebell(immediate) {
 }
 
 const _proj = { v: null };
-let lastMarkMetrics = { cssPx: 40, minCss: 40, w: 0, h: 0, marks: [] };
 function markCssSize(w) {
   const min = rt.CFG.markMinCss || 12;
   const max = rt.CFG.markMaxCss || 32;
@@ -167,7 +166,7 @@ function updateMarks() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, r.width, r.height);
   const size = markCssSize(r.width);
-  lastMarkMetrics = { cssPx: size, minCss: rt.CFG.markMinCss || 12, w: r.width, h: r.height, marks: [] };
+  rt.lastMarkMetrics = { cssPx: size, minCss: rt.CFG.markMinCss || 12, w: r.width, h: r.height, marks: [] };
   if (!rt.S || !rt.three) return;
   if (!_proj.v) _proj.v = new rt.THREE.Vector3();
   if (rt.S.playing && rt.S.hero) {
@@ -187,7 +186,7 @@ function updateMarks() {
       });
     }
     const diam = (maxX > minX) ? (maxX - minX) : ringPx * 2;
-    lastMarkMetrics.ring = {
+    rt.lastMarkMetrics.ring = {
       r: rt.ringR(), px: diam / 2, rx: diam / 2, ry: (maxY > minY) ? (maxY - minY) / 2 : 0,
       cx: hs.x, cy: hs.y, diamPx: diam, frac: r.width ? diam / r.width : 0,
       ringLv: rt.S.ringLv || 0, pts: pts, kind: 'ellipse'
@@ -224,7 +223,7 @@ function updateMarks() {
       seq: s === bossSpirit ? (rt.S.boss.seq || []).slice() : null, seqI: s === bossSpirit ? (rt.S.boss.seqI || 0) : 0,
       bellPx: bellPx, bodyPx: bodyPx
     };
-    lastMarkMetrics.marks.push(item);
+    rt.lastMarkMetrics.marks.push(item);
     if (on) placed.push(item);
     if (s.target && s.target.alive && !rt.isOnScreen(s.target, 20)) {
       const tp = rt.projectXZ(s.target.x, s.target.z, 0.8);
@@ -245,12 +244,12 @@ function updateMarks() {
       }
     }
   });
-  lastMarkMetrics.arrows = arrows;
-  lastMarkMetrics.markStyle = 'ink';
+  rt.lastMarkMetrics.arrows = arrows;
+  rt.lastMarkMetrics.markStyle = 'ink';
   if (placed.length) {
-    lastMarkMetrics.cssPx = placed.reduce(function (m, p) { return Math.max(m, p.cssPx || 0); }, 0) || size;
-    lastMarkMetrics.bellPx = placed.reduce(function (m, p) { return Math.max(m, p.bellPx || 0); }, 0);
-    lastMarkMetrics.bodyPx = placed.reduce(function (m, p) { return Math.max(m, p.bodyPx || 0); }, 0);
+    rt.lastMarkMetrics.cssPx = placed.reduce(function (m, p) { return Math.max(m, p.cssPx || 0); }, 0) || size;
+    rt.lastMarkMetrics.bellPx = placed.reduce(function (m, p) { return Math.max(m, p.bellPx || 0); }, 0);
+    rt.lastMarkMetrics.bodyPx = placed.reduce(function (m, p) { return Math.max(m, p.bodyPx || 0); }, 0);
   }
   /* v0.52: 보스전이 HP 대결 체계로 전환됨에 따라 머리 위 구식 '무늬 순서 배열' 칩은 숨겨
      플레이어가 "HP를 깎는가 vs 무늬 순서를 지우는가" 혼동하지 않도록 정리한다(현재 약점 혼령은 3D로 선명히 표시). */
@@ -1619,5 +1618,5 @@ function landingShock(at) {
   if (rt.S.lastDash) rt.S.lastDash.shock = { x: at.x, z: at.z, r: R, push: push };
 }
 /* 제자리 탭 → 칼집 패링: 반경 2.4m 넉백·경직·0.5 피해. 성공 시 parry 사운드 + 히트스톱. */
-  return { _proj, beginDash, beginOnebell, brushMark, clampHeroToArena, clampPointToArena, clearOnebell, clipBound, clipWorld, comboBreak, comboReward, consumeInputBuf, dashEndPoint, endOnebell, enqueueInputBuf, failHint, inkColorFor, landDash, landingShock, lastMarkMetrics, loadMarkImages, onebellSlash, resolveDash, resolvePropCollision, ringSpiritBell, scoreDash, secondScore, showJudge, stampSkill, startSeg, syncGroundEffects, triggerSightWave, updateMarks, worldBounds };
+  return { _proj, beginDash, beginOnebell, brushMark, clampHeroToArena, clampPointToArena, clearOnebell, clipBound, clipWorld, comboBreak, comboReward, consumeInputBuf, dashEndPoint, endOnebell, enqueueInputBuf, failHint, inkColorFor, landDash, landingShock, loadMarkImages, onebellSlash, resolveDash, resolvePropCollision, ringSpiritBell, scoreDash, secondScore, showJudge, stampSkill, startSeg, syncGroundEffects, triggerSightWave, updateMarks, worldBounds };
 }

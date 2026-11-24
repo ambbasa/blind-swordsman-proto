@@ -150,7 +150,6 @@ function toast(msg) {
   rt.toastT = rt.now() + 1600;
 }
 /* 판 안내 문구(첫 진입·참 준비·기물 학습). 조작을 막지 않는 한 줄 칩. */
-let guideUntil = 0;
 function showGuide(html, sec) {
   const el = $('guide');
   if (!el) return;
@@ -158,13 +157,13 @@ function showGuide(html, sec) {
   el.hidden = false;
   el.classList.add('show');
   /* 만료는 게임 시간 기준 — 느린 기기·로딩 중에 안내가 먼저 사라지지 않는다. */
-  guideUntil = (rt.S ? (rt.S.elapsed || 0) + (sec || 4.5) : 0);
+  rt.guideUntil = (rt.S ? (rt.S.elapsed || 0) + (sec || 4.5) : 0);
 }
 function hideGuide() {
   const el = $('guide');
   if (!el) return;
   el.classList.remove('show');
-  guideUntil = 0;
+  rt.guideUntil = 0;
   el.hidden = true;
 }
 let shownMaxHp, shownHp;
@@ -342,5 +341,5 @@ function mapIdOf(opts) {
   if (opts.sandbox) return 'map1';
   return rt.stageOf(opts.stage != null ? opts.stage : (rt.save.stage || 1)).map;
 }
-  return { atkBonus, coinMult, comboMul, dashDmg, gapBonus, guideUntil, hideGuide, hideOvs, loadSave, mapIdOf, maxHp, nightColor, pathR, pauseRun, persist, poiseBonus, quitRun, renderHud, renderVulnBadge, resumeRun, setMuted, showGuide, showOv, toast, xpNeed };
+  return { atkBonus, coinMult, comboMul, dashDmg, gapBonus, hideGuide, hideOvs, loadSave, mapIdOf, maxHp, nightColor, pathR, pauseRun, persist, poiseBonus, quitRun, renderHud, renderVulnBadge, resumeRun, setMuted, showGuide, showOv, toast, xpNeed };
 }

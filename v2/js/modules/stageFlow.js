@@ -351,7 +351,7 @@ function isOnScreen(ent, margin) {
   return !(p.x < -m || p.y < -m || p.x > r.width + m || p.y > r.height + m);
 }
 /* 프레임당 한 번만 레이아웃을 읽는다 — 이제 viewBox 캐시를 그대로 쓴다(창 크기가 바뀔 때만 잰다). */
-let _frameId = 0, _rectCache = { id: -1, r: null };
+let _rectCache = { id: -1, r: null };
 function hostRect() { return viewBox(); }
 const _ltList = [], _stList = [], _bmList = [];
 function livingThreats() {
@@ -981,7 +981,7 @@ function titlePrewarm() {
   };
   const startGround = function () {
     if (!rt.three || rt.S) return;
-    const sel = rt.clamp(titleSel || rt.save.stage || 1, 1, rt.STAGES.length);
+    const sel = rt.clamp(rt.titleSel || rt.save.stage || 1, 1, rt.STAGES.length);
     const act = rt.actOf(sel);
     const ids = rt.STAGES.filter(function (s) { return rt.actOf(s.id) === act; }).map(function (s) { return s.id; });
     ids.sort(function (a, b) { return (a === sel ? -1 : 0) - (b === sel ? -1 : 0); });
@@ -1168,9 +1168,8 @@ function unlockedShapes(runNo) {
   return rt.SHAPE_UNLOCK.slice(0, n);
 }
 function upcomingRun() {
-  return rt.clamp(titleSel != null ? titleSel : (rt.save.stage || 1), 1, rt.STAGES.length);
+  return rt.clamp(rt.titleSel != null ? rt.titleSel : (rt.save.stage || 1), 1, rt.STAGES.length);
 }
-let titleSel = null;
 function titleChip(shape) {
   const alt = rt.SHAPE_MARK[shape] || shape;
   const src = rt.art && rt.art.sealUrl ? rt.art.sealUrl(shape) : '';
@@ -1198,10 +1197,10 @@ function previewStageWorld(n) {
 function refreshTitleHelp() {
   try { rt.renderChallenges(); } catch (e) {}
   /* 마지막에 깨운 스테이지가 이미 깨졌으면 새로 열린 장을 기본 선택으로 보여 준다. */
-  if (titleSel == null) titleSel = rt.clamp(rt.save.stage || 1, 1, rt.STAGES.length);
-  else titleSel = rt.clamp(titleSel, 1, unlockedMax());
+  if (rt.titleSel == null) rt.titleSel = rt.clamp(rt.save.stage || 1, 1, rt.STAGES.length);
+  else rt.titleSel = rt.clamp(1, unlockedMax());
   const el = $('titleShapes') || document.querySelector('.shapes-help');
-  const sel = rt.clamp((titleSel != null ? titleSel : (rt.save.stage || 1)) | 0, 1, rt.STAGES.length);
+  const sel = rt.clamp((rt.titleSel != null ? rt.titleSel : (rt.save.stage || 1)) | 0, 1, rt.STAGES.length);
   const st = rt.stageOf(sel);
   setChapterArt(st);
   const pool = (st.shapes || ['hline']).slice();
@@ -1240,7 +1239,7 @@ function renderStageSelect(sel) {
   const box = $('titleStages');
   if (!box) return;
   const unlocked = unlockedMax();
-  const cur = rt.clamp(sel || titleSel || rt.save.stage || 1, 1, rt.STAGES.length);
+  const cur = rt.clamp(sel || rt.titleSel || rt.save.stage || 1, 1, rt.STAGES.length);
   if (titleAct == null || titleAct !== selActOf(cur)) titleAct = selActOf(cur);
   const tabs = $('actTabs');
   if (tabs) {
@@ -1258,10 +1257,10 @@ function renderStageSelect(sel) {
         const a = +b.getAttribute('data-act');
         if (unlocked < (a - 1) * 4 + 1) return;
         titleAct = a;
-        if (selActOf(titleSel || 1) !== a) titleSel = (a - 1) * 4 + 1;
+        if (selActOf(rt.titleSel || 1) !== a) rt.titleSel = (a - 1) * 4 + 1;
         if (rt.audio && rt.audio.bell) rt.audio.bell(0, 'hline');
         refreshTitleHelp();
-        previewStageWorld(titleSel);
+        previewStageWorld(rt.titleSel);
       });
     });
   }
@@ -1276,15 +1275,14 @@ function renderStageSelect(sel) {
   box.querySelectorAll('[data-stage]').forEach(function (b) {
     b.addEventListener('click', function () {
       if (b.disabled) return;
-      titleSel = +b.getAttribute('data-stage');
+      rt.titleSel = +b.getAttribute('data-stage');
       if (rt.audio && rt.audio.bell) rt.audio.bell(0, 'hline');
       refreshTitleHelp();
-      previewStageWorld(titleSel);
+      previewStageWorld(rt.titleSel);
     });
   });
 }
 /* 스테이지 인트로 카드 → 잠시 뒤 자동 출전(버튼·화면 탭으로 바로 시작) */
-let pendingStage = null;
 function setChapterArt(st) {
   const app = $('app');
   const artId = st.id > 12 ? (st.id - 4) : st.id;
@@ -1331,18 +1329,18 @@ function fillStageIntro(st) {
 function beginStage(n) {
   const _t0 = performance.now();
   const st = rt.stageOf(n);
-  titleSel = st.id;
+  rt.titleSel = st.id;
   fillStageIntro(st);
   rt.showOv('ov-stage');
   const hasGim = !!((st.terrain && st.terrain.kind !== 'none') || (st.subgoal && st.subgoal.id));
-  const ps = pendingStage = { no: st.id, until: rt.now() + (rt.qa.noDelay ? 0 : (hasGim ? 3800 : 2600)), at: rt.now(), ready: false };
+  const ps = rt.pendingStage = { no: st.id, until: rt.now() + (rt.qa.noDelay ? 0 : (hasGim ? 3800 : 2600)), at: rt.now(), ready: false };
   // Give the intro card a paint before opening the audio device. Only start
   // the beat clock in startRun, even when the player skips the card early.
   const audioReady = new Promise(resolve => {
     if (!rt.audio || rt.qa.mute || rt.qa.noDelay) { resolve(); return; }
     requestAnimationFrame(() => requestAnimationFrame(() => {
       try {
-        if (pendingStage === ps && !rt.qa.mute && !rt.qa.noDelay) rt.audio.resume();
+        if (rt.pendingStage === ps && !rt.qa.mute && !rt.qa.noDelay) rt.audio.resume();
       } catch (error) {
         console.warn('Audio preparation failed:', error);
       } finally {
@@ -1359,21 +1357,21 @@ function beginStage(n) {
   const audioCap = Promise.race([audioReady, new Promise(resolve => setTimeout(resolve, 600))]);
   Promise.allSettled([stageReady, audioCap]).then(() => {
     ps.ready = true;
-    if (pendingStage === ps && rt.now() >= ps.until) goStageNow(true);
+    if (rt.pendingStage === ps && rt.now() >= ps.until) goStageNow(true);
   });
   rt.perfMark('beginStage', performance.now() - _t0, { stage: st.id });
   return st.id;
 }
 function goStageNow(force) {
-  if (!pendingStage) return null;
+  if (!rt.pendingStage) return null;
   /* 카드를 눌러 넘겨도 무대가 다 지어질 때까지는 기다렸다가 바로 시작한다. */
-  if (!pendingStage.ready && force !== true) {
-    pendingStage.until = Math.min(pendingStage.until, rt.now());
+  if (!rt.pendingStage.ready && force !== true) {
+    rt.pendingStage.until = Math.min(rt.pendingStage.until, rt.now());
     $('btnStageGo').textContent = '무대 준비 중…';
     return null;
   }
-  const n = pendingStage.no;
-  pendingStage = null;
+  const n = rt.pendingStage.no;
+  rt.pendingStage = null;
   try { startRun({ stage: n }); } catch (e) { console.error('[심안] startRun 오류:', e); rt.toast('출전 오류: ' + (e && e.message || e)); rt.showOv('ov-title'); }
   return n;
 }
@@ -1440,8 +1438,7 @@ function projectXZ(x, z, y) {
    레이아웃을 강제했다(모바일에서 프레임 비용의 큰 몫). */
 const _vb = { width: 375, height: 667, left: 0, top: 0 };
 let _vbKey = '';
-let _heroCssX = '', _heroCssY = '';
-let _atmoMask = '';
+let _heroCssY = '';
 function viewBox() {
   const key = (window.innerWidth || 0) + 'x' + (window.innerHeight || 0) + 'x' + (window.devicePixelRatio || 1);
   if (key !== _vbKey) {
@@ -1687,5 +1684,5 @@ function triggerCinematic() {
 }
 
 const onebell = { phase: 'off', ink: 0, t: 0 };
-  return { _atmoMask, _frameId, _heroCssX, absorbAllItems, addSpirit, angDiff, applyRingBoost, assignSpiritTargets, beginStage, bellFootScreen, bellScreen, bellWorld, breakJar, clearEntities, closeArena, curElem, elemBurnDmg, elemBurnDur, elemCloudR, elemIceDur, elemLv, elemNameOf, elemPoisonDmg, elemPoisonMax, elemShatterDmg, ellipseScreenAt, endBell, fillStageIntro, fireImpact, firecrackerBurst, frostImpact, goStageNow, heroScreen, invalidateViewBox, isOnScreen, livingMarks, onebell, pendingStage, pickSeq, pickSpirits, placeSpirit, previewStageWorld, prewarmRecipes, projectXZ, refreshElemSlots, refreshRingPoly, refreshSpirits, refreshTitleHelp, renderStageSelect, rimErrorPx, ringR, ringScreenPts, screenAngleTo, screenOf, screenRingPx, segDist, setChapterArt, setDashElem, setSpiritCount, snapSpiritsToTargets, spawnBoss, spawnItem, spawnPool, spawnSpirit, spawnZombie, spiritShape, startBell, startRun, stepArena, stepSpirits, strokeAimDir, strokeScreenDir, titleChip, titlePrewarm, titleSel, triggerCinematic, unlockedMax, unlockedShapes, unprojectToY, upcomingRun, viewBox, warmShaders, worldPerCss };
+  return { absorbAllItems, addSpirit, angDiff, applyRingBoost, assignSpiritTargets, beginStage, bellFootScreen, bellScreen, bellWorld, breakJar, clearEntities, closeArena, curElem, elemBurnDmg, elemBurnDur, elemCloudR, elemIceDur, elemLv, elemNameOf, elemPoisonDmg, elemPoisonMax, elemShatterDmg, ellipseScreenAt, endBell, fillStageIntro, fireImpact, firecrackerBurst, frostImpact, goStageNow, heroScreen, invalidateViewBox, isOnScreen, livingMarks, onebell, pickSeq, pickSpirits, placeSpirit, previewStageWorld, prewarmRecipes, projectXZ, refreshElemSlots, refreshRingPoly, refreshSpirits, refreshTitleHelp, renderStageSelect, rimErrorPx, ringR, ringScreenPts, screenAngleTo, screenOf, screenRingPx, segDist, setChapterArt, setDashElem, setSpiritCount, snapSpiritsToTargets, spawnBoss, spawnItem, spawnPool, spawnSpirit, spawnZombie, spiritShape, startBell, startRun, stepArena, stepSpirits, strokeAimDir, strokeScreenDir, titleChip, titlePrewarm, triggerCinematic, unlockedMax, unlockedShapes, unprojectToY, upcomingRun, viewBox, warmShaders, worldPerCss };
 }

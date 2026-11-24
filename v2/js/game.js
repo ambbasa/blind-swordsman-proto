@@ -31,36 +31,36 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v126';
+import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v127';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v126';
+import { probeAssets, buildArt } from './art.js?v=v127';
 import * as Anim from './anim.js';
-import { createAudio } from './audio.js?v=v126';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v126';
-import { PAT_COST, PAT_CUE, getActPhaseFx, getActSkillNames, bossPatternMean, buildBossBannerInfo, pickBossOrbitShapes, pickZoneSpiritShape } from './modules/bossPatterns.js?v=v126';
-import { TERRAIN_CFG, tHash, tPatchAt, tPatchesNear, tRootAt, getRiverCfg, tWaterCenter as terrainWaterCenter, tWaterAt as terrainWaterAt, resolveZoneAt, resolveSegZone } from './modules/stageTerrain.js?v=v126';
-import { ensureDailyFresh as ensureDailyFreshState, bumpDailyProgress, actStarTotalOf, hasClaimableRetentionOf, claimAttendanceReward, claimDailyQuestReward, claimStarChestReward, claimCodexMilestoneReward, renderDailyView } from './modules/retention.js?v=v126';
-import { renderCodexView } from './modules/codexView.js?v=v126';
-import { renderShopOverview, renderShopTabView, renderCosmeticView } from './modules/shopView.js?v=v126';
-import { TRAIN_SHAPES, SHAPE_LABEL, SHAPE_TIP, createTrainController } from './modules/trainView.js?v=v126';
-import { computeStar3Info, computeStarsFor } from './modules/starRating.js?v=v126';
-import { createStageGoalController } from './modules/stageGoal.js?v=v126';
-import { createChallengeController } from './modules/challengeMode.js?v=v126';
-import { isElemKey, cardNameOfKey, rollUpgradePicks, evoPartsOf, evoMatInfoFor, evoHintsFor, pickRecommendedId } from './modules/runUpgrades.js?v=v126';
-import { createQaBridge } from './modules/qaBridge.js?v=v126';
-import { createOverlay2d } from './modules/overlay2d.js?v=v126';
-import { createWorld3d } from './modules/world3d.js?v=v126';
-import { createUiBindings } from './modules/uiBindings.js?v=v126';
-import { createShopLogic } from './modules/shopLogic.js?v=v126';
-import { createMainLoop } from './modules/mainLoop.js?v=v126';
-import { createSaveHud } from './modules/saveHud.js?v=v126';
-import { createTutorialSys } from './modules/tutorialSys.js?v=v126';
-import { createRunLoop } from './modules/runLoop.js?v=v126';
-import { createStrokeInput } from './modules/strokeInput.js?v=v126';
-import { createStageFlow } from './modules/stageFlow.js?v=v126';
-import { createCombatEngine } from './modules/combatEngine.js?v=v126';
-import { createBossEngine } from './modules/bossEngine.js?v=v126';
-import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v126';
+import { createAudio } from './audio.js?v=v127';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v127';
+import { PAT_COST, PAT_CUE, getActPhaseFx, getActSkillNames, bossPatternMean, buildBossBannerInfo, pickBossOrbitShapes, pickZoneSpiritShape } from './modules/bossPatterns.js?v=v127';
+import { TERRAIN_CFG, tHash, tPatchAt, tPatchesNear, tRootAt, getRiverCfg, tWaterCenter as terrainWaterCenter, tWaterAt as terrainWaterAt, resolveZoneAt, resolveSegZone } from './modules/stageTerrain.js?v=v127';
+import { ensureDailyFresh as ensureDailyFreshState, bumpDailyProgress, actStarTotalOf, hasClaimableRetentionOf, claimAttendanceReward, claimDailyQuestReward, claimStarChestReward, claimCodexMilestoneReward, renderDailyView } from './modules/retention.js?v=v127';
+import { renderCodexView } from './modules/codexView.js?v=v127';
+import { renderShopOverview, renderShopTabView, renderCosmeticView } from './modules/shopView.js?v=v127';
+import { TRAIN_SHAPES, SHAPE_LABEL, SHAPE_TIP, createTrainController } from './modules/trainView.js?v=v127';
+import { computeStar3Info, computeStarsFor } from './modules/starRating.js?v=v127';
+import { createStageGoalController } from './modules/stageGoal.js?v=v127';
+import { createChallengeController } from './modules/challengeMode.js?v=v127';
+import { isElemKey, cardNameOfKey, rollUpgradePicks, evoPartsOf, evoMatInfoFor, evoHintsFor, pickRecommendedId } from './modules/runUpgrades.js?v=v127';
+import { createQaBridge } from './modules/qaBridge.js?v=v127';
+import { createOverlay2d } from './modules/overlay2d.js?v=v127';
+import { createWorld3d } from './modules/world3d.js?v=v127';
+import { createUiBindings } from './modules/uiBindings.js?v=v127';
+import { createShopLogic } from './modules/shopLogic.js?v=v127';
+import { createMainLoop } from './modules/mainLoop.js?v=v127';
+import { createSaveHud } from './modules/saveHud.js?v=v127';
+import { createTutorialSys } from './modules/tutorialSys.js?v=v127';
+import { createRunLoop } from './modules/runLoop.js?v=v127';
+import { createStrokeInput } from './modules/strokeInput.js?v=v127';
+import { createStageFlow } from './modules/stageFlow.js?v=v127';
+import { createCombatEngine } from './modules/combatEngine.js?v=v127';
+import { createBossEngine } from './modules/bossEngine.js?v=v127';
+import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v127';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
@@ -81,7 +81,7 @@ import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariant
 import { InkFx, FX_COLORS } from './inkfx.js';
 import { BossFx } from './bossFx.js';
 import { createTelemetry } from './telemetry.js';
-import { applyHeroCloak3D } from './inkhero3d.js?v=v126';
+import { applyHeroCloak3D } from './inkhero3d.js?v=v127';
 import {
   SAVE_VERSION, STAT_DEFS, FORGE_COSTS, SWORDS, RELICS, COSMETIC_CLOAKS, COSMETIC_TRAILS,
   DAILY_QUESTS, ATTENDANCE_REWARDS, STAR_CHESTS, CODEX_MILESTONES,
@@ -94,7 +94,7 @@ import { InkLightPool, createWorldInkUniforms, attachGroundInkShader } from './i
 import { initOverlayShell } from './ui/overlayShell.js';
 import { installCssVars, color as palColor, hex as palHex } from './palette.js';
 import { WF, paint as paintCard, updateFade as updateWorldFade, stats as cardStats } from './cardstock.js';
-import { SHAPE_MARK, TOTEM_SHAPES, SHAPE_KEY, SHAPE_UNLOCK, COMBAT, SHAPE_HINT, CFG } from './modules/gameConfig.js?v=v126';
+import { SHAPE_MARK, TOTEM_SHAPES, SHAPE_KEY, SHAPE_UNLOCK, COMBAT, SHAPE_HINT, CFG } from './modules/gameConfig.js?v=v127';
 import {
   getShopTabNote, statUpgradeCost, statTotalSpent, resetAllStats,
   computeCombatPower, stageRecommendedPower, forgeCostOf,
@@ -109,8 +109,8 @@ import { MODES, MODE_ORDER, MODE_NOTE, modeOf, CHALLENGES, challengeOf, RUN_UPGR
 import { PAT_CODE } from './modules/bossCatalog.js';
 import { createInputQueue, createDashLatencyTracker } from './modules/inputQueue.js';
 import { createRunState, resetRunStateOnQuit } from './modules/state.js';
-import { createHudController } from './modules/hudController.js?v=v126';
-import { createUiRouter } from './modules/uiRouter.js?v=v126';
+import { createHudController } from './modules/hudController.js?v=v127';
+import { createUiRouter } from './modules/uiRouter.js?v=v127';
 import { syncSceneActTheme3D } from './modules/actTheme3d.js';
 import { createInkRiver3D } from './modules/inkWater3d.js';
 import { createInkTerrain3D } from './modules/inkTerrain3d.js';
@@ -165,6 +165,26 @@ const fxQForced = (function () {
 let fxQ = fxQualityFromUrl();
 const fxinkStat = { slashes: 0, hits: 0, kills: 0 };
 applyHanjiToneToStages(THREE.Color, STAGES);
+let titleSel = null, pendingStage = null, _frameId = 0, _atmoMask = '', _heroCssX = '';
+let QA_CAM = null, lastMarkMetrics = { cssPx: 40, minCss: 40, w: 0, h: 0, marks: [] }, guideUntil = 0;
+let qaFadeMat = 1, qaFadePostK = 1, qaFadeColor = false;
+function curMode() { return modeOf((S && S.mode) || save.mode || 'jeongseok'); }
+/** 고수 모드는 12장을 깨야 열린다. */
+function gosuUnlocked() { return ((save.stars || {})[STAGES.length] || 0) > 0; }
+function challengeUnlocked(id) {
+  const c = challengeOf(id);
+  if (!c) return false;
+  return ((save.stars || {})[c.unlock] || 0) > 0 || ((save.stars || {})[STAGES.length] || 0) > 0;
+}
+function challengeRecord(id) { return (save.records && save.records[id]) || 0; }
+/** 이 판의 예고 배율(모드 × 동적 보정). 첫 등장 연출은 이 값 위에 한 번 더 곱한다. */
+function teleMul() { return ((S && S.teleMul) || curMode().tele) * ((S && S.phaseTele) || 1); }
+/** 받는 피해: 모드 배율(최소 1). */
+function modeDmg(n) { return Math.max(1, Math.round((n || 0) * curMode().dmg)); }
+function modeSpd() { return curMode().spd; }
+function modeCoin() { return curMode().coin; }
+/** 별 상한: 수련은 2개까지. */
+function starCap() { return curMode().starCap; }
 function curStage() { return (S && S.stage) || stageOf(save.stage || 1); }
 function stageWaves() { const st = curStage(); return (st && st.waves) || CFG.waves || []; }
 /* 한 판의 제한 시간(스테이지별). 적 성장·포위 가속의 기준. */
@@ -489,6 +509,8 @@ const _rt = {
   get CFG() { return CFG; },
   get CHALLENGES() { return CHALLENGES; },
   get CLUB_IMPACT_TIME() { return CLUB_IMPACT_TIME; },
+  get COSMETIC_CLOAKS() { return COSMETIC_CLOAKS; },
+  get COSMETIC_TRAILS() { return COSMETIC_TRAILS; },
   get DPR_QUERY() { return DPR_QUERY; },
   get EVO_SLOTS() { return EVO_SLOTS; },
   get FXINK_BASE() { return FXINK_BASE; },
@@ -507,15 +529,18 @@ const _rt = {
   get PIXEL_LOOK() { return PIXEL_LOOK; },
   get PaperFx() { return PaperFx; },
   get QA_CAM() { return QA_CAM; }, set QA_CAM(v) { QA_CAM = v; },
+  get RELICS() { return RELICS; },
   get RUN_UPGRADES() { return RUN_UPGRADES; },
   get S() { return S; }, set S(v) { S = v; },
   get SAVE_KEY() { return SAVE_KEY; },
+  get SAVE_VERSION() { return SAVE_VERSION; },
   get SHAPE_HINT() { return SHAPE_HINT; },
   get SHAPE_MARK() { return SHAPE_MARK; },
   get SHAPE_UNLOCK() { return SHAPE_UNLOCK; },
   get SPIRIT_GLYPH_PATHS() { return SPIRIT_GLYPH_PATHS; },
   get STAGES() { return STAGES; },
   get STAT_DEFS() { return STAT_DEFS; },
+  get SWORDS() { return SWORDS; },
   get SimanShaderFx3D() { return SimanShaderFx3D; },
   get SimanVfx3D() { return SimanVfx3D; },
   get StageAtmosphere() { return StageAtmosphere; },
@@ -525,14 +550,10 @@ const _rt = {
   get TraceField() { return TraceField; },
   get WF() { return WF; },
   get WF_POST() { return WF_POST; },
-  get _hazGeo() { return _hazGeo; }, set _hazGeo(v) { _hazGeo = v; },
-  get _heroCssY() { return _heroCssY; }, set _heroCssY(v) { _heroCssY = v; },
+  get _atmoMask() { return _atmoMask; }, set _atmoMask(v) { _atmoMask = v; },
+  get _frameId() { return _frameId; }, set _frameId(v) { _frameId = v; },
+  get _heroCssX() { return _heroCssX; }, set _heroCssX(v) { _heroCssX = v; },
   get _proj() { return _proj; },
-  get _rectCache() { return _rectCache; }, set _rectCache(v) { _rectCache = v; },
-  get _reflectMat() { return _reflectMat; }, set _reflectMat(v) { _reflectMat = v; },
-  get _shotGeo() { return _shotGeo; }, set _shotGeo(v) { _shotGeo = v; },
-  get _shotGoldMat() { return _shotGoldMat; }, set _shotGoldMat(v) { _shotGoldMat = v; },
-  get _trailMat() { return _trailMat; }, set _trailMat(v) { _trailMat = v; },
   get a11yCb() { return a11yCb; },
   get a11yShake() { return a11yShake; },
   get absorbAllItems() { return absorbAllItems; },
@@ -610,6 +631,8 @@ const _rt = {
   get clampHeroToArena() { return clampHeroToArena; },
   get clampPointToArena() { return clampPointToArena; },
   get clashStroke() { return clashStroke; },
+  get clearEntities() { return clearEntities; },
+  get clearInk() { return clearInk; },
   get clearOnebell() { return clearOnebell; },
   get clearOrbitSpirits() { return clearOrbitSpirits; },
   get clipBound() { return clipBound; },
@@ -630,8 +653,15 @@ const _rt = {
   get comboBreak() { return comboBreak; },
   get comboMul() { return comboMul; },
   get comboReward() { return comboReward; },
+  get computeAtkBonus() { return computeAtkBonus; },
   get computeCombatPower() { return computeCombatPower; },
+  get computeComboMul() { return computeComboMul; },
+  get computeDashDmg() { return computeDashDmg; },
+  get computeGapBonus() { return computeGapBonus; },
   get computeIdleCoins() { return computeIdleCoins; },
+  get computeMaxHp() { return computeMaxHp; },
+  get computePoiseBonus() { return computePoiseBonus; },
+  get cosTab() { return cosTab; }, set cosTab(v) { cosTab = v; },
   get createChunkWorld() { return createChunkWorld; },
   get createCinematicPass() { return createCinematicPass; },
   get createDashLatencyTracker() { return createDashLatencyTracker; },
@@ -655,6 +685,7 @@ const _rt = {
   get devBossNow() { return devBossNow; },
   get developerMode() { return developerMode; },
   get dioramaInfo() { return dioramaInfo; },
+  get disposeCharGeom() { return disposeCharGeom; },
   get dist() { return dist; },
   get doParry() { return doParry; },
   get dofPassOf() { return dofPassOf; },
@@ -679,6 +710,7 @@ const _rt = {
   get endShrink() { return endShrink; },
   get endTutorial() { return endTutorial; },
   get enqueueInputBuf() { return enqueueInputBuf; },
+  get ensureLobbyHero3D() { return ensureLobbyHero3D; },
   get equipCosmetic() { return equipCosmetic; },
   get equipSword() { return equipSword; },
   get equippedRelics() { return equippedRelics; },
@@ -695,8 +727,11 @@ const _rt = {
   get fireLanding() { return fireLanding; },
   get fireWave() { return fireWave; },
   get firecrackerBurst() { return firecrackerBurst; },
+  get fitShadowFrustum() { return fitShadowFrustum; },
   get floorStatus() { return floorStatus; },
+  get focusDistance() { return focusDistance; },
   get foldPop() { return foldPop; },
+  get forgeCostOf() { return forgeCostOf; },
   get fps() { return fps; },
   get fpsReport() { return fpsReport; },
   get frameDt() { return frameDt; }, set frameDt(v) { frameDt = v; },
@@ -721,6 +756,7 @@ const _rt = {
   get goldShotMaterial() { return goldShotMaterial; },
   get gosuUnlocked() { return gosuUnlocked; },
   get groundYAt() { return groundYAt; },
+  get guideUntil() { return guideUntil; }, set guideUntil(v) { guideUntil = v; },
   get haptic() { return haptic; },
   get hazardGeo() { return hazardGeo; },
   get hazardPool() { return hazardPool; },
@@ -740,6 +776,7 @@ const _rt = {
   get inkColorFor() { return inkColorFor; },
   get inkFade() { return inkFade; }, set inkFade(v) { inkFade = v; },
   get inkFx() { return inkFx; },
+  get invalidateViewBox() { return invalidateViewBox; },
   get isElemKey() { return isElemKey; },
   get isOnScreen() { return isOnScreen; },
   get kiaiTap() { return kiaiTap; },
@@ -773,6 +810,7 @@ const _rt = {
   get modeOf() { return modeOf; },
   get modeSpd() { return modeSpd; },
   get nearestTo() { return nearestTo; },
+  get newSaveMeta() { return newSaveMeta; },
   get nightColor() { return nightColor; },
   get noteHit() { return noteHit; },
   get notePatSeen() { return notePatSeen; },
@@ -798,6 +836,7 @@ const _rt = {
   get paperPropCanvas() { return paperPropCanvas; },
   get pathR() { return pathR; },
   get pauseRun() { return pauseRun; },
+  get pendingStage() { return pendingStage; }, set pendingStage(v) { pendingStage = v; },
   get perfMark() { return perfMark; },
   get persist() { return persist; },
   get pickAffordableStatUpgrade() { return pickAffordableStatUpgrade; },
@@ -846,16 +885,20 @@ const _rt = {
   get renderChallenges() { return renderChallenges; },
   get renderCodex() { return renderCodex; },
   get renderCosmeticOverlay() { return renderCosmeticOverlay; },
+  get renderCosmeticView() { return renderCosmeticView; },
   get renderDailyOverlay() { return renderDailyOverlay; },
   get renderGoalHud() { return renderGoalHud; },
   get renderHud() { return renderHud; },
   get renderModes() { return renderModes; },
   get renderShopOverview() { return renderShopOverview; },
   get renderShopTab() { return renderShopTab; },
+  get renderShopTabView() { return renderShopTabView; },
   get renderStageSelect() { return renderStageSelect; },
   get renderTrainDrills() { return renderTrainDrills; },
   get renderVulnBadge() { return renderVulnBadge; },
   get resetAllStats() { return resetAllStats; },
+  get resetRunStateOnQuit() { return resetRunStateOnQuit; },
+  get resizeInk() { return resizeInk; },
   get resolveDash() { return resolveDash; },
   get resolvePropCollision() { return resolvePropCollision; },
   get resolveTieAxis() { return resolveTieAxis; },
@@ -879,6 +922,7 @@ const _rt = {
   get seen() { return seen; },
   get segDist() { return segDist; },
   get setA11y() { return setA11y; },
+  get setChapterArt() { return setChapterArt; },
   get setDashElem() { return setDashElem; },
   get setDrawingActive() { return setDrawingActive; },
   get setLevelMode() { return setLevelMode; },
@@ -923,20 +967,24 @@ const _rt = {
   get startTutorial() { return startTutorial; },
   get statUpgradeCost() { return statUpgradeCost; },
   get step() { return step; },
+  get stepArena() { return stepArena; },
   get stepBolt() { return stepBolt; },
   get stepBolts() { return stepBolts; },
   get stepBoss() { return stepBoss; },
   get stepBossSummons() { return stepBossSummons; },
   get stepDash() { return stepDash; },
+  get stepDying() { return stepDying; },
   get stepEchoes() { return stepEchoes; },
   get stepEnemySpecial() { return stepEnemySpecial; },
   get stepGapBuffer() { return stepGapBuffer; },
   get stepHazards() { return stepHazards; },
   get stepInkSteps() { return stepInkSteps; },
+  get stepQuality() { return stepQuality; },
   get stepReflects() { return stepReflects; },
   get stepShots() { return stepShots; },
   get stepShrink() { return stepShrink; },
   get stepSpirits() { return stepSpirits; },
+  get stepTutorial() { return stepTutorial; },
   get stepWard() { return stepWard; },
   get stopCodex3d() { return stopCodex3d; },
   get streakOf() { return streakOf; },
@@ -950,9 +998,12 @@ const _rt = {
   get swordOf() { return swordOf; },
   get syncA11yUi() { return syncA11yUi; },
   get syncBossOrbitSpirits() { return syncBossOrbitSpirits; },
+  get syncGroundEffects() { return syncGroundEffects; },
   get syncHeroCosmetic3D() { return syncHeroCosmetic3D; },
   get syncHeroWeaponCosmetic() { return syncHeroWeaponCosmetic; },
   get syncLobby3dStyle() { return syncLobby3dStyle; },
+  get syncLobbyStatus() { return syncLobbyStatus; },
+  get syncSceneActTheme3D() { return syncSceneActTheme3D; },
   get tHash() { return tHash; },
   get tPatchesNear() { return tPatchesNear; },
   get tRootAt() { return tRootAt; },
@@ -967,6 +1018,7 @@ const _rt = {
   get terrainSlowMul() { return terrainSlowMul; },
   get terrainSpeedMul() { return terrainSpeedMul; },
   get three() { return three; }, set three(v) { three = v; },
+  get tickFolds() { return tickFolds; },
   get tickGoal() { return tickGoal; },
   get tickQuick() { return tickQuick; },
   get tickStatuses() { return tickStatuses; },
@@ -974,6 +1026,7 @@ const _rt = {
   get tintZombie() { return tintZombie; },
   get titleSel() { return titleSel; }, set titleSel(v) { titleSel = v; },
   get toast() { return toast; },
+  get toastT() { return toastT; }, set toastT(v) { toastT = v; },
   get toggleRelic() { return toggleRelic; },
   get totemPool() { return totemPool; },
   get trailMaterial() { return trailMaterial; },
@@ -994,6 +1047,8 @@ const _rt = {
   get upcomingRun() { return upcomingRun; },
   get updateCam() { return updateCam; },
   get updateMarks() { return updateMarks; },
+  get updateRetentionBadge() { return updateRetentionBadge; },
+  get updateWorldFade() { return updateWorldFade; },
   get veilStroke() { return veilStroke; },
   get viewBox() { return viewBox; },
   get viewSpanFor() { return viewSpanFor; },
@@ -1007,69 +1062,20 @@ const _rt = {
   get worldBounds() { return worldBounds; },
   get worldPerCss() { return worldPerCss; },
   get xpNeed() { return xpNeed; },
-  get y() { return y; },
   get zoneAt() { return zoneAt; },
-  get SAVE_VERSION() { return SAVE_VERSION; },
-  get clearEntities() { return clearEntities; },
-  get computeAtkBonus() { return computeAtkBonus; },
-  get computeComboMul() { return computeComboMul; },
-  get computeDashDmg() { return computeDashDmg; },
-  get computeGapBonus() { return computeGapBonus; },
-  get computeMaxHp() { return computeMaxHp; },
-  get computePoiseBonus() { return computePoiseBonus; },
-  get ensureLobbyHero3D() { return ensureLobbyHero3D; },
-  get newSaveMeta() { return newSaveMeta; },
-  get resetRunStateOnQuit() { return resetRunStateOnQuit; },
-  get shownHp() { return shownHp; }, set shownHp(v) { shownHp = v; },
-  get shownMaxHp() { return shownMaxHp; }, set shownMaxHp(v) { shownMaxHp = v; },
-  get syncLobbyStatus() { return syncLobbyStatus; },
-  get toastT() { return toastT; }, set toastT(v) { toastT = v; },
-  get updateRetentionBadge() { return updateRetentionBadge; },
-  get _atmoMask() { return _atmoMask; },
-  get _frameId() { return _frameId; },
-  get _heroCssX() { return _heroCssX; },
-  get _rt() { return _rt; },
-  get bindUi() { return bindUi; },
-  get clearInk() { return clearInk; },
-  get createUiBindings() { return createUiBindings; },
-  get disposeCharGeom() { return disposeCharGeom; },
-  get fitShadowFrustum() { return fitShadowFrustum; },
-  get focusDistance() { return focusDistance; },
-  get guardEvents() { return guardEvents; },
-  get guideUntil() { return guideUntil; },
-  get invalidateViewBox() { return invalidateViewBox; },
-  get pendingStage() { return pendingStage; },
-  get resizeInk() { return resizeInk; },
-  get setChapterArt() { return setChapterArt; },
-  get stepArena() { return stepArena; },
-  get stepDying() { return stepDying; },
-  get stepQuality() { return stepQuality; },
-  get stepTutorial() { return stepTutorial; },
-  get syncGroundEffects() { return syncGroundEffects; },
-  get syncSceneActTheme3D() { return syncSceneActTheme3D; },
-  get tickFolds() { return tickFolds; },
-  get updateWorldFade() { return updateWorldFade; },
-  get COSMETIC_CLOAKS() { return COSMETIC_CLOAKS; },
-  get COSMETIC_TRAILS() { return COSMETIC_TRAILS; },
-  get RELICS() { return RELICS; },
-  get SWORDS() { return SWORDS; },
-  get cosTab() { return cosTab; }, set cosTab(v) { cosTab = v; },
-  get forgeCostOf() { return forgeCostOf; },
-  get renderCosmeticView() { return renderCosmeticView; },
-  get renderShopTabView() { return renderShopTabView; },
 };
-const { atkBonus, coinMult, comboMul, dashDmg, gapBonus, guideUntil, hideGuide, hideOvs, loadSave, mapIdOf, maxHp, nightColor, pathR, pauseRun, persist, poiseBonus, quitRun, renderHud, renderVulnBadge, resumeRun, setMuted, showGuide, showOv, toast, xpNeed } = createSaveHud(_rt);
-const { DPR_QUERY, WF_POST, addEntityVisual, disposeCharGeom, dofPassOf, fitShadowFrustum, groundYAt, makeWorld, placeGroup, qaFadeMat, setupChunkWorld, stepQuality, switchMap, wireFadeSource } = createWorld3d(_rt);
+const { atkBonus, coinMult, comboMul, dashDmg, gapBonus, hideGuide, hideOvs, loadSave, mapIdOf, maxHp, nightColor, pathR, pauseRun, persist, poiseBonus, quitRun, renderHud, renderVulnBadge, resumeRun, setMuted, showGuide, showOv, toast, xpNeed } = createSaveHud(_rt);
+const { DPR_QUERY, WF_POST, addEntityVisual, disposeCharGeom, dofPassOf, fitShadowFrustum, groundYAt, makeWorld, placeGroup, setupChunkWorld, stepQuality, switchMap, wireFadeSource } = createWorld3d(_rt);
 const { SWORD_GLOW_MAP, a11yCb, a11yShake, addSlow, bumpStreak, drawTutorial, endTutorial, haptic, markSeen, reducedMotion, renderModes, seen, setA11y, setLevelMode, setMode, startTutorial, stepTutorial, streakOf, syncA11yUi, syncHeroWeaponCosmetic, tickTutorial, tutorialFirstSuccess } = createTutorialSys(_rt);
-const { _atmoMask, _frameId, _heroCssX, absorbAllItems, addSpirit, angDiff, applyRingBoost, assignSpiritTargets, beginStage, bellFootScreen, bellScreen, bellWorld, breakJar, clearEntities, closeArena, curElem, elemBurnDmg, elemBurnDur, elemCloudR, elemIceDur, elemLv, elemNameOf, elemPoisonDmg, elemPoisonMax, elemShatterDmg, ellipseScreenAt, endBell, fillStageIntro, fireImpact, firecrackerBurst, frostImpact, goStageNow, heroScreen, invalidateViewBox, isOnScreen, livingMarks, onebell, pendingStage, pickSeq, pickSpirits, placeSpirit, previewStageWorld, prewarmRecipes, projectXZ, refreshElemSlots, refreshRingPoly, refreshSpirits, refreshTitleHelp, renderStageSelect, rimErrorPx, ringR, ringScreenPts, screenAngleTo, screenOf, screenRingPx, segDist, setChapterArt, setDashElem, setSpiritCount, snapSpiritsToTargets, spawnBoss, spawnItem, spawnPool, spawnSpirit, spawnZombie, spiritShape, startBell, startRun, stepArena, stepSpirits, strokeAimDir, strokeScreenDir, titleChip, titlePrewarm, titleSel, triggerCinematic, unlockedMax, unlockedShapes, unprojectToY, upcomingRun, viewBox, warmShaders, worldPerCss } = createStageFlow(_rt);
-const { _proj, beginDash, beginOnebell, brushMark, clampHeroToArena, clampPointToArena, clearOnebell, clipBound, clipWorld, comboBreak, comboReward, consumeInputBuf, dashEndPoint, endOnebell, enqueueInputBuf, failHint, inkColorFor, landDash, landingShock, lastMarkMetrics, loadMarkImages, onebellSlash, resolveDash, resolvePropCollision, ringSpiritBell, scoreDash, secondScore, showJudge, stampSkill, startSeg, syncGroundEffects, triggerSightWave, updateMarks, worldBounds } = createOverlay2d(_rt);
+const { absorbAllItems, addSpirit, angDiff, applyRingBoost, assignSpiritTargets, beginStage, bellFootScreen, bellScreen, bellWorld, breakJar, clearEntities, closeArena, curElem, elemBurnDmg, elemBurnDur, elemCloudR, elemIceDur, elemLv, elemNameOf, elemPoisonDmg, elemPoisonMax, elemShatterDmg, ellipseScreenAt, endBell, fillStageIntro, fireImpact, firecrackerBurst, frostImpact, goStageNow, heroScreen, invalidateViewBox, isOnScreen, livingMarks, onebell, pickSeq, pickSpirits, placeSpirit, previewStageWorld, prewarmRecipes, projectXZ, refreshElemSlots, refreshRingPoly, refreshSpirits, refreshTitleHelp, renderStageSelect, rimErrorPx, ringR, ringScreenPts, screenAngleTo, screenOf, screenRingPx, segDist, setChapterArt, setDashElem, setSpiritCount, snapSpiritsToTargets, spawnBoss, spawnItem, spawnPool, spawnSpirit, spawnZombie, spiritShape, startBell, startRun, stepArena, stepSpirits, strokeAimDir, strokeScreenDir, titleChip, titlePrewarm, triggerCinematic, unlockedMax, unlockedShapes, unprojectToY, upcomingRun, viewBox, warmShaders, worldPerCss } = createStageFlow(_rt);
+const { _proj, beginDash, beginOnebell, brushMark, clampHeroToArena, clampPointToArena, clearOnebell, clipBound, clipWorld, comboBreak, comboReward, consumeInputBuf, dashEndPoint, endOnebell, enqueueInputBuf, failHint, inkColorFor, landDash, landingShock, loadMarkImages, onebellSlash, resolveDash, resolvePropCollision, ringSpiritBell, scoreDash, secondScore, showJudge, stampSkill, startSeg, syncGroundEffects, triggerSightWave, updateMarks, worldBounds } = createOverlay2d(_rt);
 const { addCharge, addHitstop, afterimages, applyElement, applyPath, applyUpgrade, autoShare, boltPeriod, bossTiming, cardNameOf, castCleave, checkEvolutions, closeQuickCards, collectItem, cutBoss, destroySpirit, doParry, dropInkStep, evoHints, evoMatInfo, fireLanding, fireWave, frostLanding, gainXp, gapInfo, hurtZombie, incomingParryThreat, killZombie, magnetPull, makeBossSlash, makeSlash, openLevelUp, otherShape, pickQuick, pickUpgrade, preciseTarget, queueEcho, recommendedPick, slowMulOf, spawnEliteEvent, stepBolt, stepBolts, stepDying, stepEchoes, stepInkSteps, stepWard, tickQuick, tickStatuses, tintZombie, triggerGroundCrackHeat, upCardLevelText, upDesc, upLv, wardInfo } = createCombatEngine(_rt);
 const { applySkin, bossCfg, bossHasNewGimmick, bossMinions, bossPat, bossPatList, bossPhaseCheck, bossPoise, bossVisualOf, breakPillar, breakTotem, chantStroke, clashStroke, clearOrbitSpirits, cloneHeld, codexBoss, codexEvo, codexMon, dashAtBoss, drawBossPat, endBossSide, endShrink, goldShotMaterial, hazardGeo, hazardPool, heroHurt, heroHurtForce, kiaiTap, kiaiWin, makePillarObj, makeReflectMesh, makeTotemObj, maybeEnd, mirrorSave, noteHit, notePatSeen, popClone, reflectGoldShots, reflectReady, refreshBossGlyphs, releaseShotMesh, relicDmgAdd, revealBoss, rhythmTap, sealStroke, shotGeo, shotMaterial, shotPool, showBossCard, spawnHazard, spawnShot, startBossPattern, startSeal, stepBoss, stepBossSummons, stepEnemySpecial, stepHazards, stepReflects, stepShots, stepShrink, summonDodgeTarget, syncBossOrbitSpirits, totemPool, trailMaterial, veilStroke } = createBossEngine(_rt);
 /* 별점 (v0.32 §7.4): 클리어 1 + (체력 50% 이상 **또는** 피격 3회 이하) 1 + 도전 과제 1.
    정점 장(4·8·12)의 세 번째 별은 패턴 공략, 나머지 장은 콤보(0.8배) 또는 지형 도전. 수련 모드는 2개까지(§7.2). */
 function star3Info(st) { return computeStar3Info(st, S, CFG); }
 function starsFor(win) { return computeStarsFor(win, S, CFG, maxHp(), starCap()); }
-const { QA_CAM, endRun, step, stepDash, updateCam } = createRunLoop(_rt);
+const { endRun, step, stepDash, updateCam } = createRunLoop(_rt);
 const { buy, checkIdle, clearInk, collectIdle, doResetStats, ensureLobbyHero3D, finishStroke, idleCoins, onDown, onMove, onUp, paintInk, pickAffordableStatUpgrade, refreshShop, resizeInk, resolveTieAxis, setDrawingActive, stepGapBuffer, strokeType, syncHeroCosmetic3D, syncLobbyStatus, syntheticPath } = createStrokeInput(_rt);
 const _challengeCtrl = createChallengeController({
   getState: function () { return S; },
@@ -1215,6 +1221,7 @@ function openTrain() { return _trainCtrl.openTrain(); }
 function closeTrain() { return _trainCtrl.closeTrain(); }
 function wireTrain() { return _trainCtrl.wireTrain(); }
 
+const { bindUi, guardEvents } = createUiBindings(_rt);
 const { applyCameraLens, applyFxinkAtmo, applyStageAtmo, camDist, drawSightFog, fpsReport, loop, onResize, viewSpanFor } = createMainLoop(_rt);
 async function boot() {
   const _tBoot = performance.now();

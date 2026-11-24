@@ -250,7 +250,6 @@ function dofPassOf() {
   return null;
 }
 /* QA/튜닝 스위치 — 0 이면 각 층의 안개를 끈다(전후 비교 스크린샷용). */
-let qaFadeMat = 1, qaFadePostK = 1, qaFadeColor = false;
 
 /* ---------- v0.39 3단계: 그림자 프러스텀 피팅 ----------
    60m 고정 ortho(1024)는 화면에 보이는 10~15m 바닥에 비해 해상도를 4배 이상 낭비했다.
@@ -344,7 +343,7 @@ function applyQuality(level) {
     }
   }
   /* 가장 낮은 두 단계에서는 후처리 안개 한 겸을 생략한다(재질 안개가 그대로 남아 룩은 유지된다). */
-  qaFadePostK = level >= 3 ? 0 : 1;
+  rt.qaFadePostK = level >= 3 ? 0 : 1;
   /* v0.40 4단계: 틸트시프트 심도도 같은 레더에 매단다 — 3단계 이하(저사양)에서 자동으로 꺼진다. */
   try { const dp = dofPassOf(); if (dp) dp.setLevel(level); } catch (e) {}
   const bq = level < 2 ? rt.fxQualityFromUrl() : 'low';
@@ -408,5 +407,5 @@ function placeGroup(g, x, z, bob) {
   g.position.set(x, gy + (bob || 0), z);
 }
 
-  return { DPR_QUERY, WF_POST, addEntityVisual, disposeCharGeom, dofPassOf, fitShadowFrustum, groundYAt, makeWorld, placeGroup, qaFadeMat, setupChunkWorld, stepQuality, switchMap, wireFadeSource };
+  return { DPR_QUERY, WF_POST, addEntityVisual, disposeCharGeom, dofPassOf, fitShadowFrustum, groundYAt, makeWorld, placeGroup, setupChunkWorld, stepQuality, switchMap, wireFadeSource };
 }

@@ -637,12 +637,11 @@ function stepDash(dt) {
    돌진 시작·착지에서 화면이 튀었다. 이제 ① dt 와 무관한 계수 ② 돌진 방향으로 살짝 앞을 보는 시선
    ③ 무대 밖 허공을 비추지 않는 경계 패딩(초점 클램프)을 함께 쓴다. */
 function camLerpK(tau, dt) { return 1 - Math.exp(-Math.max(0, dt) / Math.max(0.0001, tau)); }
-let QA_CAM = null;   /* QA 전용: 특정 시점을 고정해 기물·동작을 클로즈업한다 */
 function updateCam(dt) {
   if (!rt.three) return;
-  if (QA_CAM) {
-    rt.three.camera.position.set(QA_CAM.x, QA_CAM.y, QA_CAM.z);
-    rt.three.camera.lookAt(QA_CAM.tx, QA_CAM.ty, QA_CAM.tz);
+  if (rt.QA_CAM) {
+    rt.three.camera.position.set(rt.QA_CAM.x, rt.QA_CAM.y, rt.QA_CAM.z);
+    rt.three.camera.lookAt(rt.QA_CAM.tx, rt.QA_CAM.ty, rt.QA_CAM.tz);
     return;
   }
   const targetX = rt.S ? rt.S.hero.x : 0, targetZ = rt.S ? rt.S.hero.z : 0;
@@ -709,5 +708,5 @@ function updateCam(dt) {
   rt.three.camera.lookAt(rt.S.focus.x, rt.CFG.camLookY, rt.S.focus.z);
 }
 
-  return { QA_CAM, endRun, step, stepDash, updateCam };
+  return { endRun, step, stepDash, updateCam };
 }
