@@ -210,7 +210,7 @@ export function buildBossBannerInfo(z, P, bt, act) {
   if (st === 'shuffle' && z.shuffle) {
     return {
       mode: 'break', name: '무늬 뒤섞기',
-      hint: z.shuffle.gold > 0 ? '★ 지금 베면 고정!' : '금빛 순간을 노려라',
+      hint: z.shuffle.gold > 0 ? '★ 지금 베어 고정!' : '금빛 순간 포착!',
       f: clamp01(1 - (z.shuffle.t || 0) / Math.max(0.01, z.shuffle.dur)),
       sweetStart: 0.8, sweetOpen: z.shuffle.gold > 0
     };

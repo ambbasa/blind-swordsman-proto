@@ -62,10 +62,10 @@ function drawGroundSprite(ctx, project, img, cx, cz, R, rot, alpha, composite) {
 }
 
 const BANNER_STYLE = {
-  dodge:  { tag: '회피',     accent: '#f05a42', bg: 'rgba(54,16,14,0.88)',  border: 'rgba(244,96,70,0.92)',  hint: '일섬으로 벗어나라' },
-  parry:  { tag: '받아치기', accent: '#f6d268', bg: 'rgba(46,34,12,0.90)',  border: 'rgba(248,212,102,0.95)', hint: '금빛 구간에서 화면 탭!' },
-  break:  { tag: '파훼',     accent: '#5ce8c4', bg: 'rgba(12,38,34,0.88)',  border: 'rgba(92,232,196,0.92)',  hint: '뜬 무늬를 그려 끊어라' },
-  seal:   { tag: '봉인',     accent: '#ffd872', bg: 'rgba(44,30,10,0.92)',  border: 'rgba(255,222,120,0.98)', hint: '별(★)을 그려 마무리!' },
+  dodge:  { tag: '회피',     accent: '#f05a42', bg: 'rgba(54,16,14,0.88)',  border: 'rgba(244,96,70,0.92)',  hint: '일섬으로 이탈!' },
+  parry:  { tag: '받아치기', accent: '#f6d268', bg: 'rgba(46,34,12,0.90)',  border: 'rgba(248,212,102,0.95)', hint: '금빛 구간에서 탭!' },
+  break:  { tag: '파훼',     accent: '#5ce8c4', bg: 'rgba(12,38,34,0.88)',  border: 'rgba(92,232,196,0.92)',  hint: '뜬 무늬 파훼!' },
+  seal:   { tag: '봉인',     accent: '#ffd872', bg: 'rgba(44,30,10,0.92)',  border: 'rgba(255,222,120,0.98)', hint: '별(★) 그려 마무리!' },
   soak:   { tag: '진입',     accent: '#f2b84b', bg: 'rgba(46,32,10,0.90)',  border: 'rgba(242,184,75,0.95)',  hint: '기둥 혼령으로 일섬!' }
 };
 
@@ -416,7 +416,7 @@ export class BossFx {
     ctx.font = isNow ? '700 12.5px "InkSerif", "Gowun Batang", serif' : '600 11px "InkSerif", "Gowun Batang", serif';
     ctx.fillStyle = isNow ? '#fff2b0' : 'rgba(244,232,206,0.88)';
     const rightTxt = isNow
-      ? (info.mode === 'parry' ? '지금 받아쳐라' : (info.mode === 'dodge' ? '지금 회피!' : (info.hint || S.hint)))
+      ? (info.mode === 'parry' ? '지금 막기!' : (info.mode === 'dodge' ? '지금 회피!' : (info.hint || S.hint)))
       : (info.hint || S.hint);
     ctx.fillText(rightTxt, x + w - 9, y + 16);
 

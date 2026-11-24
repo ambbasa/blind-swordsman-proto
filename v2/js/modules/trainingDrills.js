@@ -229,6 +229,22 @@ export function drawDrillCanvas(ctx, W, H, st) {
   const rem = st.dur - st.t;
   const frac = Math.max(0, Math.min(1, st.t / Math.max(0.01, st.dur)));
 
+  /* v1.18 조선 수묵 결계 바닥 동심원 + 8방위 먹선 */
+  ctx.save();
+  const arenaR = minS * 0.45;
+  ctx.strokeStyle = 'rgba(226,196,138,0.13)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(cx, cy, arenaR, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, arenaR * 0.52, 0, Math.PI * 2); ctx.stroke();
+  for (let di = 0; di < 8; di++) {
+    const da = (di * Math.PI) / 4;
+    ctx.beginPath();
+    ctx.moveTo(cx + Math.cos(da) * arenaR * 0.18, cy + Math.sin(da) * arenaR * 0.18);
+    ctx.lineTo(cx + Math.cos(da) * arenaR, cy + Math.sin(da) * arenaR);
+    ctx.stroke();
+  }
+  ctx.restore();
+
   if (st.kind === 'parry' || st.kind === 'rhythm') {
     const win = st.kind === 'rhythm' ? 0.22 : 0.18;
     const tele = st.kind === 'rhythm' ? 0.52 : 0.38;
@@ -307,6 +323,13 @@ export function drawDrillCanvas(ctx, W, H, st) {
       ctx.font = '700 11px "InkSerif", "Gowun Batang", serif'; ctx.textAlign = 'center'; ctx.fillStyle = col;
       ctx.fillText(tg.label, tx, ty + 4);
     }
+
+    /* 주인공 현재 위치 표식 (한지 백옥 점) */
+    const hx = st.heroX * W, hy = st.heroY * H;
+    ctx.fillStyle = '#f6eedc';
+    ctx.beginPath(); ctx.arc(hx, hy, 5.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(95,232,194,0.85)'; ctx.lineWidth = 1.8;
+    ctx.beginPath(); ctx.arc(hx, hy, 9, 0, Math.PI * 2); ctx.stroke();
 
     /* 남은 시간 바 */
     ctx.fillStyle = 'rgba(255,255,255,0.12)';

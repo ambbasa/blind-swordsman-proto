@@ -31,15 +31,15 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v117';
+import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v118';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v117';
+import { probeAssets, buildArt } from './art.js?v=v118';
 import * as Anim from './anim.js';
-import { createAudio } from './audio.js?v=v117';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v117';
-import { PAT_COST, PAT_CUE, getActPhaseFx, getActSkillNames, bossPatternMean, buildBossBannerInfo } from './modules/bossPatterns.js?v=v117';
-import { GIMMICK_DRILLS, getDrillDef, createDrillState, resetDrillRound, stepDrill, handleDrillInput, drawDrillCanvas } from './modules/trainingDrills.js?v=v117';
-import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v117';
+import { createAudio } from './audio.js?v=v118';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v118';
+import { PAT_COST, PAT_CUE, getActPhaseFx, getActSkillNames, bossPatternMean, buildBossBannerInfo } from './modules/bossPatterns.js?v=v118';
+import { GIMMICK_DRILLS, getDrillDef, createDrillState, resetDrillRound, stepDrill, handleDrillInput, drawDrillCanvas } from './modules/trainingDrills.js?v=v118';
+import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v118';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
@@ -60,7 +60,7 @@ import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariant
 import { InkFx, FX_COLORS } from './inkfx.js';
 import { BossFx } from './bossFx.js';
 import { createTelemetry } from './telemetry.js';
-import { applyHeroCloak3D } from './inkhero3d.js?v=v117';
+import { applyHeroCloak3D } from './inkhero3d.js?v=v118';
 import {
   SAVE_VERSION, STAT_DEFS, FORGE_COSTS, SWORDS, RELICS, COSMETIC_CLOAKS, COSMETIC_TRAILS,
   DAILY_QUESTS, ATTENDANCE_REWARDS, STAR_CHESTS, CODEX_MILESTONES,
@@ -88,8 +88,8 @@ import { MODES, MODE_ORDER, MODE_NOTE, modeOf, CHALLENGES, challengeOf, RUN_UPGR
 import { PAT_CODE } from './modules/bossCatalog.js';
 import { createInputQueue, createDashLatencyTracker } from './modules/inputQueue.js';
 import { createRunState, resetRunStateOnQuit } from './modules/state.js';
-import { createHudController } from './modules/hudController.js?v=v117';
-import { createUiRouter } from './modules/uiRouter.js?v=v117';
+import { createHudController } from './modules/hudController.js?v=v118';
+import { createUiRouter } from './modules/uiRouter.js?v=v118';
 import { syncSceneActTheme3D } from './modules/actTheme3d.js';
 import { createInkRiver3D } from './modules/inkWater3d.js';
 import { createInkTerrain3D } from './modules/inkTerrain3d.js';
@@ -6396,6 +6396,9 @@ function killZombie(z, rec) {
   if (!z || !z.alive) return;
   z.alive = false;
   if (z.isBoss && S) {
+    endBossSide(z);
+    clearOrbitSpirits();
+    S.vulnStacks = 0; S.vulnT = 0; renderVulnBadge();
     codexBoss(S.stage);
     if (audio && audio.setBossMode) audio.setBossMode(false);
     bossFx.triggerGroggyBreak(z.x, z.z);
@@ -7931,6 +7934,16 @@ function clearZoneSpirits(tag) {
   for (let i = 0; i < S.spirits.length; i++) {
     const sp = S.spirits[i];
     if (sp && sp.alive && sp.zoneTag && (!tag || sp.zoneTag === tag)) {
+      sp.alive = false;
+      if (sp.obj && three && three.scene) { three.scene.remove(sp.obj); sp.obj = null; }
+    }
+  }
+}
+function clearOrbitSpirits() {
+  if (!S || !S.spirits) return;
+  for (let i = 0; i < S.spirits.length; i++) {
+    const sp = S.spirits[i];
+    if (sp && sp.alive && sp.orbitSlot != null) {
       sp.alive = false;
       if (sp.obj && three && three.scene) { three.scene.remove(sp.obj); sp.obj = null; }
     }
@@ -11194,10 +11207,16 @@ function renderCodex() {
             b2.classList.toggle('on', b2 === btn);
           });
           startCodex3d(cv, sp);
+          const ab = document.getElementById('codexAnimBtn');
+          if (ab) ab.textContent = '모션 재생';
         });
       });
+      const ANIM_KO = { idle: '기본 자세', walk: '걸음', attack: '공격', slam: '내려찍기', cast: '기공 시전', hit: '피격', stagger: '자세 붕괴', slash: '일섬' };
       const aBtn = document.getElementById('codexAnimBtn');
-      if (aBtn) aBtn.addEventListener('click', function () { playCodexAnim3d(); });
+      if (aBtn) aBtn.addEventListener('click', function () {
+        const k = playCodexAnim3d();
+        aBtn.textContent = k ? ('모션: ' + (ANIM_KO[k] || k)) : '모션 재생';
+      });
     }
   } catch (_) {}
 }
@@ -11371,11 +11390,19 @@ function wireTrain() {
     e.preventDefault();
     if (train.parryMode) {
       const pt = trainPoint(e);
+      const isSpatial = train.drill && train.drill.kind !== 'parry' && train.drill.kind !== 'rhythm';
+      if (isSpatial) {
+        train.drillDrag = true;
+        train.pts = [pt];
+        try { cv.setPointerCapture(e.pointerId); } catch (err) {}
+      }
       const res = handleDrillInput(train.drill, pt.x / Math.max(1, cv.width), pt.y / Math.max(1, cv.height));
       if (res === 'just' || res === 'step') {
+        train.drillDrag = false;
         if (audio && audio.justParry) audio.justParry();
         haptic([24, 16, 36]);
       } else if (res === 'fail') {
+        train.drillDrag = false;
         if (audio && audio.whiff) audio.whiff();
       }
       return;
@@ -11384,18 +11411,34 @@ function wireTrain() {
     try { cv.setPointerCapture(e.pointerId); } catch (err) {}
   });
   cv.addEventListener('pointermove', function (e) {
+    if (train.drillDrag && train.parryMode) {
+      e.preventDefault();
+      const p = trainPoint(e);
+      train.pts.push(p);
+      const res = handleDrillInput(train.drill, p.x / Math.max(1, cv.width), p.y / Math.max(1, cv.height));
+      if (res === 'just' || res === 'step') {
+        train.drillDrag = false; train.pts = [];
+        if (audio && audio.justParry) audio.justParry();
+        haptic([24, 16, 36]);
+      } else if (res === 'fail') {
+        train.drillDrag = false; train.pts = [];
+        if (audio && audio.whiff) audio.whiff();
+      }
+      return;
+    }
     if (!train.drawing) return;
     e.preventDefault();
     const p = trainPoint(e), last = train.pts[train.pts.length - 1];
     if (!last || Math.hypot(p.x - last.x, p.y - last.y) > 1.5) train.pts.push(p);
   });
   cv.addEventListener('pointerup', function (e) {
+    if (train.drillDrag) { train.drillDrag = false; train.pts = []; return; }
     if (!train.drawing) return;
     train.drawing = false;
     e.preventDefault();
     trainFinish();
   });
-  cv.addEventListener('pointercancel', function () { train.drawing = false; });
+  cv.addEventListener('pointercancel', function () { train.drawing = false; train.drillDrag = false; });
 }
 
 function activeFov() {
