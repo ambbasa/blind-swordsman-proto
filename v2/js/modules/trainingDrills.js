@@ -95,8 +95,9 @@ export function resetDrillRound(st) {
   } else if (st.kind === 'pizza') {
     st.dur = 2.6;
     const safeSlice = Math.floor(Math.random() * 6);
+    st.safeEven = (safeSlice % 2) === 0;
     st.safeAngle = (safeSlice + 0.5) * (Math.PI / 3);
-    const badAngle = st.safeAngle + Math.PI;
+    const badAngle = ((safeSlice + 1) % 6 + 0.5) * (Math.PI / 3);
     st.targets = [
       { x: 0.5 + Math.cos(st.safeAngle) * 0.32, y: 0.5 + Math.sin(st.safeAngle) * 0.30, ok: true, done: false, label: '안전' },
       { x: 0.5 + Math.cos(badAngle) * 0.32, y: 0.5 + Math.sin(badAngle) * 0.30, ok: false, done: false, label: '위험' }
@@ -275,8 +276,7 @@ export function drawDrillCanvas(ctx, W, H, st) {
       for (let i = 0; i < 6; i++) {
         const a0 = i * (Math.PI / 3);
         const a1 = a0 + Math.PI / 3;
-        const mid = (a0 + a1) * 0.5;
-        const isSafe = Math.abs(Math.atan2(Math.sin(mid - st.safeAngle), Math.cos(mid - st.safeAngle))) < 0.25;
+        const isSafe = (i % 2 === 0) === (st.safeEven !== false);
         ctx.fillStyle = isSafe ? 'rgba(77,212,255,0.24)' : 'rgba(255,77,61,0.28)';
         ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, rP, a0, a1); ctx.closePath(); ctx.fill();
         ctx.strokeStyle = isSafe ? '#4DD4FF' : 'rgba(255,77,61,0.65)'; ctx.lineWidth = 1.5; ctx.stroke();
@@ -302,7 +302,7 @@ export function drawDrillCanvas(ctx, W, H, st) {
       const col = st.kind === 'soak' ? '#F2B84B' : (tg.ok ? '#4DD4FF' : '#FF4D3D');
       ctx.strokeStyle = col; ctx.lineWidth = tg.ok ? 2.8 : 1.6;
       ctx.beginPath(); ctx.arc(tx, ty, tg.ok ? 20 : 16, 0, Math.PI * 2); ctx.stroke();
-      ctx.fillStyle = tg.ok ? 'rgba(77,212,255,0.18)' : 'rgba(255,77,61,0.14)';
+      ctx.fillStyle = st.kind === 'soak' ? 'rgba(242,184,75,0.22)' : (tg.ok ? 'rgba(77,212,255,0.18)' : 'rgba(255,77,61,0.14)');
       ctx.fill();
       ctx.font = '700 11px "InkSerif", "Gowun Batang", serif'; ctx.textAlign = 'center'; ctx.fillStyle = col;
       ctx.fillText(tg.label, tx, ty + 4);

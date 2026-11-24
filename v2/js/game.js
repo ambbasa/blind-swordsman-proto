@@ -31,15 +31,15 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v116';
+import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v117';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v116';
+import { probeAssets, buildArt } from './art.js?v=v117';
 import * as Anim from './anim.js';
-import { createAudio } from './audio.js?v=v116';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v116';
-import { PAT_COST, PAT_CUE, getActPhaseFx, bossPatternMean, buildBossBannerInfo } from './modules/bossPatterns.js?v=v116';
-import { GIMMICK_DRILLS, getDrillDef, createDrillState, resetDrillRound, stepDrill, handleDrillInput, drawDrillCanvas } from './modules/trainingDrills.js?v=v116';
-import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v116';
+import { createAudio } from './audio.js?v=v117';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v117';
+import { PAT_COST, PAT_CUE, getActPhaseFx, getActSkillNames, bossPatternMean, buildBossBannerInfo } from './modules/bossPatterns.js?v=v117';
+import { GIMMICK_DRILLS, getDrillDef, createDrillState, resetDrillRound, stepDrill, handleDrillInput, drawDrillCanvas } from './modules/trainingDrills.js?v=v117';
+import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v117';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
@@ -60,7 +60,7 @@ import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariant
 import { InkFx, FX_COLORS } from './inkfx.js';
 import { BossFx } from './bossFx.js';
 import { createTelemetry } from './telemetry.js';
-import { applyHeroCloak3D } from './inkhero3d.js?v=v116';
+import { applyHeroCloak3D } from './inkhero3d.js?v=v117';
 import {
   SAVE_VERSION, STAT_DEFS, FORGE_COSTS, SWORDS, RELICS, COSMETIC_CLOAKS, COSMETIC_TRAILS,
   DAILY_QUESTS, ATTENDANCE_REWARDS, STAR_CHESTS, CODEX_MILESTONES,
@@ -88,8 +88,8 @@ import { MODES, MODE_ORDER, MODE_NOTE, modeOf, CHALLENGES, challengeOf, RUN_UPGR
 import { PAT_CODE } from './modules/bossCatalog.js';
 import { createInputQueue, createDashLatencyTracker } from './modules/inputQueue.js';
 import { createRunState, resetRunStateOnQuit } from './modules/state.js';
-import { createHudController } from './modules/hudController.js?v=v116';
-import { createUiRouter } from './modules/uiRouter.js?v=v116';
+import { createHudController } from './modules/hudController.js?v=v117';
+import { createUiRouter } from './modules/uiRouter.js?v=v117';
 import { syncSceneActTheme3D } from './modules/actTheme3d.js';
 import { createInkRiver3D } from './modules/inkWater3d.js';
 import { createInkTerrain3D } from './modules/inkTerrain3d.js';
@@ -580,7 +580,6 @@ function goalPass(msg) {
   showJudge('부목표 달성');
   toast('부목표 달성 — ' + g.label + (msg ? ' · ' + msg : ''));
   S.goldEdge = Math.max(S.goldEdge || 0, 0.25);
-  if (audio && audio.setBossPhase) audio.setBossPhase(nextPhase);
   if (audio && audio.gong) audio.gong();
   renderGoalHud();
   telemetry.event('subgoal', { id: g.id, result: 'pass' });
@@ -1138,7 +1137,7 @@ function renderHud() {
     if (S.challenge === 'bossrush') stageText = '보스 러시 ' + (S.bossIdx || 0) + '/' + STAGES.length;
     else if (S.challenge === 'endless') stageText = '무한 심연 ' + (S.endlessBossN || 0) + '귀물';
   }
-  if (S.boss && S.boss.alive) stageText = '보스';
+  if (S.boss && S.boss.alive) stageText = (S.stage && S.stage.bossName) || '결전';
   setHudText($('stageLabel'), stageText);
   const xpW = Math.min(100, (S.xp / xpNeed(S.level)) * 100).toFixed(1) + '%';
   const xpEl = $('xpFill');
@@ -1857,7 +1856,7 @@ function drawTutorial(ctx, r, hs) {
     const k = clamp(S.chargeGuide / 2.2, 0, 1);
     drawGhostPath(ctx, ghostShapePath('circle', r.width * 0.5, r.height * 0.42, Math.min(r.width, r.height) * 0.16), 'rgba(91,232,196,1)', 0.35 + 0.35 * k, 6);
     ctx.save(); ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(244,236,214,' + (0.7 * k).toFixed(2) + ')';
-    ctx.font = '700 15px serif'; ctx.fillText('O — 참', r.width * 0.5, r.height * 0.42 + Math.min(r.width, r.height) * 0.16 + 26); ctx.restore();
+    ctx.font = '700 15px "InkSerif", serif'; ctx.fillText('O — 참', r.width * 0.5, r.height * 0.42 + Math.min(r.width, r.height) * 0.16 + 26); ctx.restore();
   }
   /* 새 무늬 첫 혼령: 0.8초 반투명 유도 획 */
   if (S.newShape && S.newShape.guide > 0) {
@@ -3990,7 +3989,7 @@ function drawOverlays(ctx, r, hs) {
     ctx.strokeStyle = (chip.conf || 0) >= 0.38 ? inkColorFor(chip.type) : 'rgba(140,140,140,0.85)';
     ctx.lineWidth = 3; ctx.stroke();
     ctx.fillStyle = chip.type ? inkColorFor(chip.type) : 'rgba(210,210,210,0.95)';
-    ctx.font = '700 17px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '700 17px "InkSerif", serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(chip.type ? (G.LABELS[chip.type] || '') : '?', x, y + 1);
     if (chip.hint) {
       ctx.font = '700 11px "InkSerif", "Gowun Batang", serif';
@@ -4035,7 +4034,7 @@ function drawOverlays(ctx, r, hs) {
     ctx.beginPath(); ctx.arc(cx, cy, rr * 0.72, 0, Math.PI * 2); ctx.stroke();
     /* 글자는 먹 위에 얹힌 한지빛 — 화면을 가리지 않도록 반투명으로 */
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = '700 ' + Math.round(Math.min(r.width, r.height) * 0.26) + 'px serif';
+    ctx.font = '400 ' + Math.round(Math.min(r.width, r.height) * 0.28) + 'px "InkBrush", "InkSerif", serif';
     ctx.strokeStyle = 'rgba(0,0,0,' + (0.55 * k).toFixed(3) + ')';
     ctx.lineWidth = 8;
     ctx.strokeText('참', cx, cy);
@@ -4107,10 +4106,10 @@ function drawGoal(ctx, r, hs, t) {
     ctx.beginPath(); ctx.ellipse(p.x, p.y, 26, 14, 0, 0, Math.PI * 2); ctx.stroke();
     const top = projectXZ(g.pos.x, g.pos.z, 1.5);
     ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(top.x, top.y); ctx.stroke();
-    ctx.font = '700 16px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '700 16px "InkSerif", serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = fail ? 'rgba(160,150,140,0.7)' : 'rgba(255,236,190,0.95)';
     ctx.fillText('석등', top.x, top.y - 8);
-    ctx.font = '700 12px serif';
+    ctx.font = '700 12px "InkSerif", serif';
     ctx.fillText(g.hp + '/' + g.hpMax, top.x, top.y + 12);
     ctx.restore();
   } else if (g.id === 'dark' && goalWindowOn()) {
@@ -4125,7 +4124,7 @@ function drawGoal(ctx, r, hs, t) {
     vg.addColorStop(1, 'rgba(4,4,10,0.26)');
     ctx.fillStyle = vg;
     ctx.fillRect(0, 0, r.width, r.height);
-    ctx.font = '700 13px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.font = '700 13px "InkSerif", serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     ctx.fillStyle = 'rgba(210,200,240,0.8)';
     ctx.fillText('어둠 — 원이 좁아졌습니다 · 방울이 크게 울립니다 ' + Math.max(0, Math.ceil(g.win - g.t)) + '초', r.width * 0.5, 108);
     ctx.restore();
@@ -4203,14 +4202,14 @@ function drawTerrain(ctx,r,hs,t) {
     if (T.moon) {
       ctx.fillStyle = 'rgba(150,24,22,' + (0.10 + 0.03 * Math.sin((S.elapsed || 0) * 3)).toFixed(3) + ')';
       ctx.fillRect(0, 0, r.width, r.height);
-      ctx.font = '700 13px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.font = '700 13px "InkSerif", serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       ctx.fillStyle = 'rgba(255,140,120,0.85)';
       paintFrame(ctx,'terrain',8,r.width*.5,83,24,24);
       ctx.fillText('붉은 달 — 원귀가 빠르다 · 엽전 두 배 ' + Math.ceil(T.moonT) + '초', r.width * 0.5, 84);
     }
   } else if (T.kind === 'wall') {
     const left = Math.max(0, C.wall.every - (T.wallT || 0));
-    ctx.font = '700 12px serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+    ctx.font = '700 12px "InkSerif", serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'top';
     ctx.fillStyle = left < 3 ? 'rgba(255,120,90,0.9)' : 'rgba(220,200,160,0.5)';
     ctx.fillText('성벽 포대 ' + Math.ceil(left) + '초', r.width - 14, 86);
   }
@@ -4224,7 +4223,7 @@ function drawTerrain(ctx,r,hs,t) {
       if (p.x < -20 || p.y < -20 || p.x > r.width + 20 || p.y > r.height + 20) return;
       ctx.beginPath(); ctx.arc(p.x, p.y, 16, 0, Math.PI * 2);
       ctx.strokeStyle = 'rgba(232,192,74,' + (0.85 * k).toFixed(3) + ')'; ctx.lineWidth = 2.2; ctx.stroke();
-      ctx.font = '700 16px serif';
+      ctx.font = '700 16px "InkSerif", serif';
       ctx.fillStyle = 'rgba(255,236,190,' + (0.95 * k).toFixed(3) + ')'; ctx.fillText(SHAPE_MARK[spiritShape(z)] || '?', p.x, p.y + 1);
     });
   }
@@ -4447,7 +4446,7 @@ function drawV31(ctx, r, hs, t) {
         ctx.lineWidth = cur ? 2.2 : 1.2;
         ctx.stroke();
         ctx.fillStyle = done ? 'rgba(255,214,110,0.5)' : (cur ? 'rgba(255,244,214,1)' : 'rgba(240,232,210,0.4)');
-        ctx.font = '700 12px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.font = '700 12px "InkSerif", serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         brushMark(ctx,z.seq[i],cx,cy,6);
         if (i < n - 1) {
           ctx.strokeStyle = 'rgba(240,232,210,0.22)'; ctx.lineWidth = 1;
@@ -7458,7 +7457,7 @@ function stepShots(dt) {
     const reached = Math.hypot(S.hero.x - sh.x, S.hero.z - sh.z) <= (sh.r || CFG.shotR || 0.42) + 0.55;
     if (reached) {
       if (S.dash) inkFx.burst(sh.x, sh.z, FX_COLORS.poison, { r1: 30, n: 6, dur: 0.35 });
-      else if ((S.iframe || 0) <= 0) heroHurt(sh.dmg || CFG.shotDmg || 1, sh.isWave ? '언월 검기에 베였습니다.' : '부적에 맞았습니다.');
+      else if ((S.iframe || 0) <= 0) heroHurt(sh.dmg || CFG.shotDmg || 1, sh.isWave ? getActSkillNames((S && S.stage) ? actOf(S.stage.id) : 1).waveHit : '부적에 맞았습니다.');
     }
     const dead = sh.t >= sh.life || reached;
     if (dead && sh.mesh) { releaseShotMesh(sh.mesh); sh.mesh = null; }
@@ -7920,6 +7919,7 @@ function startBossPattern(z, id) {
 /* v1.02 신규 레이드·액션 기믹 4종 (donut · soak · rhythm · tether) + 취약 중첩 */
 function applyVulnStack(why) {
   if (!S) return;
+  if (S.boss && S.boss.pat) S.lastBossGimmick = S.boss.pat;
   S.vulnStacks = Math.min(2, (S.vulnStacks || 0) + 1);
   S.vulnT = 8.0;
   heroHurt(1, why || '기믹에 피격되었습니다.');
@@ -8581,7 +8581,7 @@ function stepBossPat(z, dt) {
         if (Math.abs(da) <= half) {
           if (S.dash) bossJustDodge(z);
           else {
-            heroHurt(sw.dmg, '언월 횡참에 베였습니다.');
+            heroHurt(sw.dmg, getActSkillNames((S && S.stage) ? actOf(S.stage.id) : 1).sweepHit);
             const k = d > 0.01 ? d : 1;
             S.hero.x += dx / k * 1.8; S.hero.z += dz / k * 1.8;
           }
@@ -8671,7 +8671,7 @@ function stepBossPat(z, dt) {
       refreshBossGlyphs(z);
       bossFx.triggerSmokeBurst(z.x, z.z, false);
       showJudge('봉인 실패');
-      toast('귀물이 기력을 되찾았습니다 (+' + recover + ' HP)');
+      toast('귀물이 기력을 되찾았습니다 (+' + recover + ' 체력)');
     }
     return true;
   }
@@ -8770,6 +8770,8 @@ function endBossSide(z) {
   endClones(z);
   if (z.hidden) revealBoss(z);
   z.chant = null; z.kiai = null;
+  z.donut = null; z.soak = null; z.rhythm = null; z.tether = null; z.gaze = null; z.pizza = null;
+  clearZoneSpirits();
 }
 /* 기모으기: 금빛 칸(마지막 win초)에서 탭하면 받아치고 기세가 단번에 무너진다. 이르게 누르면 그 기합은 막을 수 없다. */
 function kiaiTap() {
@@ -9083,6 +9085,7 @@ function triggerPhaseCut(z, nextPhase, invulnDur, title, msg) {
   if (nextPhase === 2) z.phase2 = true;
   if (nextPhase === 3) z.phase3 = true;
   if (z.obj && art && art.setBossPhase) art.setBossPhase(z.obj, nextPhase, pfx.auraHex);
+  if (audio && audio.setBossPhase) audio.setBossPhase(nextPhase);
   z.phaseCutInvulnUntil = nowT + invulnDur;
   const pMax = z.poiseMax || 6;
   z.poise = Math.min(pMax, (z.poise || 0) + pMax * (nextPhase === 3 ? 0.45 : 0.40));
@@ -9141,7 +9144,8 @@ function bossPhaseCheck(z) {
 }
 /* v0.52 / v1.08: 보스 스킬명 + 대응 행동 + 정밀 타이밍 배너 데이터 (modules/bossPatterns.js 위임) */
 function bossBannerInfo(z) {
-  return buildBossBannerInfo(z, bossPat(), bossTiming());
+  const act = (S && S.stage) ? actOf(S.stage.id) : 1;
+  return buildBossBannerInfo(z, bossPat(), bossTiming(), act);
 }
 /* 보스 패턴 그림: 예고 색 고리·문구, 기모으기 게이지, 내려찍기 원, 탄막 부채, 영창 무늬, 은신 방울, 기세, 봉인. */
 function drawBossPat(ctx, r, hs) {
@@ -9154,7 +9158,7 @@ function drawBossPat(ctx, r, hs) {
     const k = clamp(S.sealFx / 0.9, 0, 1);
     ctx.save();
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = '700 ' + Math.round(Math.min(r.width, r.height) * 0.3) + 'px serif';
+    ctx.font = '400 ' + Math.round(Math.min(r.width, r.height) * 0.32) + 'px "InkBrush", "InkSerif", serif';
     ctx.strokeStyle = 'rgba(0,0,0,' + (0.65 * k).toFixed(3) + ')';
     ctx.lineWidth = 8;
     ctx.strokeText('봉', r.width * 0.5, r.height * 0.42);
@@ -9288,7 +9292,7 @@ function drawBossPat(ctx, r, hs) {
       ctx.strokeStyle = 'rgba(232,192,74,0.95)'; ctx.lineWidth = 5; ctx.stroke();
     }
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = '700 13px serif';
+    ctx.font = '700 13px "InkSerif", serif';
     ctx.fillStyle = gold ? 'rgba(255,236,190,0.98)' : 'rgba(200,190,170,0.6)';
     ctx.fillText((s.locked ? '무늬 고정' : (gold ? '지금 — 무늬 고정' : '무늬가 바뀝니다')) + '  ' + Math.max(0, Math.ceil(s.dur - s.t)) + '초', r.width * 0.5, 118);
   }
@@ -11150,7 +11154,7 @@ function renderCodex() {
     out.push('</div></div>');
   } else {
     out.push('<div class="codex-group"><h3>보스 6대 핵심 기믹 (4색 예고 공략)</h3><div class="codex-gimmick-list">');
-    PAT_CODE.filter(function (p) { return p.slot >= 13; }).forEach(function (p) {
+    PAT_CODE.filter(function (p) { return p.slot >= 13 && p.slot <= 18; }).forEach(function (p) {
       const cue = PAT_CUE[p.id] || 'jade';
       out.push('<div class="codex-gimmick-cell cue-' + cue + '"><b>' + p.name + '</b><span>' + p.guides.join(' ') + '</span></div>');
     });
@@ -11306,7 +11310,7 @@ function trainDraw() {
   }
   if (train.result) {
     ctx.save();
-    ctx.font = '700 15px serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.font = '700 15px "InkSerif", serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
     ctx.fillStyle = train.result.ok ? 'rgba(46,230,166,0.95)' : 'rgba(232,120,90,0.95)';
     ctx.fillText(train.result.text, W / 2, H - 10);
     ctx.restore();
@@ -12033,13 +12037,20 @@ function bindUi() {
   if ($('btnResultDrill')) $('btnResultDrill').addEventListener('click', function () {
     openTrain();
     if (!train.parryMode && $('btnTrainParry')) $('btnTrainParry').click();
+    const lastG = S && (S.lastBossGimmick || (S.boss && S.boss.pat));
+    if (lastG && ['donut', 'soak', 'rhythm', 'tether', 'gaze', 'pizza'].indexOf(lastG) >= 0) {
+      train.drill = createDrillState(lastG);
+      renderTrainDrills();
+      const noteEl = $('trainNote');
+      if (noteEl) noteEl.textContent = getDrillDef(lastG).tip;
+    }
   });
   if ($('btnSaveExport')) $('btnSaveExport').addEventListener('click', function () {
     try {
       const code = btoa(unescape(encodeURIComponent(JSON.stringify(save))));
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(code).then(function () {
-          toast('세이브 백업 코드를 클립보드에 복사했습니다.');
+          toast('기록 백업 코드를 클립보드에 복사했습니다.');
         }).catch(function () {
           window.prompt('아래 백업 코드를 복사해 보관하세요:', code);
         });

@@ -174,8 +174,9 @@ EVO_RECIPES.forEach((r) => {
   assert.ok(upIds.has(r.b), 'unknown evo ingredient b: ' + r.b);
 });
 
-/* 6. 보스 패턴 도감 18종(기본 12 + 신규 6대 기믹) 및 오탈자 교정 검증 */
-assert.equal(PAT_CODE.length, 18);
+/* 6. 보스 패턴 도감 19종(기본 13 + 신규 6대 기믹) 및 오탈자 교정 검증 */
+assert.equal(PAT_CODE.length, 19);
+assert.equal(getPatternMeta('sweep').name, '전방 횡파');
 ['donut', 'soak', 'rhythm', 'tether', 'gaze', 'pizza'].forEach((id) => {
   const m = getPatternMeta(id);
   assert.ok(m && m.name && m.guides.length >= 2, 'missing gimmick catalog: ' + id);
@@ -349,7 +350,7 @@ import { PAT_COST, PAT_CUE, ACT_PHASE_FX, getActPhaseFx, bossPatternMean, buildB
 import { GIMMICK_DRILLS, getDrillDef, createDrillState, handleDrillInput } from '../../v2/js/modules/trainingDrills.js';
 
 {
-  assert.equal(Object.keys(PAT_COST).length, 18);
+  assert.equal(Object.keys(PAT_COST).length, 19);
   assert.equal(Object.keys(PAT_CUE).length, 18);
   assert.equal(Object.keys(ACT_PHASE_FX).length, 4);
   for (let act = 1; act <= 4; act++) {
@@ -359,8 +360,10 @@ import { GIMMICK_DRILLS, getDrillDef, createDrillState, handleDrillInput } from 
     assert.ok(p3.title && p3.msg && p3.hex > 0 && p3.auraHex > 0);
   }
   assert.ok(bossPatternMean(STAGES[0], 1) > 0);
-  const bDonut = buildBossBannerInfo({ alive: true, state: 'donut', stateT: 1.0, donut: { dur: 2.0, safeInside: true } }, {}, { teleT: 1 });
+  const bDonut = buildBossBannerInfo({ alive: true, state: 'donut', stateT: 1.0, donut: { dur: 2.0, safeInside: true } }, {}, { teleT: 1 }, 2);
   assert.equal(bDonut.name, '도넛 결계');
+  const bSweep2 = buildBossBannerInfo({ alive: true, state: 'sweepTele', stateT: 0.5, sweep: { tele: 1.0 } }, {}, { teleT: 1 }, 2);
+  assert.equal(bSweep2.name, '한빙 장풍');
   assert.equal(bDonut.f, 0.5);
 
   assert.equal(GIMMICK_DRILLS.length, 7);

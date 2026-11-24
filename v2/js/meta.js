@@ -131,13 +131,13 @@ export const MON_CODE = [
   { id: 'clone', name: '분신', desc: '방울이 우는 쪽이 진짜다' }
 ];
 
-export const PAT_SLOTS = 9;
+export const PAT_SLOTS = 10;
 export const EVO_SLOTS = 10;
 export const CODEX_GROUPS = [
   { key: 'mon', label: '귀물', slots: 8 },
   { key: 'boss', label: '보스', slots: 16 },
   { key: 'evo', label: '진화', slots: 10 },
-  { key: 'pat', label: '패턴', slots: 9 }
+  { key: 'pat', label: '패턴', slots: 10 }
 ];
 
 /* 호환용 더미 (구 호출부 방어) */
@@ -216,12 +216,12 @@ export function codexCounts(save) {
   return { mon, boss, evo, pat };
 }
 export function isBasePat(id) {
-  return ['charge', 'kiai', 'slam', 'volley', 'chant', 'clones', 'veil', 'shrink', 'seal'].indexOf(id) >= 0;
+  return ['charge', 'sweep', 'kiai', 'slam', 'volley', 'chant', 'clones', 'veil', 'shrink', 'seal'].indexOf(id) >= 0;
 }
 export function codexTotalPct(save) {
   const n = codexCounts(save);
-  const total = 8 + 16 + 10 + 9;
-  const got = Math.min(8, n.mon) + Math.min(16, n.boss) + Math.min(10, n.evo) + Math.min(9, n.pat);
+  const total = 8 + 16 + 10 + 10;
+  const got = Math.min(8, n.mon) + Math.min(16, n.boss) + Math.min(10, n.evo) + Math.min(10, n.pat);
   return Math.round((got / total) * 100);
 }
 export function codexBonus(save) {

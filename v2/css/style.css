@@ -684,7 +684,7 @@ body { font-family: "InkSerif", "Apple SD Gothic Neo", "Noto Sans KR", serif; }
 .train-drills { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin: 0 0 8px; }
 .train-drills[hidden] { display: none; }
 .train-drills button {
-  padding: 4px 8px; font: 700 11px/1.2 sans-serif; color: var(--paper);
+  padding: 4px 8px; font: 700 11px/1.2 "InkSerif", serif; color: var(--paper);
   background: rgba(239,228,204,.07); border: 1px solid rgba(95,232,194,.32); border-radius: 4px;
 }
 .train-drills button.on { color: #0b0a09; background: #5FE8C2; border-color: #5FE8C2; }

@@ -6,6 +6,7 @@
 /* 실측한 패턴 지속 시간(초): [예고/핵심 길이, 고정 후딜] */
 export const PAT_COST = Object.freeze({
   charge: [1.0, 0.03],
+  sweep: [1.1, 0],
   kiai: [2.3, 0],
   slam: [1.03, 0],
   clones: [8.03, 0],
@@ -169,19 +170,29 @@ export function bossPatternMean(st, tele) {
 
 function clamp01(v) { return v < 0 ? 0 : (v > 1 ? 1 : v); }
 
+/* v1.17: 1막(무장) · 2~4막(비무장 맨손/도술) 막별 고유 기본 스킬명 */
+export const ACT_SKILL_NAMES = Object.freeze({
+  1: Object.freeze({ charge: '언월 쇄도', slam: '열화 내려찍기', sweep: '언월 횡참', waveHit: '언월 검기에 베였습니다.', sweepHit: '언월 횡참에 베였습니다.' }),
+  2: Object.freeze({ charge: '설풍 돌진', slam: '설산 파쇄장', sweep: '한빙 장풍', waveHit: '한빙 장풍에 맞았습니다.', sweepHit: '한빙 장풍에 휩쓸렸습니다.' }),
+  3: Object.freeze({ charge: '혈월 쇄도', slam: '혈월 내려찍기', sweep: '혈기 횡파', waveHit: '혈기 횡파에 맞았습니다.', sweepHit: '혈기 횡파에 휩쓸렸습니다.' }),
+  4: Object.freeze({ charge: '무간 쇄도', slam: '심연 붕괴', sweep: '심연 횡파', waveHit: '심연 횡파에 베였습니다.', sweepHit: '심연 횡파에 휩쓸렸습니다.' })
+});
+export function getActSkillNames(act) { return ACT_SKILL_NAMES[act] || ACT_SKILL_NAMES[1]; }
+
 /* 보스 스킬명 + 대응 행동(회피/받아치기/파훼/소크) + 정밀 타이밍 배너 데이터 생성 */
-export function buildBossBannerInfo(z, P, bt) {
+export function buildBossBannerInfo(z, P, bt, act) {
   if (!z || !z.alive) return null;
+  const sn = getActSkillNames(act || 1);
   const st = z.state;
   if (st === 'telegraph') {
     const dur = bt.teleT * (z.teleMul || 1);
-    return { mode: 'dodge', name: '언월 쇄도', hint: '옆으로 일섬 회피', f: clamp01((z.stateT || 0) / Math.max(0.01, dur)), sweetStart: 0.78 };
+    return { mode: 'dodge', name: sn.charge, hint: '옆으로 일섬 회피', f: clamp01((z.stateT || 0) / Math.max(0.01, dur)), sweetStart: 0.78 };
   }
   if (st === 'slamTele' && z.slam) {
-    return { mode: 'dodge', name: '혈월 내려찍기', hint: '원 밖으로 일섬', f: clamp01((z.stateT || 0) / Math.max(0.01, z.slam.tele)), sweetStart: 0.78 };
+    return { mode: 'dodge', name: sn.slam, hint: '원 밖으로 일섬', f: clamp01((z.stateT || 0) / Math.max(0.01, z.slam.tele)), sweetStart: 0.78 };
   }
   if (st === 'sweepTele' && z.sweep) {
-    return { mode: 'dodge', name: '언월 횡참', hint: '등 뒤로 일섬', f: clamp01((z.stateT || 0) / Math.max(0.01, z.sweep.tele)), sweetStart: 0.78 };
+    return { mode: 'dodge', name: sn.sweep, hint: '등 뒤로 일섬', f: clamp01((z.stateT || 0) / Math.max(0.01, z.sweep.tele)), sweetStart: 0.78 };
   }
   if (st === 'volleyTele') {
     const dur = z.volleyTele || P.volley.tele;
