@@ -16,8 +16,8 @@ import * as THREE from 'three';
 /** 모든 패치 재질이 공유하는 안개 uniform. game.js 가 매 프레임 한 번만 채운다. */
 export const WF = {
   uWfHero: { value: new THREE.Vector3(0, 0, 0) },
-  uWfRange: { value: new THREE.Vector4(5.4, 7.3, 15.6, 0) }, // inner, outer, far, pulse
-  uWfAmt: { value: new THREE.Vector4(0.85, 0.97, 0, 1) },    // 심안 원 안은 선명한 한지, 원 밖은 짙은 먹안개 대비
+  uWfRange: { value: new THREE.Vector4(10.5, 17.5, 28.0, 0) }, // v1.36 넓고 완만한 청묵 비네팅
+  uWfAmt: { value: new THREE.Vector4(0.42, 0.76, 0, 1) },    // v1.36 원형 스포트라이트 제거, 자연스러운 외곽 어둠
   /* v0.43: 한지 톤 — 어둠이 아니라 '따뜻한 먹물'로 멀어진다(바탕이 밝아졌으므로). */
   uWfColor: { value: new THREE.Color(0.01, 0.009, 0.009) },
   /* 화면 위쪽(멀어지는) 방향 xz 와 앞뒤 압축 계수. 원근 카메라에서는 월드 원이 화면 타원보다
@@ -277,9 +277,9 @@ export function updateFade(hero, ringRadius, pulse, sightRadius, fogHex, enabled
   const range = WF.uWfRange.value;
   /* CFG.fogInner(0.86)/fogOuter(1.16) 을 그대로 쓰되, 월드 원이 화면 타원보다 넓게 보이는 만큼
      안쪽을 조금 당겨 심안 시야 원의 크기를 맞춘다. */
-  range.x = R * 0.80 * (1 - 0.07 * (pulse || 0));
-  range.y = R * 1.08;
-  range.z = Math.max(range.y + 0.5, (sightRadius || 12.5) * 1.25);
+  range.x = R * 1.38 * (1 - 0.05 * (pulse || 0));
+  range.y = R * 2.25;
+  range.z = Math.max(range.y + 1.5, (sightRadius || 12.5) * 2.1);
   range.w = pulse || 0;
   WF.uWfHero.value.set(hero.x, 0, hero.z);
   WF.uWfAmt.value.w = enabled === false ? 0 : 1;

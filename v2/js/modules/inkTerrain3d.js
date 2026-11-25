@@ -767,8 +767,8 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       addParticles(130, 0x9ef0e0, 0.16, 0.75, 'rise');
     }
   } else if (k === 'fog' || k === 'moon' || k === 'wall') {
-    const colA = k === 'moon' ? 0x3b1014 : k === 'wall' ? 0x261d19 : 0x1a2624;
-    const colB = k === 'moon' ? 0x7d1f24 : k === 'wall' ? 0x574233 : 0x45635e;
+    const colA = k === 'moon' ? 0x0d181c : k === 'wall' ? 0x141d20 : 0x121f22;
+    const colB = k === 'moon' ? 0x1c3036 : k === 'wall' ? 0x223236 : 0x1e3438;
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2, { geo, mat } = makeShaderPool(5.4, colA, colB, 0xd9ceb8, 2); track(geo, mat); shaderMats.push(mat);
       const m = new THREE.Mesh(geo, mat); m.position.set(Math.cos(a) * 7.2, 0.14 + i * 0.02, Math.sin(a) * 7.2); m.renderOrder = 2; group.add(m);
@@ -792,7 +792,7 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       addParticles(130, 0xff8048, 0.15, 0.80, 'rise');
     } else if (k === 'moon') {
       /* v0.66: 모바일 세로 화면 안에 깔끔히 들어오는 16-평면 절단 현무암 월석 비석 3기 + 충돌 등록 */
-      const steleCoords = [[-6.8, -2.8], [6.8, -2.8], [0, -11.4]];
+      const steleCoords = [[-11.8, -6.5], [11.8, -6.5], [0, -14.8]];
       for (let i = 0; i < steleCoords.length; i++) {
         const [s0, d0] = steleCoords[i];
         const mx = (s0 - d0) * Math.SQRT1_2, mz = (-s0 - d0) * Math.SQRT1_2;
@@ -917,7 +917,7 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       addCollider(fx, fz, 0.45);
     }
 
-    /* v1.35 엠버 앤 블레이드식 외곽 고품질 스킬 프롭 (중앙 전투장 개방 + 외곽 청묵 현무암/석등/고목/양치식물 실루엣) */
+    /* v1.36 엠버 앤 블레이드식 외곽 고품질 스킬 프롭 (중앙 전투장 개방 + 외곽 청묵 현무암/석등/고목/양치식물 실루엣) */
     {
       const perimN = 4;
       for (let pi = 0; pi < perimN; pi++) {
@@ -1075,11 +1075,11 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     /* 5) v0.65 전 스테이지 100% 스킬 기반 PBR 3D 지형지물 전수 교체 & 여백 구도 컴포지터
        - 카메라 기준 좌표(side: 좌-/우+, depth: 북+/남-)로 모바일 세로 화면 구도를 정밀 배치
        - 모든 고체 기물은 colliders[]에 정확한 충돌 반경 등록 (홍살문·금줄문은 기둥만, 아치 목교는 통행 가능) */
-    const talismanGlow = [0xffa852, 0xffb258, 0x84f5d2, 0xff6e52, 0xcba6ff][actIdx] || 0xffa852;
-    const toriiWood = [0xb53226, 0xb53226, 0x487262, 0xb52626, 0x5c427a][actIdx] || 0xb53226;
-    const rockHex = actIdx === 4 ? 0x5a506e : actIdx === 3 ? 0x6b454a : 0x766e64;
-    const lacquerHex = [0xb53428, 0xb53428, 0x8c3a2e, 0xb22826, 0x623d78][actIdx] || 0xb53428;
-    const bannerHex = [0xb53226, 0xb53226, 0x3b7a64, 0xb82c2a, 0x724298][actIdx] || 0xb53226;
+    const talismanGlow = [0x5be8c4, 0x5be8c4, 0x7ef0d6, 0xff7052, 0x5be8c4][actIdx] || 0x5be8c4;
+    const toriiWood = [0x263238, 0x263238, 0x223436, 0x342426, 0x202b30][actIdx] || 0x263238;
+    const rockHex = actIdx === 4 ? 0x1d292f : actIdx === 3 ? 0x26282c : 0x243036;
+    const lacquerHex = [0x263036, 0x263036, 0x223234, 0x322224, 0x1e282e][actIdx] || 0x263036;
+    const bannerHex = [0x2e4a4e, 0x2e4a4e, 0x284e48, 0x5c2424, 0x26444a][actIdx] || 0x2e4a4e;
 
     const toStageXZ = (side, depth) => [(side - depth) * Math.SQRT1_2, (-side - depth) * Math.SQRT1_2];
     const registerLandmark = (node, x, z, rotY = Math.PI / 4, shadowR = 1.6, colR = 0, minSep = 3.8, force = false) => {
@@ -1289,24 +1289,23 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
         putLantern(5.4, 13.0); putLantern(-5.6, -11.8);
         break;
       case 15:
-        /* 15장 검은 누각: 자흑색 성채 대문 + 좌우 성벽 2 + 자색 금줄 산문 + 금줄문 + 파쇄 바위 2 + 석등 2 */
-        putStage(buildKasumideraGatehouse3D({ fortress: true, lacquerHex: 0x5c3870, tileHex: 0x38344a, glowHex: 0xc29aff }), 0, 15.0, 0, 3.2, 2.2);
-        putStage(buildStoneFortressWall3D({ len: 5.0, stoneHex: 0x585266, bannerHex: 0x724292 }), -6.6, 14.2, 0.16, 2.2, 1.9);
-        putStage(buildStoneFortressWall3D({ len: 5.0, stoneHex: 0x585266, bannerHex: 0x724292 }), 6.6, 14.2, -0.16, 2.2, 1.9);
-        putTorii(5.6, 9.8, -0.32);
-        putTalismanGate(-5.6, 10.0, 0.28);
-        putRocks(-7.2, -2.0, 0.95); putRocks(7.2, -2.0, 0.95);
-        putLantern(-6.4, -9.2); putLantern(6.4, -9.2);
+        /* v1.36 15장 검은 누각: 중앙 개방 + 외곽 청묵 성채 대문·석벽·현무암·조각 석등 */
+        putStage(buildKasumideraGatehouse3D({ fortress: true, lacquerHex: 0x1e282e, tileHex: 0x141d22, glowHex: 0x5be8c4 }), 0, 16.4, 0, 3.2, 2.2);
+        putStage(buildStoneFortressWall3D({ len: 5.0, stoneHex: 0x1d282e, bannerHex: 0x264248 }), -7.4, 15.4, 0.18, 2.2, 1.9);
+        putStage(buildStoneFortressWall3D({ len: 5.0, stoneHex: 0x1d282e, bannerHex: 0x264248 }), 7.4, 15.4, -0.18, 2.2, 1.9);
+        putRocks(-10.8, 3.5, 1.05); putRocks(10.8, 3.5, 1.05);
+        putLantern(-8.8, -10.2); putLantern(8.8, -10.2);
         break;
       case 16:
       default:
-        /* 16장 심안의 끝: 자흑색 대문 + 자색 금줄 산문 + 한지 금줄문 + 시야 안 16-평면 현무암 암봉 4 + 조각 석등 2 (+ 월석 비석 3) */
-        putStage(buildKasumideraGatehouse3D({ fortress: true, lacquerHex: 0x623b75, tileHex: 0x3b354d, glowHex: 0xffd278 }), 0, 15.0, 0, 3.2, 2.2);
-        putTorii(5.6, 10.4, -0.34);
-        putTalismanGate(-5.6, 10.6, 0.28);
-        putCrag(-7.2, 4.2, 4.4); putCrag(7.2, 4.2, 4.4);
-        putCrag(-6.6, -8.4, 4.0); putCrag(6.6, -8.4, 4.0);
-        putLantern(-5.6, 7.6); putLantern(5.6, 7.6);
+        /* v1.36 16장 심안의 끝: 중앙 분홍 수정/보라 도리이 전면 제거 -> 중앙 100% 개방 + 외곽 청묵 누각·현무암·고목·석등 */
+        putStage(buildKasumideraGatehouse3D({ fortress: true, lacquerHex: 0x1d272d, tileHex: 0x131c21, glowHex: 0x5be8c4 }), 0, 16.8, 0, 3.2, 2.2);
+        putRocks(-10.6, 9.2, 1.15); putRocks(10.6, 9.2, 1.15);
+        putRocks(-10.8, -9.8, 1.05); putRocks(10.8, -9.8, 1.05);
+        putLantern(-8.4, 11.2, 1.0); putLantern(8.4, 11.2, 1.0);
+        putLantern(-8.6, -11.0, 0.95); putLantern(8.6, -11.0, 0.95);
+        putStage(buildGnarledDeadTree3D(rng, 1.15, 0x1a2428), -11.4, -2.5, 0.4, 1.8, 1.0);
+        putStage(buildGnarledDeadTree3D(rng, 1.10, 0x1a2428), 11.4, -2.5, -0.4, 1.8, 1.0);
         break;
     }
   }
@@ -1369,12 +1368,7 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     group.add(fl.mesh);
     v67Updaters.push(fl);
   }
-  if ([3, 4, 5, 6, 8, 12, 16].includes(stageNo)) {
-    const rayCol = stageNo === 3 ? 0xbef5d6 : (stageNo === 6 ? 0xcce8ff : (stageNo === 4 || stageNo === 12 ? 0xff7a66 : 0xffe6b3));
-    const sr = createSkyRays3D({ count: 3, colorHex: rayCol, opacity: 0.12 });
-    group.add(sr.group);
-    v67Updaters.push(sr);
-  }
+  /* v1.36: 화면을 가로지르는 누런 가짜 빛기둥(SkyRays) 비활성화 — 청묵 툰 톤 일관성 유지 */
 
   scene.add(group);
   let elapsed = 0;
