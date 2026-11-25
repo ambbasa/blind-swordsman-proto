@@ -1423,41 +1423,99 @@ function createArenaWorld(opts) {
   detail.anisotropy = 4;
   /* v1.38 엠버 앤 블레이드 × 청묵 핸드페인팅 바닥: 자글자글한 실사 돌사진(terrain-N.webp) 대신 부드러운 저채도 청묵 붓터치 면 */
   const emberGroundTex = (function () {
+    /* v1.41 엠버 앤 블레이드식 핸드페인팅 사당 마당 바닥: 대형 불규칙 판석 + 중앙 고대 원형 제단 문양 + 외곽 먹물 이끼 */
+    const S = 1024;
     const c = document.createElement('canvas');
-    c.width = c.height = 512;
+    c.width = c.height = S;
     const g = c.getContext('2d');
     const act = Math.max(1, Math.min(4, Math.ceil((stageId || 1) / 4)));
     const pal = act === 3
-      ? { base: '#21272b', mid: '#293136', wash: 'rgba(14, 18, 22, 0.34)', hi: 'rgba(66, 78, 84, 0.14)' }
-      : { base: '#1e3036', mid: '#263c42', wash: 'rgba(11, 20, 24, 0.36)', hi: 'rgba(72, 108, 114, 0.16)' };
-    g.fillStyle = pal.base;
-    g.fillRect(0, 0, 512, 512);
-    const rg = g.createRadialGradient(256, 256, 30, 256, 256, 280);
+      ? { base: '#21262b', mid: '#2b3238', edge: '#111519', slabHi: 'rgba(84,96,104,0.18)', slabLo: 'rgba(12,15,19,0.28)', line: 'rgba(9,12,15,0.52)', glyph: 'rgba(210,120,104,0.16)' }
+      : { base: '#1d2f35', mid: '#273f46', edge: '#0f1a1e', slabHi: 'rgba(88,132,140,0.19)', slabLo: 'rgba(10,18,22,0.30)', line: 'rgba(8,14,18,0.54)', glyph: 'rgba(124,224,210,0.16)' };
+
+    const rg = g.createRadialGradient(S * 0.5, S * 0.5, S * 0.06, S * 0.5, S * 0.5, S * 0.54);
     rg.addColorStop(0, pal.mid);
-    rg.addColorStop(0.65, pal.base);
-    rg.addColorStop(1, '#111c20');
+    rg.addColorStop(0.62, pal.base);
+    rg.addColorStop(1, pal.edge);
     g.fillStyle = rg;
-    g.fillRect(0, 0, 512, 512);
-    /* 크고 부드러운 수묵 붓터치 얼룩만 얹어 바닥 노이즈 최소화 */
-    let rs = (stageId || 1) * 9973 + 17;
+    g.fillRect(0, 0, S, S);
+
+    let rs = (stageId || 1) * 9973 + 31;
     const rr = function () { rs = (rs * 16807) % 2147483647; return (rs - 1) / 2147483646; };
-    for (let i = 0; i < 34; i++) {
-      const bx = rr() * 512, by = rr() * 512, rx = 45 + rr() * 95, ry = 22 + rr() * 50, ang = rr() * Math.PI;
+
+    /* 1) 대형 불규칙 판석(Flagstone) 면 & 어두운 줄눈 (노이즈 없이 큼직한 면 분할) */
+    const cols = 10, rows = 10, cw = S / cols, ch = S / rows;
+    for (let r = 0; r < rows; r++) {
+      const xOff = (r % 2) * (cw * 0.45);
+      for (let col = -1; col <= cols; col++) {
+        const bx = col * cw + xOff + (rr() - 0.5) * 14;
+        const by = r * ch + (rr() - 0.5) * 12;
+        const bw = cw - 7 - rr() * 6;
+        const bh = ch - 7 - rr() * 6;
+        const distC = Math.hypot((bx + bw * 0.5) - S * 0.5, (by + bh * 0.5) - S * 0.5) / (S * 0.5);
+        if (distC > 0.92 && rr() < 0.55) continue;
+        g.fillStyle = rr() > 0.48 ? pal.slabHi : pal.slabLo;
+        g.beginPath();
+        g.roundRect(bx + 3, by + 3, Math.max(16, bw), Math.max(16, bh), 8);
+        g.fill();
+        g.strokeStyle = pal.line;
+        g.lineWidth = 2.4;
+        g.stroke();
+        /* 일부 판석에 굵직한 핸드페인팅 균열선 1줄 */
+        if (rr() < 0.24) {
+          g.strokeStyle = 'rgba(7,11,14,0.42)';
+          g.lineWidth = 1.6;
+          g.beginPath();
+          g.moveTo(bx + bw * (0.2 + rr() * 0.2), by + bh * 0.15);
+          g.lineTo(bx + bw * (0.45 + rr() * 0.2), by + bh * (0.5 + rr() * 0.15));
+          g.lineTo(bx + bw * (0.6 + rr() * 0.25), by + bh * 0.85);
+          g.stroke();
+        }
+      }
+    }
+
+    /* 2) 전장 중앙 고대 원형 석조 제단 & 동심원 붓선 문양 */
+    const cx = S * 0.5, cy = S * 0.5;
+    g.save();
+    const ringR = [S * 0.13, S * 0.23, S * 0.255, S * 0.36];
+    ringR.forEach(function (rad, idx) {
+      g.beginPath();
+      g.arc(cx, cy, rad, 0, Math.PI * 2);
+      g.strokeStyle = idx === 1 ? pal.glyph : pal.line;
+      g.lineWidth = idx === 2 ? 3.5 : (idx === 1 ? 5.0 : 2.5);
+      g.stroke();
+    });
+    /* 8방위 제단 방사 분할선 */
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      g.beginPath();
+      g.moveTo(cx + Math.cos(a) * ringR[0], cy + Math.sin(a) * ringR[0]);
+      g.lineTo(cx + Math.cos(a) * ringR[3], cy + Math.sin(a) * ringR[3]);
+      g.strokeStyle = pal.line;
+      g.lineWidth = 2.2;
+      g.stroke();
+    }
+    g.restore();
+
+    /* 3) 부드러운 수묵 붓터치 얼룩 & 외곽 먹물 그림자 링 */
+    for (let i = 0; i < 28; i++) {
+      const bx = rr() * S, by = rr() * S, rx = 70 + rr() * 140, ry = 36 + rr() * 80, ang = rr() * Math.PI;
       g.save();
       g.translate(bx, by);
       g.rotate(ang);
-      const sg = g.createRadialGradient(0, 0, 2, 0, 0, rx);
-      sg.addColorStop(0, i % 3 === 0 ? pal.hi : pal.wash);
+      const sg = g.createRadialGradient(0, 0, 4, 0, 0, rx);
+      sg.addColorStop(0, i % 3 === 0 ? pal.slabHi : pal.slabLo);
       sg.addColorStop(1, 'rgba(0,0,0,0)');
       g.fillStyle = sg;
       g.scale(1, ry / rx);
       g.beginPath(); g.arc(0, 0, rx, 0, Math.PI * 2); g.fill();
       g.restore();
     }
+
     const tx = new THREE.CanvasTexture(c);
     tx.colorSpace = THREE.SRGBColorSpace;
-    tx.wrapS = tx.wrapT = THREE.RepeatWrapping;
-    tx.repeat.set(1, 1);
+    tx.wrapS = tx.wrapT = THREE.ClampToEdgeWrapping;
+    tx.anisotropy = 4;
     tx.needsUpdate = true;
     return tx;
   })();
