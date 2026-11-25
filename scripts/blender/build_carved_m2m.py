@@ -93,9 +93,13 @@ def main():
     parser.add_argument("--only", required=True, choices=profiles)
     parser.add_argument("--raw-dir", type=Path, required=True)
     parser.add_argument("--out-dir", type=Path, required=True)
+    parser.add_argument("--guardian", action="store_true", help="Fit horizontal arms and spread legs")
     args = parser.parse_args(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])
     args.out_dir.mkdir(parents=True, exist_ok=True)
     profile = profiles[args.only]
+    if args.guardian:
+        profile["guardian"] = True
+        profile["wrist_band"] = (1.03, 1.52)
     with tempfile.TemporaryDirectory(dir=args.out_dir) as temp:
         staged = Path(temp) / profile["out"]
         build_character(profile, args.raw_dir, temp, carved=True)

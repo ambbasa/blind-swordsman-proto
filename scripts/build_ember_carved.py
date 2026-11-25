@@ -11,8 +11,6 @@ from run_monsters_mv import find_blender, find_hy3d_python
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ART = ROOT / "design/character-concepts/ember-carved-mv"
-BUILD = ROOT / "build/ember-carved"
 BLENDER = ROOT / "scripts/blender"
 CHARACTERS = ("hero", "minion", "heavy", "stone", "boss_act1", "boss_act2", "boss_act3", "boss_act4")
 
@@ -22,9 +20,11 @@ BLENDER_TIMEOUT = 180
 
 
 def commands(character, args):
-    views = ART / f"{character}_mv"
-    raw = BUILD / "raw" / f"{character}_raw.glb"
-    models = BUILD / "models"
+    family = "ember-carved" if args.legacy else "ember-guardian"
+    views = ROOT / "design/character-concepts" / (family + "-mv") / f"{character}_mv"
+    build = ROOT / "build" / family
+    raw = build / "raw" / f"{character}_raw.glb"
+    models = build / "models"
     if not args.skip_shape_paint:
         for view in ("front", "back", "left", "right"):
             image = views / f"{view}.png"
@@ -37,7 +37,7 @@ def commands(character, args):
 
     yield (True, [find_blender(args.blender), "--background", "--factory-startup", "--python-exit-code", "1",
            "--python", BLENDER / "build_carved_m2m.py", "--", "--only", character,
-           "--raw-dir", raw.parent, "--out-dir", models])
+           "--raw-dir", raw.parent, "--out-dir", models] + ([] if args.legacy else ["--guardian"]))
 
 
 def run_step(argv, is_blender):
@@ -76,6 +76,7 @@ def run_step(argv, is_blender):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--only", choices=CHARACTERS)
+    parser.add_argument("--legacy", action="store_true", help="Use the previous A-pose images, fit and cache")
     parser.add_argument("--hy3d-python", default=find_hy3d_python())
     parser.add_argument("--blender", default="blender")
     parser.add_argument("--skip-shape-paint", action="store_true", help="Reuse staged raw meshes")

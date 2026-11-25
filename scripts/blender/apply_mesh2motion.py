@@ -225,6 +225,10 @@ def assign_smooth_weights(mesh_obj, arm_obj, fit):
         in_torso_x = 1.0 - smoothstep(sh_x * 0.65, sh_x * 1.05, ax)
         below_sh = 1.0 - smoothstep(sh_z - 0.14, sh_z + 0.02, p.z)
         out_arm_x = smoothstep(hip_x + 0.10, hip_x + 0.22, ax)
+        if fit.get("spread_stance"):
+            # In the guardian rest pose the knees and ankles are outboard too.
+            # Only classify lateral vertices as arm territory near arm height.
+            out_arm_x *= smoothstep(sh_z - 0.30, sh_z - 0.12, p.z)
 
         dists = []
         for name, a, b in bones:

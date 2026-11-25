@@ -19,6 +19,7 @@ scripts/blender/build_bosses_act234.py
 import argparse
 import math
 import os
+from statistics import median
 import sys
 import bpy
 import bmesh
@@ -265,6 +266,15 @@ def compute_arm_local_quat(arm_obj, upper_name, hand_name, target_world):
     return v_src_l.rotation_difference(v_dst_l)
 
 
+def guardian_ankle(mesh_obj, side, height):
+    # Sample the lower shin, not the toe (whose forward projection biases Y).
+    points = [v.co for v in mesh_obj.data.vertices
+              if abs(v.co.z - height) < 0.045 and side * v.co.x > 0.025]
+    if not points:
+        raise ValueError("Cannot locate both lower legs in the guardian raw mesh")
+    return Vector((median(p.x for p in points), median(p.y for p in points), height))
+
+
 def bake_normal_map(high_obj, low_obj, img_name, size=1024):
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"
@@ -498,12 +508,27 @@ def build_character(cfg, raw_dir=RAW_DIR, out_dir=MODELS_DIR, carved=False):
 
     # Measure exact 3D wrist targets and compute true arm_len from shoulder -> wrist
     lh_wrist, rh_wrist = measure_hand_targets(body_high, cfg.get("wrist_band"))
+    guardian = cfg.get("guardian", False)
+    source_fit = dict(cfg.get("source_fit", SRC_BOSS_FIT))
+    if guardian:
+        fit["spread_stance"] = True
+        # The shipped donor is itself a fitted export: its physical arm length
+        # need not match the historical profile used for the first generation.
+        bones = t_arm.data.bones
+        shoulder = bones["upperarm_l"].head_local
+        source_fit["shoulder_x"] = abs(shoulder.x)
+        source_fit["z_shoulder"] = shoulder.z
+        source_fit["arm_len"] = (bones["hand_l"].head_local - shoulder).length
+        shoulder_z = (lh_wrist.z + rh_wrist.z) / 2
+        for key in ("z_neck", "z_head"):
+            fit[key] = min(1.71, fit[key] + shoulder_z - fit["z_shoulder"])
+        fit["z_shoulder"] = shoulder_z
     sh_l = Vector((fit["shoulder_x"], 0.065, fit["z_shoulder"]))
     sh_r = Vector((-fit["shoulder_x"], 0.065, fit["z_shoulder"]))
     true_arm_len = 0.5 * ((lh_wrist - sh_l).length + (rh_wrist - sh_r).length)
     fit["arm_len"] = round(true_arm_len, 4)
 
-    refit_boss_armature(t_arm, cfg.get("source_fit", SRC_BOSS_FIT), fit)
+    refit_boss_armature(t_arm, source_fit, fit)
     print(f"  + Refitted 66-bone armature (pelvis_z={fit['z_pelvis']:.2f}, hip_x={fit['hip_x']:.3f}, sh=({fit['shoulder_x']:.2f},{fit['z_shoulder']:.2f}), arm_len={fit['arm_len']:.3f})")
     print(f"    Measured wrists: L={tuple(round(c,3) for c in lh_wrist)}, R={tuple(round(c,3) for c in rh_wrist)}")
 
@@ -541,11 +566,20 @@ def build_character(cfg, raw_dir=RAW_DIR, out_dir=MODELS_DIR, carved=False):
     a_arm.name = "Temp_APose_Arm"
     a_arm.animation_data_clear()
 
-    q_l = compute_arm_local_quat(a_arm, "upperarm_l", "hand_l", lh_wrist)
-    q_r = compute_arm_local_quat(a_arm, "upperarm_r", "hand_r", rh_wrist)
+    targets = [("upperarm_l", "hand_l", lh_wrist), ("upperarm_r", "hand_r", rh_wrist)]
+    if guardian:
+        for suffix, side in (("l", 1), ("r", -1)):
+            ankle = guardian_ankle(body, side, fit["z_ankle"])
+            targets.append((f"thigh_{suffix}", f"foot_{suffix}", ankle))
+    rotations = []
+    for start, end, target in targets:
+        rotation = compute_arm_local_quat(a_arm, start, end, target)
+        # Do not bake noisy sub-degree corrections into an already level arm.
+        if not guardian or rotation.angle > math.radians(2):
+            rotations.append((start, rotation))
 
     bpy.ops.object.mode_set(mode="POSE")
-    for bname, q in [("upperarm_l", q_l), ("upperarm_r", q_r)]:
+    for bname, q in rotations:
         pb = a_arm.pose.bones[bname]
         pb.rotation_mode = "QUATERNION"
         pb.rotation_quaternion = q
@@ -571,7 +605,9 @@ def build_character(cfg, raw_dir=RAW_DIR, out_dir=MODELS_DIR, carved=False):
     cleaned = 0
     cape_cleaned = 0
     arm_floor_z = cfg.get("arm_floor_z", 0.78)
-    for v in body.data.vertices:
+    # Hard coordinate cuts were intended for long robes in the A-pose set.
+    # The guardian silhouettes have separated limbs; retain continuous heat weights.
+    for v in (() if guardian else body.data.vertices):
         in_torso_core = (v.co.z < cfg["torso_clean_z"] and abs(v.co.x) < cfg["torso_clean_x"])
         below_arms = (v.co.z < arm_floor_z and abs(v.co.x) < 0.40)
         in_rear_cape = (cfg.get("cape_clean") and v.co.y > 0.10 and abs(v.co.x) < 0.40 and v.co.z < 1.25)
@@ -622,7 +658,7 @@ def build_character(cfg, raw_dir=RAW_DIR, out_dir=MODELS_DIR, carved=False):
     a_arm.select_set(True)
     bpy.context.view_layer.objects.active = a_arm
     bpy.ops.object.mode_set(mode="POSE")
-    for bname, q in [("upperarm_l", q_l), ("upperarm_r", q_r)]:
+    for bname, q in rotations:
         pb = a_arm.pose.bones[bname]
         pb.rotation_mode = "QUATERNION"
         pb.rotation_quaternion = q.inverted()
