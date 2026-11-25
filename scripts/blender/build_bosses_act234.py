@@ -550,24 +550,34 @@ def build_character(cfg, raw_dir=RAW_DIR, out_dir=MODELS_DIR, carved=False):
     body.name = f"{prefix}_Body"
     body.data = body.data.copy()
     body.data.name = body.name
-    dec = body.modifiers.new(name="Decimate", type="DECIMATE")
-    dec.ratio = 0.30
-    if "tri_budget" in cfg:
-        triangles = sum(len(p.vertices) - 2 for p in body.data.polygons)
-        dec.ratio = min(1.0, cfg["tri_budget"] / max(1, triangles))
-    bpy.ops.object.modifier_apply(modifier=dec.name)
-    if carved:
-        planar = body.modifiers.new(name="PlanarFacet", type="DECIMATE")
-        planar.decimate_type = "DISSOLVE"
-        planar.angle_limit = math.radians(6.0)
-        bpy.ops.object.modifier_apply(modifier=planar.name)
-        tri_mod = body.modifiers.new(name="TriangulateFacet", type="TRIANGULATE")
-        bpy.ops.object.modifier_apply(modifier=tri_mod.name)
-    for poly in body.data.polygons:
-        poly.use_smooth = not carved
+    if cfg.get("retopo_quads"):
+        from project_mv_carved import quadriflow_carved_retopo, project_4view_onto_mesh
+        quadriflow_carved_retopo(body_high, body, target_quads=cfg["retopo_quads"], tex_size=1024)
+        if cfg.get("mv_dir"):
+            project_4view_onto_mesh(
+                body, cfg["mv_dir"], tex_size=1024,
+                skip_side_arms=not cfg.get("horizontal_arms", True),
+            )
+    else:
+        dec = body.modifiers.new(name="Decimate", type="DECIMATE")
+        dec.ratio = 0.30
+        if "tri_budget" in cfg:
+            triangles = sum(len(p.vertices) - 2 for p in body.data.polygons)
+            dec.ratio = min(1.0, cfg["tri_budget"] / max(1, triangles))
+        if carved:
+            dec.delimit = {"UV"}
+        bpy.ops.object.modifier_apply(modifier=dec.name)
+        for poly in body.data.polygons:
+            poly.use_smooth = not carved
 
-    if not carved:
-        bake_normal_map(body_high, body, f"{bid}_Normal", size=1024)
+        if not carved:
+            bake_normal_map(body_high, body, f"{bid}_Normal", size=1024)
+        elif cfg.get("mv_dir"):
+            from project_mv_carved import project_4view_onto_mesh
+            project_4view_onto_mesh(
+                body, cfg["mv_dir"], tex_size=1024,
+                skip_side_arms=not cfg.get("horizontal_arms", True),
+            )
     bpy.data.objects.remove(body_high, do_unlink=True)
 
     # 4) Inverted-hull sumi-ink outline

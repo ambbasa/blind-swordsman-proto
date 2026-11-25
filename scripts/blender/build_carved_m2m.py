@@ -28,7 +28,7 @@ def character_profiles():
             "torso_clean_z": fit["z_shoulder"] - 0.12,
             "torso_clean_x": fit["shoulder_x"] * 0.8,
             "arm_floor_z": fit["z_shoulder"] - fit["arm_len"] - 0.10,
-            "tri_budget": {"hero": 3600, "minion": 2800, "heavy": 3400, "stone": 2600}[name],
+            "tri_budget": {"hero": 15000, "minion": 9000, "heavy": 11000, "stone": 11000}[name],
         }
 
     bosses = {boss["id"]: boss for boss in BOSS_CONFIGS}
@@ -41,7 +41,6 @@ def character_profiles():
             "template": str(Path(MODELS_DIR) / donor["out"]),
             "source_fit": donor["fit"],
             "clip_names": [spec[0] for spec in UNARMED_ACTIONS],
-            "tri_budget": 4200,
         }
 
     # All meshes are normalized to 1.72 before fitting. Bound the wrist search
@@ -95,12 +94,9 @@ def main():
     parser.add_argument("--raw-dir", type=Path, required=True)
     parser.add_argument("--out-dir", type=Path, required=True)
     parser.add_argument("--guardian", action="store_true", help="Fit horizontal arms and spread legs")
-    parser.add_argument("--tri-budget", type=int, default=0, help="Override target triangle count")
     args = parser.parse_args(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])
     args.out_dir.mkdir(parents=True, exist_ok=True)
     profile = profiles[args.only]
-    if args.tri_budget > 0:
-        profile["tri_budget"] = args.tri_budget
     if args.guardian:
         # In ember-guardian-mv, hero uses a 45-deg A-pose (wrists ~0.95m) with spread legs,
         # whereas the other seven characters use horizontal T-pose arms (wrists ~1.25-1.35m).
@@ -108,6 +104,26 @@ def main():
         profile["guardian"] = True
         profile["horizontal_arms"] = is_horizontal
         profile["wrist_band"] = (1.03, 1.52) if is_horizontal else (0.82, 1.12)
+        mv_dir = Path(__file__).resolve().parents[2] / "design/character-concepts/ember-guardian-mv" / f"{args.only}_mv"
+        if mv_dir.is_dir():
+            profile["mv_dir"] = str(mv_dir)
+        if args.only == "minion":
+            # Exact anatomical landmarks measured on ember-guardian-mv skeleton (H=1.72m)
+            profile["fit"] = {
+                **profile["fit"],
+                "z_ankle": 0.10, "z_knee": 0.50, "z_pelvis": 0.86,
+                "z_shoulder": 1.35, "z_neck": 1.44, "z_head": 1.54,
+                "hip_x": 0.135, "shoulder_x": 0.19,
+            }
+        # QuadriFlow clean carved quad retopology + EMIT fallback + 4-view 2D projection
+        # (boss_act2 headdress & boss_act4 slender neck/crown stay sharper & lighter on UV-delimited carved decimate)
+        if args.only in ("boss_act2", "boss_act4"):
+            profile["tri_budget"] = 6500
+        else:
+            profile["retopo_quads"] = {
+                "hero": 2600, "minion": 2000, "heavy": 2400, "stone": 2400,
+                "boss_act1": 2600, "boss_act3": 2600,
+            }[args.only]
     with tempfile.TemporaryDirectory(dir=args.out_dir) as temp:
         staged = Path(temp) / profile["out"]
         build_character(profile, args.raw_dir, temp, carved=True)
