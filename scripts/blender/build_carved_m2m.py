@@ -98,8 +98,12 @@ def main():
     args.out_dir.mkdir(parents=True, exist_ok=True)
     profile = profiles[args.only]
     if args.guardian:
+        # In ember-guardian-mv, hero uses a 45-deg A-pose (wrists ~0.95m) with spread legs,
+        # whereas the other seven characters use horizontal T-pose arms (wrists ~1.25-1.35m).
+        is_horizontal = args.only != "hero"
         profile["guardian"] = True
-        profile["wrist_band"] = (1.03, 1.52)
+        profile["horizontal_arms"] = is_horizontal
+        profile["wrist_band"] = (1.03, 1.52) if is_horizontal else (0.82, 1.12)
     with tempfile.TemporaryDirectory(dir=args.out_dir) as temp:
         staged = Path(temp) / profile["out"]
         build_character(profile, args.raw_dir, temp, carved=True)

@@ -509,6 +509,7 @@ def build_character(cfg, raw_dir=RAW_DIR, out_dir=MODELS_DIR, carved=False):
     # Measure exact 3D wrist targets and compute true arm_len from shoulder -> wrist
     lh_wrist, rh_wrist = measure_hand_targets(body_high, cfg.get("wrist_band"))
     guardian = cfg.get("guardian", False)
+    horizontal_arms = cfg.get("horizontal_arms", True)
     source_fit = dict(cfg.get("source_fit", SRC_BOSS_FIT))
     if guardian:
         fit["spread_stance"] = True
@@ -519,10 +520,18 @@ def build_character(cfg, raw_dir=RAW_DIR, out_dir=MODELS_DIR, carved=False):
         source_fit["shoulder_x"] = abs(shoulder.x)
         source_fit["z_shoulder"] = shoulder.z
         source_fit["arm_len"] = (bones["hand_l"].head_local - shoulder).length
-        shoulder_z = (lh_wrist.z + rh_wrist.z) / 2
-        for key in ("z_neck", "z_head"):
-            fit[key] = min(1.71, fit[key] + shoulder_z - fit["z_shoulder"])
-        fit["z_shoulder"] = shoulder_z
+        if horizontal_arms:
+            shoulder_z = (lh_wrist.z + rh_wrist.z) / 2
+            for key in ("z_neck", "z_head"):
+                fit[key] = min(1.71, fit[key] + shoulder_z - fit["z_shoulder"])
+            fit["z_shoulder"] = shoulder_z
+        else:
+            # 45-deg A-pose guardian (e.g. hero): keep anatomical shoulder/neck/head heights,
+            # nudge wrist target slightly up along the angled forearm, and lower arm skinning floor
+            # so forearms/hands stay in arm territory while spread knees stay excluded.
+            lh_wrist = Vector((lh_wrist.x, lh_wrist.y, lh_wrist.z + 0.020))
+            rh_wrist = Vector((rh_wrist.x, rh_wrist.y, rh_wrist.z + 0.020))
+            fit["arm_min_z"] = max(fit["z_pelvis"] - 0.03, min(lh_wrist.z, rh_wrist.z) - 0.14)
     sh_l = Vector((fit["shoulder_x"], 0.065, fit["z_shoulder"]))
     sh_r = Vector((-fit["shoulder_x"], 0.065, fit["z_shoulder"]))
     true_arm_len = 0.5 * ((lh_wrist - sh_l).length + (rh_wrist - sh_r).length)
@@ -605,9 +614,10 @@ def build_character(cfg, raw_dir=RAW_DIR, out_dir=MODELS_DIR, carved=False):
     cleaned = 0
     cape_cleaned = 0
     arm_floor_z = cfg.get("arm_floor_z", 0.78)
-    # Hard coordinate cuts were intended for long robes in the A-pose set.
-    # The guardian silhouettes have separated limbs; retain continuous heat weights.
-    for v in (() if guardian else body.data.vertices):
+    # Hard coordinate cuts were intended for long robes / A-pose arms before A->T bake.
+    # Horizontal-arm guardian silhouettes keep continuous heat weights; 45-deg A-pose guardians
+    # still strip torso arm bleed so the waist/belt does not kink when rotating arms up to T-pose.
+    for v in (() if (guardian and horizontal_arms) else body.data.vertices):
         in_torso_core = (v.co.z < cfg["torso_clean_z"] and abs(v.co.x) < cfg["torso_clean_x"])
         below_arms = (v.co.z < arm_floor_z and abs(v.co.x) < 0.40)
         in_rear_cape = (cfg.get("cape_clean") and v.co.y > 0.10 and abs(v.co.x) < 0.40 and v.co.z < 1.25)
