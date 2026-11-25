@@ -530,21 +530,7 @@ function syncGroundEffects() {
     const age=1-rt.clamp(p.t/(rt.CFG.inkStep.dur||2),0,1);
     layer.put('phases',8+Math.min(3,Math.floor(age*4)),p.x,p.z,p.r*2,p.r*2);
   }
-  for (const cloud of rt.S.clouds || []) {
-    if (cloud.kind === 'fire') {
-      layer.put('skill',7,cloud.x,cloud.z,cloud.r*2,cloud.r*2);
-      continue;
-    }
-    const drift = rt.S.elapsed * .48 + cloud.x * .71 + cloud.z * .37;
-    const fade = rt.clamp(cloud.t / .45, 0, 1);
-    for (let i = 0; i < 6; i++) {
-      const angle = drift + i * Math.PI * 2 / 5;
-      const offset = i === 5 ? 0 : cloud.r * .48;
-      const size = cloud.r * (1.02 + .16 * Math.sin(drift * 2 + i)) * fade;
-      layer.put('mist',0,cloud.x + Math.cos(angle)*offset,cloud.z + Math.sin(angle)*offset,
-        size*1.14,size,angle,(.1 + .12*(1 + Math.sin(angle*2))) * bossTeleDim);
-    }
-  }
+  /* v1.38 구형 주황 회오리/연보라 구름 스프라이트 제거 -> drawV31에서 절제된 방사형 수묵/불씨 장판으로 렌더 */
   layer.end();
 }
 function drawTerrain(ctx,r,hs,t) {
@@ -608,7 +594,7 @@ function drawV31(ctx, r, hs, t) {
     const pFrac = isOpen ? rt.clamp(1 - (boss.stateT || 0) / Math.max(0.1, boss.groggyDur || P.groggyT || 3.4), 0, 1) : (pCur / pMax);
 
     ctx.save();
-    /* v1.37 시안식 거친 먹선 붓터치 보스 체력바 (투박한 사각 박스 제거) */
+    /* v1.38 시안식 거친 먹선 붓터치 보스 체력바 (투박한 사각 박스 제거) */
     ctx.fillStyle = 'rgba(7,10,13,0.90)';
     ctx.beginPath();
     ctx.moveTo(x - 18, y + h * 0.5);
@@ -660,8 +646,10 @@ function drawV31(ctx, r, hs, t) {
     ctx.fillRect(x, py, pw, ph2);
     ctx.fillStyle = 'rgba(18,14,10,0.45)';
     for (let ti = 1; ti < 4; ti++) ctx.fillRect(x + w * (ti / 4) - 0.5, py, 1, ph2);
-    ctx.font = '700 9.5px "InkSerif", serif';
+    ctx.font = '700 10px "InkSerif", serif';
     ctx.textAlign = 'left';
+    ctx.shadowColor = 'rgba(0,0,0,0.95)';
+    ctx.shadowBlur = 4;
     ctx.fillStyle = isOpen ? '#fff0a8' : '#f2d07b';
     ctx.fillText(isOpen ? '강인도 붕괴' : '강인도', x, py + ph2 + 11);
 
@@ -764,21 +752,52 @@ function drawV31(ctx, r, hs, t) {
     ctx.restore();
   }
   const wpp = rt.worldPerCss();
+  /* v1.38 절제된 카툰 방사형 화염/청독 장판 (최대 8개, 겹침 과다 억제) */
+  if (rt.S.clouds && rt.S.clouds.length) {
+    ctx.save();
+    let drawnC = 0;
+    for (let ci = rt.S.clouds.length - 1; ci >= 0 && drawnC < 8; ci--) {
+      const cl = rt.S.clouds[ci];
+      if (!cl || !(cl.t > 0)) continue;
+      drawnC++;
+      const fade = rt.clamp(cl.t / 0.5, 0, 1);
+      const cp = rt.projectXZ(cl.x, cl.z, 0.04);
+      const rad = Math.max(14, (cl.r || 1.6) * wpp * 0.72);
+      const gr = ctx.createRadialGradient(cp.x, cp.y, rad * 0.08, cp.x, cp.y, rad);
+      if (cl.kind === 'fire') {
+        gr.addColorStop(0, 'rgba(255,112,56,' + (0.28 * fade).toFixed(3) + ')');
+        gr.addColorStop(0.55, 'rgba(196,42,30,' + (0.16 * fade).toFixed(3) + ')');
+        gr.addColorStop(1, 'rgba(196,42,30,0)');
+      } else {
+        gr.addColorStop(0, 'rgba(72,226,184,' + (0.22 * fade).toFixed(3) + ')');
+        gr.addColorStop(0.6, 'rgba(32,126,112,' + (0.12 * fade).toFixed(3) + ')');
+        gr.addColorStop(1, 'rgba(20,76,72,0)');
+      }
+      ctx.fillStyle = gr;
+      ctx.beginPath();
+      ctx.ellipse(cp.x, cp.y, rad, rad * 0.68, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+  let shownMobHp = 0;
   rt.S.zombies.forEach(function (z) {
     if (!z.alive || z.isBoss) return;
     const zh = (z.obj && z.obj.userData && z.obj.userData.worldH) || 2.4;
     const p = rt.projectXZ(z.x, z.z, zh * 0.9);
     if (z.obj && !z.obj.visible) return;
-    /* v1.37 풀피 일반 잡몹 HP바 숨김 -> 피격 적 또는 정예/중장만 초슬림 2px 진홍 실선 표시 (바코드 겹침 제거) */
+    /* v1.38 잡몹 HP바: 정예/중장 또는 피격 적 최대 6기만 초슬림 1.8px 진홍 실선 표시 */
     const zMaxHp = Math.max(1, z.maxHp || z.hp || 1);
     const zCurHp = Math.max(0, z.hp || 0);
-    if (zCurHp > 0 && (zCurHp < zMaxHp || z.elite || z.heavy)) {
-      const bw = z.elite || z.heavy ? 22 : 14;
+    const isPriority = !!(z.elite || z.heavy);
+    if (zCurHp > 0 && (isPriority || (zCurHp < zMaxHp * 0.92 && shownMobHp < 6))) {
+      if (!isPriority) shownMobHp++;
+      const bw = isPriority ? 22 : 13;
       const bx = p.x - bw * 0.5, by = p.y - 6;
-      ctx.fillStyle = 'rgba(6,8,10,0.78)';
-      ctx.fillRect(bx - 0.5, by - 0.5, bw + 1, 3);
-      ctx.fillStyle = '#e43232';
-      ctx.fillRect(bx, by, bw * rt.clamp(zCurHp / zMaxHp, 0, 1), 2);
+      ctx.fillStyle = 'rgba(6,8,10,0.68)';
+      ctx.fillRect(bx - 0.5, by - 0.5, bw + 1, 2.8);
+      ctx.fillStyle = '#e43636';
+      ctx.fillRect(bx, by, bw * rt.clamp(zCurHp / zMaxHp, 0, 1), 1.8);
     }
     /* 갑옷을 두른 장정 */
     if (z.armored && (z.armor || 0) > 0) {

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { applyForgedMetal } from './modules/metalStudioEnv.js';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
 import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v103';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v137';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v138';
 
 const URL_GLB = new URL('../assets/models/hero.glb?v=v103', import.meta.url).href;
 let pending = null;
@@ -115,7 +115,7 @@ export function makeHeroGlb(height) {
           targetMat.customProgramCacheKey = function () { return 'hero-head-toon-v135'; };
         }
         mat = targetMat;
-        /* v1.37 엠버 앤 블레이드식 2.5D 툰 스텝 셰이딩 + 선명한 청백 림 라이트 (의복 치장 틴트 유지) */
+        /* v1.38 엠버 앤 블레이드식 2.5D 툰 스텝 셰이딩 + 선명한 청백 림 라이트 (의복 치장 틴트 유지) */
         mat.userData.uCloakTint = { value: new THREE.Color(0xffffff) };
         mat.userData.uCloakMix = { value: 0.0 };
         mat.userData.uToonRimCol = { value: new THREE.Color(isHead ? 0xe8f6ff : 0x7ec8e8) };
@@ -246,7 +246,7 @@ export function triggerHeroGlbBurst(G, name, shape) {
   if (name === 'slash') {
     const seq = ['slash', 'slash2', 'slash3'].filter(function (k) { return !!G.actions[k]; });
     if (!seq.length) return;
-    /* v1.37 무늬별 전용 공격 모션 매핑: —(횡베기) · ㅣ(관통베기) · V(도약 내려찍기) · Z(초고속 연쇄베기) */
+    /* v1.38 무늬별 전용 공격 모션 매핑: —(횡베기) · ㅣ(관통베기) · V(도약 내려찍기) · Z(초고속 연쇄베기) */
     if (shape === 'hline' && G.actions.slash) {
       clipKey = 'slash'; ts = 1.45; G.lastComboStep = 1;
     } else if (shape === 'vline' && G.actions.slash2) {

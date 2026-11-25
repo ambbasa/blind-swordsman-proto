@@ -1421,7 +1421,7 @@ function createArenaWorld(opts) {
   detail.center.set(0.5, 0.5);
   detail.rotation = stageId * 0.47;
   detail.anisotropy = 4;
-  /* v1.37 엠버 앤 블레이드 × 청묵 핸드페인팅 바닥: 자글자글한 실사 돌사진(terrain-N.webp) 대신 부드러운 저채도 청묵 붓터치 면 */
+  /* v1.38 엠버 앤 블레이드 × 청묵 핸드페인팅 바닥: 자글자글한 실사 돌사진(terrain-N.webp) 대신 부드러운 저채도 청묵 붓터치 면 */
   const emberGroundTex = (function () {
     const c = document.createElement('canvas');
     c.width = c.height = 512;
@@ -1457,7 +1457,7 @@ function createArenaWorld(opts) {
     const tx = new THREE.CanvasTexture(c);
     tx.colorSpace = THREE.SRGBColorSpace;
     tx.wrapS = tx.wrapT = THREE.RepeatWrapping;
-    tx.repeat.set(2, 2);
+    tx.repeat.set(1, 1);
     tx.needsUpdate = true;
     return tx;
   })();

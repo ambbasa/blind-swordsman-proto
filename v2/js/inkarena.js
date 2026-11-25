@@ -19,7 +19,7 @@
 import * as THREE from 'three';
 import * as TEX from './inktex3d.js';
 import { SKIN_VERT } from './inkbody3d.js';
-import { INK3D } from './inkhero3d.js?v=v137';
+import { INK3D } from './inkhero3d.js?v=v138';
 import { actFromStageId, getActTheme3D, applyThemeToInkUniforms } from './modules/actTheme3d.js';
 import { mulberry } from './inkbake.js';
 import { createFracturedRockGeo } from './modules/skillAssets3d.js';
@@ -834,7 +834,7 @@ export function buildArena(opts) {
         B.lit(G.box, 0xff6e42, { x: px, y: 0.7 + ph + 0.28, z: pz, sx: 0.42, sy: 0.44, sz: 0.42, ry: ang });
         B.add(G.cone4, 0x2a1d1f, ZONE.TILE, { x: px, y: 0.7 + ph + 0.72, z: pz, sx: 0.88, sy: 0.48, sz: 0.88, ry: ang });
       } else {
-        /* v1.37 4막: 튀는 띠 장식 제거 -> 차분한 어두운 청묵 현무암 석주 실루엣 */
+        /* v1.38 4막: 튀는 띠 장식 제거 -> 차분한 어두운 청묵 현무암 석주 실루엣 */
         const oh = 3.2 + rnd() * 1.4;
         B.add(G.box, 0x162228, ZONE.STONE, { x: px, y: oh * 0.5, z: pz, sx: 0.64, sy: oh, sz: 0.64, ry: ang });
         B.add(G.cone4, 0x1a282e, ZONE.STONE, { x: px, y: oh + 0.35, z: pz, sx: 0.60, sy: 0.70, sz: 0.60, ry: ang });

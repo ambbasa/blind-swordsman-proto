@@ -5,7 +5,7 @@ import { ShaderPass } from '../../assets/v2/fx-ink/code/vendor/three-r170-addons
 
 /** Tuning values for the ink-wash pass; every number a designer would tune lives here. */
 export const INKWASH = {
-  /* v1.37 엠버 앤 블레이드 × 청묵 툰 룩: 저채도 슬레이트 청묵 바닥 + 3.5단 셀 밴딩 + 고대비 강조색 */
+  /* v1.38 엠버 앤 블레이드 × 청묵 툰 룩: 저채도 슬레이트 청묵 바닥 + 3.5단 셀 밴딩 + 고대비 강조색 */
   ink: [0.008, 0.014, 0.018],
   wash: [0.052, 0.092, 0.104],
   paper: [0.24, 0.34, 0.36],

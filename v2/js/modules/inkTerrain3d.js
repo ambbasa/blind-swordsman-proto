@@ -917,28 +917,22 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       addCollider(fx, fz, 0.45);
     }
 
-    /* v1.37 엠버 앤 블레이드식 외곽 고품질 스킬 프롭 (중앙 전투장 개방 + 외곽 청묵 현무암/석등/고목/양치식물 실루엣) */
+    /* v1.38 엠버 앤 블레이드식 외곽 고품질 스킬 프롭 (중앙 전투장 개방 + 외곽 청묵 현무암/석등/고목/양치식물 실루엣) */
     {
       const perimN = 4;
       for (let pi = 0; pi < perimN; pi++) {
         const pa = (pi / perimN) * Math.PI * 2 + 0.38 + (stageNo % 4) * 0.22;
-        const pr = 14.2 + (pi % 2) * 1.4;
+        const pr = 16.4 + (pi % 2) * 1.2;
         const px = Math.cos(pa) * pr, pz = Math.sin(pa) * pr;
-        if (!canPlace(px, pz, 3.2, 11.5)) continue;
-        const rockCl = buildFracturedBasaltRocks3D(rng, { count: 3, radius: 1.6, rockHex: 0x1c282e });
+        if (!canPlace(px, pz, 3.2, 14.0)) continue;
+        const rockCl = buildFracturedBasaltRocks3D(rng, { count: 2, radius: 1.4, rockHex: 0x111a1e });
         rockCl.position.set(px, 0, pz);
         rockCl.rotation.y = rng() * Math.PI * 2;
         try { paintCard(rockCl, 'prop'); } catch (e) {}
         group.add(rockCl);
         if (rockCl.userData && rockCl.userData.disposables) rockCl.userData.disposables.forEach((d) => disposables.push(d));
         addContactShadow(px, pz, 1.85);
-        if (pi % 2 === 0) {
-          const fl = buildForestFloorFerns3D(rng, { count: 4, radius: 1.4, frondHex: 0x1d3832 });
-          fl.position.set(px - Math.cos(pa) * 1.3, 0, pz - Math.sin(pa) * 1.3);
-          try { paintCard(fl, 'prop'); } catch (e) {}
-          group.add(fl);
-          if (fl.userData && fl.userData.disposables) fl.userData.disposables.forEach((d) => disposables.push(d));
-        } else {
+        if (pi % 2 === 1) {
           const lt = buildCarvedLantern3D({ stoneHex: 0x243238, glowHex: actIdx === 3 ? 0xff7852 : 0x62e8cc });
           lt.position.set(px - Math.cos(pa) * 1.4, 0, pz - Math.sin(pa) * 1.4);
           lt.rotation.y = -pa;
@@ -1289,7 +1283,7 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
         putLantern(5.4, 13.0); putLantern(-5.6, -11.8);
         break;
       case 15:
-        /* v1.37 15장 검은 누각: 중앙 개방 + 외곽 청묵 성채 대문·석벽·현무암·조각 석등 */
+        /* v1.38 15장 검은 누각: 중앙 개방 + 외곽 청묵 성채 대문·석벽·현무암·조각 석등 */
         putStage(buildKasumideraGatehouse3D({ fortress: true, lacquerHex: 0x1e282e, tileHex: 0x141d22, glowHex: 0x5be8c4 }), 0, 16.4, 0, 3.2, 2.2);
         putStage(buildStoneFortressWall3D({ len: 5.0, stoneHex: 0x1d282e, bannerHex: 0x264248 }), -7.4, 15.4, 0.18, 2.2, 1.9);
         putStage(buildStoneFortressWall3D({ len: 5.0, stoneHex: 0x1d282e, bannerHex: 0x264248 }), 7.4, 15.4, -0.18, 2.2, 1.9);
@@ -1298,7 +1292,7 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
         break;
       case 16:
       default:
-        /* v1.37 16장 심안의 끝: 중앙 분홍 수정/보라 도리이 전면 제거 -> 중앙 100% 개방 + 외곽 청묵 누각·현무암·고목·석등 */
+        /* v1.38 16장 심안의 끝: 중앙 분홍 수정/보라 도리이 전면 제거 -> 중앙 100% 개방 + 외곽 청묵 누각·현무암·고목·석등 */
         putStage(buildKasumideraGatehouse3D({ fortress: true, lacquerHex: 0x1d272d, tileHex: 0x131c21, glowHex: 0x5be8c4 }), 0, 16.8, 0, 3.2, 2.2);
         putRocks(-10.6, 9.2, 1.15); putRocks(10.6, 9.2, 1.15);
         putRocks(-10.8, -9.8, 1.05); putRocks(10.8, -9.8, 1.05);
@@ -1368,7 +1362,7 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     group.add(fl.mesh);
     v67Updaters.push(fl);
   }
-  /* v1.37: 화면을 가로지르는 누런 가짜 빛기둥(SkyRays) 비활성화 — 청묵 툰 톤 일관성 유지 */
+  /* v1.38: 화면을 가로지르는 누런 가짜 빛기둥(SkyRays) 비활성화 — 청묵 툰 톤 일관성 유지 */
 
   scene.add(group);
   let elapsed = 0;

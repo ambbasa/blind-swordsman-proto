@@ -506,9 +506,25 @@ export class BossFx {
     }
     ctx.closePath();
     const pal = this._pal();
-    ctx.fillStyle = urgent ? (pal.dangerFill + '0.30)') : (pal.dangerFill + (0.08 + 0.14 * u).toFixed(3) + ')');
+    const edgePt = project(bx + Math.cos(aimA) * R, bz + Math.sin(aimA) * R, 0.06);
+    const radPx = Math.max(30, Math.hypot(edgePt.x - c.x, edgePt.y - c.y));
+    const gFill = ctx.createRadialGradient(c.x, c.y, radPx * 0.08, c.x, c.y, radPx);
+    gFill.addColorStop(0, pal.dangerFill + (urgent ? '0.42)' : (0.14 + 0.18 * u).toFixed(3) + ')'));
+    gFill.addColorStop(0.75, pal.dangerFill + (urgent ? '0.28)' : (0.08 + 0.12 * u).toFixed(3) + ')'));
+    gFill.addColorStop(1, pal.dangerFill + '0)');
+    ctx.fillStyle = gFill;
     ctx.fill();
-    ctx.strokeStyle = pal.danger; ctx.lineWidth = 3.0; ctx.stroke();
+    /* 진행도 u에 따라 중심에서 뻗어 나가는 부드러운 차지 파동 (하드 테두리 없음) */
+    const progR = Math.max(0.5, R * u);
+    ctx.beginPath(); ctx.moveTo(c.x, c.y);
+    for (let i = 0; i <= 16; i++) {
+      const a = aimA - half + (i / 16) * (half * 2);
+      const p = project(bx + Math.cos(a) * progR, bz + Math.sin(a) * progR, 0.06);
+      ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fillStyle = urgent ? 'rgba(255,190,140,0.22)' : (pal.dangerFill + (0.06 + 0.12 * u).toFixed(3) + ')');
+    ctx.fill();
     /* 2) 보스 머리 위 붉은 눈 인장 */
     const ew = 28 + 10 * u, eh = 13 + 5 * u;
     ctx.beginPath(); ctx.ellipse(hp.x, hp.y, ew, eh, 0, 0, Math.PI * 2);
@@ -544,15 +560,12 @@ export class BossFx {
       ctx.closePath();
       const pal = this._pal();
       if (danger) {
-        ctx.fillStyle = urgent ? (pal.dangerFill + '0.30)') : (pal.dangerFill + (0.10 + 0.14 * u).toFixed(3) + ')');
+        ctx.fillStyle = urgent ? (pal.dangerFill + '0.32)') : (pal.dangerFill + (0.10 + 0.16 * u).toFixed(3) + ')');
         ctx.fill();
-        if (this.cb) ctx.setLineDash([8, 4]);
-        ctx.strokeStyle = pal.danger; ctx.lineWidth = 2.8; ctx.stroke();
-        if (this.cb) ctx.setLineDash([]);
+        if (this.cb) { ctx.setLineDash([8, 4]); ctx.strokeStyle = pal.danger; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]); }
       } else {
-        ctx.fillStyle = pal.safeFill + '0.10)';
+        ctx.fillStyle = pal.safeFill + '0.12)';
         ctx.fill();
-        ctx.strokeStyle = pal.safe; ctx.lineWidth = 1.8; ctx.stroke();
       }
     }
     const tp = project(bx, bz, 2.3);
@@ -570,27 +583,41 @@ export class BossFx {
     const urgent = u >= 0.78;
     ctx.save();
     const pal = this._pal();
+    const ctr = project(bx, bz, 0.05);
+    const outP = project(bx + outerR, bz, 0.05);
+    const inP = project(bx + innerR, bz, 0.05);
+    const outPx = Math.max(24, Math.hypot(outP.x - ctr.x, outP.y - ctr.y));
+    const inPx = Math.max(12, Math.hypot(inP.x - ctr.x, inP.y - ctr.y));
     if (safeInside) {
       groundPoly(ctx, project, bx, bz, outerR, 44, 0);
-      ctx.fillStyle = urgent ? (pal.dangerFill + '0.26)') : (pal.dangerFill + (0.08 + 0.12 * u).toFixed(3) + ')');
-      ctx.fill();
-      if (this.cb) ctx.setLineDash([10, 5]);
-      ctx.strokeStyle = pal.danger; ctx.lineWidth = 3.0; ctx.stroke();
-      if (this.cb) ctx.setLineDash([]);
+      const dg = ctx.createRadialGradient(ctr.x, ctr.y, inPx * 0.85, ctr.x, ctr.y, outPx);
+      dg.addColorStop(0, pal.dangerFill + '0)');
+      dg.addColorStop(0.25, pal.dangerFill + (urgent ? '0.34)' : (0.12 + 0.16 * u).toFixed(3) + ')'));
+      dg.addColorStop(0.85, pal.dangerFill + (urgent ? '0.26)' : (0.08 + 0.12 * u).toFixed(3) + ')'));
+      dg.addColorStop(1, pal.dangerFill + '0)');
+      ctx.fillStyle = dg; ctx.fill();
       groundPoly(ctx, project, bx, bz, innerR, 40, t * 0.4);
-      ctx.fillStyle = pal.safeFill + '0.18)'; ctx.fill();
-      ctx.strokeStyle = pal.safe; ctx.lineWidth = urgent ? 4.0 : 3.0; ctx.stroke();
+      const sg = ctx.createRadialGradient(ctr.x, ctr.y, 2, ctr.x, ctr.y, inPx);
+      sg.addColorStop(0, pal.safeFill + '0.06)');
+      sg.addColorStop(0.8, pal.safeFill + '0.20)');
+      sg.addColorStop(1, pal.safeFill + '0.02)');
+      ctx.fillStyle = sg; ctx.fill();
     } else {
       groundPoly(ctx, project, bx, bz, innerR, 40, 0);
-      ctx.fillStyle = urgent ? (pal.dangerFill + '0.28)') : (pal.dangerFill + (0.10 + 0.14 * u).toFixed(3) + ')');
+      const dg = ctx.createRadialGradient(ctr.x, ctr.y, 2, ctr.x, ctr.y, inPx);
+      dg.addColorStop(0, pal.dangerFill + (urgent ? '0.38)' : (0.14 + 0.18 * u).toFixed(3) + ')'));
+      dg.addColorStop(0.82, pal.dangerFill + (urgent ? '0.28)' : (0.10 + 0.14 * u).toFixed(3) + ')'));
+      dg.addColorStop(1, pal.dangerFill + '0)');
+      ctx.fillStyle = dg; ctx.fill();
+      groundPoly(ctx, project, bx, bz, Math.max(0.3, innerR * u), 36, -t * 0.4);
+      ctx.fillStyle = urgent ? 'rgba(255,210,160,0.20)' : (pal.dangerFill + (0.08 + 0.14 * u).toFixed(3) + ')');
       ctx.fill();
-      if (this.cb) ctx.setLineDash([10, 5]);
-      ctx.strokeStyle = pal.danger; ctx.lineWidth = 3.2; ctx.stroke();
-      if (this.cb) ctx.setLineDash([]);
-      groundPoly(ctx, project, bx, bz, innerR * u, 36, -t * 0.4);
-      ctx.strokeStyle = 'rgba(255,240,192,0.9)'; ctx.lineWidth = 2.2; ctx.stroke();
-      groundPoly(ctx, project, bx, bz, innerR + 1.2, 42, t * 0.3);
-      ctx.strokeStyle = pal.safe; ctx.lineWidth = 2.6; ctx.stroke();
+      groundPoly(ctx, project, bx, bz, innerR + 1.4, 42, t * 0.3);
+      const sg = ctx.createRadialGradient(ctr.x, ctr.y, inPx * 0.92, ctr.x, ctr.y, inPx * 1.35);
+      sg.addColorStop(0, pal.safeFill + '0)');
+      sg.addColorStop(0.5, pal.safeFill + '0.16)');
+      sg.addColorStop(1, pal.safeFill + '0)');
+      ctx.fillStyle = sg; ctx.fill();
     }
     const c = project(bx, bz, 2.3);
     ctx.font = '700 14px "InkSerif", "Gowun Batang", serif'; ctx.textAlign = 'center';
@@ -701,20 +728,21 @@ export class BossFx {
       : 'rgba(186,34,24,' + (0.04 + 0.06 * u).toFixed(3) + ')';
     ctx.fill();
 
-    /* 2) 고정 외곽 위험 경계선 */
+    /* 2) v1.38 테두리선 제거 -> 부드러운 진홍 방사형 그라데이션 & 진행 채움 */
+    const sc = project(x, z, 0.05);
+    const se = project(x + R, z, 0.05);
+    const srPx = Math.max(18, Math.hypot(se.x - sc.x, se.y - sc.y));
     groundPoly(ctx, project, x, z, R, 42, 0);
-    ctx.strokeStyle = 'rgba(14,9,9,0.72)';
-    ctx.lineWidth = 5;
-    ctx.stroke();
-    ctx.strokeStyle = urgent ? 'rgba(255,238,180,0.98)' : ('rgba(246,84,56,' + (0.72 + 0.28 * u).toFixed(3) + ')');
-    ctx.lineWidth = urgent ? 3.0 : 2.3;
-    ctx.stroke();
-
-    /* 3) 수렴 백금 타이밍 링 (f → 1.0) */
-    groundPoly(ctx, project, x, z, Math.max(0.18, R * u), 38, -t * 0.4);
-    ctx.strokeStyle = urgent ? 'rgba(255,252,232,0.98)' : 'rgba(255,214,132,0.88)';
-    ctx.lineWidth = urgent ? 2.8 : 2.0;
-    ctx.stroke();
+    const sg = ctx.createRadialGradient(sc.x, sc.y, srPx * 0.1, sc.x, sc.y, srPx);
+    sg.addColorStop(0, urgent ? 'rgba(255,120,86,0.34)' : ('rgba(218,46,38,' + (0.12 + 0.14 * u).toFixed(3) + ')'));
+    sg.addColorStop(0.78, urgent ? 'rgba(220,42,36,0.24)' : ('rgba(186,32,28,' + (0.08 + 0.10 * u).toFixed(3) + ')'));
+    sg.addColorStop(1, 'rgba(186,32,28,0)');
+    ctx.fillStyle = sg;
+    ctx.fill();
+    /* 3) 수렴 파동 채움 (하드 테두리 없음) */
+    groundPoly(ctx, project, x, z, Math.max(0.18, R * u), 36, -t * 0.4);
+    ctx.fillStyle = urgent ? 'rgba(255,224,172,0.22)' : 'rgba(255,148,108,0.12)';
+    ctx.fill();
     ctx.restore();
   }
 
@@ -737,12 +765,7 @@ export class BossFx {
     ctx.beginPath(); ctx.moveTo(c0.x, c0.y); ctx.lineTo(c1.x, c1.y); ctx.lineTo(c2.x, c2.y); ctx.lineTo(c3.x, c3.y); ctx.closePath();
     ctx.fillStyle = urgent ? 'rgba(220,44,30,0.16)' : ('rgba(186,30,22,' + (0.06 + 0.08 * u).toFixed(3) + ')');
     ctx.fill();
-    ctx.strokeStyle = 'rgba(16,10,10,0.72)';
-    ctx.lineWidth = 4.5;
-    ctx.stroke();
-    ctx.strokeStyle = urgent ? 'rgba(255,240,186,0.96)' : ('rgba(246,84,58,' + (0.65 + 0.35 * u).toFixed(3) + ')');
-    ctx.lineWidth = urgent ? 2.8 : 2.1;
-    ctx.stroke();
+    /* v1.38 돌진 레인 하드 테두리 제거 — 채움 파동으로만 시인성 확보 */
 
     /* 타이밍에 맞춰 차오르는 전진 채움 바 (끝에 도달하면 돌진 발사!) */
     const fillL = len * u;
