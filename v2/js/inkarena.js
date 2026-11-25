@@ -20,6 +20,8 @@ import * as THREE from 'three';
 import * as TEX from './inktex3d.js';
 import { SKIN_VERT } from './inkbody3d.js';
 import { INK3D } from './inkhero3d.js?v=v143';
+import { attachGlbArenaProps, preloadArenaProps } from './glbprops.js?v=v143';
+preloadArenaProps();
 import { actFromStageId, getActTheme3D, applyThemeToInkUniforms } from './modules/actTheme3d.js';
 import { mulberry } from './inkbake.js';
 import { createFracturedRockGeo } from './modules/skillAssets3d.js';
@@ -898,6 +900,12 @@ export function buildArena(opts) {
     glowMesh.material.color.copy(lanternBaseCol).multiplyScalar(flicker);
   }
   applyActTheme(actFromStageId(stageId));
+  const glbProps = attachGlbArenaProps(group, {
+    stageId: stageId,
+    actNo: actFromStageId(stageId),
+    arenaRadius: ARENA.R,
+    seed: opts.seed || ARENA.SEED
+  });
 
   return {
     group: group, body: body, hull: hullMesh, glow: glowMesh,
@@ -906,7 +914,8 @@ export function buildArena(opts) {
     stats: { props: B.body.length + B.glow.length, tri: Math.round(tri + tri), bodies: B.body.length, glow: B.glow.length },
     lightSpots: spots.filter(function (s) { return s.r > 3; }).slice(0, 8),
     applyActTheme: applyActTheme,
-    tickTheme: tickTheme
+    tickTheme: tickTheme,
+    glbProps: glbProps
   };
 }
 
