@@ -608,27 +608,40 @@ function drawV31(ctx, r, hs, t) {
     const pFrac = isOpen ? rt.clamp(1 - (boss.stateT || 0) / Math.max(0.1, boss.groggyDur || P.groggyT || 3.4), 0, 1) : (pCur / pMax);
 
     ctx.save();
-    ctx.fillStyle = 'rgba(15,11,10,0.82)';
-    ctx.fillRect(x - 10, y - 22, w + 20, 56);
-    ctx.strokeStyle = isPhaseCut ? 'rgba(255,110,88,0.95)' : (isOpen ? 'rgba(255,224,118,0.96)' : 'rgba(180,146,88,0.62)');
-    ctx.lineWidth = (isOpen || isPhaseCut) ? 1.8 : 1.1;
-    ctx.strokeRect(x - 10, y - 22, w + 20, 56);
+    /* v1.34 시안식 거친 먹선 붓터치 보스 체력바 (투박한 사각 박스 제거) */
+    ctx.fillStyle = 'rgba(7,10,13,0.90)';
+    ctx.beginPath();
+    ctx.moveTo(x - 18, y + h * 0.5);
+    ctx.lineTo(x - 4, y - 3);
+    ctx.lineTo(x + w + 8, y - 2);
+    ctx.lineTo(x + w + 22, y + h * 0.5);
+    ctx.lineTo(x + w + 6, y + h + 4);
+    ctx.lineTo(x - 6, y + h + 3);
+    ctx.closePath();
+    ctx.fill();
 
-    ctx.font = '700 12px "InkSerif", serif';
+    ctx.font = '700 13px "InkSerif", serif';
     ctx.textBaseline = 'alphabetic';
-    ctx.textAlign = 'left';
-    ctx.fillStyle = '#f6ebd4';
-    ctx.fillText(rt.S.stage.bossName || '귀물 우두머리', x, y - 7);
-    ctx.textAlign = 'right';
-    ctx.fillStyle = isPhaseCut ? '#ff967a' : '#e8c47a';
-    ctx.fillText((boss.phase || 1) + '국면  ' + Math.ceil(curHp) + ' / ' + maxHp, x + w, y - 7);
+    ctx.textAlign = 'center';
+    ctx.shadowColor = 'rgba(0,0,0,0.9)';
+    ctx.shadowBlur = 4;
+    ctx.fillStyle = '#f4f8fa';
+    ctx.fillText((rt.S.stage.bossName || '귀물 우두머리') + '  ·  ' + (boss.phase || 1) + '국면', cx, y - 7);
+    ctx.shadowBlur = 0;
 
-    ctx.fillStyle = 'rgba(32,20,18,0.95)';
+    ctx.fillStyle = 'rgba(18,12,14,0.96)';
     ctx.fillRect(x, y, w, h);
-    ctx.fillStyle = 'rgba(255,224,152,0.85)';
+    ctx.fillStyle = 'rgba(255,232,188,0.82)';
     ctx.fillRect(x, y, w * rt.clamp(boss.hpTrail / maxHp, 0, 1), h);
-    ctx.fillStyle = isPhaseCut ? '#ff8b52' : (isOpen ? '#f0643b' : '#c43e33');
+    const hpGrad = ctx.createLinearGradient(x, y, x + w, y);
+    if (isPhaseCut) { hpGrad.addColorStop(0, '#ff4d2e'); hpGrad.addColorStop(1, '#ff9c54'); }
+    else if (isOpen) { hpGrad.addColorStop(0, '#d93829'); hpGrad.addColorStop(1, '#ff7340'); }
+    else { hpGrad.addColorStop(0, '#8f191d'); hpGrad.addColorStop(0.7, '#d42c2a'); hpGrad.addColorStop(1, '#ff4f42'); }
+    ctx.fillStyle = hpGrad;
     ctx.fillRect(x, y, w * rt.clamp(curHp / maxHp, 0, 1), h);
+    ctx.strokeStyle = isPhaseCut ? 'rgba(255,140,100,0.95)' : (isOpen ? 'rgba(255,224,118,0.95)' : 'rgba(6,8,10,0.95)');
+    ctx.lineWidth = (isOpen || isPhaseCut) ? 1.6 : 1.2;
+    ctx.strokeRect(x, y, w, h);
 
     const B = rt.bossCfg();
     const cutMarks = (B.phase3 || (rt.S.stageNo || 1) >= 12) ? [0.30, 0.60] : [0.60];
@@ -756,6 +769,17 @@ function drawV31(ctx, r, hs, t) {
     const zh = (z.obj && z.obj.userData && z.obj.userData.worldH) || 2.4;
     const p = rt.projectXZ(z.x, z.z, zh * 0.9);
     if (z.obj && !z.obj.visible) return;
+    /* v1.34 시안식 잡몹 얇은 진홍 실선 HP바 (2.5px) */
+    const zMaxHp = Math.max(1, z.maxHp || z.hp || 1);
+    const zCurHp = Math.max(0, z.hp || 0);
+    if (zCurHp > 0 && (zMaxHp > 1 || zCurHp < zMaxHp)) {
+      const bw = z.elite || z.heavy ? 24 : 16;
+      const bx = p.x - bw * 0.5, by = p.y - 6;
+      ctx.fillStyle = 'rgba(6,8,10,0.86)';
+      ctx.fillRect(bx - 1, by - 1, bw + 2, 4.5);
+      ctx.fillStyle = '#e02d2d';
+      ctx.fillRect(bx, by, bw * rt.clamp(zCurHp / zMaxHp, 0, 1), 2.5);
+    }
     /* 갑옷을 두른 장정 */
     if (z.armored && (z.armor || 0) > 0) {
       ctx.save();

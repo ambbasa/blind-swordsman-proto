@@ -2,16 +2,16 @@ import * as THREE from 'three';
 import { applyForgedMetal, getMetalStudioEnv } from './modules/metalStudioEnv.js';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
 import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v103';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v133';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v134';
 
 const MODEL_URLS = {
-  boss:      new URL('../assets/models/boss.glb?v=v133', import.meta.url).href,
-  boss_act2: new URL('../assets/models/boss_act2.glb?v=v133', import.meta.url).href,
-  boss_act3: new URL('../assets/models/boss_act3.glb?v=v133', import.meta.url).href,
-  boss_act4: new URL('../assets/models/boss_act4.glb?v=v133', import.meta.url).href,
-  minion:    new URL('../assets/models/minion.glb?v=v133', import.meta.url).href,
-  heavy:     new URL('../assets/models/heavy.glb?v=v133', import.meta.url).href,
-  stone:     new URL('../assets/models/stone.glb?v=v133', import.meta.url).href
+  boss:      new URL('../assets/models/boss.glb?v=v134', import.meta.url).href,
+  boss_act2: new URL('../assets/models/boss_act2.glb?v=v134', import.meta.url).href,
+  boss_act3: new URL('../assets/models/boss_act3.glb?v=v134', import.meta.url).href,
+  boss_act4: new URL('../assets/models/boss_act4.glb?v=v134', import.meta.url).href,
+  minion:    new URL('../assets/models/minion.glb?v=v134', import.meta.url).href,
+  heavy:     new URL('../assets/models/heavy.glb?v=v134', import.meta.url).href,
+  stone:     new URL('../assets/models/stone.glb?v=v134', import.meta.url).href
 };
 function isBossSp(sp) { return sp === 'boss' || sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4'; }
 const BOSS_WEAPON_FX = {
@@ -89,7 +89,7 @@ export function makeBossGlb(height, species) {
     tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3;
     if (/outline/i.test(o.name)) {
       o.material = new THREE.MeshBasicMaterial({
-        color: 0x09090d,
+        color: 0x050709,
         side: THREE.FrontSide,
         depthWrite: true
       });
@@ -113,33 +113,61 @@ export function makeBossGlb(height, species) {
           if (!mat.envMap && r) applyForgedMetal(mat, r, { roughness: bossSp ? 0.22 : 0.30, envMapIntensity: 0.94 });
         };
       } else if (sp === 'stone') {
-        /* v1.33 석상: 자체 발광 억제 + 노멀맵 음영 복구 */
-        mat.roughness = 0.68;
-        mat.metalness = 0.14;
-        if (mat.color) mat.color.setHex(0xa8b4be);
-        if (mat.normalMap && mat.normalScale) mat.normalScale.set(1.45, 1.45);
+        /* v1.34 석상: 저채도 슬레이트 툰 음영 + 미세 청옥 림 */
+        mat.roughness = 0.74;
+        mat.metalness = 0.10;
+        if (mat.color) mat.color.setHex(0x6e7e88);
+        if (mat.normalMap && mat.normalScale) mat.normalScale.set(1.35, 1.35);
         if (mat.map) {
           mat.emissiveMap = mat.map;
-          mat.emissive = new THREE.Color(0x9ed6ce);
-          mat.emissiveIntensity = 0.18;
+          mat.emissive = new THREE.Color(0x4e7c78);
+          mat.emissiveIntensity = 0.14;
         }
+        mat.customProgramCacheKey = function () { return 'stone-toon-v134'; };
+        mat.onBeforeCompile = function (shader) {
+          shader.fragmentShader = shader.fragmentShader.replace(
+            "#include <dithering_fragment>",
+            "float tL = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));\n" +
+            "float tS = (floor(tL * 2.5) + smoothstep(0.3, 0.7, fract(tL * 2.5))) / 2.5;\n" +
+            "gl_FragColor.rgb *= mix(1.0, (tS + 0.03) / max(tL + 0.03, 0.05), 0.52);\n" +
+            "#include <dithering_fragment>"
+          );
+        };
       } else {
-        /* v1.33 보스·중장·잡귀: 과도한 자체발광(0.62) 제거 -> 달빛 음영·노멀맵·스튜디오 반사 복구 */
+        /* v1.34 4단계 명도·채도 계급: 잡몹은 저채도 먹색 툰 실루엣, 보스는 흑갑 + 단일 발광 오라 림 */
         const bossSp = isBossSp(sp);
-        mat.roughness = bossSp ? 0.50 : 0.60;
-        mat.metalness = bossSp ? 0.24 : 0.12;
-        if (mat.color) mat.color.setHex(bossSp ? 0xdcd8d4 : 0xcac6c2);
-        if (mat.normalMap && mat.normalScale) mat.normalScale.set(bossSp ? 1.50 : 1.30, bossSp ? 1.50 : 1.30);
+        const auraHex = sp === 'boss_act2' ? 0xf2c65a : sp === 'boss_act3' ? 0xff3d36 : sp === 'boss_act4' ? 0xb67cff : 0x2ee8a6;
+        mat.roughness = bossSp ? 0.48 : 0.72;
+        mat.metalness = bossSp ? 0.28 : 0.08;
+        if (mat.color) mat.color.setHex(bossSp ? 0x869098 : 0x5c646c);
+        if (mat.normalMap && mat.normalScale) mat.normalScale.set(bossSp ? 1.45 : 1.15, bossSp ? 1.45 : 1.15);
         if (mat.map) {
           mat.emissiveMap = mat.map;
-          mat.emissive = new THREE.Color(bossSp ? 0xe8dfd4 : 0xdad4cc);
-          mat.emissiveIntensity = bossSp ? 0.15 : 0.18;
+          mat.emissive = new THREE.Color(bossSp ? 0x8aa8a4 : 0x48525a);
+          mat.emissiveIntensity = bossSp ? 0.14 : 0.12;
         }
+        mat.userData.uAuraCol = { value: new THREE.Color(bossSp ? auraHex : 0x486068) };
+        mat.userData.uAuraStr = { value: bossSp ? 0.92 : 0.18 };
+        mat.customProgramCacheKey = function () { return bossSp ? ('boss-toon-v134-' + sp) : 'mob-toon-v134'; };
+        mat.onBeforeCompile = function (shader) {
+          shader.uniforms.uAuraCol = mat.userData.uAuraCol;
+          shader.uniforms.uAuraStr = mat.userData.uAuraStr;
+          shader.fragmentShader = "uniform vec3 uAuraCol;\nuniform float uAuraStr;\n" + shader.fragmentShader;
+          shader.fragmentShader = shader.fragmentShader.replace(
+            "#include <dithering_fragment>",
+            "float tL = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));\n" +
+            "float tS = (floor(tL * 3.0) + smoothstep(0.32, 0.68, fract(tL * 3.0))) / 3.0;\n" +
+            "gl_FragColor.rgb *= mix(1.0, (tS + 0.03) / max(tL + 0.03, 0.05), 0.55);\n" +
+            "float fR = pow(1.0 - clamp(abs(dot(normalize(vNormal), normalize(vViewPosition))), 0.0, 1.0), 2.1);\n" +
+            "gl_FragColor.rgb += uAuraCol * fR * uAuraStr;\n" +
+            "#include <dithering_fragment>"
+          );
+        };
         if (bossSp) {
           o.onBeforeRender = function (r) {
             if (!mat.envMap && r) {
               const env = getMetalStudioEnv(r);
-              if (env) { mat.envMap = env; mat.envMapIntensity = 0.48; mat.needsUpdate = true; }
+              if (env) { mat.envMap = env; mat.envMapIntensity = 0.44; mat.needsUpdate = true; }
             }
           };
         }

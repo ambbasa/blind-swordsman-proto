@@ -1103,6 +1103,7 @@ function addHitstop(sec) {
   rt.S.hitstop = Math.min(cap, prev + (sec || 0));
   const added = Math.max(0, rt.S.hitstop - prev);
   if (added > 0 && rt.S.lastDash) rt.S.lastDash.hitstopMs = (rt.S.lastDash.hitstopMs || 0) + added * 1000;
+  if (added > 0 && rt.pulseImpactChroma) rt.pulseImpactChroma(Math.min(1, 0.36 + added * 8.5));
 }
 /* §3.1 한 획의 정지 예산: 명중·처치가 몇 번 들어가든 0.06초를 넘기지 않는다. */
 function addStrokeHitstop(rec, sec) {

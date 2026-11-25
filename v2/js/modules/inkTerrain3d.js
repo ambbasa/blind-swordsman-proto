@@ -556,8 +556,8 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
   if (k === 'blood') { track(bsBaseGeo, null); track(bsStepGeo, null); track(bsMainGeo, null); track(bsSideGeo, null); track(bsRingGeo, null); }
   function createBloodstone3D(x, z, r = 2.6) {
     const g = new THREE.Group(); g.position.set(x, 0, z);
-    const cryMat = new THREE.MeshStandardMaterial({ color: 0x8a151c, emissive: 0xd82428, emissiveIntensity: 1.05, roughness: 0.22, metalness: 0.30 });
-    const ringMat = new THREE.MeshBasicMaterial({ color: 0xff5a45, transparent: true, opacity: 0.78, blending: THREE.AdditiveBlending, depthWrite: false });
+    const cryMat = new THREE.MeshStandardMaterial({ color: 0x52161c, emissive: 0xa82026, emissiveIntensity: 0.52, roughness: 0.42, metalness: 0.20 });
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xff5a45, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false });
     const { geo: pGeo, mat: pMat } = makeShaderPool(Math.max(1.8, r * 0.95), 0x260508, 0x781018, 0xff5a45, 0);
     track(pGeo, pMat); track(null, cryMat); track(null, ringMat);
     shaderMats.push(pMat);

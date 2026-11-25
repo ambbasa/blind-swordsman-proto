@@ -5,26 +5,27 @@ import { ShaderPass } from '../../assets/v2/fx-ink/code/vendor/three-r170-addons
 
 /** Tuning values for the ink-wash pass; every number a designer would tune lives here. */
 export const INKWASH = {
-  ink: [0.004, 0.0035, 0.003],
-  wash: [0.038, 0.034, 0.030],
-  paper: [0.83, 0.77, 0.64],
-  toneGamma: 0.88,
-  bands: 5.2,
-  bandSoft: 1.0,
-  accentSatLo: 0.15,
-  accentSatHi: 0.38,
-  accentBoost: 1.42,
-  edge: 0.76,
-  edgeLo: 0.038,
-  edgeHi: 0.16,
-  edgeDark: 0.22,
-  depthEdge: 0.86, /* 깊이 경계 먹선 세기 (enableDepth 가 켜졌을 때만) */
-  depthLo: 0.012,
-  depthHi: 0.065,
+  /* v1.34 엠버 앤 블레이드 × 청묵 툰 룩: 저채도 슬레이트 청묵 바닥 + 3.5단 셀 밴딩 + 고대비 강조색 */
+  ink: [0.008, 0.014, 0.018],
+  wash: [0.052, 0.092, 0.104],
+  paper: [0.38, 0.50, 0.52],
+  toneGamma: 0.92,
+  bands: 3.5,
+  bandSoft: 0.36,
+  accentSatLo: 0.17,
+  accentSatHi: 0.35,
+  accentBoost: 1.56,
+  edge: 0.86,
+  edgeLo: 0.042,
+  edgeHi: 0.15,
+  edgeDark: 0.18,
+  depthEdge: 0.94, /* 깊이 경계 먹선 세기 (enableDepth 가 켜졌을 때만) */
+  depthLo: 0.011,
+  depthHi: 0.058,
   wobble: 0, /* screen warp blurred small figures; the ink look comes from tone, edges and grain */
-  grain: 0.068,
+  grain: 0.022,
   vignette: 0, /* one vignette only: the cinematic pass owns it */
-  strength: 0.80
+  strength: 0.84
 };
 
 const VERT = /* glsl */`varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
@@ -147,7 +148,7 @@ void main(){
   float grain = (h21(floor(vUv * uRes)) - 0.5) * 0.6 + (fiber - 0.5) * 0.8;
   float stain = fbm(vUv * 3.0 + 11.0);
   col *= 1.0 + uGrain * grain;
-  col = mix(col, col * vec3(0.92, 0.86, 0.76), smoothstep(0.55, 0.8, stain) * 0.35);
+  col = mix(col, col * vec3(0.84, 0.92, 0.94), smoothstep(0.55, 0.82, stain) * 0.24);
 
   vec2 d = (vUv - 0.5) * vec2(uRes.x / uRes.y, 1.0);
   float vig = smoothstep(0.35, 0.95, length(d) + (fbm(vUv * 4.0) - 0.5) * 0.25);

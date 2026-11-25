@@ -637,7 +637,7 @@ function stepDash(dt) {
   d.t += dt;
   const u = rt.clamp(d.t / d.dur, 0, 1);
   const sh = d.shape || (rt.S.lastDash && rt.S.lastDash.type) || null;
-  /* v1.33 무늬별 이동 궤적 분화: ㅣ(쾌속 직선 돌진) · —(횡참 곡선) · V(도약 포물선 점프) · Z(번개 3꺾임 지그재그) */
+  /* v1.34 무늬별 이동 궤적 분화: ㅣ(쾌속 직선 돌진) · —(횡참 곡선) · V(도약 포물선 점프) · Z(번개 3꺾임 지그재그) */
   const k = sh === 'vline' ? (1 - Math.pow(1 - u, 3)) : (u * u * (3 - 2 * u));
   const dx = d.to.x - d.from.x, dz = d.to.z - d.from.z;
   const distL = Math.hypot(dx, dz) || 1;

@@ -11,9 +11,9 @@ import { buildFigure, tickFigure, kick as rigKick, slashPose as rigSlash, setOpa
   setAuraColor as rigAuraColor, setOrder as rigOrder, setCamera as rigSetCamera, ready as rigReady,
   debugPose as rigDebugPose, actsOf as rigActsOf } from './inkchars3d.js';
 /* v0.45: 주인공만 3D 관절 뼈대 + 수묵 툰 셰이더 캐릭터(inkhero3d.js)로 교체한다. */
-import * as HERO3D from './inkhero3d.js?v=v133';
+import * as HERO3D from './inkhero3d.js?v=v134';
 /* v0.46: 원귀·거한·돌덩이·보스도 주인공과 같은 3D 관절 뼈대(단일 SkinnedMesh)로 세운다. */
-import * as MON3D from './inkmonsters3d.js?v=v133';
+import * as MON3D from './inkmonsters3d.js?v=v134';
 let QA_HERO2D = false;
 try { QA_HERO2D = new URLSearchParams(location.search).has('hero2d'); } catch (e) {}
 let QA_MON2D = false;
@@ -139,7 +139,7 @@ export async function buildArt(THREE) {
   const CHAR_OUTLINE = { hero: [1.07, 0.26], zombie: [1.1, 0.85], spirit: [1.12, 0.7] };
   /* 2막부터 주인공이 검은 무사복을 입어, 검은 실루엣 대신 한지빛 테두리를 둔다 — 어두운 바닥에서도 또렷하다. */
   const HERO_RIM = 0xa89a80;
-  const SPIRIT_TINT = [0.65, 1.18, 0.98];
+  const SPIRIT_TINT = [1.0, 1.0, 1.0];
   const SPIRIT_VIEW_SCALE = 1.45;
   /* 0.26: the orb anchor box in world units (~57% of the orb's diameter). game.js measures the
      spirit's screen centre and foot point from it. */
@@ -257,7 +257,7 @@ export async function buildArt(THREE) {
     ctx.save();
     ctx.globalCompositeOperation = 'source-atop';
     G.lines.forEach(function (p) {
-      inkBrush(ctx, p, G.width, { soft: 'rgba(110,118,112,0.5)', core: 'rgba(27,37,32,0.96)', deep: 'rgba(16,23,21,1)' }, rnd);
+      inkBrush(ctx, p, G.width * 1.06, { soft: 'rgba(128,238,255,0.55)', core: 'rgba(255,255,255,0.98)', deep: 'rgba(255,255,255,1)' }, rnd);
     });
     ctx.restore();
   }

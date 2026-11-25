@@ -2594,3 +2594,19 @@ h1, h2, h3, #timer, #titleName, #bossCardName, #resultTitle { font-family: var(-
 .style-hud{font-size:11px;font-weight:800;padding:2px 7px;border-radius:999px;background:rgba(255,214,110,0.14);border:1px solid rgba(255,214,110,0.38);color:#ffe28a}
 #app.rush-active::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:8;box-shadow:inset 0 0 64px rgba(235,58,42,0.42);animation:rushPulse 0.9s ease-in-out infinite alternate}
 @keyframes rushPulse{from{opacity:.45}to{opacity:.95}}
+
+/* === v1.34 엠버 앤 블레이드 × 청묵 툰 비주얼 HUD 다이어트 === */
+#hud {
+  background: linear-gradient(180deg, rgba(8, 13, 16, 0.72) 0%, rgba(8, 13, 16, 0.22) 72%, rgba(8, 13, 16, 0) 100%) !important;
+  border-bottom: none !important;
+  box-shadow: none !important;
+}
+#hud .hud-row span, #hud #lvlLabel {
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.92), 0 0 8px rgba(0, 0, 0, 0.65);
+}
+#missionHud, #styleHud {
+  background: rgba(8, 13, 16, 0.52) !important;
+  border: 1px solid rgba(110, 210, 200, 0.18) !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(2px);
+}
