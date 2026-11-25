@@ -608,7 +608,7 @@ function drawV31(ctx, r, hs, t) {
     const pFrac = isOpen ? rt.clamp(1 - (boss.stateT || 0) / Math.max(0.1, boss.groggyDur || P.groggyT || 3.4), 0, 1) : (pCur / pMax);
 
     ctx.save();
-    /* v1.36 시안식 거친 먹선 붓터치 보스 체력바 (투박한 사각 박스 제거) */
+    /* v1.37 시안식 거친 먹선 붓터치 보스 체력바 (투박한 사각 박스 제거) */
     ctx.fillStyle = 'rgba(7,10,13,0.90)';
     ctx.beginPath();
     ctx.moveTo(x - 18, y + h * 0.5);
@@ -769,16 +769,16 @@ function drawV31(ctx, r, hs, t) {
     const zh = (z.obj && z.obj.userData && z.obj.userData.worldH) || 2.4;
     const p = rt.projectXZ(z.x, z.z, zh * 0.9);
     if (z.obj && !z.obj.visible) return;
-    /* v1.36 시안식 잡몹 얇은 진홍 실선 HP바 (2.5px) */
+    /* v1.37 풀피 일반 잡몹 HP바 숨김 -> 피격 적 또는 정예/중장만 초슬림 2px 진홍 실선 표시 (바코드 겹침 제거) */
     const zMaxHp = Math.max(1, z.maxHp || z.hp || 1);
     const zCurHp = Math.max(0, z.hp || 0);
-    if (zCurHp > 0 && (zMaxHp > 1 || zCurHp < zMaxHp)) {
-      const bw = z.elite || z.heavy ? 24 : 16;
+    if (zCurHp > 0 && (zCurHp < zMaxHp || z.elite || z.heavy)) {
+      const bw = z.elite || z.heavy ? 22 : 14;
       const bx = p.x - bw * 0.5, by = p.y - 6;
-      ctx.fillStyle = 'rgba(6,8,10,0.86)';
-      ctx.fillRect(bx - 1, by - 1, bw + 2, 4.5);
-      ctx.fillStyle = '#e02d2d';
-      ctx.fillRect(bx, by, bw * rt.clamp(zCurHp / zMaxHp, 0, 1), 2.5);
+      ctx.fillStyle = 'rgba(6,8,10,0.78)';
+      ctx.fillRect(bx - 0.5, by - 0.5, bw + 1, 3);
+      ctx.fillStyle = '#e43232';
+      ctx.fillRect(bx, by, bw * rt.clamp(zCurHp / zMaxHp, 0, 1), 2);
     }
     /* 갑옷을 두른 장정 */
     if (z.armored && (z.armor || 0) > 0) {

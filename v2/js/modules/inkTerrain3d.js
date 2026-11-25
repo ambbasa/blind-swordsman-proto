@@ -917,7 +917,7 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       addCollider(fx, fz, 0.45);
     }
 
-    /* v1.36 엠버 앤 블레이드식 외곽 고품질 스킬 프롭 (중앙 전투장 개방 + 외곽 청묵 현무암/석등/고목/양치식물 실루엣) */
+    /* v1.37 엠버 앤 블레이드식 외곽 고품질 스킬 프롭 (중앙 전투장 개방 + 외곽 청묵 현무암/석등/고목/양치식물 실루엣) */
     {
       const perimN = 4;
       for (let pi = 0; pi < perimN; pi++) {
@@ -1289,7 +1289,7 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
         putLantern(5.4, 13.0); putLantern(-5.6, -11.8);
         break;
       case 15:
-        /* v1.36 15장 검은 누각: 중앙 개방 + 외곽 청묵 성채 대문·석벽·현무암·조각 석등 */
+        /* v1.37 15장 검은 누각: 중앙 개방 + 외곽 청묵 성채 대문·석벽·현무암·조각 석등 */
         putStage(buildKasumideraGatehouse3D({ fortress: true, lacquerHex: 0x1e282e, tileHex: 0x141d22, glowHex: 0x5be8c4 }), 0, 16.4, 0, 3.2, 2.2);
         putStage(buildStoneFortressWall3D({ len: 5.0, stoneHex: 0x1d282e, bannerHex: 0x264248 }), -7.4, 15.4, 0.18, 2.2, 1.9);
         putStage(buildStoneFortressWall3D({ len: 5.0, stoneHex: 0x1d282e, bannerHex: 0x264248 }), 7.4, 15.4, -0.18, 2.2, 1.9);
@@ -1298,7 +1298,7 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
         break;
       case 16:
       default:
-        /* v1.36 16장 심안의 끝: 중앙 분홍 수정/보라 도리이 전면 제거 -> 중앙 100% 개방 + 외곽 청묵 누각·현무암·고목·석등 */
+        /* v1.37 16장 심안의 끝: 중앙 분홍 수정/보라 도리이 전면 제거 -> 중앙 100% 개방 + 외곽 청묵 누각·현무암·고목·석등 */
         putStage(buildKasumideraGatehouse3D({ fortress: true, lacquerHex: 0x1d272d, tileHex: 0x131c21, glowHex: 0x5be8c4 }), 0, 16.8, 0, 3.2, 2.2);
         putRocks(-10.6, 9.2, 1.15); putRocks(10.6, 9.2, 1.15);
         putRocks(-10.8, -9.8, 1.05); putRocks(10.8, -9.8, 1.05);
@@ -1368,7 +1368,7 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     group.add(fl.mesh);
     v67Updaters.push(fl);
   }
-  /* v1.36: 화면을 가로지르는 누런 가짜 빛기둥(SkyRays) 비활성화 — 청묵 툰 톤 일관성 유지 */
+  /* v1.37: 화면을 가로지르는 누런 가짜 빛기둥(SkyRays) 비활성화 — 청묵 툰 톤 일관성 유지 */
 
   scene.add(group);
   let elapsed = 0;

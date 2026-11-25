@@ -1421,8 +1421,48 @@ function createArenaWorld(opts) {
   detail.center.set(0.5, 0.5);
   detail.rotation = stageId * 0.47;
   detail.anisotropy = 4;
+  /* v1.37 엠버 앤 블레이드 × 청묵 핸드페인팅 바닥: 자글자글한 실사 돌사진(terrain-N.webp) 대신 부드러운 저채도 청묵 붓터치 면 */
+  const emberGroundTex = (function () {
+    const c = document.createElement('canvas');
+    c.width = c.height = 512;
+    const g = c.getContext('2d');
+    const act = Math.max(1, Math.min(4, Math.ceil((stageId || 1) / 4)));
+    const pal = act === 3
+      ? { base: '#21272b', mid: '#293136', wash: 'rgba(14, 18, 22, 0.34)', hi: 'rgba(66, 78, 84, 0.14)' }
+      : { base: '#1e3036', mid: '#263c42', wash: 'rgba(11, 20, 24, 0.36)', hi: 'rgba(72, 108, 114, 0.16)' };
+    g.fillStyle = pal.base;
+    g.fillRect(0, 0, 512, 512);
+    const rg = g.createRadialGradient(256, 256, 30, 256, 256, 280);
+    rg.addColorStop(0, pal.mid);
+    rg.addColorStop(0.65, pal.base);
+    rg.addColorStop(1, '#111c20');
+    g.fillStyle = rg;
+    g.fillRect(0, 0, 512, 512);
+    /* 크고 부드러운 수묵 붓터치 얼룩만 얹어 바닥 노이즈 최소화 */
+    let rs = (stageId || 1) * 9973 + 17;
+    const rr = function () { rs = (rs * 16807) % 2147483647; return (rs - 1) / 2147483646; };
+    for (let i = 0; i < 34; i++) {
+      const bx = rr() * 512, by = rr() * 512, rx = 45 + rr() * 95, ry = 22 + rr() * 50, ang = rr() * Math.PI;
+      g.save();
+      g.translate(bx, by);
+      g.rotate(ang);
+      const sg = g.createRadialGradient(0, 0, 2, 0, 0, rx);
+      sg.addColorStop(0, i % 3 === 0 ? pal.hi : pal.wash);
+      sg.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = sg;
+      g.scale(1, ry / rx);
+      g.beginPath(); g.arc(0, 0, rx, 0, Math.PI * 2); g.fill();
+      g.restore();
+    }
+    const tx = new THREE.CanvasTexture(c);
+    tx.colorSpace = THREE.SRGBColorSpace;
+    tx.wrapS = tx.wrapT = THREE.RepeatWrapping;
+    tx.repeat.set(2, 2);
+    tx.needsUpdate = true;
+    return tx;
+  })();
   const groundMat = new THREE.MeshStandardMaterial({
-    map, bumpMap: detail, bumpScale: softGround ? 0.08 : 0.12, color: groundBase.clone(), roughness: 0.96, metalness: 0.0,
+    map: emberGroundTex, bumpMap: null, color: new THREE.Color(0xcfdce0), roughness: 0.94, metalness: 0.0,
     vertexColors: true
   });
   /* v0.66: 전 스테이지 바닥을 원래의 수묵 페인팅 지면(terrain-N.webp + relief bumpMap)으로 원복 */

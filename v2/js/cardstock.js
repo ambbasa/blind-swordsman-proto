@@ -16,8 +16,8 @@ import * as THREE from 'three';
 /** 모든 패치 재질이 공유하는 안개 uniform. game.js 가 매 프레임 한 번만 채운다. */
 export const WF = {
   uWfHero: { value: new THREE.Vector3(0, 0, 0) },
-  uWfRange: { value: new THREE.Vector4(10.5, 17.5, 28.0, 0) }, // v1.36 넓고 완만한 청묵 비네팅
-  uWfAmt: { value: new THREE.Vector4(0.42, 0.76, 0, 1) },    // v1.36 원형 스포트라이트 제거, 자연스러운 외곽 어둠
+  uWfRange: { value: new THREE.Vector4(10.5, 17.5, 28.0, 0) }, // v1.37 넓고 완만한 청묵 비네팅
+  uWfAmt: { value: new THREE.Vector4(0.42, 0.76, 0, 1) },    // v1.37 원형 스포트라이트 제거, 자연스러운 외곽 어둠
   /* v0.43: 한지 톤 — 어둠이 아니라 '따뜻한 먹물'로 멀어진다(바탕이 밝아졌으므로). */
   uWfColor: { value: new THREE.Color(0.01, 0.009, 0.009) },
   /* 화면 위쪽(멀어지는) 방향 xz 와 앞뒤 압축 계수. 원근 카메라에서는 월드 원이 화면 타원보다

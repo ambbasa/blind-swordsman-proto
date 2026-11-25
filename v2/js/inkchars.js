@@ -271,7 +271,7 @@ export function drawZombieSheets() {
 /* Will-o'-wisp (도깨비불): a round flame orb with tongues licking up and a tail fading below.
    The orb centre (128, 128) is where art.js puts the shape mark. */
 function drawSpirit(ctx, f, n, rnd) {
-  /* v1.36 검은 먹선 원상(엔소) 배지: 캐주얼 민트 유령을 걷어내고 순백 붓글씨 문양을 받치는 먹원 */
+  /* v1.37 검은 먹선 원상(엔소) 배지: 캐주얼 민트 유령을 걷어내고 순백 붓글씨 문양을 받치는 먹원 */
   const T = (f / n) * Math.PI * 2;
   const cx = 128, cy = 128, R = 56 + Math.sin(T) * 1.6;
   /* 은은한 외곽 청백 수묵 후광 */

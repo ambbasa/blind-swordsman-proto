@@ -19,7 +19,7 @@
 import * as THREE from 'three';
 import * as TEX from './inktex3d.js';
 import { SKIN_VERT } from './inkbody3d.js';
-import { INK3D } from './inkhero3d.js?v=v136';
+import { INK3D } from './inkhero3d.js?v=v137';
 import { actFromStageId, getActTheme3D, applyThemeToInkUniforms } from './modules/actTheme3d.js';
 import { mulberry } from './inkbake.js';
 import { createFracturedRockGeo } from './modules/skillAssets3d.js';
@@ -83,7 +83,7 @@ const PAL = {
   13: { wood: 0x451212, woodDark: 0x1f0a0c, plaster: 0x8a6967, tile: 0x1c1014, stone: 0x2f1f22, pine: 0x1c1214, bamboo: 0x261414, cloth: 0x6b2224, glow: 0xff5442 },
   14: { wood: 0x25242e, woodDark: 0x14151f, plaster: 0x8b96a6, tile: 0x161a26, stone: 0x2c3240, pine: 0x141e26, bamboo: 0x1c2630, cloth: 0x465266, glow: 0x8fd8ff },
   15: { wood: 0x281e22, woodDark: 0x140f12, plaster: 0x8f8286, tile: 0x151218, stone: 0x2e2930, pine: 0x18151a, bamboo: 0x201c22, cloth: 0x5c2b2f, glow: 0xff7848 },
-  16: { wood: 0x2b1d1c, woodDark: 0x160e10, plaster: 0xa69480, tile: 0x1a1418, stone: 0x332828, pine: 0x181414, bamboo: 0x241c14, cloth: 0x70563c, glow: 0xffd278 }
+  16: { wood: 0x182328, woodDark: 0x10181c, plaster: 0x2a383e, tile: 0x131c20, stone: 0x1a262c, pine: 0x121e22, bamboo: 0x142226, cloth: 0x22343a, glow: 0x5be8c4 }
 };
 
 /* zone 번호 — inktex3d 아틀라스 칸 */
@@ -834,12 +834,10 @@ export function buildArena(opts) {
         B.lit(G.box, 0xff6e42, { x: px, y: 0.7 + ph + 0.28, z: pz, sx: 0.42, sy: 0.44, sz: 0.42, ry: ang });
         B.add(G.cone4, 0x2a1d1f, ZONE.TILE, { x: px, y: 0.7 + ph + 0.72, z: pz, sx: 0.88, sy: 0.48, sz: 0.88, ry: ang });
       } else {
-        /* 4막: 금월 고대 석주 오벨리스크 + 황금 룬 발광 띠 */
-        const oh = 4.2 + rnd() * 2.0;
-        B.add(G.box, 0x262034, ZONE.STONE, { x: px, y: oh * 0.5, z: pz, sx: 0.72, sy: oh, sz: 0.72, ry: ang });
-        B.lit(G.box, 0xffd878, { x: px, y: oh * 0.62, z: pz, sx: 0.78, sy: 0.14, sz: 0.78, ry: ang });
-        B.lit(G.box, 0xc29aff, { x: px, y: oh * 0.82, z: pz, sx: 0.62, sy: 0.12, sz: 0.62, ry: ang });
-        B.add(G.cone4, 0x332946, ZONE.STONE, { x: px, y: oh + 0.45, z: pz, sx: 0.68, sy: 0.90, sz: 0.68, ry: ang });
+        /* v1.37 4막: 튀는 띠 장식 제거 -> 차분한 어두운 청묵 현무암 석주 실루엣 */
+        const oh = 3.2 + rnd() * 1.4;
+        B.add(G.box, 0x162228, ZONE.STONE, { x: px, y: oh * 0.5, z: pz, sx: 0.64, sy: oh, sz: 0.64, ry: ang });
+        B.add(G.cone4, 0x1a282e, ZONE.STONE, { x: px, y: oh + 0.35, z: pz, sx: 0.60, sy: 0.70, sz: 0.60, ry: ang });
       }
     }
   })();

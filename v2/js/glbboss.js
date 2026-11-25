@@ -2,16 +2,16 @@ import * as THREE from 'three';
 import { applyForgedMetal, getMetalStudioEnv } from './modules/metalStudioEnv.js';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
 import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v103';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v136';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v137';
 
 const MODEL_URLS = {
-  boss:      new URL('../assets/models/boss.glb?v=v136', import.meta.url).href,
-  boss_act2: new URL('../assets/models/boss_act2.glb?v=v136', import.meta.url).href,
-  boss_act3: new URL('../assets/models/boss_act3.glb?v=v136', import.meta.url).href,
-  boss_act4: new URL('../assets/models/boss_act4.glb?v=v136', import.meta.url).href,
-  minion:    new URL('../assets/models/minion.glb?v=v136', import.meta.url).href,
-  heavy:     new URL('../assets/models/heavy.glb?v=v136', import.meta.url).href,
-  stone:     new URL('../assets/models/stone.glb?v=v136', import.meta.url).href
+  boss:      new URL('../assets/models/boss.glb?v=v137', import.meta.url).href,
+  boss_act2: new URL('../assets/models/boss_act2.glb?v=v137', import.meta.url).href,
+  boss_act3: new URL('../assets/models/boss_act3.glb?v=v137', import.meta.url).href,
+  boss_act4: new URL('../assets/models/boss_act4.glb?v=v137', import.meta.url).href,
+  minion:    new URL('../assets/models/minion.glb?v=v137', import.meta.url).href,
+  heavy:     new URL('../assets/models/heavy.glb?v=v137', import.meta.url).href,
+  stone:     new URL('../assets/models/stone.glb?v=v137', import.meta.url).href
 };
 function isBossSp(sp) { return sp === 'boss' || sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4'; }
 const BOSS_WEAPON_FX = {
@@ -113,7 +113,7 @@ export function makeBossGlb(height, species) {
           if (!mat.envMap && r) applyForgedMetal(mat, r, { roughness: bossSp ? 0.22 : 0.30, envMapIntensity: 0.94 });
         };
       } else if (sp === 'stone') {
-        /* v1.36 석상: 저채도 슬레이트 툰 음영 + 미세 청옥 림 */
+        /* v1.37 석상: 저채도 슬레이트 툰 음영 + 미세 청옥 림 */
         mat.roughness = 0.74;
         mat.metalness = 0.10;
         if (mat.color) mat.color.setHex(0xb8c6cf);
@@ -134,7 +134,7 @@ export function makeBossGlb(height, species) {
           );
         };
       } else {
-        /* v1.36 4단계 명도·채도 계급: 잡몹은 저채도 먹색 툰 실루엣, 보스는 흑갑 + 단일 발광 오라 림 */
+        /* v1.37 4단계 명도·채도 계급: 잡몹은 저채도 먹색 툰 실루엣, 보스는 흑갑 + 단일 발광 오라 림 */
         const bossSp = isBossSp(sp);
         const auraHex = sp === 'boss_act2' ? 0xf2c65a : sp === 'boss_act3' ? 0xff3d36 : sp === 'boss_act4' ? 0xb67cff : 0x2ee8a6;
         mat.roughness = bossSp ? 0.48 : 0.72;

@@ -164,10 +164,10 @@ export class PaperFx {
     this._actTint = [1.0, 0.88, 0.64];
     mk('slash', 10, false, 7.2, true);
     mk('spark', 26, false, 7.4, true);
-    mk('fire', 12, false, 7.0, true);
+    mk('fire', 12, false, 4.6, true);
     mk('ice', 12, false, 7.0, true);
     mk('bolt', 8, false, 7.4, true);
-    mk('poison', 12, false, 7.0, true);
+    mk('poison', 12, false, 4.4, true);
     mk('talisman', 12, false, 6.8, true);
     mk('dissolve', 20, false, 7.2, true);
     mk('ring', 8, true, 1.6);
@@ -340,9 +340,9 @@ export class PaperFx {
 
 function elemTint(elem) {
   switch (elem) {
-    case 'fire': return [1.15, 0.72, 0.5];
+    case 'fire': return [1.08, 0.40, 0.28];
     case 'ice': return [0.72, 1.02, 1.2];
-    case 'poison': return [0.95, 0.75, 1.15];
+    case 'poison': return [0.36, 0.88, 0.76];
     case 'lightning': return [1.2, 1.15, 1.3];
     default: return [1, 1, 1];
   }
