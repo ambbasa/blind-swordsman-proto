@@ -11,9 +11,9 @@ import { buildFigure, tickFigure, kick as rigKick, slashPose as rigSlash, setOpa
   setAuraColor as rigAuraColor, setOrder as rigOrder, setCamera as rigSetCamera, ready as rigReady,
   debugPose as rigDebugPose, actsOf as rigActsOf } from './inkchars3d.js';
 /* v0.45: 주인공만 3D 관절 뼈대 + 수묵 툰 셰이더 캐릭터(inkhero3d.js)로 교체한다. */
-import * as HERO3D from './inkhero3d.js?v=v134';
+import * as HERO3D from './inkhero3d.js?v=v135';
 /* v0.46: 원귀·거한·돌덩이·보스도 주인공과 같은 3D 관절 뼈대(단일 SkinnedMesh)로 세운다. */
-import * as MON3D from './inkmonsters3d.js?v=v134';
+import * as MON3D from './inkmonsters3d.js?v=v135';
 let QA_HERO2D = false;
 try { QA_HERO2D = new URLSearchParams(location.search).has('hero2d'); } catch (e) {}
 let QA_MON2D = false;
@@ -136,7 +136,7 @@ export async function buildArt(THREE) {
     : heroH * 1.05;
   /* Spirits are small will-o'-wisps over zombies; the shape mark is baked into the orb, a rattle at the side. */
   /* Outline [scale, opacity] per kind, and the spirits' jade tint (HDR so they bloom). */
-  const CHAR_OUTLINE = { hero: [1.07, 0.26], zombie: [1.1, 0.85], spirit: [1.12, 0.7] };
+  const CHAR_OUTLINE = { hero: [1.07, 0.26], zombie: [1.1, 0.85], spirit: [1.0, 0.0] };
   /* 2막부터 주인공이 검은 무사복을 입어, 검은 실루엣 대신 한지빛 테두리를 둔다 — 어두운 바닥에서도 또렷하다. */
   const HERO_RIM = 0xa89a80;
   const SPIRIT_TINT = [1.0, 1.0, 1.0];
@@ -314,6 +314,7 @@ export async function buildArt(THREE) {
     rt.renderOrder = 4;
     const at = localFromPx(sheet, worldH, [214, 92]);
     rt.position.set(at.x, at.y, 0.04);
+    rt.visible = false;
     group.add(rt);
     group.userData.rattle = { sprite: rt, t: Math.random() * 4, amp: 0.22, period: 1.3 + Math.random() * 0.3 };
     const size = worldH * SPIRIT_MARK_K;

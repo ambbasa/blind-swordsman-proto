@@ -608,7 +608,7 @@ function drawV31(ctx, r, hs, t) {
     const pFrac = isOpen ? rt.clamp(1 - (boss.stateT || 0) / Math.max(0.1, boss.groggyDur || P.groggyT || 3.4), 0, 1) : (pCur / pMax);
 
     ctx.save();
-    /* v1.34 시안식 거친 먹선 붓터치 보스 체력바 (투박한 사각 박스 제거) */
+    /* v1.35 시안식 거친 먹선 붓터치 보스 체력바 (투박한 사각 박스 제거) */
     ctx.fillStyle = 'rgba(7,10,13,0.90)';
     ctx.beginPath();
     ctx.moveTo(x - 18, y + h * 0.5);
@@ -769,7 +769,7 @@ function drawV31(ctx, r, hs, t) {
     const zh = (z.obj && z.obj.userData && z.obj.userData.worldH) || 2.4;
     const p = rt.projectXZ(z.x, z.z, zh * 0.9);
     if (z.obj && !z.obj.visible) return;
-    /* v1.34 시안식 잡몹 얇은 진홍 실선 HP바 (2.5px) */
+    /* v1.35 시안식 잡몹 얇은 진홍 실선 HP바 (2.5px) */
     const zMaxHp = Math.max(1, z.maxHp || z.hp || 1);
     const zCurHp = Math.max(0, z.hp || 0);
     if (zCurHp > 0 && (zMaxHp > 1 || zCurHp < zMaxHp)) {

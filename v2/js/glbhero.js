@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { applyForgedMetal } from './modules/metalStudioEnv.js';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
 import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v103';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v134';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v135';
 
 const URL_GLB = new URL('../assets/models/hero.glb?v=v103', import.meta.url).href;
 let pending = null;
@@ -84,7 +84,7 @@ export function makeHeroGlb(height) {
         let targetMat = mat;
         if (!isHead) {
           const phys = new THREE.MeshPhysicalMaterial({
-            color: 0x8a8682,
+            color: 0xb4c2d4,
             map: mat.map || null,
             normalMap: mat.normalMap || null,
             roughnessMap: mat.roughnessMap || null,
@@ -98,24 +98,24 @@ export function makeHeroGlb(height) {
           if (phys.map) {
             phys.emissiveMap = phys.map;
             phys.emissive = new THREE.Color(0xffffff);
-            phys.emissiveIntensity = 0.50;
+            phys.emissiveIntensity = 0.58;
           }
-          phys.customProgramCacheKey = function () { return 'hero-toon-v134'; };
+          phys.customProgramCacheKey = function () { return 'hero-toon-v135'; };
           mat.dispose();
           targetMat = phys;
         } else {
           targetMat.roughness = 0.68;
           targetMat.metalness = 0.02;
-          if (targetMat.color) targetMat.color.setHex(0xb8c0cc);
+          if (targetMat.color) targetMat.color.setHex(0xdce4ee);
           if (targetMat.map) {
             targetMat.emissiveMap = targetMat.map;
             targetMat.emissive = new THREE.Color(0xeef6ff);
-            targetMat.emissiveIntensity = 0.62;
+            targetMat.emissiveIntensity = 0.72;
           }
-          targetMat.customProgramCacheKey = function () { return 'hero-head-toon-v134'; };
+          targetMat.customProgramCacheKey = function () { return 'hero-head-toon-v135'; };
         }
         mat = targetMat;
-        /* v1.34 엠버 앤 블레이드식 2.5D 툰 스텝 셰이딩 + 선명한 청백 림 라이트 (의복 치장 틴트 유지) */
+        /* v1.35 엠버 앤 블레이드식 2.5D 툰 스텝 셰이딩 + 선명한 청백 림 라이트 (의복 치장 틴트 유지) */
         mat.userData.uCloakTint = { value: new THREE.Color(0xffffff) };
         mat.userData.uCloakMix = { value: 0.0 };
         mat.userData.uToonRimCol = { value: new THREE.Color(isHead ? 0xe8f6ff : 0x7ec8e8) };
@@ -142,7 +142,7 @@ export function makeHeroGlb(height) {
           shader.fragmentShader = shader.fragmentShader.replace(
             "#include <dithering_fragment>",
             "float tLum = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));\n" +
-            "float tStep = (floor(tLum * 3.0) + smoothstep(0.32, 0.68, fract(tLum * 3.0))) / 3.0;\n" +
+            "float tStep = (floor(tLum * 3.0) + smoothstep(0.40, 0.56, fract(tLum * 3.0))) / 3.0;\n" +
             "gl_FragColor.rgb *= mix(1.0, (tStep + 0.04) / max(tLum + 0.04, 0.05), 0.48);\n" +
             "float fRim = pow(1.0 - clamp(abs(dot(normalize(vNormal), normalize(vViewPosition))), 0.0, 1.0), 2.4);\n" +
             "gl_FragColor.rgb += uToonRimCol * fRim * uToonRimPow;\n" +
@@ -246,7 +246,7 @@ export function triggerHeroGlbBurst(G, name, shape) {
   if (name === 'slash') {
     const seq = ['slash', 'slash2', 'slash3'].filter(function (k) { return !!G.actions[k]; });
     if (!seq.length) return;
-    /* v1.34 무늬별 전용 공격 모션 매핑: —(횡베기) · ㅣ(관통베기) · V(도약 내려찍기) · Z(초고속 연쇄베기) */
+    /* v1.35 무늬별 전용 공격 모션 매핑: —(횡베기) · ㅣ(관통베기) · V(도약 내려찍기) · Z(초고속 연쇄베기) */
     if (shape === 'hline' && G.actions.slash) {
       clipKey = 'slash'; ts = 1.45; G.lastComboStep = 1;
     } else if (shape === 'vline' && G.actions.slash2) {

@@ -798,8 +798,8 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
         const mx = (s0 - d0) * Math.SQRT1_2, mz = (-s0 - d0) * Math.SQRT1_2;
         const stNode = buildKasumideraMoonStele3D({
           seed: 91 + i * 37,
-          rockHex: stageNo === 16 ? 0x5c4f70 : 0x6b474d,
-          glowHex: stageNo === 16 ? 0xffd27a : 0xff5242
+          rockHex: stageNo === 16 ? 0x1e2b31 : 0x28343a,
+          glowHex: stageNo === 16 ? 0x5be8c4 : 0xd9483b
         });
         stNode.position.set(mx, 0, mz);
         stNode.rotation.y = Math.PI / 4 + (i === 0 ? 0.35 : i === 1 ? -0.35 : 0);
@@ -915,6 +915,39 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       queueInst('v60FlagCloth', flagGeo, flagMat, fx - 0.12, 3.02, fz, 0, ry, 0);
       addContactShadow(fx, fz, 0.9);
       addCollider(fx, fz, 0.45);
+    }
+
+    /* v1.35 엠버 앤 블레이드식 외곽 고품질 스킬 프롭 (중앙 전투장 개방 + 외곽 청묵 현무암/석등/고목/양치식물 실루엣) */
+    {
+      const perimN = 4;
+      for (let pi = 0; pi < perimN; pi++) {
+        const pa = (pi / perimN) * Math.PI * 2 + 0.38 + (stageNo % 4) * 0.22;
+        const pr = 14.2 + (pi % 2) * 1.4;
+        const px = Math.cos(pa) * pr, pz = Math.sin(pa) * pr;
+        if (!canPlace(px, pz, 3.2, 11.5)) continue;
+        const rockCl = buildFracturedBasaltRocks3D(rng, { count: 3, radius: 1.6, rockHex: 0x1c282e });
+        rockCl.position.set(px, 0, pz);
+        rockCl.rotation.y = rng() * Math.PI * 2;
+        try { paintCard(rockCl, 'prop'); } catch (e) {}
+        group.add(rockCl);
+        if (rockCl.userData && rockCl.userData.disposables) rockCl.userData.disposables.forEach((d) => disposables.push(d));
+        addContactShadow(px, pz, 1.85);
+        if (pi % 2 === 0) {
+          const fl = buildForestFloorFerns3D(rng, { count: 4, radius: 1.4, frondHex: 0x1d3832 });
+          fl.position.set(px - Math.cos(pa) * 1.3, 0, pz - Math.sin(pa) * 1.3);
+          try { paintCard(fl, 'prop'); } catch (e) {}
+          group.add(fl);
+          if (fl.userData && fl.userData.disposables) fl.userData.disposables.forEach((d) => disposables.push(d));
+        } else {
+          const lt = buildCarvedLantern3D({ stoneHex: 0x243238, glowHex: actIdx === 3 ? 0xff7852 : 0x62e8cc });
+          lt.position.set(px - Math.cos(pa) * 1.4, 0, pz - Math.sin(pa) * 1.4);
+          lt.rotation.y = -pa;
+          try { paintCard(lt, 'prop'); } catch (e) {}
+          group.add(lt);
+          if (lt.userData && lt.userData.disposables) lt.userData.disposables.forEach((d) => disposables.push(d));
+          addContactShadow(lt.position.x, lt.position.z, 0.95);
+        }
+      }
     }
 
     /* 3) 바람에 흔들리는 고목 단풍 · 수묵 소나무 군락 (3d-kasumidera-ultra-realism — 굽은 가지 + 다중 붓잎 군락) */

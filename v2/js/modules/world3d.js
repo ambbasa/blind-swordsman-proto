@@ -163,6 +163,9 @@ async function makeWorld() {
     world.bloom = rt.setupBloom(renderer, scene, camera, {
       quality: rt.fxQ,
       depth: true,
+      strength: 0.32,
+      threshold: 0.88,
+      radius: 0.35,
       post: function () {
         if (rt.PIXEL_LOOK) {
           const px = rt.createPixelLookPass();

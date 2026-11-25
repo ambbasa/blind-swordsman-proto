@@ -1042,8 +1042,8 @@ export function buildKasumideraMoonStele3D(opts = {}) {
   const group = new THREE.Group();
   group.name = 'kasumidera-moon-stele';
 
-  const rockMat = new THREE.MeshStandardMaterial({ color: opts.rockHex || 0x5d5266, roughness: 0.84, metalness: 0.12, emissive: 0x18141e, emissiveIntensity: 0.42, flatShading: true });
-  const baseMat = new THREE.MeshStandardMaterial({ color: 0x766e72, roughness: 0.90, metalness: 0.06, emissive: 0x161418, emissiveIntensity: 0.35 });
+  const rockMat = new THREE.MeshStandardMaterial({ color: opts.rockHex || 0x222e34, roughness: 0.88, metalness: 0.08, emissive: 0x0a1216, emissiveIntensity: 0.14, flatShading: true });
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0x263238, roughness: 0.92, metalness: 0.06, emissive: 0x0a1014, emissiveIntensity: 0.12 });
   const glowHex = opts.glowHex || 0xff5242;
   const bandMat = new THREE.MeshBasicMaterial({ color: glowHex, transparent: true, opacity: 0.86, blending: THREE.AdditiveBlending, depthWrite: false });
   bandMat.userData.cardSkip = true;
@@ -1062,6 +1062,7 @@ export function buildKasumideraMoonStele3D(opts = {}) {
   group.add(stele);
   const halo = new THREE.Mesh(haloG, bandMat);
   halo.position.y = 3.25;
+  halo.visible = false;
   group.add(halo);
 
   group.userData.spinHalo = halo;

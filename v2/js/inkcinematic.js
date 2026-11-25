@@ -47,7 +47,7 @@ void main(){
 let _activeCinematic = null;
 let _chromaPulse = 0;
 
-/** v1.34 타격·일섬 순간 화면 외곽 RGB 색수차 펄스 (0~1 강도) */
+/** v1.35 타격·일섬 순간 화면 외곽 RGB 색수차 펄스 (0~1 강도) */
 export function pulseImpactChroma(amount = 0.65) {
   const a = Math.max(0, Math.min(1, Number(amount) || 0));
   if (a > _chromaPulse) _chromaPulse = a;

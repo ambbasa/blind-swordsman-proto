@@ -5,27 +5,27 @@ import { ShaderPass } from '../../assets/v2/fx-ink/code/vendor/three-r170-addons
 
 /** Tuning values for the ink-wash pass; every number a designer would tune lives here. */
 export const INKWASH = {
-  /* v1.34 엠버 앤 블레이드 × 청묵 툰 룩: 저채도 슬레이트 청묵 바닥 + 3.5단 셀 밴딩 + 고대비 강조색 */
+  /* v1.35 엠버 앤 블레이드 × 청묵 툰 룩: 저채도 슬레이트 청묵 바닥 + 3.5단 셀 밴딩 + 고대비 강조색 */
   ink: [0.008, 0.014, 0.018],
   wash: [0.052, 0.092, 0.104],
-  paper: [0.38, 0.50, 0.52],
-  toneGamma: 0.92,
-  bands: 3.5,
-  bandSoft: 0.36,
+  paper: [0.24, 0.34, 0.36],
+  toneGamma: 1.04,
+  bands: 3.0,
+  bandSoft: 0.22,
   accentSatLo: 0.17,
   accentSatHi: 0.35,
   accentBoost: 1.56,
-  edge: 0.86,
+  edge: 0.92,
   edgeLo: 0.042,
   edgeHi: 0.15,
   edgeDark: 0.18,
-  depthEdge: 0.94, /* 깊이 경계 먹선 세기 (enableDepth 가 켜졌을 때만) */
+  depthEdge: 1.0, /* 깊이 경계 먹선 세기 (enableDepth 가 켜졌을 때만) */
   depthLo: 0.011,
   depthHi: 0.058,
   wobble: 0, /* screen warp blurred small figures; the ink look comes from tone, edges and grain */
   grain: 0.022,
   vignette: 0, /* one vignette only: the cinematic pass owns it */
-  strength: 0.84
+  strength: 0.76
 };
 
 const VERT = /* glsl */`varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
