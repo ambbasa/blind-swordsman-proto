@@ -16,6 +16,7 @@ scripts/blender/build_bosses_act234.py
   5) 복셀 프록시 볼륨 본 히트 스키닝 + 허리/도포/망토 팔·다리 가중치 오염 제거 + 3D 쿼터니언 A->T 정합
   6) 3D 무기 부착 없음 (2·3·4막 보스 전원 맨손)
 """
+import argparse
 import math
 import os
 import sys
@@ -229,11 +230,19 @@ def load_unarmed_actions(t_arm, dst_z_pelvis):
     print(f"  + Loaded {len(kept_actions)} unarmed Mesh2Motion actions: {[a.name for a in kept_actions]}")
 
 
-def measure_hand_targets(mesh_obj):
+def measure_hand_targets(mesh_obj, wrist_band=None):
     """Measure the exact 3D wrist/hand centers of the normalized A-pose mesh."""
     vs = [v.co for v in mesh_obj.data.vertices]
-    l_pts = sorted([v for v in vs if v.x > 0.30], key=lambda v: -v.x)[:90]
-    r_pts = sorted([v for v in vs if v.x < -0.30], key=lambda v: v.x)[:90]
+    if wrist_band:
+        # Exclude crowns, pauldrons and flared hems before measuring lateral extrema.
+        vs = [p for p in vs if wrist_band[0] <= p.z <= wrist_band[1]]
+        if not vs or min(p.x for p in vs) >= 0 or max(p.x for p in vs) <= 0:
+            raise ValueError("Cannot locate both arms in the character's wrist band")
+        cutoff = 0.65 * min(-min(p.x for p in vs), max(p.x for p in vs))
+    else:
+        cutoff = 0.30
+    l_pts = sorted([v for v in vs if v.x > cutoff], key=lambda v: -v.x)[:90]
+    r_pts = sorted([v for v in vs if v.x < -cutoff], key=lambda v: v.x)[:90]
     lh = sum(l_pts, Vector((0, 0, 0))) / max(1, len(l_pts))
     rh = sum(r_pts, Vector((0, 0, 0))) / max(1, len(r_pts))
     # Pull slightly inward (7%) from fingertips toward wrist joint center
@@ -403,28 +412,49 @@ def make_outline(src_obj, name, offset=0.0040, dec_ratio=0.50):
     return out_obj
 
 
-def build_one_boss(cfg):
+def build_character(cfg, raw_dir=RAW_DIR, out_dir=MODELS_DIR, carved=False):
     bid = cfg["id"]
-    raw_path = os.path.join(RAW_DIR, cfg["raw"])
-    out_path = os.path.join(MODELS_DIR, cfg["out"])
+    raw_path = os.path.join(raw_dir, cfg["raw"])
+    out_path = os.path.join(out_dir, cfg["out"])
     fit = dict(cfg["fit"])
+    prefix = cfg.get("mesh_prefix", "Boss")
+    template = cfg.get("template", TEMPLATE_BOSS_GLB)
     if not os.path.isfile(raw_path):
+        if carved:
+            raise FileNotFoundError(raw_path)
         print(f"  [SKIP] Missing {raw_path}")
         return
-    assert os.path.isfile(TEMPLATE_BOSS_GLB), f"Missing {TEMPLATE_BOSS_GLB}"
+    assert os.path.isfile(template), f"Missing {template}"
 
     print(f"\n================ [{bid.upper()}] {cfg['label']} ================")
     bpy.ops.wm.read_factory_settings(use_empty=True)
 
     # 1) Load base 66-bone Mesh2Motion armature from boss.glb & replace with 8 unarmed actions
-    bpy.ops.import_scene.gltf(filepath=TEMPLATE_BOSS_GLB)
+    bpy.ops.import_scene.gltf(filepath=template)
     t_arm = [o for o in bpy.data.objects if o.type == "ARMATURE"][0]
     t_arm.name = f"{bid}_Armature"
     for o in list(bpy.data.objects):
         if o.type == "MESH":
             bpy.data.objects.remove(o, do_unlink=True)
 
-    load_unarmed_actions(t_arm, fit["z_pelvis"])
+    if "clip_names" in cfg:
+        # Imported glTF animations are stashed as NLA tracks. Keep the character's
+        # actual clips (including sword combos or ground pound), not generic cycles.
+        anim = t_arm.animation_data
+        expected = set(cfg["clip_names"])
+        found = set()
+        if anim:
+            anim.action = None
+            for track in list(anim.nla_tracks):
+                if track.name not in expected:
+                    anim.nla_tracks.remove(track)
+                    continue
+                track.mute = True
+                found.add(track.name)
+        if expected != found:
+            raise ValueError(f"{bid}: missing template clips {sorted(expected - found)}")
+    else:
+        load_unarmed_actions(t_arm, fit["z_pelvis"])
     # Reset all pose bones to exact rest identity (clearing glTF import frame-0 pose residue)
     for pb in t_arm.pose.bones:
         pb.matrix_basis.identity()
@@ -445,7 +475,7 @@ def build_one_boss(cfg):
     if len(raw_meshes) > 1:
         bpy.ops.object.join()
     body_high = bpy.context.active_object
-    body_high.name = "Boss_Body_High50k"
+    body_high.name = f"{prefix}_Body_High50k"
 
     bmin, bmax = m2m.get_world_bbox(body_high)
     s = 1.72 / max(1e-4, bmax.z - bmin.z)
@@ -467,13 +497,13 @@ def build_one_boss(cfg):
     body_high.data.update()
 
     # Measure exact 3D wrist targets and compute true arm_len from shoulder -> wrist
-    lh_wrist, rh_wrist = measure_hand_targets(body_high)
+    lh_wrist, rh_wrist = measure_hand_targets(body_high, cfg.get("wrist_band"))
     sh_l = Vector((fit["shoulder_x"], 0.065, fit["z_shoulder"]))
     sh_r = Vector((-fit["shoulder_x"], 0.065, fit["z_shoulder"]))
     true_arm_len = 0.5 * ((lh_wrist - sh_l).length + (rh_wrist - sh_r).length)
     fit["arm_len"] = round(true_arm_len, 4)
 
-    refit_boss_armature(t_arm, SRC_BOSS_FIT, fit)
+    refit_boss_armature(t_arm, cfg.get("source_fit", SRC_BOSS_FIT), fit)
     print(f"  + Refitted 66-bone armature (pelvis_z={fit['z_pelvis']:.2f}, hip_x={fit['hip_x']:.3f}, sh=({fit['shoulder_x']:.2f},{fit['z_shoulder']:.2f}), arm_len={fit['arm_len']:.3f})")
     print(f"    Measured wrists: L={tuple(round(c,3) for c in lh_wrist)}, R={tuple(round(c,3) for c in rh_wrist)}")
 
@@ -483,20 +513,24 @@ def build_one_boss(cfg):
     bpy.context.view_layer.objects.active = body_high
     bpy.ops.object.duplicate()
     body = bpy.context.active_object
-    body.name = "Boss_Body"
+    body.name = f"{prefix}_Body"
     body.data = body.data.copy()
-    body.data.name = "Boss_Body"
+    body.data.name = body.name
     dec = body.modifiers.new(name="Decimate", type="DECIMATE")
     dec.ratio = 0.30
+    if "tri_budget" in cfg:
+        triangles = sum(len(p.vertices) - 2 for p in body.data.polygons)
+        dec.ratio = min(1.0, cfg["tri_budget"] / max(1, triangles))
     bpy.ops.object.modifier_apply(modifier=dec.name)
     for poly in body.data.polygons:
-        poly.use_smooth = True
+        poly.use_smooth = not carved
 
-    bake_normal_map(body_high, body, f"{bid}_Normal", size=1024)
+    if not carved:
+        bake_normal_map(body_high, body, f"{bid}_Normal", size=1024)
     bpy.data.objects.remove(body_high, do_unlink=True)
 
     # 4) Inverted-hull sumi-ink outline
-    outline = make_outline(body, "Boss_Outline", offset=0.0040, dec_ratio=0.50)
+    outline = make_outline(body, f"{prefix}_Outline", offset=0.0040, dec_ratio=0.50)
 
     # 5) Create Temp_APose_Arm matched in full 3D (X/Y/Z) via exact quaternion rotation_difference
     bpy.ops.object.select_all(action="DESELECT")
@@ -608,7 +642,9 @@ def build_one_boss(cfg):
         mod.object = t_arm
     bpy.data.objects.remove(a_arm, do_unlink=True)
 
-    # 8) NO WEAPON ATTACHED — Act 2/3/4 bosses are 100% unarmed
+    if cfg.get("keep_sword"):
+        from build_hero_master import attach_sword
+        attach_sword(t_arm, body, template, template)
 
     # 9) Export GLB
     bpy.ops.object.select_all(action="DESELECT")
@@ -617,6 +653,7 @@ def build_one_boss(cfg):
             o.select_set(True)
     bpy.ops.export_scene.gltf(
         filepath=out_path,
+        **({"export_animation_mode": "NLA_TRACKS"} if "clip_names" in cfg else {}),
         export_format="GLB",
         use_selection=True,
         export_animations=True,
@@ -629,9 +666,16 @@ def build_one_boss(cfg):
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--only", choices=[cfg["id"] for cfg in BOSS_CONFIGS])
+    parser.add_argument("--raw-dir", default=RAW_DIR)
+    parser.add_argument("--out-dir", default=MODELS_DIR)
+    parser.add_argument("--carved", action="store_true")
+    args = parser.parse_args(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])
+    os.makedirs(args.out_dir, exist_ok=True)
     for cfg in BOSS_CONFIGS:
-        build_one_boss(cfg)
-    print("\n[ALL 3 ACT 2/3/4 UNARMED BOSSES PRECISION-RIGGED & EXPORTED!]")
+        if not args.only or cfg["id"] == args.only:
+            build_character(cfg, args.raw_dir, args.out_dir, args.carved)
 
 
 if __name__ == "__main__":

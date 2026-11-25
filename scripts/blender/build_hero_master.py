@@ -6,6 +6,7 @@ scripts/blender/build_hero_master.py
 - 환도(Hero_Sword) 오른손 손바닥 중앙 정밀 밀착
 - 8등신 실측 66본 Mesh2Motion 리깅 + 복셀 프록시 볼륨 본 히트 + 8종 모션 이식
 """
+import argparse
 import math
 import os
 import sys
@@ -188,17 +189,125 @@ def make_outline(src_obj, name, offset, dec_ratio=0.55):
     return out_obj
 
 
+def attach_sword(t_arm, body, sword_src, template):
+    # 6) Import Hero_Sword (+ outline) and snap handle center dead-center into hand_r palm
+    if os.path.isfile(sword_src):
+        before = set(bpy.data.objects)
+        bpy.ops.import_scene.gltf(filepath=sword_src)
+        sword = sword_out = None
+        for o in list(bpy.data.objects):
+            if o in before:
+                continue
+            low = o.name.lower()
+            if o.type == "MESH" and "sword" in low:
+                for mod in list(o.modifiers):
+                    if mod.type == "ARMATURE": o.modifiers.remove(mod)
+                o.parent = None
+                bpy.ops.object.select_all(action="DESELECT")
+                o.select_set(True)
+                bpy.context.view_layer.objects.active = o
+                bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+                if "outline" in low: sword_out = o
+                else: sword = o
+            else:
+                bpy.data.objects.remove(o, do_unlink=True)
+        if sword is not None:
+            # Measure REAL right-hand palm center directly from Hero_Body vertices weighted to hand_r (0mm palm contact!)
+            vg_hr = body.vertex_groups.get("hand_r")
+            hr_pts = []
+            if vg_hr:
+                for v in body.data.vertices:
+                    try:
+                        if vg_hr.weight(v.index) > 0.45 and v.co.x < -0.25:
+                            hr_pts.append(v.co.copy())
+                    except RuntimeError:
+                        pass
+            if hr_pts:
+                palm = sum(hr_pts, Vector((0, 0, 0))) / len(hr_pts)
+                # Slightly tuck inward toward palm hollow (-Y/inner +Z)
+                palm += Vector((0.015, -0.012, -0.008))
+            else:
+                hand_b = t_arm.data.bones["hand_r"]
+                palm = t_arm.matrix_world @ ((hand_b.head_local + hand_b.tail_local) * 0.5)
+            # Scale sword from 1.85m space -> 1.72m space
+            sw_s = 1.72 / 1.85
+            pts = [v.co.copy() * sw_s for v in sword.data.vertices]
+            smin = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
+            smax = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
+            p_a = max(pts, key=lambda p: (p - (smin + smax) * 0.5).length_squared)
+            p_b = max(pts, key=lambda p: (p - p_a).length_squared)
+            cnt_a = sum(1 for p in pts if (p - p_a).length < 0.18)
+            cnt_b = sum(1 for p in pts if (p - p_b).length < 0.18)
+            hilt_pt, tip_pt = (p_a, p_b) if cnt_a < cnt_b else (p_b, p_a)
+            blade_vec = (tip_pt - hilt_pt).normalized()
+            # Compute exact T-pose blade direction so that during M2M_Idle (idle-a.glb),
+            # the blade points cleanly OUTWARD-RIGHT (-X), FORWARD (-Y), DOWNWARD (-Z) — ZERO body/skirt clipping!
+            before_tmp = set(bpy.data.objects)
+            before_act_tmp = set(bpy.data.actions)
+            idle_path = os.path.join(M2M_DIR, "idle-a.glb")
+            if os.path.isfile(idle_path):
+                bpy.ops.import_scene.gltf(filepath=idle_path)
+            else:
+                bpy.ops.import_scene.gltf(filepath=template)
+            tmp_objs = [o for o in bpy.data.objects if o not in before_tmp]
+            tmp_acts = [a for a in bpy.data.actions if a not in before_act_tmp]
+            target_dir = Vector((-0.55, -0.55, -0.62)).normalized()
+            idle = next((a for a in tmp_acts if a.name.startswith('M2M_Idle')), None)
+            if idle is None and os.path.isfile(idle_path) and tmp_acts:
+                idle = tmp_acts[0]
+            if idle is not None:
+                t_arm.animation_data_create()
+                t_arm.animation_data.action = idle
+                bpy.context.scene.frame_set(20)
+                bpy.context.view_layer.update()
+                pb_hr = t_arm.pose.bones["hand_r"]
+                # World rotation of hand_r in M2M_Idle vs T-pose rest rotation
+                m_pose = (t_arm.matrix_world @ pb_hr.matrix).to_3x3()
+                m_rest = (t_arm.matrix_world @ t_arm.data.bones["hand_r"].matrix_local).to_3x3()
+                delta_rot = m_pose @ m_rest.inverted()
+                desired_idle_world = Vector((-0.36, -0.58, -0.73)).normalized()
+                target_dir = (delta_rot.inverted() @ desired_idle_world).normalized()
+                t_arm.animation_data.action = None
+                bpy.context.view_layer.update()
+            for o in tmp_objs: bpy.data.objects.remove(o, do_unlink=True)
+            for a in tmp_acts: bpy.data.actions.remove(a)
+            rot_q = blade_vec.rotation_difference(target_dir)
+            grip_origin = hilt_pt + blade_vec * 0.145
+            for so in [sword, sword_out]:
+                if so is None: continue
+                for v in so.data.vertices:
+                    v.co = rot_q @ (v.co * sw_s - grip_origin) + palm
+                so.data.update()
+                so.animation_data_clear()
+                so.vertex_groups.clear()
+                vg = so.vertex_groups.new(name="hand_r")
+                vg.add([v.index for v in so.data.vertices], 1.0, "REPLACE")
+                so.parent = t_arm
+                mod = so.modifiers.new(name="Armature", type="ARMATURE")
+                mod.object = t_arm
+            print("  + Hero_Sword handle centered cleanly in hand_r palm!")
+
+
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--in", dest="full_body", help="Use a unified full-body raw GLB")
+    parser.add_argument("--out", help="Write here without replacing the game template")
+    parser.add_argument("--carved", action="store_true")
+    args = parser.parse_args(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])
     raw_mv_hero = os.path.join(ROOT, "scripts", "blender", "_raw_bosses", "hero_raw.glb")
     body_raw = raw_mv_hero if os.path.isfile(raw_mv_hero) else os.path.join(MODELS_DIR, "hero_body_raw.glb")
     head_raw = os.path.join(MODELS_DIR, "hero_head_raw.glb")
-    out_glb = os.path.join(MODELS_DIR, "hero.glb")
+    if args.full_body:
+        body_raw = args.full_body
+    template = os.path.join(MODELS_DIR, "hero.glb")
+    out_glb = os.path.abspath(args.out or template)
+    os.makedirs(os.path.dirname(out_glb), exist_ok=True)
     sword_src = "/tmp/models_png/hero_new.glb"
-    if not os.path.isfile(sword_src) and os.path.isfile(out_glb):
-        sword_src = out_glb
+    if not os.path.isfile(sword_src) and os.path.isfile(template):
+        sword_src = template
 
     assert os.path.isfile(body_raw), f"Missing {body_raw}"
-    use_head_graft = (body_raw != raw_mv_hero) and os.path.isfile(head_raw)
+    use_head_graft = not args.full_body and (body_raw != raw_mv_hero) and os.path.isfile(head_raw)
 
     print("\n================ [HERO MASTER v0.91] 2048px Body + Normal Map + 8x Head ================")
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -236,9 +345,10 @@ def main():
     dec.ratio = 0.30
     bpy.ops.object.modifier_apply(modifier=dec.name)
     for poly in body.data.polygons:
-        poly.use_smooth = True
+        poly.use_smooth = not args.carved
 
-    bake_normal_map(body_high, body, size=1024)
+    if not args.carved:
+        bake_normal_map(body_high, body, size=1024)
     bpy.data.objects.remove(body_high, do_unlink=True)
 
     # Create clean ink outline for Hero_Body
@@ -248,9 +358,9 @@ def main():
     skel_path = os.path.join(M2M_DIR, "skeleton.glb")
     use_template_glb = not os.path.isfile(skel_path)
     if use_template_glb:
-        assert os.path.isfile(out_glb), f"Missing both {skel_path} and template {out_glb}"
+        assert os.path.isfile(template), f"Missing both {skel_path} and template {template}"
         before_skel = set(bpy.data.objects)
-        bpy.ops.import_scene.gltf(filepath=out_glb)
+        bpy.ops.import_scene.gltf(filepath=template)
         t_arm = [o for o in bpy.data.objects if o not in before_skel and o.type == "ARMATURE"][0]
         t_arm.name = "Hero_Armature"
         t_arm.parent = None
@@ -268,7 +378,7 @@ def main():
             pb.scale = (1.0, 1.0, 1.0)
         bpy.ops.object.mode_set(mode="OBJECT")
         bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-        print(f"  + Loaded 66-bone Hero_Armature from template {out_glb}")
+        print(f"  + Loaded 66-bone Hero_Armature from template {template}")
     else:
         bpy.ops.import_scene.gltf(filepath=skel_path)
         t_arm = [o for o in bpy.data.objects if o.type == "ARMATURE"][0]
@@ -494,99 +604,7 @@ def main():
     else:
         print("  + Full-body hero_raw.glb mode: keeping unified head & neck (no separate head graft)")
 
-    # 6) Import Hero_Sword (+ outline) and snap handle center dead-center into hand_r palm
-    if os.path.isfile(sword_src):
-        before = set(bpy.data.objects)
-        bpy.ops.import_scene.gltf(filepath=sword_src)
-        sword = sword_out = None
-        for o in list(bpy.data.objects):
-            if o in before:
-                continue
-            low = o.name.lower()
-            if o.type == "MESH" and "sword" in low:
-                for mod in list(o.modifiers):
-                    if mod.type == "ARMATURE": o.modifiers.remove(mod)
-                o.parent = None
-                bpy.ops.object.select_all(action="DESELECT")
-                o.select_set(True)
-                bpy.context.view_layer.objects.active = o
-                bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-                if "outline" in low: sword_out = o
-                else: sword = o
-            else:
-                bpy.data.objects.remove(o, do_unlink=True)
-        if sword is not None:
-            # Measure REAL right-hand palm center directly from Hero_Body vertices weighted to hand_r (0mm palm contact!)
-            vg_hr = body.vertex_groups.get("hand_r")
-            hr_pts = []
-            if vg_hr:
-                for v in body.data.vertices:
-                    try:
-                        if vg_hr.weight(v.index) > 0.45 and v.co.x < -0.25:
-                            hr_pts.append(v.co.copy())
-                    except RuntimeError:
-                        pass
-            if hr_pts:
-                palm = sum(hr_pts, Vector((0, 0, 0))) / len(hr_pts)
-                # Slightly tuck inward toward palm hollow (-Y/inner +Z)
-                palm += Vector((0.015, -0.012, -0.008))
-            else:
-                hand_b = t_arm.data.bones["hand_r"]
-                palm = t_arm.matrix_world @ ((hand_b.head_local + hand_b.tail_local) * 0.5)
-            # Scale sword from 1.85m space -> 1.72m space
-            sw_s = 1.72 / 1.85
-            pts = [v.co.copy() * sw_s for v in sword.data.vertices]
-            smin = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
-            smax = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
-            p_a = max(pts, key=lambda p: (p - (smin + smax) * 0.5).length_squared)
-            p_b = max(pts, key=lambda p: (p - p_a).length_squared)
-            cnt_a = sum(1 for p in pts if (p - p_a).length < 0.18)
-            cnt_b = sum(1 for p in pts if (p - p_b).length < 0.18)
-            hilt_pt, tip_pt = (p_a, p_b) if cnt_a < cnt_b else (p_b, p_a)
-            blade_vec = (tip_pt - hilt_pt).normalized()
-            # Compute exact T-pose blade direction so that during M2M_Idle (idle-a.glb),
-            # the blade points cleanly OUTWARD-RIGHT (-X), FORWARD (-Y), DOWNWARD (-Z) — ZERO body/skirt clipping!
-            before_tmp = set(bpy.data.objects)
-            before_act_tmp = set(bpy.data.actions)
-            idle_path = os.path.join(M2M_DIR, "idle-a.glb")
-            if os.path.isfile(idle_path):
-                bpy.ops.import_scene.gltf(filepath=idle_path)
-            else:
-                bpy.ops.import_scene.gltf(filepath=out_glb)
-            tmp_objs = [o for o in bpy.data.objects if o not in before_tmp]
-            tmp_acts = [a for a in bpy.data.actions if a not in before_act_tmp]
-            target_dir = Vector((-0.55, -0.55, -0.62)).normalized()
-            if tmp_acts:
-                t_arm.animation_data_create()
-                t_arm.animation_data.action = tmp_acts[0]
-                bpy.context.scene.frame_set(20)
-                bpy.context.view_layer.update()
-                pb_hr = t_arm.pose.bones["hand_r"]
-                # World rotation of hand_r in M2M_Idle vs T-pose rest rotation
-                m_pose = (t_arm.matrix_world @ pb_hr.matrix).to_3x3()
-                m_rest = (t_arm.matrix_world @ t_arm.data.bones["hand_r"].matrix_local).to_3x3()
-                delta_rot = m_pose @ m_rest.inverted()
-                desired_idle_world = Vector((-0.36, -0.58, -0.73)).normalized()
-                target_dir = (delta_rot.inverted() @ desired_idle_world).normalized()
-                t_arm.animation_data.action = None
-                bpy.context.view_layer.update()
-            for o in tmp_objs: bpy.data.objects.remove(o, do_unlink=True)
-            for a in tmp_acts: bpy.data.actions.remove(a)
-            rot_q = blade_vec.rotation_difference(target_dir)
-            grip_origin = hilt_pt + blade_vec * 0.145
-            for so in [sword, sword_out]:
-                if so is None: continue
-                for v in so.data.vertices:
-                    v.co = rot_q @ (v.co * sw_s - grip_origin) + palm
-                so.data.update()
-                so.animation_data_clear()
-                so.vertex_groups.clear()
-                vg = so.vertex_groups.new(name="hand_r")
-                vg.add([v.index for v in so.data.vertices], 1.0, "REPLACE")
-                so.parent = t_arm
-                mod = so.modifiers.new(name="Armature", type="ARMATURE")
-                mod.object = t_arm
-            print("  + Hero_Sword handle centered cleanly in hand_r palm!")
+    attach_sword(t_arm, body, sword_src, template)
 
     # 7) Import 8 Mesh2Motion CC0 animation clips & scale pelvis translation
     pel_scale = HERO_FIT["z_pelvis"] / 0.917
@@ -594,7 +612,7 @@ def main():
     if use_template_glb:
         before_acts = set(bpy.data.actions)
         before_objs = set(bpy.data.objects)
-        bpy.ops.import_scene.gltf(filepath=out_glb)
+        bpy.ops.import_scene.gltf(filepath=template)
         new_objs = [o for o in bpy.data.objects if o not in before_objs]
         want_clips = [c[0] for c in HERO_CLIPS]
         for act in list(bpy.data.actions):

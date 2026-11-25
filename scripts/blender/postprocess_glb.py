@@ -37,6 +37,7 @@ def parse_args():
     p.add_argument("--tris", type=int, default=12000, help="Target body triangle count (0 = no decimate)")
     p.add_argument("--tex-size", type=int, default=1024, help="Max texture dimension (0 = keep original)")
     p.add_argument("--outline", type=float, default=0.0045, help="Sumi-ink outline thickness in meters (0 = none)")
+    p.add_argument("--carved", action="store_true", help="Use flat body normals after decimation")
     p.add_argument("--rig", choices=["none", "humanoid"], default="humanoid", help="Auto-rig mode")
     p.add_argument("--attach-sword", action="store_true", help="Attach a clean sculpted Korean Hwando sword to hand_R")
     p.add_argument("--render-dir", default="", help="Directory for 4-angle studio turnaround PNGs")
@@ -897,6 +898,9 @@ def main():
     normalize_mesh(body, args.height, args.yaw)
     optimize_materials_and_textures(body, args.tex_size)
     body_tris = decimate_body(body, args.tris)
+    if args.carved:
+        for polygon in body.data.polygons:
+            polygon.use_smooth = False
 
     outline = None
     outline_mat = None
