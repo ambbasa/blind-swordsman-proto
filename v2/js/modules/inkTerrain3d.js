@@ -1164,7 +1164,14 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
 
     /* v0.66: 모바일 세로(390×844) 실화면 시야(side ∈ [-7.4, +7.4], depth ∈ [-12, +15]) 안에
        이전 기물과 동일한 역할의 고품질 3D 스킬 에셋을 풍성하고 균형감 있게 배치 (중앙 전투 원 r < 7.2m 보호) */
-    switch (stageNo) {
+    let _useGlbProps = true;
+    try {
+      const _q = new URLSearchParams(location.search);
+      if (_q.get('props') === '0' || _q.get('props') === 'proc') _useGlbProps = false;
+    } catch (_) {}
+    if (_useGlbProps) {
+      if (stageNo === 10 || stageNo === 14) putBridgeRiver();
+    } else switch (stageNo) {
       case 1:
         /* 1장 잿빛 장터: 북쪽 카스미데라 누각 + 화면 안 4방향 드리핑 직조 천막 좌판 + 한지 금줄문 + 조각 석등 2 */
         putStage(buildKasumideraGatehouse3D({ fortress: false, lacquerHex, glowHex: talismanGlow }), 0, 14.8, 0, 3.2, 2.2);

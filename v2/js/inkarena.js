@@ -19,8 +19,8 @@
 import * as THREE from 'three';
 import * as TEX from './inktex3d.js';
 import { SKIN_VERT } from './inkbody3d.js';
-import { INK3D } from './inkhero3d.js?v=v144';
-import { attachGlbArenaProps, preloadArenaProps } from './glbprops.js?v=v144';
+import { INK3D } from './inkhero3d.js?v=v145';
+import { attachGlbArenaProps, preloadArenaProps, glbPropsEnabled } from './glbprops.js?v=v145';
 preloadArenaProps();
 import { actFromStageId, getActTheme3D, applyThemeToInkUniforms } from './modules/actTheme3d.js';
 import { mulberry } from './inkbake.js';
@@ -805,9 +805,10 @@ export function buildArena(opts) {
   }
   /* v0.65: 외곽 절벽 링(cliffRing)과 아레나 경계(ARENA.R)를 담당해 전투 구역 충돌을 차단.
      v0.97: 외곽 경계선(ARENA.R + 2.2m~4.8m)에 막(Act 1~4)별 3D 실루엣 프롭을 단일 SkinnedMesh에 합쳐 드로우콜 0 증가로 전장 개성 강화. */
-  cliffRing(B,rnd,c);
+  const useGlbProps = glbPropsEnabled();
+  if (!useGlbProps) cliffRing(B,rnd,c);
   const actNoProps = actFromStageId(stageId);
-  (function addActPerimeterProps() {
+  if (!useGlbProps) (function addActPerimeterProps() {
     const count = 12;
     for (let i = 0; i < count; i++) {
       const ang = (i / count) * Math.PI * 2 + (rnd() - 0.5) * 0.22;
@@ -844,21 +845,24 @@ export function buildArena(opts) {
     }
   })();
 
-  const bodyGeo = merge(B.body);
-  const bodyMat = propMat();
-  const body = new THREE.SkinnedMesh(bodyGeo, bodyMat);
-  body.castShadow = true; body.receiveShadow = false;
-  body.frustumCulled = false;
-  body.name = 'arena-body';
-  body.userData.arenaBody = true;
+  const bodyGeo = B.body.length ? merge(B.body) : null;
+  const bodyMat = bodyGeo ? propMat() : null;
+  let body = null, hullMat = null, hullMesh = null;
+  if (bodyGeo) {
+    body = new THREE.SkinnedMesh(bodyGeo, bodyMat);
+    body.castShadow = true; body.receiveShadow = false;
+    body.frustumCulled = false;
+    body.name = 'arena-body';
+    body.userData.arenaBody = true;
 
-  const outT = 0.030;
-  const hullMat = INK3D.outlineMat();
-  hullMat.side = THREE.BackSide;
-  const hullMesh = new THREE.SkinnedMesh(hull(bodyGeo, outT), hullMat);
-  hullMesh.frustumCulled = false;
-  hullMesh.castShadow = false; hullMesh.receiveShadow = false;
-  hullMesh.name = 'arena-ink';
+    const outT = 0.030;
+    hullMat = INK3D.outlineMat();
+    hullMat.side = THREE.BackSide;
+    hullMesh = new THREE.SkinnedMesh(hull(bodyGeo, outT), hullMat);
+    hullMesh.frustumCulled = false;
+    hullMesh.castShadow = false; hullMesh.receiveShadow = false;
+    hullMesh.name = 'arena-ink';
+  }
 
   const glowGeo = B.glow.length ? merge(B.glow) : null;
   let glowMesh = null;
@@ -878,15 +882,16 @@ export function buildArena(opts) {
   for (const mesh of [body,hullMesh,glowMesh]) {
     if (mesh) mesh.bind(skeleton);
   }
-  group.add(body); group.add(hullMesh);
+  if (body) group.add(body);
+  if (hullMesh) group.add(hullMesh);
   if (glowMesh) group.add(glowMesh);
 
-  const tri = bodyGeo.getAttribute('position').count / 3;
+  const tri = bodyGeo ? bodyGeo.getAttribute('position').count / 3 : 0;
 
   let activeTheme = getActTheme3D(actFromStageId(stageId));
   const lanternBaseCol = new THREE.Color(activeTheme.lanternHex);
   function applyActTheme(actNo) {
-    activeTheme = applyThemeToInkUniforms(bodyMat.uniforms, actNo);
+    activeTheme = bodyMat ? applyThemeToInkUniforms(bodyMat.uniforms, actNo) : getActTheme3D(actNo);
     lanternBaseCol.setHex(activeTheme.lanternHex);
     if (glowMesh && glowMesh.material && glowMesh.material.color) {
       glowMesh.material.color.copy(lanternBaseCol);
@@ -910,7 +915,7 @@ export function buildArena(opts) {
   return {
     group: group, body: body, hull: hullMesh, glow: glowMesh,
     props: props, spots: spots, bounds: { x: 0, z: 0, r: ARENA.R },
-    materials: [bodyMat, hullMat].concat(glowMesh ? [glowMesh.material] : []),
+    materials: [bodyMat, hullMat].filter(Boolean).concat(glowMesh ? [glowMesh.material] : []),
     stats: { props: B.body.length + B.glow.length, tri: Math.round(tri + tri), bodies: B.body.length, glow: B.glow.length },
     lightSpots: spots.filter(function (s) { return s.r > 3; }).slice(0, 8),
     applyActTheme: applyActTheme,
