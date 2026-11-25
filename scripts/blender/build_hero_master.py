@@ -224,8 +224,6 @@ def attach_sword(t_arm, body, sword_src, template):
                         pass
             if hr_pts:
                 palm = sum(hr_pts, Vector((0, 0, 0))) / len(hr_pts)
-                # Slightly tuck inward toward palm hollow (-Y/inner +Z)
-                palm += Vector((0.015, -0.012, -0.008))
             else:
                 hand_b = t_arm.data.bones["hand_r"]
                 palm = t_arm.matrix_world @ ((hand_b.head_local + hand_b.tail_local) * 0.5)
@@ -258,6 +256,8 @@ def attach_sword(t_arm, body, sword_src, template):
             if idle is not None:
                 t_arm.animation_data_create()
                 t_arm.animation_data.action = idle
+                if hasattr(t_arm.animation_data, "action_slot") and getattr(idle, "slots", None):
+                    t_arm.animation_data.action_slot = idle.slots[0]
                 bpy.context.scene.frame_set(20)
                 bpy.context.view_layer.update()
                 pb_hr = t_arm.pose.bones["hand_r"]
@@ -265,14 +265,20 @@ def attach_sword(t_arm, body, sword_src, template):
                 m_pose = (t_arm.matrix_world @ pb_hr.matrix).to_3x3()
                 m_rest = (t_arm.matrix_world @ t_arm.data.bones["hand_r"].matrix_local).to_3x3()
                 delta_rot = m_pose @ m_rest.inverted()
-                desired_idle_world = Vector((-0.36, -0.58, -0.73)).normalized()
+                # Anatomical forward grip (정수 파지): blade & guard exit the THUMB/INDEX side
+                # pointing cleanly forward-outward-upward, pommel exits the pinky side!
+                desired_idle_world = Vector((-0.40, -0.82, +0.40)).normalized()
                 target_dir = (delta_rot.inverted() @ desired_idle_world).normalized()
+                # Seat handle dead-center inside the curled fist C-hollow in M2M_Idle space
+                palm += delta_rot.inverted() @ Vector((+0.008, -0.006, +0.002))
                 t_arm.animation_data.action = None
+                for pb in t_arm.pose.bones:
+                    pb.matrix_basis.identity()
                 bpy.context.view_layer.update()
             for o in tmp_objs: bpy.data.objects.remove(o, do_unlink=True)
             for a in tmp_acts: bpy.data.actions.remove(a)
             rot_q = blade_vec.rotation_difference(target_dir)
-            grip_origin = hilt_pt + blade_vec * 0.145
+            grip_origin = hilt_pt + blade_vec * 0.138
             for so in [sword, sword_out]:
                 if so is None: continue
                 for v in so.data.vertices:
