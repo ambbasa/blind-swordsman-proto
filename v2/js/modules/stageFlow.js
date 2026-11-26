@@ -1228,10 +1228,10 @@ function previewStageWorld(n) {
 function refreshTitleHelp() {
   try { rt.renderChallenges(); } catch (e) {}
   /* 마지막에 깨운 스테이지가 이미 깨졌으면 새로 열린 장을 기본 선택으로 보여 준다. */
-  if (rt.titleSel == null) rt.titleSel = rt.clamp(rt.save.stage || 1, 1, rt.STAGES.length);
-  else rt.titleSel = rt.clamp(1, unlockedMax());
+  const maxU = unlockedMax();
+  const sel = rt.clamp((rt.titleSel ?? rt.save.stage ?? 1) | 0, 1, maxU);
+  rt.titleSel = sel;
   const el = $('titleShapes') || document.querySelector('.shapes-help');
-  const sel = rt.clamp((rt.titleSel != null ? rt.titleSel : (rt.save.stage || 1)) | 0, 1, rt.STAGES.length);
   const st = rt.stageOf(sel);
   setChapterArt(st);
   const pool = (st.shapes || ['hline']).slice();
@@ -1250,7 +1250,6 @@ function refreshTitleHelp() {
     const recPw = rt.stageRecommendedPower(st.id);
     chSub.textContent = '★'.repeat(stars) + '☆'.repeat(Math.max(0, 3 - stars)) + ' · 제' + rt.actOf(st.id) + '막 · 권장 전투력 ' + recPw + ' · 변경 ▾';
   }
-  const maxU = unlockedMax();
   if ($('btnStagePrev')) $('btnStagePrev').disabled = sel <= 1;
   if ($('btnStageNext')) $('btnStageNext').disabled = sel >= maxU;
   const note = $('titleStageNote');

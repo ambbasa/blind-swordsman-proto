@@ -1188,13 +1188,13 @@ function wireShopTabs() {
 /* §9.3 도감 화면: 귀물 8 · 보스 12 · 진화 10 · 패턴 9칸 */
 function renderCodex() {
   ensureDailyFresh();
-  if (!renderCodex._tab) renderCodex._tab = '3d';
   renderCodexView({
     save: save,
     bodyEl: $('codexBody'),
     bonusEl: $('codexBonus'),
     milestonesEl: $('codexMilestones'),
     tab: renderCodex._tab,
+    allowModelPreview: developerMode,
     onTabChange: function (next) { renderCodex._tab = next; renderCodex(); },
     counts: codexCounts(save),
     bonusPct: Math.round(codexBonus(save) * 100),
@@ -1295,12 +1295,12 @@ async function boot() {
     if (!heroGlbReady()) {
       const playBtn = $('btnStart');
       const origTxt = playBtn ? playBtn.textContent : null;
-      if (playBtn && origTxt) playBtn.setAttribute('data-orig-label', origTxt);
       const hp = preloadHeroGlb();
       if (playBtn && hp && !heroGlbReady()) {
-        playBtn.textContent = '3D 검객 준비 중...';
+        const loadingLabel = '3D 검객 준비 중...';
+        playBtn.textContent = loadingLabel;
         Promise.resolve(hp).finally(function () {
-          if (playBtn.getAttribute('data-orig-label')) playBtn.textContent = playBtn.getAttribute('data-orig-label');
+          if (playBtn.textContent === loadingLabel && origTxt) playBtn.textContent = origTxt;
         });
       }
     }
@@ -1336,10 +1336,12 @@ if (typeof window !== 'undefined') {
     }
   };
   (function initLobby3dToggle() {
+    if (!developerMode) return;
     const btn = document.getElementById('btnLobby3d');
     const cv = document.getElementById('lobby3dCanvas');
     const img = document.getElementById('lobbyHeroImg');
     if (!btn || !cv || !img) return;
+    btn.hidden = false;
     let on = false;
     function getCurStyle() {
       const ck = cloakOf ? cloakOf(save) : null;
@@ -1364,10 +1366,10 @@ if (typeof window !== 'undefined') {
         btn.textContent = '3D 보기';
       }
     });
-    const titleEl = document.getElementById('title');
+    const titleEl = document.getElementById('ov-title');
     if (titleEl && typeof MutationObserver !== 'undefined') {
       new MutationObserver(function () {
-        if (titleEl.hidden || titleEl.style.display === 'none') {
+        if (!titleEl.classList.contains('show')) {
           stopLobby3d();
         } else if (on) {
           const st = getCurStyle();

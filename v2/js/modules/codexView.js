@@ -73,11 +73,12 @@ export function renderCodexView(opts) {
     });
   }
 
-  const ctab = tab || '3d';
+  const defaultTab = opts.allowModelPreview ? '3d' : 'mon';
+  const ctab = tab === 'mon' || tab === 'pat' ? tab : defaultTab;
   const out = [];
   out.push(
     '<div class="codex-tabs" role="tablist" aria-label="도감 분류">' +
-    '<button type="button" data-codextab="3d" class="' + (ctab === '3d' ? 'on' : '') + '">3D 뷰어</button>' +
+    (opts.allowModelPreview ? '<button type="button" data-codextab="3d" class="' + (ctab === '3d' ? 'on' : '') + '">3D 뷰어</button>' : '') +
     '<button type="button" data-codextab="mon" class="' + (ctab === 'mon' ? 'on' : '') + '">귀물·보스</button>' +
     '<button type="button" data-codextab="pat" class="' + (ctab === 'pat' ? 'on' : '') + '">진화·기믹</button>' +
     '</div>'
@@ -137,7 +138,7 @@ export function renderCodexView(opts) {
   bodyEl.innerHTML = out.join('');
   Array.prototype.forEach.call(bodyEl.querySelectorAll('button[data-codextab]'), function (tb) {
     tb.addEventListener('click', function () {
-      const next = tb.getAttribute('data-codextab') || '3d';
+      const next = tb.getAttribute('data-codextab') || defaultTab;
       if (next === ctab) return;
       if (ctab === '3d' && stopCodex3d) { try { stopCodex3d(); } catch (_) {} }
       if (onTabChange) onTabChange(next);

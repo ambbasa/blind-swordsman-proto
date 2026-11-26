@@ -20,6 +20,8 @@ python -m http.server 8080
 # 브라우저에서 http://localhost:8080/v2/ 접속 (개발자 검수: /v2/?dev=1)
 ```
 
+일반 로비는 일러스트만 표시하며, 도감은 귀물·보스 기록으로 열립니다. 모델을 검수할 때는 `/v2/?dev=1`에서 로비의 **3D 보기** 또는 도감의 **3D 뷰어**를 사용하세요.
+
 ## 테스트
 ```bash
 node tests/unit/modules.test.mjs

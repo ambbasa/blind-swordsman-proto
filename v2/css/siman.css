@@ -1878,12 +1878,9 @@ h1, h2, h3, #timer, #titleName, #bossCardName, #resultTitle { font-family: var(-
 
 /* ========== v0.76 상용 세로형 오픈 3D 로비 + ◀ 장 선택 바 ▶ + 수묵 아이콘 4탭 + 스탯 게이지 카드 ========== */
 #ov-title.lobby-ov {
-  background: linear-gradient(180deg,
-    rgba(10, 8, 7, 0.84) 0%,
-    rgba(10, 8, 7, 0.16) 22%,
-    rgba(10, 8, 7, 0.04) 52%,
-    rgba(10, 8, 7, 0.86) 80%,
-    rgba(10, 8, 7, 0.97) 100%) !important;
+  /* Opaque lobby backdrop; only the separate hero preview belongs here. */
+  background: radial-gradient(ellipse at 50% 47%,
+    #54504a 0%, #343231 35%, #211f20 64%, #121112 100%) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
@@ -2490,7 +2487,8 @@ h1, h2, h3, #timer, #titleName, #bossCardName, #resultTitle { font-family: var(-
 /* ========== v1.13 도감 3탭 & 6대 보스 기믹 공략 카드 ========== */
 .codex-tabs {
   display: grid !important;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  grid-auto-flow: column !important;
+  grid-auto-columns: minmax(0, 1fr) !important;
   gap: 6px !important;
   margin: 0 0 10px !important;
 }

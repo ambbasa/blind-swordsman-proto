@@ -690,3 +690,24 @@ for (const spec of Object.values(LANDMARKS)) {
   if (spec.model) assert.ok(fs.existsSync(new URL('../../v2/assets/models/props/' + spec.model, import.meta.url)));
 }
 console.log('16 STAGE SCENERY PLANS & SHIPPED MODELS PASSED');
+
+
+// Refreshing the lobby must retain the chosen unlocked stage, not jump to the unlock limit.
+{
+  const app = { style: { setProperty() {} }, dataset: {} };
+  const rt = {
+    $: id => id === 'app' ? app : id === 'titleShapes' ? {} : null,
+    STAGES: Array(16), save: { stage: 2, stars: { 1: 1 } },
+    clamp: (n, lo, hi) => n < lo ? lo : n > hi ? hi : n,
+    stageOf: id => ({ id, shapes: [] }), renderModes() {}, renderChallenges() {}
+  };
+  const flow = createStageFlow(rt);
+  assert.equal(flow.refreshTitleHelp().run, 2);
+  rt.titleSel = 3;
+  assert.equal(flow.refreshTitleHelp().run, 3);
+  rt.titleSel = 7;
+  assert.equal(flow.refreshTitleHelp().run, 4);
+  rt.developerMode = true;
+  rt.titleSel = 9;
+  assert.equal(flow.refreshTitleHelp().run, 9);
+}
