@@ -2,16 +2,16 @@ import * as THREE from 'three';
 import { applyForgedMetal, getMetalStudioEnv } from './modules/metalStudioEnv.js';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
 import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v103';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v149';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v150';
 
 const MODEL_URLS = {
-  boss:      new URL('../assets/models/boss.glb?v=v149', import.meta.url).href,
-  boss_act2: new URL('../assets/models/boss_act2.glb?v=v149', import.meta.url).href,
-  boss_act3: new URL('../assets/models/boss_act3.glb?v=v149', import.meta.url).href,
-  boss_act4: new URL('../assets/models/boss_act4.glb?v=v149', import.meta.url).href,
-  minion:    new URL('../assets/models/minion.glb?v=v149', import.meta.url).href,
-  heavy:     new URL('../assets/models/heavy.glb?v=v149', import.meta.url).href,
-  stone:     new URL('../assets/models/stone.glb?v=v149', import.meta.url).href
+  boss:      new URL('../assets/models/boss.glb?v=v150', import.meta.url).href,
+  boss_act2: new URL('../assets/models/boss_act2.glb?v=v150', import.meta.url).href,
+  boss_act3: new URL('../assets/models/boss_act3.glb?v=v150', import.meta.url).href,
+  boss_act4: new URL('../assets/models/boss_act4.glb?v=v150', import.meta.url).href,
+  minion:    new URL('../assets/models/minion.glb?v=v150', import.meta.url).href,
+  heavy:     new URL('../assets/models/heavy.glb?v=v150', import.meta.url).href,
+  stone:     new URL('../assets/models/stone.glb?v=v150', import.meta.url).href
 };
 function isBossSp(sp) { return sp === 'boss' || sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4'; }
 const BOSS_WEAPON_FX = {
@@ -128,13 +128,14 @@ export function makeBossGlb(height, species) {
           mat.emissive = new THREE.Color(0xfff6ea);
           mat.emissiveIntensity = 0.07;
         }
-        mat.customProgramCacheKey = function () { return 'carved-matte-toon-v149'; };
+        mat.customProgramCacheKey = function () { return 'carved-matte-toon-v150'; };
         mat.onBeforeCompile = function (shader) {
           shader.fragmentShader = shader.fragmentShader.replace(
             "#include <dithering_fragment>",
             "float tL = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));\n" +
             "float tS = (floor(tL * 3.0) + smoothstep(0.38, 0.54, fract(tL * 3.0))) / 3.0;\n" +
             "gl_FragColor.rgb *= mix(1.0, (tS + 0.04) / max(tL + 0.04, 0.06), 0.62);\n" +
+            "gl_FragColor.rgb = min(gl_FragColor.rgb, vec3(0.95));\n" +
             "#include <dithering_fragment>"
           );
         };

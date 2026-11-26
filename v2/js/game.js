@@ -31,45 +31,45 @@ import { paintSkill } from './fieldart.js';
           혼령 영혼 흐름 얇고 연하게 · 5~12장 보스 패턴·봉인 · 걷는 보스 무적(빈틈 공략) ·
           첫 진입/참(O)/기물 안내 · 보스 윤곽광·12장 대비 · 제스처 완화(O 40° 열림·얕은 V·좁은 ⚡·U 반달) */
 import { CLUB_IMPACT_TIME } from './inkmodels3d.js';
-import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v149';
+import { makeBossGlb, preloadMonsterGlb } from './glbboss.js?v=v150';
 import * as THREE from 'three';
-import { probeAssets, buildArt } from './art.js?v=v149';
+import { probeAssets, buildArt } from './art.js?v=v150';
 import * as Anim from './anim.js';
-import { createAudio } from './audio.js?v=v149';
-import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v149';
-import { PAT_COST, PAT_CUE, getActPhaseFx, getActSkillNames, bossPatternMean, buildBossBannerInfo, pickBossOrbitShapes, pickZoneSpiritShape } from './modules/bossPatterns.js?v=v149';
-import { TERRAIN_CFG, tHash, tPatchAt, tPatchesNear, tRootAt, getRiverCfg, tWaterCenter as terrainWaterCenter, tWaterAt as terrainWaterAt, resolveZoneAt, resolveSegZone } from './modules/stageTerrain.js?v=v149';
-import { ensureDailyFresh as ensureDailyFreshState, bumpDailyProgress, actStarTotalOf, hasClaimableRetentionOf, claimAttendanceReward, claimDailyQuestReward, claimStarChestReward, claimCodexMilestoneReward, renderDailyView } from './modules/retention.js?v=v149';
-import { renderCodexView } from './modules/codexView.js?v=v149';
-import { renderShopOverview, renderShopTabView, renderCosmeticView } from './modules/shopView.js?v=v149';
-import { TRAIN_SHAPES, SHAPE_LABEL, SHAPE_TIP, createTrainController } from './modules/trainView.js?v=v149';
-import { computeStar3Info, computeStarsFor } from './modules/starRating.js?v=v149';
-import { rollRunMissions, evalRunMissions, computeStyleKillPoints, styleGradeOf } from './modules/runMissions.js?v=v149';
-import { createStageGoalController } from './modules/stageGoal.js?v=v149';
-import { createChallengeController } from './modules/challengeMode.js?v=v149';
-import { isElemKey, cardNameOfKey, rollUpgradePicks, evoPartsOf, evoMatInfoFor, evoHintsFor, pickRecommendedId } from './modules/runUpgrades.js?v=v149';
-import { createQaBridge } from './modules/qaBridge.js?v=v149';
-import { createOverlay2d } from './modules/overlay2d.js?v=v149';
-import { createWorld3d } from './modules/world3d.js?v=v149';
-import { createUiBindings } from './modules/uiBindings.js?v=v149';
-import { createShopLogic } from './modules/shopLogic.js?v=v149';
-import { createMainLoop } from './modules/mainLoop.js?v=v149';
-import { createSaveHud } from './modules/saveHud.js?v=v149';
-import { createTutorialSys } from './modules/tutorialSys.js?v=v149';
-import { createRunLoop } from './modules/runLoop.js?v=v149';
-import { createStrokeInput } from './modules/strokeInput.js?v=v149';
-import { createStageFlow } from './modules/stageFlow.js?v=v149';
-import { createCombatEngine } from './modules/combatEngine.js?v=v149';
-import { createBossEngine } from './modules/bossEngine.js?v=v149';
-import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v149';
+import { createAudio } from './audio.js?v=v150';
+import { startLobby3d, stopLobby3d, syncLobby3dStyle, startCodex3d, playCodexAnim3d, stopCodex3d } from './lobbyPreview3d.js?v=v150';
+import { PAT_COST, PAT_CUE, getActPhaseFx, getActSkillNames, bossPatternMean, buildBossBannerInfo, pickBossOrbitShapes, pickZoneSpiritShape } from './modules/bossPatterns.js?v=v150';
+import { TERRAIN_CFG, tHash, tPatchAt, tPatchesNear, tRootAt, getRiverCfg, tWaterCenter as terrainWaterCenter, tWaterAt as terrainWaterAt, resolveZoneAt, resolveSegZone } from './modules/stageTerrain.js?v=v150';
+import { ensureDailyFresh as ensureDailyFreshState, bumpDailyProgress, actStarTotalOf, hasClaimableRetentionOf, claimAttendanceReward, claimDailyQuestReward, claimStarChestReward, claimCodexMilestoneReward, renderDailyView } from './modules/retention.js?v=v150';
+import { renderCodexView } from './modules/codexView.js?v=v150';
+import { renderShopOverview, renderShopTabView, renderCosmeticView } from './modules/shopView.js?v=v150';
+import { TRAIN_SHAPES, SHAPE_LABEL, SHAPE_TIP, createTrainController } from './modules/trainView.js?v=v150';
+import { computeStar3Info, computeStarsFor } from './modules/starRating.js?v=v150';
+import { rollRunMissions, evalRunMissions, computeStyleKillPoints, styleGradeOf } from './modules/runMissions.js?v=v150';
+import { createStageGoalController } from './modules/stageGoal.js?v=v150';
+import { createChallengeController } from './modules/challengeMode.js?v=v150';
+import { isElemKey, cardNameOfKey, rollUpgradePicks, evoPartsOf, evoMatInfoFor, evoHintsFor, pickRecommendedId } from './modules/runUpgrades.js?v=v150';
+import { createQaBridge } from './modules/qaBridge.js?v=v150';
+import { createOverlay2d } from './modules/overlay2d.js?v=v150';
+import { createWorld3d } from './modules/world3d.js?v=v150';
+import { createUiBindings } from './modules/uiBindings.js?v=v150';
+import { createShopLogic } from './modules/shopLogic.js?v=v150';
+import { createMainLoop } from './modules/mainLoop.js?v=v150';
+import { createSaveHud } from './modules/saveHud.js?v=v150';
+import { createTutorialSys } from './modules/tutorialSys.js?v=v150';
+import { createRunLoop } from './modules/runLoop.js?v=v150';
+import { createStrokeInput } from './modules/strokeInput.js?v=v150';
+import { createStageFlow } from './modules/stageFlow.js?v=v150';
+import { createCombatEngine } from './modules/combatEngine.js?v=v150';
+import { createBossEngine } from './modules/bossEngine.js?v=v150';
+import { preloadHeroGlb, heroGlbReady } from './glbhero.js?v=v150';
 import { createInkSlash, prewarmInkSlash } from '../../assets/v2/fx-ink/code/inkSlashMaterial.js';
 import { InkParticles } from '../../assets/v2/fx-ink/code/inkParticles.js';
 import { setupBloom, AutoQuality } from '../../assets/v2/fx-ink/code/bloomSetup.js';
-import { createInkWashPass } from './inkwash.js?v=v149';
+import { createInkWashPass } from './inkwash.js?v=v150';
 import { createTiltShiftPass, createDepthCapture, focusDistance } from './doftilt.js';
 import { foldPop, tickFolds } from './foldspring.js';
 import { PIXEL_LOOK, createPixelLookPass } from './pixellook.js';
-import { createCinematicPass, pulseImpactChroma } from './inkcinematic.js?v=v149';
+import { createCinematicPass, pulseImpactChroma } from './inkcinematic.js?v=v150';
 import { createSlashArc } from './inkslash3d.js';
 import { PaperFx, preloadFx, fxInfo as fxSheetInfo, brushTex } from './inkfx3d.js';
 import { TraceField, preloadTraces, tracesReady } from './traces.js';
@@ -82,7 +82,7 @@ import { warmScene, isWarmed as shadersWarmed, info as warmInfo, materialVariant
 import { InkFx, FX_COLORS } from './inkfx.js';
 import { BossFx } from './bossFx.js';
 import { createTelemetry } from './telemetry.js';
-import { applyHeroCloak3D } from './inkhero3d.js?v=v149';
+import { applyHeroCloak3D } from './inkhero3d.js?v=v150';
 import {
   SAVE_VERSION, STAT_DEFS, FORGE_COSTS, SWORDS, RELICS, COSMETIC_CLOAKS, COSMETIC_TRAILS,
   DAILY_QUESTS, ATTENDANCE_REWARDS, STAR_CHESTS, CODEX_MILESTONES,
@@ -95,7 +95,7 @@ import { InkLightPool, createWorldInkUniforms, attachGroundInkShader } from './i
 import { initOverlayShell } from './ui/overlayShell.js';
 import { installCssVars, color as palColor, hex as palHex } from './palette.js';
 import { WF, paint as paintCard, updateFade as updateWorldFade, stats as cardStats } from './cardstock.js';
-import { SHAPE_MARK, TOTEM_SHAPES, SHAPE_KEY, SHAPE_UNLOCK, COMBAT, SHAPE_HINT, SHAPE_STYLE, CFG } from './modules/gameConfig.js?v=v149';
+import { SHAPE_MARK, TOTEM_SHAPES, SHAPE_KEY, SHAPE_UNLOCK, COMBAT, SHAPE_HINT, SHAPE_STYLE, CFG } from './modules/gameConfig.js?v=v150';
 import {
   getShopTabNote, statUpgradeCost, statTotalSpent, resetAllStats,
   computeCombatPower, stageRecommendedPower, forgeCostOf,
@@ -110,8 +110,8 @@ import { MODES, MODE_ORDER, MODE_NOTE, modeOf, CHALLENGES, challengeOf, RUN_UPGR
 import { PAT_CODE } from './modules/bossCatalog.js';
 import { createInputQueue, createDashLatencyTracker } from './modules/inputQueue.js';
 import { createRunState, resetRunStateOnQuit } from './modules/state.js';
-import { createHudController } from './modules/hudController.js?v=v149';
-import { createUiRouter } from './modules/uiRouter.js?v=v149';
+import { createHudController } from './modules/hudController.js?v=v150';
+import { createUiRouter } from './modules/uiRouter.js?v=v150';
 import { syncSceneActTheme3D } from './modules/actTheme3d.js';
 import { createInkRiver3D } from './modules/inkWater3d.js';
 import { createInkTerrain3D } from './modules/inkTerrain3d.js';

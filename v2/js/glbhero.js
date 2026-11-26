@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { applyForgedMetal } from './modules/metalStudioEnv.js';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
 import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v103';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v149';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v150';
 
 const URL_GLB = new URL('../assets/models/hero.glb?v=v103', import.meta.url).href;
 let pending = null;
@@ -100,7 +100,7 @@ export function makeHeroGlb(height) {
             phys.emissive = new THREE.Color(0xffffff);
             phys.emissiveIntensity = 0.12;
           }
-          phys.customProgramCacheKey = function () { return 'hero-matte-toon-v149'; };
+          phys.customProgramCacheKey = function () { return 'hero-matte-toon-v150'; };
           mat.dispose();
           targetMat = phys;
         } else {
@@ -114,7 +114,7 @@ export function makeHeroGlb(height) {
             targetMat.emissive = new THREE.Color(0xfff6ea);
             targetMat.emissiveIntensity = 0.12;
           }
-          targetMat.customProgramCacheKey = function () { return 'hero-head-matte-toon-v149'; };
+          targetMat.customProgramCacheKey = function () { return 'hero-head-matte-toon-v150'; };
         }
         mat = targetMat;
         /* v1.38 엠버 앤 블레이드식 2.5D 툰 스텝 셰이딩 + 선명한 청백 림 라이트 (의복 치장 틴트 유지) */
@@ -148,6 +148,7 @@ export function makeHeroGlb(height) {
             "gl_FragColor.rgb *= mix(1.0, (tStep + 0.04) / max(tLum + 0.04, 0.05), 0.48);\n" +
             "float fRim = pow(1.0 - clamp(abs(dot(normalize(vNormal), normalize(vViewPosition))), 0.0, 1.0), 2.4);\n" +
             "gl_FragColor.rgb += uToonRimCol * fRim * uToonRimPow;\n" +
+            "gl_FragColor.rgb = min(gl_FragColor.rgb, vec3(0.96));\n" +
             "#include <dithering_fragment>"
           );
         };
