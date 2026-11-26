@@ -12,6 +12,8 @@ Three.js 기반 3D 관절 뼈대·수묵 툰 셰이더와 Web Audio API 주파�
 
 [20종 지형 원화 및 GLB 생성 방법](design/scenery-concepts/README.md)
 
+[캐릭터 모델링 방향: 원화 기준 채색·검수·적용 순서](docs/character-modeling-direction.md)
+
 ## 로컬 실행
 외부 빌드 도구 없이 순수 ES 모듈로 실행할 수 있습니다.
 
