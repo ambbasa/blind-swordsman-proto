@@ -2,16 +2,16 @@ import * as THREE from 'three';
 import { applyForgedMetal, getMetalStudioEnv } from './modules/metalStudioEnv.js';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
 import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v103';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v146';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v147';
 
 const MODEL_URLS = {
-  boss:      new URL('../assets/models/boss.glb?v=v146', import.meta.url).href,
-  boss_act2: new URL('../assets/models/boss_act2.glb?v=v146', import.meta.url).href,
-  boss_act3: new URL('../assets/models/boss_act3.glb?v=v146', import.meta.url).href,
-  boss_act4: new URL('../assets/models/boss_act4.glb?v=v146', import.meta.url).href,
-  minion:    new URL('../assets/models/minion.glb?v=v146', import.meta.url).href,
-  heavy:     new URL('../assets/models/heavy.glb?v=v146', import.meta.url).href,
-  stone:     new URL('../assets/models/stone.glb?v=v146', import.meta.url).href
+  boss:      new URL('../assets/models/boss.glb?v=v147', import.meta.url).href,
+  boss_act2: new URL('../assets/models/boss_act2.glb?v=v147', import.meta.url).href,
+  boss_act3: new URL('../assets/models/boss_act3.glb?v=v147', import.meta.url).href,
+  boss_act4: new URL('../assets/models/boss_act4.glb?v=v147', import.meta.url).href,
+  minion:    new URL('../assets/models/minion.glb?v=v147', import.meta.url).href,
+  heavy:     new URL('../assets/models/heavy.glb?v=v147', import.meta.url).href,
+  stone:     new URL('../assets/models/stone.glb?v=v147', import.meta.url).href
 };
 function isBossSp(sp) { return sp === 'boss' || sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4'; }
 const BOSS_WEAPON_FX = {
@@ -189,7 +189,9 @@ export function makeBossGlb(height, species) {
       cx: (box.min.x + box.max.x) * 0.5,
       minY: box.min.y,
       cz: (box.min.z + box.max.z) * 0.5,
-      sizeY: Math.max(1e-4, box.max.y - box.min.y)
+      sizeX: box.max.x - box.min.x,
+      sizeY: Math.max(1e-4, box.max.y - box.min.y),
+      sizeZ: box.max.z - box.min.z
     };
     boundsCache[sp] = bInfo;
   }
@@ -234,7 +236,7 @@ export function makeBossGlb(height, species) {
     mixer: mixer, actions: actions, rig: rig, cur: 'idle', lockT: 0, prevBurst: null, atkAlt: 0,
     mats: bodyMeshes.concat(outlineMeshes).map(function (m) { return m.material; }),
     tris: Math.round(tris), ktx2: false,
-    bbox: [+size.x.toFixed(3), +size.y.toFixed(3), +size.z.toFixed(3)], fitScale: +k.toFixed(3)
+    bbox: [+bInfo.sizeX.toFixed(3), +bInfo.sizeY.toFixed(3), +bInfo.sizeZ.toFixed(3)], fitScale: +k.toFixed(3)
   };
 }
 
