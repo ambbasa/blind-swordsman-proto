@@ -1,6 +1,6 @@
 /* v2/js/modules/starRating.js — 심안: 묵검 v1.24 스테이지 별점·도전 조건 계산 순수 모듈 */
 
-import { evalRunMissions } from './runMissions.js?v=v152';
+import { evalRunMissions } from './runMissions.js?v=v153';
 
 export function computeStar3Info(st, S, cfg) {
   const s3 = (st && st.star3) || { kind: 'combo' };

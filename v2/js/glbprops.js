@@ -3,10 +3,10 @@ import * as THREE from 'three';
 import { mulberry } from './inkbake.js';
 
 const PROP_URLS = {
-  shrine:       new URL('../assets/models/props/shrine.glb?v=v152', import.meta.url).href,
-  rock_cluster: new URL('../assets/models/props/rock_cluster.glb?v=v152', import.meta.url).href,
-  lantern:      new URL('../assets/models/props/lantern.glb?v=v152', import.meta.url).href,
-  pine_tree:    new URL('../assets/models/props/pine_tree.glb?v=v152', import.meta.url).href
+  shrine:       new URL('../assets/models/props/shrine.glb?v=v153', import.meta.url).href,
+  rock_cluster: new URL('../assets/models/props/rock_cluster.glb?v=v153', import.meta.url).href,
+  lantern:      new URL('../assets/models/props/lantern.glb?v=v153', import.meta.url).href,
+  pine_tree:    new URL('../assets/models/props/pine_tree.glb?v=v153', import.meta.url).href
 };
 
 const ACT_TINTS = {

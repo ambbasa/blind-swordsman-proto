@@ -425,10 +425,10 @@ function syncLobbyStatus() {
   if ($('lobbyPower')) $('lobbyPower').textContent = '전투력 ' + rt.computeCombatPower(rt.save);
 }
 const LOBBY_HERO_ART = {
-  ink: 'assets/hero/lobby_hero_latest.webp?v=v152',
-  snow_sage: 'assets/hero/lobby_hero_latest.webp?v=v152',
-  crimson_guard: 'assets/hero/lobby_hero_latest.webp?v=v152',
-  gilded_eclipse: 'assets/hero/lobby_hero_latest.webp?v=v152'
+  ink: 'assets/hero/lobby_hero_latest.webp?v=v153',
+  snow_sage: 'assets/hero/lobby_hero_latest.webp?v=v153',
+  crimson_guard: 'assets/hero/lobby_hero_latest.webp?v=v153',
+  gilded_eclipse: 'assets/hero/lobby_hero_latest.webp?v=v153'
 };
 function syncLobbyHeroVisual() {
   const cloak = rt.cloakOf(rt.save);

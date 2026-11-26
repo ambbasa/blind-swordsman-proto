@@ -1,4 +1,4 @@
-import { animateLevelCards, animateOrbFocus, animateCardPick } from './uiMotion.js?v=v152';
+import { animateLevelCards, animateOrbFocus, animateCardPick } from './uiMotion.js?v=v153';
 /* v2/js/modules/combatEngine.js — 심안: 묵검 v1.26 전투 코어(일섬·패링·피해·상태이상·강화적용) */
 
 export function createCombatEngine(rt) {
@@ -1791,7 +1791,7 @@ function medallionMeta(id) {
   return MEDALLION_MAP[id] || MEDALLION_MAP.ring;
 }
 function medallionUrl(id) {
-  return 'assets/medallions/' + medallionMeta(id).img + '.webp?v=v152';
+  return 'assets/medallions/' + medallionMeta(id).img + '.webp?v=v153';
 }
 function upDescAt(u, lv) {
   if (lv <= 0) return u.desc;
@@ -1839,8 +1839,9 @@ function highlightNumbers(str) {
 }
 function recipesForUpgrade(id) {
   const out = [];
-  for (let i = 0; i < rt.EVO_RECIPES.length; i++) {
-    const r = rt.EVO_RECIPES[i];
+  const recipes = rt.EVO_RECIPES || [];
+  for (let i = 0; i < recipes.length; i++) {
+    const r = recipes[i];
     if (rt.S && rt.S.evo && rt.S.evo[r.key]) continue;
     const parts = evoParts(r);
     let hasMe = false;
@@ -1880,7 +1881,7 @@ function renderOwnedBar() {
   const evos = Object.keys((rt.S && rt.S.evo) || {}).filter(function (k) { return rt.S.evo[k]; });
   for (let i = 0; i < 3; i++) {
     if (i < evos.length) {
-      const rec = rt.EVO_RECIPES.filter(function (r) { return r.key === evos[i]; })[0];
+      const rec = (rt.EVO_RECIPES || []).filter(function (r) { return r.key === evos[i]; })[0];
       html += '<div class="eb-evo-slot on" title="' + ((rec && rec.name) || evos[i]) + '">✦</div>';
     } else {
       html += '<div class="eb-evo-slot"></div>';
