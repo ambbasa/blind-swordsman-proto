@@ -19,8 +19,8 @@
 import * as THREE from 'three';
 import * as TEX from './inktex3d.js';
 import { SKIN_VERT } from './inkbody3d.js';
-import { INK3D } from './inkhero3d.js?v=v162';
-import { attachSlotModels } from './glbprops.js?v=v162';
+import { INK3D } from './inkhero3d.js?v=v163';
+import { attachSlotModels } from './glbprops.js?v=v163';
 import { LANDMARKS, STAGE_SCENERY, groundPoint } from './modules/stageScenery.js';
 import { actFromStageId, getActTheme3D, applyThemeToInkUniforms } from './modules/actTheme3d.js';
 import { mulberry } from './inkbake.js';
@@ -803,43 +803,22 @@ export function buildArena(opts) {
   const radii = { altarStone: 1.75, sealStone: 1.55, market: 1.7, roof: 2.1, door: 1.8, wall: 1.8, court: 2,
     grove: 1.5, tree: 1.2, deadTree: 1.1, shrine: 1.5, rubble: 1,
     lamp: 0.6, pagoda: 1.9, ribs: 1.4, spire: 1.45, bridge: 1.65 };
-  const slots = plan.slots.map(([key,side,depth]) => {
-    const spec = LANDMARKS[key];
-    const proxy = spec?.proxy || key;
-    const { x,z } = groundPoint(side,depth);
-    const yaw = Math.PI / 4;
-    const bone = B.beginStructure(key + '-' + spots.length,x,z);
-    builders[proxy](x,z,yaw);
-    B.endStructure();
-    const cr = radii[proxy];
-    const spot = { key,x,z,r: cr * 1.7,cr };
-    props.push(spot); spots.push(spot);
-    return { key, spec, bone, x,z,yaw };
-  });
-
-  // Low foreground clusters frame the portrait camera without adding blockers.
-  // They join the existing body draw, independent of the five replaceable slots.
-  const naturalBank = plan.ground === 'trail' || plan.ground === 'river';
-  for (const [side, depth] of [[-4.8,-8.8], [5.8,-6.2], [-7.5,3.9], [8.2,2.7]]) {
-    const center = groundPoint(side + rnd() * 0.7, depth + rnd());
-    for (let i = 0; i < 5; i++) {
-      const x = center.x + (rnd() - 0.5) * 2.4;
-      const z = center.z + (rnd() - 0.5) * 1.3;
-      const yaw = (rnd() - 0.5) * 0.95 + Math.PI / 4;
-      if (naturalBank) {
-        B.add(G.sphereLo, stageId === 6 ? c.tile : c.stone, ZONE.STONE,
-          { x, z, y:0.05, sx:0.42+rnd()*0.55, sy:0.22, sz:0.52, ry:yaw });
-        for (let blade = -1; blade <= 1; blade++) {
-          B.add(G.cone4, c.bamboo, ZONE.LEAF, { x:x+0.13*blade, z, y:0.19,
-            sx:0.09, sy:0.44+rnd()*0.22, sz:0.13, ry:yaw, rz:blade*0.35 });
-        }
-      } else {
-        const timber = plan.ground === 'street';
-        B.add(timber ? G.box : G.cyl6, timber ? c.wood : c.stone, timber ? ZONE.WOOD : ZONE.STONE,
-          { x, z, y:0.06, sx:0.7+rnd()*0.75, sy:0.14, sz:timber ? 0.18 : 0.6, ry:yaw, rz:0.04 });
-      }
-    }
-  }
+  // v1.63: Keep only the 20 authored GLB landmarks (design/scenery-concepts);
+  // procedural proxy meshes and low foreground clusters are removed.
+  const slots = plan.slots
+    .filter(([key]) => LANDMARKS[key] && LANDMARKS[key].model)
+    .map(([key,side,depth]) => {
+      const spec = LANDMARKS[key];
+      const proxy = spec.proxy || key;
+      const { x,z } = groundPoint(side,depth);
+      const yaw = Math.PI / 4;
+      const bone = B.beginStructure(key + '-' + spots.length,x,z);
+      B.endStructure();
+      const cr = radii[proxy] || 1.4;
+      const spot = { key,x,z,r: cr * 1.7,cr };
+      props.push(spot); spots.push(spot);
+      return { key, spec, bone, x,z,yaw };
+    });
 
   const bodyGeo = B.body.length ? merge(B.body) : null;
   const bodyMat = bodyGeo ? propMat() : null;

@@ -676,7 +676,10 @@ assert.equal(Object.keys(STAGE_SCENERY).length, STAGES.length);
 for (const stage of STAGES) {
   const plan = STAGE_SCENERY[stage.id];
   assert.equal(plan.name, stage.name);
-  assert.ok(plan.route.length >= 3 && plan.slots.length >= 4);
+  assert.ok(plan.route.length >= 3 && plan.slots.length >= 1);
+  for (const [slotKey] of plan.slots) {
+    assert.ok(LANDMARKS[slotKey] && LANDMARKS[slotKey].model, stage.name + ': non-GLB slot ' + slotKey);
+  }
   const [signature] = plan.slots[0];
   assert.ok(LANDMARKS[signature].height > 0);
   for (const [, side, depth] of plan.slots) {

@@ -595,163 +595,41 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     return g;
   }
 
-  /* ===================== 테마별 환경 효과 & 대나무 숲 (구형 박스 좌판·흰 기둥 잔해·회색 비석 전면 제거) ===================== */
+  /* ===================== v1.63 테마별 환경 효과 (20개 GLB 외 절차적 지형지물 전면 제거, 지면 셰이더·파티클만 유지) ===================== */
   if (k === 'none') {
     addParticles(120, 0xff9252, 0.14, 0.76, 'rise');
     addParticles(90, 0xc9bfb0, 0.12, 0.50, 'drift');
   } else if (k === 'bamboo') {
-    /* 3장 대나무 숲: 모바일 세로 시야 좌우·상하 테두리를 풍부하게 감싸는 10군락 청죽 InstancedMesh + 충돌 등록 */
-    const stalkGeo = new THREE.CylinderGeometry(0.06, 0.085, 5.8, 7); stalkGeo.translate(0, 2.9, 0);
-    const nodeGeo = new THREE.TorusGeometry(0.08, 0.015, 5, 10); nodeGeo.rotateX(Math.PI / 2);
-    const bladeGeo = new THREE.BoxGeometry(0.10, 0.015, 0.78); bladeGeo.translate(0, 0, 0.39);
-    const stalkMat = makePbr(0x529274, 0.56, 0.08, { emissive: 0x10241b, emissiveIntensity: 0.35 });
-    const nodeMat = makePbr(0x2a5440, 0.70, 0.05);
-    const leafMat = makePbr(0x62a884, 0.60, 0.05, { emissive: 0x122a1e, emissiveIntensity: 0.30 });
-    track(stalkGeo, null); track(nodeGeo, null); track(bladeGeo, null);
-    const tints = [0x4b876a, 0x589878, 0x64a684, 0x40755c];
-    const groveCoords = [
-      [-6.8, 10.6], [6.8, 10.2],
-      [-7.2, 4.6],  [7.2, 4.2],
-      [-7.4, -1.6], [7.4, -2.0],
-      [-6.8, -7.8], [6.8, -7.6],
-      [-3.8, -11.8], [3.8, -11.6],
-    ];
-    for (let c = 0; c < groveCoords.length; c++) {
-      const [s0, d0] = groveCoords[c];
-      const cx = (s0 - d0) * Math.SQRT1_2, cz = (-s0 - d0) * Math.SQRT1_2;
-      addContactShadow(cx, cz, 2.0);
-      addCollider(cx, cz, 1.05);
-      placedPts.push({ x: cx, z: cz, r: 3.4 });
-      for (let j = 0; j < 5; j++) {
-        const bx = cx + (rng() - 0.5) * 1.45, bz = cz + (rng() - 0.5) * 1.45;
-        const leanX = (rng() - 0.5) * 0.09, leanZ = (rng() - 0.5) * 0.09, scY = 0.90 + rng() * 0.28;
-        const tCol = tints[(c + j) % tints.length];
-        queueInst('bStalk', stalkGeo, stalkMat, bx, 0, bz, leanX, 0, leanZ, 1, scY, 1, tCol);
-        for (let h = 1.0; h <= 4.8; h += 1.1) {
-          queueInst('bNode', nodeGeo, nodeMat, bx + leanZ * h * 0.4, h * scY, bz + leanX * h * 0.4, leanX, 0, leanZ);
-        }
-        for (let b = 0; b < 5; b++) {
-          const hy = (3.2 + b * 0.44) * scY;
-          queueInst('bLeaf', bladeGeo, leafMat, bx, hy, bz, -0.28 + (rng() - 0.5) * 0.2, b * 1.25 + rng() * 0.6, (rng() - 0.5) * 0.3, 1, 1, 1, tCol);
-        }
-      }
-    }
     addParticles(125, 0x7ee0b4, 0.15, 0.74, 'fall');
   } else if (k === 'rubble') {
-    /* v0.65: 구형 흰 원기둥/회색 상자 잔해 제거 → 하단 16-평면 절단 현무암 바위·성문·성벽으로 전수 교체 */
     addParticles(110, 0xd8ccb8, 0.13, 0.56, 'drift');
   } else if (k === 'blood') {
     if (stageNo === 13) {
-      const colGeo = new THREE.CylinderGeometry(0.24, 0.28, 4.8, 8);
-      const capGeo = new THREE.BoxGeometry(0.76, 0.26, 0.76);
-      const beamGeo = new THREE.BoxGeometry(0.22, 0.26, 5.4);
-      const brazierGeo = new THREE.CylinderGeometry(0.32, 0.18, 0.34, 8);
-      const lacqMat = makePbr(0x691616, 0.42, 0.18);
-      const darkMat = makePbr(0x281a1c, 0.86, 0.10);
-      const emberMat = makePbr(0xff4c38, 0.25, 0.10, { emissive: 0xff3b28, emissiveIntensity: 1.5 });
-      track(colGeo, null); track(capGeo, null); track(beamGeo, null); track(brazierGeo, null);
-      for (const side of [-1, 1]) {
-        for (let i = -2; i <= 2; i += 2) {
-          const px = side * 12.4, pz = i * 5.2;
-          queueInst('cCol', colGeo, lacqMat, px, 2.4, pz);
-          queueInst('cCap', capGeo, darkMat, px, 4.78, pz);
-          queueInst('cCap', capGeo, darkMat, px, 0.13, pz);
-          queueInst('cBraz', brazierGeo, emberMat, px - side * 0.65, 3.25, pz);
-          addContactShadow(px, pz, 1.25);
-          addCollider(px, pz, 0.72);
-        }
-      }
       addParticles(140, 0xff4a3a, 0.16, 0.80, 'rise');
       addParticles(80, 0x8f1a24, 0.22, 0.42, 'drift');
     } else {
       addParticles(120, 0xff5842, 0.15, 0.76, 'rise');
     }
   } else if (k === 'snow') {
-    const pillarGeo = new THREE.CylinderGeometry(0.28, 0.38, 2.4, 6);
-    const snowCapGeo = new THREE.SphereGeometry(0.42, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.55);
-    const pillarMat = makePbr(0x8898a4, 0.84, 0.08);
-    const snowMat = makePbr(0xf0f7fc, 0.68, 0.04);
-    track(pillarGeo, null); track(snowCapGeo, null);
     for (let i = 0; i < 4; i++) {
       const a = (i / 4) * Math.PI * 2 + 0.45, d = 11.4;
       const sx = Math.cos(a) * d, sz = Math.sin(a) * d;
       if (!canPlace(sx, sz, 4.4, 10.2)) continue;
       const { geo, mat } = makeShaderPool(2.8 + rng() * 0.7, 0x7b8c98, 0xcad6df, 0xffffff, 1); track(geo, mat); shaderMats.push(mat);
       const p = new THREE.Mesh(geo, mat); p.position.set(sx, 0.04, sz); p.renderOrder = 1; group.add(p);
-      const gx = Math.cos(a) * (d + 1.8), gz = Math.sin(a) * (d + 1.8);
-      queueInst('sPil', pillarGeo, pillarMat, gx, 1.15, gz);
-      queueInst('sCap', snowCapGeo, snowMat, gx, 2.32, gz);
-      addContactShadow(gx, gz, 1.15);
-      addCollider(gx, gz, 0.72);
     }
     addParticles(180, 0xf2f8ff, 0.17, 0.85, 'fall');
     addParticles(80, 0xc8e4f8, 0.12, 0.55, 'drift');
   } else if (k === 'root') {
-    const rootMat = makePbr(0x3a2b1e, 0.92, 0.03);
-    const archCurve = new THREE.CatmullRomCurve3([new THREE.Vector3(-1.8, -0.1, 0), new THREE.Vector3(-0.6, 0.58, 0.28), new THREE.Vector3(0.6, 0.42, -0.22), new THREE.Vector3(1.9, -0.1, 0.1)]);
-    const archGeo = new THREE.TubeGeometry(archCurve, 14, 0.15, 6, false);
-    track(archGeo, null);
-    /* v0.64: 구형 직선 그루터기/가지 제거, 자연 굴곡 뿌리 5개만 외곽에 여백 배치 */
-    for (let i = 0; i < 5; i++) {
-      const a = (i / 5) * Math.PI * 2 + 0.35, d = 11.4 + (i % 2) * 1.4;
-      const rx = Math.cos(a) * d, rz = Math.sin(a) * d;
-      if (!canPlace(rx, rz, 4.4, 10.4)) continue;
-      queueInst('rArch', archGeo, rootMat, rx, 0, rz, 0, rng() * Math.PI, 0, 0.9 + rng() * 0.22, 0.9 + rng() * 0.25, 1);
-      addContactShadow(rx, rz, 1.5);
-    }
     addParticles(120, 0xcfa968, 0.15, 0.70, 'fall');
     addParticles(70, 0x8fd694, 0.12, 0.52, 'drift');
   } else if (k === 'bell') {
     addParticles(110, 0xf6db9c, 0.15, 0.70, 'rise');
   } else if (k === 'water') {
-    const rcfg = opts.riverCfg || {};
-    const centerFn = rcfg.centerFn || ((u) => 5.5 * Math.sin(u * 0.085) + 2.0 * Math.sin(u * 0.021 + 1.3));
-    const widthFn = rcfg.widthFn || ((u) => 2.1 + 0.7 * Math.sin(u * 0.13 + 0.6));
-    const angle = Number(rcfg.angle || 0), offset = Number(rcfg.offset || 0);
-    const cosA = Math.cos(angle), sinA = Math.sin(angle);
-    const toWorld = (lx, lz) => [lx * cosA - lz * sinA, lx * sinA + lz * cosA];
-
     if (stageNo === 14) {
-      const pileGeo = new THREE.CylinderGeometry(0.11, 0.13, 1.9, 6);
-      const plankGeo = new THREE.BoxGeometry(1.85, 0.1, 0.42);
-      const rockGeo = new THREE.DodecahedronGeometry(0.55, 0);
-      const woodMat = makePbr(0x3a2d26, 0.88, 0.05);
-      const rockMat = makePbr(0x252a36, 0.85, 0.10);
-      track(pileGeo, null); track(plankGeo, null); track(rockGeo, null);
-      for (let i = 0; i < 10; i++) {
-        const lx = -14 + i * 3.1, side = i % 2 === 0 ? 1 : -1;
-        if (Math.abs(lx - (-4.2)) < 2.4) continue; /* v0.62: 아치 다리 상판 관통 방지 */
-        const lz = centerFn(lx) + offset + side * (widthFn(lx) + 1.05);
-        const [wx, wz] = toWorld(lx, lz);
-        queueInst('wPile', pileGeo, woodMat, wx, 0.8, wz);
-        addContactShadow(wx, wz, 0.9);
-        if (i % 3 === 0) {
-          queueInst('wPlank', plankGeo, woodMat, wx, 0.25, wz, 0, angle + (rng() - 0.5) * 0.3, 0);
-          queueStoneLantern(wx + side * 0.9, wz + side * 0.9, 0x8ee8ff, 0.9);
-        } else {
-          queueInst('wRock', rockGeo, rockMat, wx, 0.22, wz, 0, rng() * 3, 0, 1.2, 0.65, 1.0);
-        }
-      }
       addParticles(140, 0x99d8ff, 0.16, 0.78, 'rise');
       addParticles(90, 0xa892e8, 0.14, 0.55, 'drift');
     } else {
-      const stakeGeo = new THREE.CylinderGeometry(0.06, 0.12, 1.65, 5);
-      const boneMat = makePbr(0xdcd1ba, 0.76, 0.05);
-      const ribCurve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1.6, -0.55), new THREE.Vector3(0, 2.55, -1.45)]);
-      const ribGeo = new THREE.TubeGeometry(ribCurve, 12, 0.13, 6, false);
-      track(stakeGeo, null); track(ribGeo, null);
-      for (let i = 0; i < 10; i++) {
-        const lx = -13 + i * 2.9, side = i % 2 === 0 ? 1 : -1;
-        if (Math.abs(lx - (-6.2)) < 2.4) continue; /* v0.62: 아치 다리 상판 관통 방지 */
-        const lz = centerFn(lx) + offset + side * (widthFn(lx) + 0.95);
-        const [wx, wz] = toWorld(lx, lz);
-        if (i % 2 === 0) {
-          queueInst('wRib', ribGeo, boneMat, wx, 0, wz, 0, angle + (side < 0 ? Math.PI : 0) + (rng() - 0.5) * 0.25, 0);
-          addContactShadow(wx, wz, 1.15);
-        } else {
-          queueInst('wStake', stakeGeo, boneMat, wx, 0.72, wz, (rng() - 0.5) * 0.3, rng() * 6.28, (rng() - 0.5) * 0.3);
-        }
-      }
       addParticles(130, 0x9ef0e0, 0.16, 0.75, 'rise');
     }
   } else if (k === 'fog' || k === 'moon' || k === 'wall') {
@@ -762,43 +640,8 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       const m = new THREE.Mesh(geo, mat); m.position.set(Math.cos(a) * 7.2, 0.14 + i * 0.02, Math.sin(a) * 7.2); m.renderOrder = 2; group.add(m);
     }
     if (k === 'wall') {
-      /* v0.64: 화로 4기만 외곽에 깔끔하게 배치 + 충돌 등록 */
-      const brazGeo = new THREE.CylinderGeometry(0.45, 0.28, 0.55, 8);
-      const coalGeo = new THREE.SphereGeometry(0.36, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2);
-      const ironMat = makePbr(0x27262b, 0.45, 0.72);
-      const coalMat = makePbr(0xff6230, 0.30, 0.05, { emissive: 0xff4818, emissiveIntensity: 1.55 });
-      track(brazGeo, null); track(coalGeo, null);
-      for (let i = 0; i < 4; i++) {
-        const a = (i / 4) * Math.PI * 2 + 0.78, r = 12.2;
-        const bx = Math.cos(a) * r, bz = Math.sin(a) * r;
-        if (!canPlace(bx, bz, 4.4, 11.0)) continue;
-        queueInst('wBraz', brazGeo, ironMat, bx, 0.55, bz);
-        queueInst('wCoal', coalGeo, coalMat, bx, 0.80, bz);
-        addContactShadow(bx, bz, 1.0);
-        addCollider(bx, bz, 0.72);
-      }
       addParticles(130, 0xff8048, 0.15, 0.80, 'rise');
     } else if (k === 'moon') {
-      /* v0.66: 모바일 세로 화면 안에 깔끔히 들어오는 16-평면 절단 현무암 월석 비석 3기 + 충돌 등록 */
-      const steleCoords = [[-11.8, -6.5], [11.8, -6.5], [0, -14.8]];
-      for (let i = 0; i < steleCoords.length; i++) {
-        const [s0, d0] = steleCoords[i];
-        const mx = (s0 - d0) * Math.SQRT1_2, mz = (-s0 - d0) * Math.SQRT1_2;
-        const stNode = buildKasumideraMoonStele3D({
-          seed: 91 + i * 37,
-          rockHex: stageNo === 16 ? 0x1e2b31 : 0x28343a,
-          glowHex: stageNo === 16 ? 0x5be8c4 : 0xd9483b
-        });
-        stNode.position.set(mx, 0, mz);
-        stNode.rotation.y = Math.PI / 4 + (i === 0 ? 0.35 : i === 1 ? -0.35 : 0);
-        try { paintCard(stNode, 'prop'); } catch (e) {}
-        group.add(stNode);
-        if (stNode.userData && stNode.userData.spinHalo) spinNodes.push(stNode.userData.spinHalo);
-        if (stNode.userData && stNode.userData.disposables) stNode.userData.disposables.forEach((d) => disposables.push(d));
-        addContactShadow(mx, mz, 1.35);
-        addCollider(mx, mz, 0.88);
-        placedPts.push({ x: mx, z: mz, r: 3.4 });
-      }
       addParticles(125, stageNo === 16 ? 0xffcf78 : 0xff6252, 0.16, 0.76, 'rise');
     } else {
       addParticles(130, 0x84f2d6, 0.15, 0.74, 'drift');
@@ -870,245 +713,7 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     buildMountainRing(30.5, 64, 8.2, 3.2, 1.8, stageNo * 1.3, mountainPal.near, mountainPal.mist, 0.78);
     buildMountainRing(39.0, 64, 13.8, 4.6, 2.4, stageNo * 2.7 + 1.9, mountainPal.far, mountainPal.mist, 0.56);
 
-    /* 2) 바람에 나부끼는 주홍·먹색 진영 깃발 (3d-cloth-material — InstancedMesh 2드로우콜) */
-    const poleGeo = new THREE.CylinderGeometry(0.045, 0.062, 3.6, 6);
-    const poleMat = makePbr(0x3a2a20, 0.88, 0.08);
-    const finialGeo = new THREE.SphereGeometry(0.085, 8, 6);
-    const finialMat = makePbr(0xb8944a, 0.42, 0.58);
-    const flagGeo = new THREE.PlaneGeometry(1.18, 0.82, 10, 4);
-    flagGeo.translate(0.59, 0, 0);
-    const flagDye = [0xb52b22, 0xb52b22, 0x2a6e5e, 0xc23026, 0x6b3a8a][actIdx] || 0xb52b22;
-    const flagMat = new THREE.ShaderMaterial({
-      vertexShader: CLOTH_FLAG_VERT, fragmentShader: CLOTH_FLAG_FRAG,
-      transparent: false, side: THREE.DoubleSide,
-      uniforms: {
-        uTime: { value: 0 },
-        uDyeCol: { value: new THREE.Color(flagDye) },
-        uTrimCol: { value: new THREE.Color(0xe6c278) },
-        uLightCol: { value: new THREE.Color(0xffe6b8) },
-        uWfHero: WF.uWfHero, uWfRange: WF.uWfRange, uWfAmt: WF.uWfAmt, uWfColor: WF.uWfColor, uWfDirK: WF.uWfDirK,
-      },
-    });
-    shaderMats.push(flagMat);
-    track(poleGeo, null); track(finialGeo, null); track(flagGeo, flagMat);
-    const flagCount = 3;
-    for (let i = 0; i < flagCount; i++) {
-      const a = (i / flagCount) * Math.PI * 2 + 0.62 + (stageNo % 3) * 0.20;
-      const r = 14.4;
-      const fx = Math.cos(a) * r, fz = Math.sin(a) * r;
-      if (!canPlace(fx, fz, 4.2, 13.0)) continue;
-      const ry = -a + Math.PI * 0.35;
-      queueInst('v60FlagPole', poleGeo, poleMat, fx, 1.8, fz, 0, ry, 0.05);
-      queueInst('v60FlagFin', finialGeo, finialMat, fx - Math.sin(0.05) * 3.6, 3.62, fz, 0, ry, 0);
-      queueInst('v60FlagCloth', flagGeo, flagMat, fx - 0.12, 3.02, fz, 0, ry, 0);
-      addContactShadow(fx, fz, 0.9);
-      addCollider(fx, fz, 0.45);
-    }
-
-    /* v1.38 엠버 앤 블레이드식 외곽 고품질 스킬 프롭 (중앙 전투장 개방 + 외곽 청묵 현무암/석등/고목/양치식물 실루엣) */
-    {
-      const perimN = 4;
-      for (let pi = 0; pi < perimN; pi++) {
-        const pa = (pi / perimN) * Math.PI * 2 + 0.38 + (stageNo % 4) * 0.22;
-        const pr = 16.4 + (pi % 2) * 1.2;
-        const px = Math.cos(pa) * pr, pz = Math.sin(pa) * pr;
-        if (!canPlace(px, pz, 3.2, 14.0)) continue;
-        const rockCl = buildFracturedBasaltRocks3D(rng, { count: 2, radius: 1.4, rockHex: 0x111a1e });
-        rockCl.position.set(px, 0, pz);
-        rockCl.rotation.y = rng() * Math.PI * 2;
-        try { paintCard(rockCl, 'prop'); } catch (e) {}
-        group.add(rockCl);
-        if (rockCl.userData && rockCl.userData.disposables) rockCl.userData.disposables.forEach((d) => disposables.push(d));
-        addContactShadow(px, pz, 1.85);
-        if (pi % 2 === 1) {
-          const lt = buildCarvedLantern3D({ stoneHex: 0x243238, glowHex: actIdx === 3 ? 0xff7852 : 0x62e8cc });
-          lt.position.set(px - Math.cos(pa) * 1.4, 0, pz - Math.sin(pa) * 1.4);
-          lt.rotation.y = -pa;
-          try { paintCard(lt, 'prop'); } catch (e) {}
-          group.add(lt);
-          if (lt.userData && lt.userData.disposables) lt.userData.disposables.forEach((d) => disposables.push(d));
-          addContactShadow(lt.position.x, lt.position.z, 0.95);
-        }
-      }
-    }
-
-    /* 3) 바람에 흔들리는 고목 단풍 · 수묵 소나무 군락 (3d-kasumidera-ultra-realism — 굽은 가지 + 다중 붓잎 군락) */
-    const trunkGeo = new THREE.CylinderGeometry(0.085, 0.22, 2.7, 7);
-    const branchGeo = new THREE.CylinderGeometry(0.032, 0.082, 1.35, 6);
-    const trunkMat = makePbr(0x332419, 0.94, 0.03);
-    /* 불규칙하게 다듬은 붓잎 뭉치 지오메트리(매끈한 플라스틱 공 제거) */
-    const canopyGeo = new THREE.DodecahedronGeometry(0.54, 1);
-    const cp = canopyGeo.attributes.position;
-    for (let vi = 0; vi < cp.count; vi++) {
-      const vx = cp.getX(vi), vy = cp.getY(vi), vz = cp.getZ(vi);
-      const jitter = 0.84 + 0.28 * Math.abs(Math.sin(vx * 7.3 + vy * 11.1 + vz * 5.7));
-      cp.setXYZ(vi, vx * jitter * 1.18, vy * jitter * 0.62, vz * jitter * 1.12);
-    }
-    canopyGeo.computeVertexNormals();
-    const canopyPal = [
-      null,
-      { base: 0x993a28, shadow: 0x3b1812, tints: [0xffffff, 0xe8b08a, 0xd48e72, 0xf2c68c] }, // 1막: 차분한 석채 단풍·황토
-      { base: 0x2d5446, shadow: 0x122620, tints: [0xffffff, 0xc6e2d6, 0xa8cbbd, 0xdfe8d2] }, // 2막: 수묵 소나무·비취 잎
-      { base: 0x872b24, shadow: 0x301012, tints: [0xffffff, 0xde9c84, 0xc27a6c, 0xe8b48a] }, // 3막: 혈월 고목 단풍
-      { base: 0x4b5c72, shadow: 0x1e2433, tints: [0xffffff, 0xd4dfec, 0xb8c6d8, 0xe6edf5] }  // 4막: 설산·심연 한송
-    ][actIdx];
-    const canopyMat = new THREE.ShaderMaterial({
-      vertexShader: FOLIAGE_VERT, fragmentShader: FOLIAGE_FRAG,
-      uniforms: {
-        uTime: { value: 0 },
-        uBaseCol: { value: new THREE.Color(canopyPal.base) },
-        uShadowCol: { value: new THREE.Color(canopyPal.shadow) },
-        uKeyDir: { value: new THREE.Vector3(-0.45, 0.82, 0.36).normalize() },
-        uWfHero: WF.uWfHero, uWfRange: WF.uWfRange, uWfAmt: WF.uWfAmt, uWfColor: WF.uWfColor, uWfDirK: WF.uWfDirK,
-      },
-    });
-    shaderMats.push(canopyMat);
-    track(trunkGeo, null); track(branchGeo, null); track(canopyGeo, canopyMat);
-    /* v0.64: 야외/자연 스테이지에만 3그루 외곽 단풍·소나무 배치 (석탑·고목·암봉 무대 과밀 방지) */
-    const treeCount = [1, 2, 3, 4, 6, 8, 10, 14].includes(stageNo) ? 3 : 0;
-    for (let i = 0; i < treeCount; i++) {
-      const a = (i / Math.max(1, treeCount)) * Math.PI * 2 + 1.05 + (stageNo % 5) * 0.18;
-      const r = 15.2 + (i % 2) * 1.1;
-      const tx = Math.cos(a) * r, tz = Math.sin(a) * r;
-      if (!canPlace(tx, tz, 4.8, 14.0)) continue;
-      const sc = 0.88 + rng() * 0.30;
-      const yaw = rng() * Math.PI * 2;
-      const lean = (rng() - 0.5) * 0.22;
-      queueInst('v60TreeTrunk', trunkGeo, trunkMat, tx, 1.32 * sc, tz, lean, yaw, lean * 0.7, sc, sc, sc);
-      addContactShadow(tx, tz, 1.95 * sc);
-      addCollider(tx, tz, 0.85 * sc);
-      /* 뻗어 나가는 굽은 가지 3개 + 각 가지 끝에 겹쳐 찍은 붓잎 뭉치 3개(총 9뭉치) */
-      for (let b = 0; b < 3; b++) {
-        const ba = yaw + b * 2.15 + (rng() - 0.5) * 0.45;
-        const bx = tx + Math.cos(ba) * 0.52 * sc;
-        const bz = tz + Math.sin(ba) * 0.52 * sc;
-        const by = (2.15 + b * 0.22) * sc;
-        queueInst('v60TreeBranch', branchGeo, trunkMat, bx, by, bz, Math.sin(ba) * 0.68, ba, -Math.cos(ba) * 0.68, sc, sc, sc);
-        const tipX = tx + Math.cos(ba) * 0.98 * sc;
-        const tipZ = tz + Math.sin(ba) * 0.98 * sc;
-        const tipY = (2.68 + b * 0.24) * sc;
-        for (let k = 0; k < 3; k++) {
-          const ka = ba + (k - 1) * 1.1;
-          const ox = tipX + Math.cos(ka) * 0.46 * sc;
-          const oz = tipZ + Math.sin(ka) * 0.46 * sc;
-          const oy = tipY + (k === 1 ? 0.28 : -0.04) * sc;
-          const cs = (0.72 + (k === 1 ? 0.24 : 0.08) + rng() * 0.16) * sc;
-          queueInst('v60TreeLeaf', canopyGeo, canopyMat, ox, oy, oz, 0, rng() * 6.28, 0, cs * 1.25, cs * 0.85, cs * 1.15, canopyPal.tints[(i + b + k) % canopyPal.tints.length]);
-        }
-      }
-    }
-
-    /* 4) 부유 한지 풍등 (3d-paper-material — 조선 풍등 Lathe 실루엣 + 호박빛 역광 + 은은한 후광) */
-    const lPts = [
-      new THREE.Vector2(0.14, -0.34),
-      new THREE.Vector2(0.24, -0.18),
-      new THREE.Vector2(0.30, 0.06),
-      new THREE.Vector2(0.26, 0.26),
-      new THREE.Vector2(0.14, 0.38),
-      new THREE.Vector2(0.01, 0.42),
-    ];
-    const lBodyGeo = new THREE.LatheGeometry(lPts, 12);
-    const lRingGeo = new THREE.TorusGeometry(0.14, 0.018, 6, 12); lRingGeo.rotateX(Math.PI / 2);
-    const lRingMat = makePbr(0x3a2416, 0.80, 0.12);
-    const lPaperMat = new THREE.ShaderMaterial({
-      vertexShader: MIST_VERT, fragmentShader: HANJI_LANTERN_FRAG,
-      transparent: false,
-      uniforms: {
-        uTime: { value: 0 },
-        uPaperCol: { value: new THREE.Color(actIdx === 4 ? 0xa288ff : actIdx === 2 ? 0x7ae6c2 : 0xff8c38) },
-        uCoreCol: { value: new THREE.Color(0xfff0be) },
-      },
-    });
-    lPaperMat.userData.cardSkip = true;
-    /* 풍등 주변 은은한 호박빛 후광 스프라이트 */
-    let lHaloTex = null;
-    if (typeof document !== 'undefined') {
-      const hc = document.createElement('canvas'); hc.width = hc.height = 64;
-      const hctx = hc.getContext('2d');
-      const hg = hctx.createRadialGradient(32, 32, 2, 32, 32, 31);
-      hg.addColorStop(0, 'rgba(255,220,130,0.65)');
-      hg.addColorStop(0.45, 'rgba(255,148,58,0.24)');
-      hg.addColorStop(1, 'rgba(255,120,40,0)');
-      hctx.fillStyle = hg; hctx.fillRect(0, 0, 64, 64);
-      lHaloTex = new THREE.CanvasTexture(hc);
-    }
-    const lHaloMat = new THREE.SpriteMaterial({
-      map: lHaloTex, color: actIdx === 4 ? 0xb49cff : actIdx === 2 ? 0x8ef2d4 : 0xffa64d,
-      transparent: true, opacity: 0.72, blending: THREE.AdditiveBlending, depthWrite: false,
-    });
-    shaderMats.push(lPaperMat);
-    track(lBodyGeo, lPaperMat); track(lRingGeo, null); track(lHaloTex, lHaloMat);
-    const lanternCount = 3;
-    for (let i = 0; i < lanternCount; i++) {
-      const lg = new THREE.Group();
-      const body = new THREE.Mesh(lBodyGeo, lPaperMat);
-      const botRing = new THREE.Mesh(lRingGeo, lRingMat); botRing.position.y = -0.34;
-      const halo = new THREE.Sprite(lHaloMat); halo.scale.set(1.65, 1.65, 1); halo.position.y = -0.06;
-      lg.add(body, botRing, halo);
-      const orbitR = 13.5 + i * 2.2;
-      const baseAngle = (i / lanternCount) * Math.PI * 2 + stageNo * 0.9;
-      const baseY = 5.4 + (i % 3) * 1.1;
-      lg.position.set(Math.cos(baseAngle) * orbitR, baseY, Math.sin(baseAngle) * orbitR);
-      lg.userData = { orbitR, baseAngle, baseY, speed: 0.048 + i * 0.012, phase: i * 1.9 };
-      group.add(lg);
-      floatLanterns.push(lg);
-    }
-
-    /* 5) v0.65 전 스테이지 100% 스킬 기반 PBR 3D 지형지물 전수 교체 & 여백 구도 컴포지터
-       - 카메라 기준 좌표(side: 좌-/우+, depth: 북+/남-)로 모바일 세로 화면 구도를 정밀 배치
-       - 모든 고체 기물은 colliders[]에 정확한 충돌 반경 등록 (홍살문·금줄문은 기둥만, 아치 목교는 통행 가능) */
-    const registerLandmark = (node, x, z, rotY = Math.PI / 4, shadowR = 1.6, colR = 0, minSep = 3.8, force = false) => {
-      if (!force) {
-        for (let i = 0; i < placedPts.length; i++) {
-          const pp = placedPts[i];
-          if (Math.hypot(x - pp.x, z - pp.z) < Math.max(minSep, pp.r)) {
-            if (node.userData && node.userData.disposables) {
-              node.userData.disposables.forEach((d) => { if (d && d.dispose) d.dispose(); });
-            }
-            return false;
-          }
-        }
-      }
-      node.position.set(x, 0, z);
-      node.rotation.y = rotY;
-      try { paintCard(node, 'prop'); } catch (e) {}
-      group.add(node);
-      if (node.userData && node.userData.disposables) {
-        node.userData.disposables.forEach((d) => disposables.push(d));
-      }
-      if (node.userData && node.userData.swayTalismans) {
-        node.userData.swayTalismans.forEach((tm) => swayNodes.push(tm));
-      }
-      if (shadowR > 0) addContactShadow(x, z, shadowR);
-      if (colR > 0) addCollider(x, z, colR);
-      placedPts.push({ x, z, r: minSep });
-    };
-    const putBridgeRiver = () => {
-      const rcfg = opts.riverCfg || {};
-      const centerFn = rcfg.centerFn || ((u) => 5.5 * Math.sin(u * 0.085) + 2.0 * Math.sin(u * 0.021 + 1.3));
-      const widthFn = rcfg.widthFn || ((u) => 2.1 + 0.7 * Math.sin(u * 0.13 + 0.6));
-      const ang = Number(rcfg.angle || 0), off = Number(rcfg.offset || 0);
-      const cosA = Math.cos(ang), sinA = Math.sin(ang);
-      const lx = stageNo === 14 ? -4.2 : -6.2;
-      const lz = centerFn(lx) + off;
-      const bx = lx * cosA - lz * sinA, bz = lx * sinA + lz * cosA;
-      const dzdlx = centerFn(lx + 0.5) - centerFn(lx - 0.5);
-      const tx = cosA - dzdlx * sinA, tz = sinA + dzdlx * cosA;
-      const rotY = Math.atan2(-tx, -tz);
-      const bLen = Math.max(7.2, widthFn(lx) * 2.85);
-      registerLandmark(buildArchedBridge3D({
-        length: bLen, width: 2.3, archH: 0.96,
-        railHex: stageNo === 14 ? 0x6e4494 : 0xb53226
-      }), bx, bz, rotY, 3.6, 0, 5.8, true);
-      addBridge(bx, bz, rotY, bLen, 2.3, 0.96);
-      /* 다리 양 끝단에도 겹침 금지 반경 등록하여 어떤 기물도 다리와 겹치지 않게 보장 */
-      const fx = Math.sin(rotY), fz = Math.cos(rotY);
-      placedPts.push({ x: bx + fx * (bLen * 0.45), z: bz + fz * (bLen * 0.45), r: 4.8 });
-      placedPts.push({ x: bx - fx * (bLen * 0.45), z: bz - fz * (bLen * 0.45), r: 4.8 });
-    };
-
-
-    if (stageNo === 10 || stageNo === 14) putBridgeRiver();
+    /* v1.63: 20개 GLB 외 공통 절차적 지형지물(깃발·현무암·석등·단풍나무·풍등·목교) 전면 제거 */
   }
 
   /* InstancedMesh 일괄 플러시 (단일 배칭으로 드로우콜 최소화) */
@@ -1135,30 +740,8 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     totalInstances += b.items.length;
   });
 
-  /* v0.67 스킬 기반 지형지물(청동 향로·이끼 석계단·고사리 군락·3D 회전 낙엽·볼류메트릭 빛줄기) 배치 */
+  /* v1.63: 절차적 청동 향로·이끼 석계단·고사리 군락 제거, 3D 낙엽 파티클만 유지 */
   const v67Updaters = [];
-  const addV67Prop = (node, x, z, ry = 0) => {
-    node.position.set(x, 0, z);
-    node.rotation.y = ry;
-    group.add(node);
-    if (node.userData && node.userData.disposables) node.userData.disposables.forEach((dd) => disposables.push(dd));
-    if (node.userData && node.userData.shaderMat) shaderMats.push(node.userData.shaderMat);
-  };
-  if ([5, 6, 8, 13].includes(stageNo)) {
-    const smokeCol = stageNo === 13 ? 0xff7862 : (stageNo === 6 ? 0xcce8ff : 0xf0dfba);
-    addV67Prop(buildBronzeCenser3D({ scale: 1.05, smokeHex: smokeCol, emberHex: stageNo === 13 ? 0xff3b28 : 0xff8040 }), -7.6, -7.8, 0.4);
-    addV67Prop(buildBronzeCenser3D({ scale: 1.0, smokeHex: smokeCol, emberHex: stageNo === 13 ? 0xff3b28 : 0xff8040 }), 7.6, -7.8, -0.4);
-  }
-  if ([2, 5, 6, 8, 9, 13].includes(stageNo)) {
-    addV67Prop(buildMossyStoneSteps3D({ width: 3.1, mossHex: stageNo >= 9 ? 0x4f2c2a : 0x3b593c }), 0, -10.8, 0);
-  }
-  if ([3, 7, 10, 14].includes(stageNo)) {
-    const fHex = stageNo === 7 ? 0x6e5a36 : (stageNo === 14 ? 0x325666 : 0x3e7552);
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2 + 0.48, r = 9.4 + (i % 2) * 1.4;
-      addV67Prop(buildForestFloorFerns3D(rng, { leafHex: fHex, scale: 0.95 + (i % 2) * 0.25 }), Math.cos(a) * r, Math.sin(a) * r, a);
-    }
-  }
   if (k === 'bamboo' || k === 'root' || k === 'none') {
     const lOpts = k === 'bamboo'
       ? { shape: 'bamboo', count: 64, colorHex: 0x6fd4a2, palette: [0x58c490, 0x7ee0b4, 0x3f9e70, 0x95f0c4] }
