@@ -2,16 +2,16 @@ import * as THREE from 'three';
 import { applyForgedMetal, getMetalStudioEnv } from './modules/metalStudioEnv.js';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
 import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v103';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v147';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v148';
 
 const MODEL_URLS = {
-  boss:      new URL('../assets/models/boss.glb?v=v147', import.meta.url).href,
-  boss_act2: new URL('../assets/models/boss_act2.glb?v=v147', import.meta.url).href,
-  boss_act3: new URL('../assets/models/boss_act3.glb?v=v147', import.meta.url).href,
-  boss_act4: new URL('../assets/models/boss_act4.glb?v=v147', import.meta.url).href,
-  minion:    new URL('../assets/models/minion.glb?v=v147', import.meta.url).href,
-  heavy:     new URL('../assets/models/heavy.glb?v=v147', import.meta.url).href,
-  stone:     new URL('../assets/models/stone.glb?v=v147', import.meta.url).href
+  boss:      new URL('../assets/models/boss.glb?v=v148', import.meta.url).href,
+  boss_act2: new URL('../assets/models/boss_act2.glb?v=v148', import.meta.url).href,
+  boss_act3: new URL('../assets/models/boss_act3.glb?v=v148', import.meta.url).href,
+  boss_act4: new URL('../assets/models/boss_act4.glb?v=v148', import.meta.url).href,
+  minion:    new URL('../assets/models/minion.glb?v=v148', import.meta.url).href,
+  heavy:     new URL('../assets/models/heavy.glb?v=v148', import.meta.url).href,
+  stone:     new URL('../assets/models/stone.glb?v=v148', import.meta.url).href
 };
 function isBossSp(sp) { return sp === 'boss' || sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4'; }
 const BOSS_WEAPON_FX = {
@@ -114,65 +114,30 @@ export function makeBossGlb(height, species) {
         o.onBeforeRender = function (r) {
           if (!mat.envMap && r) applyForgedMetal(mat, r, { roughness: bossSp ? 0.22 : 0.30, envMapIntensity: 0.94 });
         };
-      } else if (sp === 'stone') {
-        /* v1.38 석상: 저채도 슬레이트 툰 음영 + 미세 청옥 림 */
-        mat.roughness = 0.74;
-        mat.metalness = 0.10;
-        if (mat.color) mat.color.setHex(0xb8c6cf);
-        if (mat.normalMap && mat.normalScale) mat.normalScale.set(1.35, 1.35);
-        if (mat.map) {
-          mat.emissiveMap = mat.map;
-          mat.emissive = new THREE.Color(0x4e7c78);
-          mat.emissiveIntensity = 0.30;
-        }
-        mat.customProgramCacheKey = function () { return 'stone-toon-v135'; };
-        mat.onBeforeCompile = function (shader) {
-          shader.fragmentShader = shader.fragmentShader.replace(
-            "#include <dithering_fragment>",
-            "float tL = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));\n" +
-            "float tS = (floor(tL * 2.5) + smoothstep(0.3, 0.7, fract(tL * 2.5))) / 2.5;\n" +
-            "gl_FragColor.rgb *= mix(1.0, (tS + 0.03) / max(tL + 0.03, 0.05), 0.52);\n" +
-            "#include <dithering_fragment>"
-          );
-        };
       } else {
-        /* v1.38 4단계 명도·채도 계급: 잡몹은 저채도 먹색 툰 실루엣, 보스는 흑갑 + 단일 발광 오라 림 */
-        const bossSp = isBossSp(sp);
-        const auraHex = sp === 'boss_act2' ? 0xf2c65a : sp === 'boss_act3' ? 0xff3d36 : sp === 'boss_act4' ? 0xb67cff : 0x2ee8a6;
-        mat.roughness = bossSp ? 0.48 : 0.72;
-        mat.metalness = bossSp ? 0.28 : 0.08;
-        if (mat.color) mat.color.setHex(bossSp ? 0xb4c0ca : 0xd2dce2);
-        if (mat.normalMap && mat.normalScale) mat.normalScale.set(bossSp ? 1.45 : 1.15, bossSp ? 1.45 : 1.15);
+        /* v1.48 엠버 앤 블레이드풍 매트 카툰 툰 셰이딩: 플라스틱 광택·색상 프레넬 오라 전면 제거 */
+        mat.roughness = 0.96;
+        mat.metalness = 0.0;
+        mat.roughnessMap = null;
+        mat.metalnessMap = null;
+        mat.envMap = null;
+        mat.envMapIntensity = 0.0;
+        if (mat.color) mat.color.setHex(0xffffff);
         if (mat.map) {
           mat.emissiveMap = mat.map;
-          mat.emissive = new THREE.Color(bossSp ? 0x9ab4b8 : 0xa6b4be);
-          mat.emissiveIntensity = bossSp ? 0.26 : 0.36;
+          mat.emissive = new THREE.Color(0xfff6ea);
+          mat.emissiveIntensity = 0.15;
         }
-        mat.userData.uAuraCol = { value: new THREE.Color(bossSp ? auraHex : 0x9ec8d8) };
-        mat.userData.uAuraStr = { value: bossSp ? 1.05 : 0.28 };
-        mat.customProgramCacheKey = function () { return bossSp ? ('boss-toon-v135-' + sp) : 'mob-toon-v135'; };
+        mat.customProgramCacheKey = function () { return 'carved-matte-toon-v148'; };
         mat.onBeforeCompile = function (shader) {
-          shader.uniforms.uAuraCol = mat.userData.uAuraCol;
-          shader.uniforms.uAuraStr = mat.userData.uAuraStr;
-          shader.fragmentShader = "uniform vec3 uAuraCol;\nuniform float uAuraStr;\n" + shader.fragmentShader;
           shader.fragmentShader = shader.fragmentShader.replace(
             "#include <dithering_fragment>",
             "float tL = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));\n" +
-            "float tS = (floor(tL * 3.0) + smoothstep(0.40, 0.56, fract(tL * 3.0))) / 3.0;\n" +
-            "gl_FragColor.rgb *= mix(1.0, (tS + 0.03) / max(tL + 0.03, 0.05), 0.55);\n" +
-            "float fR = pow(1.0 - clamp(abs(dot(normalize(vNormal), normalize(vViewPosition))), 0.0, 1.0), 2.1);\n" +
-            "gl_FragColor.rgb += uAuraCol * fR * uAuraStr;\n" +
+            "float tS = (floor(tL * 3.0) + smoothstep(0.38, 0.54, fract(tL * 3.0))) / 3.0;\n" +
+            "gl_FragColor.rgb *= mix(1.0, (tS + 0.04) / max(tL + 0.04, 0.06), 0.62);\n" +
             "#include <dithering_fragment>"
           );
         };
-        if (bossSp) {
-          o.onBeforeRender = function (r) {
-            if (!mat.envMap && r) {
-              const env = getMetalStudioEnv(r);
-              if (env) { mat.envMap = env; mat.envMapIntensity = 0.44; mat.needsUpdate = true; }
-            }
-          };
-        }
       }
       o.material = mat;
       if (!body) body = o;
@@ -393,7 +358,7 @@ export function applyMonsterActThemeGlb(G, actIdx) {
   const c = new THREE.Color(prof.hex);
   (G.bodyMeshes || []).forEach(function (mesh) {
     const m = mesh.material;
-    if (m && m.color) m.color.lerp(c, 0.14);
+    if (m && m.color) m.color.lerp(c, 0.04);
   });
 }
 export function triggerBossIntroRoarGlb(G) {
