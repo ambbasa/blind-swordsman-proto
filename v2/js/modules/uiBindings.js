@@ -1,6 +1,6 @@
 /* v2/js/modules/uiBindings.js — 심안: 묵검 v1.26 DOM 이벤트 가드·UI 바인딩 */
 
-import { createDrillState, getDrillDef } from './trainingDrills.js?v=v151';
+import { createDrillState, getDrillDef } from './trainingDrills.js?v=v152';
 
 export function createUiBindings(rt) {
   const $ = rt.$;

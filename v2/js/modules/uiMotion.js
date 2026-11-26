@@ -1,4 +1,4 @@
-/* v2/js/modules/uiMotion.js — v1.51 anime.js v4 기반 UI 모션(레벨업 각인 카드 · 결과창 별점/카운트업 · 보스 배너) */
+/* v2/js/modules/uiMotion.js — v1.52 anime.js v4 기반 UI 모션(엠버 앤 블레이드풍 메달리온 각인 · 결과창 · 배너) */
 let _anime = null;
 let _animeLoading = null;
 
@@ -22,28 +22,75 @@ function prefersReducedMotion() {
   }
 }
 
-export function animateLevelCards(overlayEl, cards) {
-  if (!overlayEl || !cards || !cards.length || prefersReducedMotion()) return;
+export function animateLevelCards(overlayEl, orbs) {
+  if (!overlayEl || !orbs || !orbs.length || prefersReducedMotion()) return;
   getAnime().then(function (A) {
     if (!A) return;
     try {
-      const panel = overlayEl.querySelector('.level-panel');
-      if (panel) {
-        A.animate(panel, {
+      A.animate(orbs, {
+        opacity: [0, 1],
+        translateY: [-22, 0],
+        scale: [0.76, 1],
+        delay: A.stagger(75, { start: 30 }),
+        ease: A.spring({ bounce: 0.30, duration: 480 })
+      });
+      const detail = overlayEl.querySelector('.eb-detail');
+      if (detail) {
+        A.animate(detail, {
           opacity: [0, 1],
-          translateY: [14, 0],
+          translateY: [18, 0],
           scale: [0.96, 1],
-          duration: 240,
+          delay: 110,
+          duration: 280,
           ease: 'outCubic'
         });
       }
-      A.animate(cards, {
-        opacity: [0, 1],
-        translateY: [26, 0],
-        scale: [0.92, 1],
-        delay: A.stagger(68, { start: 50 }),
-        ease: A.spring({ bounce: 0.26, duration: 460 })
-      });
+      const owned = overlayEl.querySelector('.eb-owned-bar');
+      if (owned) {
+        A.animate(owned, {
+          opacity: [0, 1],
+          translateY: [14, 0],
+          delay: 180,
+          duration: 260,
+          ease: 'outCubic'
+        });
+      }
+    } catch (_) {}
+  });
+}
+
+export function animateOrbFocus(orbEl, detailEl) {
+  if (prefersReducedMotion()) return;
+  getAnime().then(function (A) {
+    if (!A) return;
+    try {
+      if (orbEl) {
+        const pillar = orbEl.querySelector('.eb-pillar');
+        if (pillar) {
+          A.animate(pillar, {
+            opacity: [0, 1],
+            scaleY: [0.35, 1],
+            duration: 240,
+            ease: 'outQuint'
+          });
+        }
+        const crest = orbEl.querySelector('.eb-crest');
+        if (crest) {
+          A.animate(crest, {
+            scale: [0.96, 1.10, 1.06],
+            duration: 280,
+            ease: 'outBack(1.8)'
+          });
+        }
+      }
+      if (detailEl) {
+        A.animate(detailEl, {
+          opacity: [0.55, 1],
+          translateY: [6, 0],
+          duration: 190,
+          ease: 'outQuad'
+        });
+      }
     } catch (_) {}
   });
 }
@@ -63,7 +110,6 @@ export function animateCardPick(chosenBtn, allBtns, onDone, skipAnim) {
     for (let i = 0; i < allBtns.length; i++) {
       if (allBtns[i] !== chosenBtn) others.push(allBtns[i]);
     }
-    const seal = chosenBtn.querySelector('.up-seal');
     const tl = A.createTimeline({
       onComplete: function () {
         if (onDone) onDone();
@@ -72,27 +118,17 @@ export function animateCardPick(chosenBtn, allBtns, onDone, skipAnim) {
     if (others.length) {
       tl.add(others, {
         opacity: 0,
-        scale: 0.92,
-        translateY: 10,
+        scale: 0.78,
+        translateY: 12,
         duration: 170,
         ease: 'inQuad'
       }, 0);
     }
     tl.add(chosenBtn, {
-      scale: [1, 1.045, 1.015],
-      duration: 230,
-      ease: 'outBack(1.8)'
+      scale: [1.06, 1.24, 1.08],
+      duration: 240,
+      ease: 'outBack(2.0)'
     }, 0);
-    if (seal) {
-      seal.hidden = false;
-      tl.add(seal, {
-        opacity: [0, 1],
-        scale: [2.3, 1],
-        rotate: [-22, -9],
-        duration: 210,
-        ease: 'outBack(2.0)'
-      }, 20);
-    }
   } catch (_) {
     if (onDone) onDone();
   }
