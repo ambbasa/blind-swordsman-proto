@@ -64,61 +64,41 @@ function paintInk(pts, fading, color) {
   for (let i = 1; i < left.length; i++) ctx.lineTo(left[i].x, left[i].y);
   for (let i = right.length - 1; i >= 0; i--) ctx.lineTo(right[i].x, right[i].y);
   ctx.closePath();
-  /* v0.41: 획 자체도 '먹 붓 자국' — 바탕은 먹, 둘레는 한지 단면, 결은 붓털 텍스처. */
-  ctx.fillStyle = color ? hexRgba(color, 0.62 * a) : 'rgba(20,17,16,' + (0.58 * a).toFixed(3) + ')';
+  /* v1.58 엠버 앤 블레이드 × 청묵 발광 붓획: 청묵 바탕 위에서 또렷한 이중 엠버 글로우 + 백옥 코어 */
+  const strokeHex = color || '#4eead0';
+  ctx.save();
+  ctx.shadowColor = hexRgba(strokeHex, 0.65 * a);
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = hexRgba(strokeHex, 0.54 * a);
   ctx.fill();
-  /* v0.41: 획을 '한지 붓 자국'으로 — 붓털·금박 텍스처를 폴리곤에 채우고 크림 단면을 두른다. */
-  if (rt.brushTex.ink) {
-    try {
-      const b = paintInk._box || (paintInk._box = {});
-      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
-      for (let i = 0; i < left.length; i++) {
-        x0 = Math.min(x0, left[i].x, right[i].x); x1 = Math.max(x1, left[i].x, right[i].x);
-        y0 = Math.min(y0, left[i].y, right[i].y); y1 = Math.max(y1, left[i].y, right[i].y);
-      }
-      const pat = paintInk._pat || (paintInk._pat = ctx.createPattern(rt.brushTex.ink, 'repeat'));
-      if (pat) {
-        if (pat.setTransform) { try { pat.setTransform(new DOMMatrix([0.5, 0, 0, 0.42, (x0 * 0.7) % 64, (y0 + (paintInk._t = (paintInk._t || 0) + 9)) % 64])); } catch (e) {} }
-        ctx.save();
-        ctx.globalAlpha = 0.62 * a;
-        ctx.fillStyle = pat;
-        ctx.fill();
-        ctx.restore();
-      }
-      /* 다이컷 종이 단면: 바깥쪽 옅은 크림 테 */
-      ctx.save();
-      ctx.globalAlpha = 0.42 * a;
-      ctx.strokeStyle = paperRgba(0.9);
-      ctx.lineWidth = 1.1;
-      ctx.lineJoin = 'round';
-      ctx.stroke();
-      ctx.restore();
-    } catch (e) {}
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = hexRgba(strokeHex, 0.85 * a);
+  ctx.lineWidth = 1.2;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+  /* 중앙 날카로운 백옥 코어 필획 */
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.strokeStyle = 'rgba(238,255,250,' + (0.82 * a).toFixed(3) + ')';
+  ctx.lineWidth = 1.6 + 1.0 * a;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+  /* 붓끝 미세 엠버 불티(3점) */
+  const tip = pts[pts.length - 1];
+  ctx.globalCompositeOperation = 'lighter';
+  for (let ei = 0; ei < 3; ei++) {
+    const ang = ei * 2.1 + pts.length * 0.35;
+    const rad = 3.5 + ei * 3.2;
+    const ex = tip.x + Math.cos(ang) * rad;
+    const ey = tip.y + Math.sin(ang) * rad - ei * 1.5;
+    ctx.fillStyle = ei === 0 ? 'rgba(246,255,250,' + (0.85 * a).toFixed(3) + ')' : hexRgba(strokeHex, 0.65 * a);
+    ctx.beginPath();
+    ctx.arc(ex, ey, Math.max(0.9, 2.2 - ei * 0.5), 0, Math.PI * 2);
+    ctx.fill();
   }
-  const dab = rt.brushTex.splat || paintInk._dab;
-  const dabIsSheet = dab === rt.brushTex.splat;
-  const dabW = dabIsSheet ? dab.width / 6 : 0;
-  if (dab && dab.complete !== false) {
-    let acc = 0, prev = pts[0];
-    for (let i = 1; i < pts.length; i++) {
-      const p = pts[i];
-      acc += Math.hypot(p.x - prev.x, p.y - prev.y);
-      if (acc >= 4) {
-        const s = 7 + (i % 3);
-        ctx.globalAlpha = 0.55 * a;
-        if (dabIsSheet) {
-          /* v0.41: 획 꼬리마다 잉크 흩날림 프레임을 찍는다(프레임은 위치로 고른다). */
-          const fi = (i + (paintInk._n = (paintInk._n || 0) + 1)) % 6;
-          ctx.drawImage(dab, fi * dabW, 0, dabW, dabW, p.x - s * 0.9, p.y - s * 0.9, s * 1.8, s * 1.8);
-        } else {
-          ctx.drawImage(dab, p.x - s / 2, p.y - s / 2, s, s);
-        }
-        ctx.globalAlpha = 1;
-        acc = 0;
-      }
-      prev = p;
-    }
-  }
+  ctx.restore();
 }
 function localPts(e) {
   const r = $('ink').getBoundingClientRect();
@@ -425,10 +405,10 @@ function syncLobbyStatus() {
   if ($('lobbyPower')) $('lobbyPower').textContent = '전투력 ' + rt.computeCombatPower(rt.save);
 }
 const LOBBY_HERO_ART = {
-  ink: 'assets/hero/lobby_hero_latest.webp?v=v157',
-  snow_sage: 'assets/hero/lobby_hero_latest.webp?v=v157',
-  crimson_guard: 'assets/hero/lobby_hero_latest.webp?v=v157',
-  gilded_eclipse: 'assets/hero/lobby_hero_latest.webp?v=v157'
+  ink: 'assets/hero/lobby_hero_latest.webp?v=v158',
+  snow_sage: 'assets/hero/lobby_hero_latest.webp?v=v158',
+  crimson_guard: 'assets/hero/lobby_hero_latest.webp?v=v158',
+  gilded_eclipse: 'assets/hero/lobby_hero_latest.webp?v=v158'
 };
 function syncLobbyHeroVisual() {
   const cloak = rt.cloakOf(rt.save);

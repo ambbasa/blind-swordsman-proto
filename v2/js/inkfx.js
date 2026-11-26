@@ -3,8 +3,8 @@
 
 /** Colours (r, g, b) the effects use; keys match items, elements and upgrades. */
 export const FX_COLORS = {
-  fire: [255, 96, 52], ice: [150, 228, 255], poison: [186, 96, 255], jade: [46, 230, 166],
-  gold: [232, 192, 74], vermilion: [214, 48, 34], crimson: [214, 48, 34], paper: [240, 230, 206]
+  fire: [255, 110, 74], ice: [142, 228, 255], poison: [182, 130, 255], jade: [78, 234, 208],
+  gold: [245, 206, 104], vermilion: [224, 72, 56], crimson: [224, 72, 56], paper: [236, 232, 220]
 };
 
 function rgba(c, a) {
@@ -66,13 +66,13 @@ function drawBurst(ctx, e, k, project) {
   ctx.globalCompositeOperation = 'lighter';
   /* 1) 핫 코어 플래시 + 다층 그라디언트 */
   const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 0.95);
-  g.addColorStop(0, rgba([255, 252, 236], inv * 0.72));
-  g.addColorStop(0.35, rgba(e.color, inv * 0.52));
+  g.addColorStop(0, rgba([248, 252, 246], inv * 0.42));
+  g.addColorStop(0.38, rgba(e.color, inv * 0.38));
   g.addColorStop(1, rgba(e.color, 0));
   ctx.fillStyle = g; ctx.fillRect(p.x - r, p.y - r, r * 2, r * 2);
   /* 2) 이중 충격파 링 (외곽 브러시 + 내부 날카로운 코어) */
   ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
-  ctx.strokeStyle = rgba(e.color, inv * 0.92); ctx.lineWidth = (e.big ? 6 : 3.6) * inv + 1; ctx.stroke();
+  ctx.strokeStyle = rgba(e.color, inv * 0.78); ctx.lineWidth = (e.big ? 4.4 : 2.8) * inv + 0.8; ctx.stroke();
   ctx.beginPath(); ctx.arc(p.x, p.y, r * 0.72, 0, Math.PI * 2);
   ctx.strokeStyle = rgba([255, 248, 224], inv * 0.65); ctx.lineWidth = 1.6 * inv + 0.5; ctx.stroke();
   /* 3) 붓끝 테이퍼 파편 + 비산 먹방울 */
@@ -147,7 +147,7 @@ function drawRing(ctx, e, k, project, hero) {
   ctx.strokeStyle = rgba(e.color, inv * 0.42); ctx.lineWidth = 11 * inv + 2.5; ctx.stroke();
   /* 2) 중심 선명한 코어 파동 */
   groundEllipse(ctx, project, hero.x, hero.z, rad);
-  ctx.strokeStyle = rgba([255, 250, 234], inv * 0.88); ctx.lineWidth = 3.2 * inv + 0.8; ctx.stroke();
+  ctx.strokeStyle = rgba([242, 252, 248], inv * 0.68); ctx.lineWidth = 2.2 * inv + 0.6; ctx.stroke();
   /* 3) 내부 먹 잔향 링 + 12개 회전 불티 입자 */
   if (rad > 0.5) {
     groundEllipse(ctx, project, hero.x, hero.z, rad * 0.84);

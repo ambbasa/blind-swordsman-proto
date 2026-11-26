@@ -340,10 +340,10 @@ export class PaperFx {
 
 function elemTint(elem) {
   switch (elem) {
-    case 'fire': return [1.08, 0.40, 0.28];
-    case 'ice': return [0.72, 1.02, 1.2];
-    case 'poison': return [0.36, 0.88, 0.76];
-    case 'lightning': return [1.2, 1.15, 1.3];
-    default: return [1, 1, 1];
+    case 'fire': return [1.00, 0.48, 0.32];
+    case 'ice': return [0.64, 0.92, 1.00];
+    case 'poison': return [0.76, 0.54, 1.00];
+    case 'lightning': return [1.00, 0.86, 0.48];
+    default: return [0.74, 0.96, 0.92];
   }
 }

@@ -299,55 +299,97 @@ function drawOverlays(ctx, r, hs) {
     ctx.restore();
   }
   const pv = rt.S.preview;
-  /* 1) 확정 예고선: 손을 떼기 전에 예상 착지까지 먹선으로 보여 준다. */
+  /* 1) v1.58 확정 예고선: 테이퍼 엠버 궤도 리본 + 착지 지점 3D 시길 마커 */
   if (pv && pv.show && pv.to && rt.S.hero) {
-    const a = rt.projectXZ(rt.S.hero.x, rt.S.hero.z, 0.35);
-    const b = rt.projectXZ(pv.to.x, pv.to.z, 0.15);
+    const a = rt.projectXZ(rt.S.hero.x, rt.S.hero.z, 0.24);
+    const b = rt.projectXZ(pv.to.x, pv.to.z, 0.08);
+    const dx = b.x - a.x, dy = b.y - a.y, dist = Math.hypot(dx, dy) || 1;
+    const nx = -dy / dist, ny = dx / dist;
     ctx.save();
-    ctx.strokeStyle = 'rgba(236,240,230,0.35)';
-    ctx.lineWidth = 5; ctx.lineCap = 'round';
+    const grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
+    grad.addColorStop(0, 'rgba(78,234,208,0.08)');
+    grad.addColorStop(0.65, 'rgba(78,234,208,0.42)');
+    grad.addColorStop(1, 'rgba(232,255,248,0.78)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(a.x + nx * 1.4, a.y + ny * 1.4);
+    ctx.lineTo(b.x + nx * 3.8, b.y + ny * 3.8);
+    ctx.lineTo(b.x - nx * 3.8, b.y - ny * 3.8);
+    ctx.lineTo(a.x - nx * 1.4, a.y - ny * 1.4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(236,255,248,0.68)';
+    ctx.lineWidth = 1.2;
     ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    /* 착지점 3D 투영 시길 링 + 다이아몬드 코어 */
+    const pulse = 1 + 0.08 * Math.sin(t * 7);
+    ctx.strokeStyle = 'rgba(78,234,208,0.78)';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.ellipse(b.x, b.y, 15 * pulse, 8.6 * pulse, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = 'rgba(238,255,248,0.88)';
+    ctx.beginPath();
+    ctx.moveTo(b.x, b.y - 4.2); ctx.lineTo(b.x + 4.2, b.y);
+    ctx.lineTo(b.x, b.y + 4.2); ctx.lineTo(b.x - 4.2, b.y);
+    ctx.closePath(); ctx.fill();
     ctx.restore();
   }
-  /* 2) 락온 링(회전) + 조준 콘(±60°) */
+  /* 2) v1.58 락온 3D 원근 시길 링 + 부드러운 페이드 조준 쐐기 (바닥 장판 가독성 보존) */
   const tgt = (rt.S.aimTarget && rt.S.aimTarget.alive) ? rt.S.aimTarget : null;
   if (tgt && rt.S.hero) {
-    const tp = rt.screenOf(tgt);
-    const rot = (t % 6) * 0.21;
+    const tp = rt.projectXZ(tgt.x, tgt.z, 0.08);
+    const rot = (t % 6) * 0.45;
     ctx.save();
-    ctx.strokeStyle = 'rgba(91,232,196,0.85)';
-    ctx.lineWidth = 2;
-    const rr = 20 + Math.sin(t * 4) * 2;
-    for (let i = 0; i < 3; i++) {
-      ctx.beginPath(); ctx.arc(tp.x, tp.y, rr, rot + i * 2.094, rot + i * 2.094 + 1.1); ctx.stroke();
-    }
     const dirA = Math.atan2(tp.y - hs.y, tp.x - hs.x);
-    const len = Math.hypot(tp.x - hs.x, tp.y - hs.y);
+    const len = Math.max(24, Math.hypot(tp.x - hs.x, tp.y - hs.y));
+    const coneG = ctx.createRadialGradient(hs.x, hs.y, 8, hs.x, hs.y, len);
+    coneG.addColorStop(0, 'rgba(78,234,208,0.12)');
+    coneG.addColorStop(0.65, 'rgba(78,234,208,0.04)');
+    coneG.addColorStop(1, 'rgba(78,234,208,0)');
     ctx.beginPath(); ctx.moveTo(hs.x, hs.y);
-    ctx.arc(hs.x, hs.y, Math.max(20, len), dirA - 1.047, dirA + 1.047);
+    ctx.arc(hs.x, hs.y, len, dirA - 0.58, dirA + 0.58);
     ctx.closePath();
-    ctx.fillStyle = 'rgba(91,232,196,0.09)';
+    ctx.fillStyle = coneG;
     ctx.fill();
+    const rx = 20 + Math.sin(t * 4.5) * 1.8, ry = rx * 0.58;
+    ctx.strokeStyle = 'rgba(78,234,208,0.82)';
+    ctx.lineWidth = 1.8;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.ellipse(tp.x, tp.y, rx, ry, 0, rot + i * 2.094, rot + i * 2.094 + 1.2);
+      ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(245,206,104,0.88)';
+    for (let i = 0; i < 4; i++) {
+      const a4 = rot * 0.5 + i * Math.PI * 0.5;
+      const px = tp.x + Math.cos(a4) * (rx + 3.5), py = tp.y + Math.sin(a4) * (ry + 2.2);
+      ctx.beginPath();
+      ctx.moveTo(px, py - 2.6); ctx.lineTo(px + 2.6, py);
+      ctx.lineTo(px, py + 2.6); ctx.lineTo(px - 2.6, py);
+      ctx.closePath(); ctx.fill();
+    }
     ctx.restore();
   }
-  /* 3) 손가락 위 상태 칩: 지금 무엇으로 읽히는지, 신뢰도는 얼마인지 */
+  /* 3) v1.58 손가락 위 옻칠·금박 메달리온 상태 칩 */
   const chip = pv && pv.chip;
   if (chip) {
-    const x = chip.x, y = chip.y - 26;
+    const x = chip.x, y = chip.y - 28;
+    const col = chip.type ? inkColorFor(chip.type) : 'rgba(186,196,200,0.9)';
     ctx.save();
     ctx.beginPath(); ctx.arc(x, y, 19, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(9,8,11,0.74)'; ctx.fill();
-    ctx.strokeStyle = inkColorFor(chip.type); ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = 'rgba(10,16,20,0.86)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(217,185,126,0.55)'; ctx.lineWidth = 1.3; ctx.stroke();
     ctx.beginPath();
-    ctx.arc(x, y, 24, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * rt.clamp(chip.conf || 0, 0, 1));
-    ctx.strokeStyle = (chip.conf || 0) >= 0.38 ? inkColorFor(chip.type) : 'rgba(140,140,140,0.85)';
-    ctx.lineWidth = 3; ctx.stroke();
-    ctx.fillStyle = chip.type ? inkColorFor(chip.type) : 'rgba(210,210,210,0.95)';
+    ctx.arc(x, y, 23, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * rt.clamp(chip.conf || 0, 0, 1));
+    ctx.strokeStyle = (chip.conf || 0) >= 0.38 ? col : 'rgba(130,145,150,0.65)';
+    ctx.lineWidth = 2.6; ctx.stroke();
+    ctx.fillStyle = col;
     ctx.font = '700 17px "InkSerif", serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(chip.type ? (rt.G.LABELS[chip.type] || '') : '?', x, y + 1);
     if (chip.hint) {
       ctx.font = '700 11px "InkSerif", "Gowun Batang", serif';
-      ctx.fillStyle = 'rgba(244,236,214,0.92)';
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(8,12,15,0.88)';
+      ctx.strokeText(chip.hint, x, y + 34);
+      ctx.fillStyle = 'rgba(244,236,214,0.95)';
       ctx.fillText(chip.hint, x, y + 34);
     }
     ctx.restore();
@@ -373,30 +415,43 @@ function drawOverlays(ctx, r, hs) {
     ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(10, rr), 0, Math.PI * 2); ctx.stroke();
     ctx.restore();
   });
-  /* 6) 참(斬) — 거대한 붓글씨와 먹 번짐 */
+  /* 6) v1.58 참 — 영웅 월드 좌표 3D 투영 이중 검기 타원 + 대각선 참격선 + 절제된 캘리그래피 인장 */
   if (rt.S.cleaveFx > 0) {
     const k = rt.clamp(rt.S.cleaveFx / 0.6, 0, 1);
-    const cx = r.width * 0.5, cy = r.height * 0.46;
+    const prog = 1 - k;
+    const ep = rt.S.hero ? rt.projectXZ(rt.S.hero.x, rt.S.hero.z, 0.08) : { x: r.width * 0.5, y: r.height * 0.48 };
     ctx.save();
-    ctx.globalAlpha = k;
-    const rr = (1 - k) * Math.min(r.width, r.height) * 0.62;
-    ctx.strokeStyle = 'rgba(91,232,196,' + (0.55 * k).toFixed(3) + ')';
-    ctx.lineWidth = 10;
-    ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI * 2); ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,255,250,' + (0.35 * k).toFixed(3) + ')';
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(cx, cy, rr * 0.72, 0, Math.PI * 2); ctx.stroke();
-    /* 글자는 먹 위에 얹힌 한지빛 — 화면을 가리지 않도록 반투명으로 */
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.font = '400 ' + Math.round(Math.min(r.width, r.height) * 0.28) + 'px "InkBrush", "InkSerif", serif';
-    ctx.strokeStyle = 'rgba(0,0,0,' + (0.55 * k).toFixed(3) + ')';
-    ctx.lineWidth = 8;
-    ctx.strokeText('참', cx, cy);
-    ctx.fillStyle = 'rgba(244,236,214,' + (0.72 * k).toFixed(3) + ')';
-    ctx.fillText('참', cx, cy);
-    ctx.strokeStyle = 'rgba(91,232,196,' + (0.8 * k).toFixed(3) + ')';
-    ctx.lineWidth = 1.5;
-    ctx.strokeText('참', cx, cy);
+    const rx = (28 + prog * Math.min(r.width, r.height) * 0.56);
+    const ry = rx * 0.56;
+    ctx.strokeStyle = 'rgba(78,234,208,' + (0.52 * k).toFixed(3) + ')';
+    ctx.lineWidth = 6 * k + 1.4;
+    ctx.beginPath(); ctx.ellipse(ep.x, ep.y, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(245,206,104,' + (0.48 * k).toFixed(3) + ')';
+    ctx.lineWidth = 2.0 * k + 0.6;
+    ctx.beginPath(); ctx.ellipse(ep.x, ep.y, rx * 0.74, ry * 0.74, 0, 0, Math.PI * 2); ctx.stroke();
+    /* 대각선 비취-백옥 참격 궤적 */
+    const slashLen = Math.min(r.width, r.height) * (0.28 + 0.24 * prog);
+    ctx.strokeStyle = 'rgba(232,255,248,' + (0.65 * k).toFixed(3) + ')';
+    ctx.lineWidth = 3.5 * k + 0.5;
+    ctx.beginPath();
+    ctx.moveTo(ep.x - slashLen * 0.85, ep.y + slashLen * 0.32);
+    ctx.lineTo(ep.x + slashLen * 0.85, ep.y - slashLen * 0.32);
+    ctx.stroke();
+    /* 인장은 초반 0.42초만 선명히 떠올라 시야를 가리지 않는다 */
+    const textA = rt.clamp((k - 0.25) / 0.75, 0, 1);
+    if (textA > 0.02) {
+      const ty = ep.y - 44 - prog * 18;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = '400 ' + Math.round(Math.min(r.width, r.height) * 0.19) + 'px "InkBrush", "InkSerif", serif';
+      ctx.strokeStyle = 'rgba(10,16,20,' + (0.72 * textA).toFixed(3) + ')';
+      ctx.lineWidth = 7;
+      ctx.strokeText('참', ep.x, ty);
+      ctx.fillStyle = 'rgba(244,238,220,' + (0.86 * textA).toFixed(3) + ')';
+      ctx.fillText('참', ep.x, ty);
+      ctx.strokeStyle = 'rgba(78,234,208,' + (0.75 * textA).toFixed(3) + ')';
+      ctx.lineWidth = 1.4;
+      ctx.strokeText('참', ep.x, ty);
+    }
     ctx.restore();
   }
   /* 8) 지금 일섬에 실린 원소: 주인공 발밑 오라, 바닥 부적은 남은 시간 고리 */
@@ -409,16 +464,28 @@ function drawOverlays(ctx, r, hs) {
   drawTerrain(ctx, r, hs, t);
   /* v0.34 §6.2: 부목표 표시(석등·어둠) */
   drawGoal(ctx, r, hs, t);
-  /* 7) 칼집 패링 섬광 */
+  /* 7) v1.58 칼집 패링: 흰 원판 제거 -> 청옥-금박 초승달 방어 호 + 4각 스타 글린트 */
   if (rt.S.parryFlash > 0) {
     const k = rt.clamp(rt.S.parryFlash / 0.12, 0, 1);
-    const g = ctx.createRadialGradient(hs.x, hs.y, 0, hs.x, hs.y, 120);
-    g.addColorStop(0, 'rgba(255,255,250,' + (0.55 * k).toFixed(3) + ')');
-    g.addColorStop(1, 'rgba(255,255,250,0)');
-    ctx.save(); ctx.fillStyle = g; ctx.fillRect(hs.x - 130, hs.y - 130, 260, 260);
-    ctx.strokeStyle = 'rgba(255,255,250,' + (0.7 * k).toFixed(3) + ')';
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(hs.x, hs.y, 30 + (1 - k) * 70, 0, Math.PI * 2); ctx.stroke();
+    const prog = 1 - k;
+    const rx = 28 + prog * 54, ry = rx * 0.58;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(78,234,208,' + (0.78 * k).toFixed(3) + ')';
+    ctx.lineWidth = 4.2 * k + 1.0;
+    ctx.beginPath(); ctx.ellipse(hs.x, hs.y + 4, rx, ry, 0, -Math.PI * 0.82, Math.PI * 0.18); ctx.stroke();
+    ctx.strokeStyle = 'rgba(245,206,104,' + (0.72 * k).toFixed(3) + ')';
+    ctx.lineWidth = 2.0 * k + 0.6;
+    ctx.beginPath(); ctx.ellipse(hs.x, hs.y + 4, rx * 0.78, ry * 0.78, 0, 0, Math.PI * 2); ctx.stroke();
+    const gl = 26 + prog * 18;
+    ctx.fillStyle = 'rgba(246,255,248,' + (0.85 * k).toFixed(3) + ')';
+    ctx.beginPath();
+    for (let gi = 0; gi < 8; gi++) {
+      const ga = (gi * Math.PI) / 4;
+      const gr = (gi % 2 === 0) ? gl : gl * 0.16;
+      if (gi === 0) ctx.moveTo(hs.x + Math.cos(ga) * gr, hs.y - 6 + Math.sin(ga) * gr);
+      else ctx.lineTo(hs.x + Math.cos(ga) * gr, hs.y - 6 + Math.sin(ga) * gr);
+    }
+    ctx.closePath(); ctx.fill();
     ctx.restore();
   }
   rt.inkFx.draw(ctx, rt.projectXZ, rt.S.hero, r, rt.frameDt);
@@ -676,19 +743,21 @@ function drawV31(ctx, r, hs, t) {
       const frac = rt.clamp((thr.t || 0) / tellW, 0, 1);
       const hs = rt.heroScreen();
       ctx.save();
-      /* 1) 주인공 중심 수축 타이밍 링 */
-      const innerR = 26, outerR = 26 + 44 * frac;
-      ctx.strokeStyle = inJust ? 'rgba(136,255,224,0.92)' : 'rgba(255,212,118,0.68)';
-      ctx.lineWidth = inJust ? 3.2 : 2.0;
-      ctx.beginPath(); ctx.arc(hs.x, hs.y, outerR, 0, Math.PI * 2); ctx.stroke();
-      ctx.strokeStyle = inJust ? 'rgba(255,244,190,0.85)' : 'rgba(255,212,118,0.28)';
+      /* 1) v1.58 주인공 발밑 3D 원근 수축 타이밍 룬 링 */
+      const innerR = 26, outerR = 26 + 42 * frac;
+      ctx.strokeStyle = inJust ? 'rgba(120,250,222,0.92)' : 'rgba(245,206,104,0.68)';
+      ctx.lineWidth = inJust ? 3.0 : 1.8;
+      ctx.beginPath(); ctx.ellipse(hs.x, hs.y + 6, outerR, outerR * 0.58, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = inJust ? 'rgba(245,206,104,0.90)' : 'rgba(245,206,104,0.32)';
       ctx.lineWidth = 1.4;
-      ctx.beginPath(); ctx.arc(hs.x, hs.y, innerR, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(hs.x, hs.y + 6, innerR, innerR * 0.58, 0, 0, Math.PI * 2); ctx.stroke();
       if (inJust) {
-        ctx.font = '700 11px "InkSerif", "Gowun Batang", serif';
+        ctx.font = '700 12px "InkSerif", "Gowun Batang", serif';
         ctx.textAlign = 'center';
+        ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(8,14,18,0.92)';
+        ctx.strokeText('막기!', hs.x, hs.y - 24);
         ctx.fillStyle = '#9effe4';
-        ctx.fillText('막기!', hs.x, hs.y - innerR - 8);
+        ctx.fillText('막기!', hs.x, hs.y - 24);
       }
       /* 2) 위협 대상 무기/투사체 4각 경고 섬광 */
       const src = thr.z || thr.sh;
@@ -977,15 +1046,44 @@ function drawElementMote(ctx, el, x, y, u, color) {
 /* v0.54: 주인공·심안 경계의 인위적 2D 원형 테두리 선을 제거해 한지 수묵화 몰입감을 높인다.
    (원 안/밖 대비는 3D 월드 먹안개가 자연스럽게 담당한다.) */
 function drawHeroElement(ctx, t) {
+  if (!rt.S || !rt.S.hero) return;
+  /* v1.58 참(O) 준비 완료 발밑 3D 회전 시길 룬 + 상승 불씨 오라 */
+  const maxC = (rt.CFG && rt.CFG.cleaveCharge) || 100;
+  if ((rt.S.charge || 0) >= maxC) {
+    const fp = rt.projectXZ(rt.S.hero.x, rt.S.hero.z, 0.05);
+    const pulse = 1 + 0.06 * Math.sin(t * 5.2);
+    const rx = 25 * pulse, ry = rx * 0.56;
+    const rot = t * 1.1;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(78,234,208,0.68)';
+    ctx.lineWidth = 1.8;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath();
+      ctx.ellipse(fp.x, fp.y, rx, ry, 0, rot + i * Math.PI * 0.5, rot + i * Math.PI * 0.5 + 0.92);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(245,206,104,0.62)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.ellipse(fp.x, fp.y, rx * 0.74, ry * 0.74, 0, 0, Math.PI * 2); ctx.stroke();
+    for (let i = 0; i < 4; i++) {
+      const u = (t * 0.9 + i * 0.25) % 1;
+      const a = i * 1.57 + t * 0.8;
+      const mp = rt.projectXZ(rt.S.hero.x + Math.cos(a) * 0.72, rt.S.hero.z + Math.sin(a) * 0.72, 0.1 + u * 1.45);
+      ctx.fillStyle = (i % 2 === 0) ? 'rgba(245,206,104,' + (Math.sin(Math.PI * u) * 0.82).toFixed(3) + ')'
+        : 'rgba(78,234,208,' + (Math.sin(Math.PI * u) * 0.82).toFixed(3) + ')';
+      ctx.beginPath(); ctx.arc(mp.x, mp.y, 1.9, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
   const el = rt.curElem();
-  if (!el || !rt.S.hero) return;
+  if (!el) return;
   const c = rt.FX_COLORS[el] || rt.FX_COLORS.jade;
   const R = 0.9;
   ctx.save();
   for (let i = 0; i < 6; i++) {
     const u = ((t * 0.8 + i / 6) % 1), a = i * 1.05 + t * 0.5;
     const p = rt.projectXZ(rt.S.hero.x + Math.cos(a) * R * 0.8, rt.S.hero.z + Math.sin(a) * R * 0.8, 0.1 + u * 1.6);
-    drawElementMote(ctx,el,p.x,p.y,u,c);
+    drawElementMote(ctx, el, p.x, p.y, u, c);
   }
   ctx.restore();
   if (rt.S.tempElem && rt.S.tempElem.t > 0) {

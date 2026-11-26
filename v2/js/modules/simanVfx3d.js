@@ -54,7 +54,7 @@ void main() {
   float arcMask = smoothstep(-0.35, 0.65, sin(spin * 2.0 + bristle * 1.4));
   float stroke = ring * (0.45 + 0.55 * arcMask) * smoothstep(0.24, 0.78, bristle * 0.7 + fine * 0.35);
   float lifeFade = smoothstep(0.0, 0.10, uProgress) * (1.0 - smoothstep(0.52, 1.0, uProgress));
-  float alpha = clamp(stroke * lifeFade * 1.35, 0.0, 0.92);
+  float alpha = clamp(stroke * lifeFade * 1.12, 0.0, 0.74);
   if (alpha < 0.015) discard;
   /* 안쪽은 선명한 주홍/비취 검기 핵, 바깥은 깊은 먹물 갈필 */
   float coreBand = smoothstep(0.55, 0.85, fine) * smoothstep(0.82, 0.32, r);
@@ -110,7 +110,7 @@ void main() {
   float a = fray * vAlpha;
   if (a < 0.015) discard;
   /* 단색 검정 대신 먹물 농담 결 (lightning-energy-skill-vfx: never flat black) */
-  vec3 col = mix(vec3(0.03, 0.032, 0.042), vec3(0.11, 0.10, 0.095), n1 * 0.7 + n2 * 0.3);
+  vec3 col = mix(vec3(0.025, 0.045, 0.058), vec3(0.075, 0.115, 0.135), n1 * 0.7 + n2 * 0.3);
   gl_FragColor = vec4(col, a);
 }
 `;
@@ -338,8 +338,8 @@ export class SimanVfx3D {
     slot.mesh.rotation.y = Math.random() * Math.PI * 2;
     slot.mat.uniforms.uProgress.value = 0;
     slot.mat.uniforms.uSeed.value = Math.random() * 20;
-    slot.mat.uniforms.uInkCol.value.setHex(opts.inkHex != null ? opts.inkHex : 0x181518);
-    slot.mat.uniforms.uAccentCol.value.setHex(opts.accentHex != null ? opts.accentHex : 0xe84a32);
+    slot.mat.uniforms.uInkCol.value.setHex(opts.inkHex != null ? opts.inkHex : 0x0d181e);
+    slot.mat.uniforms.uAccentCol.value.setHex(opts.accentHex != null ? opts.accentHex : 0x4eead0);
   }
 
   /** 속도 궤적 불꽃 스파크 (중력 + 바닥 바운스) */

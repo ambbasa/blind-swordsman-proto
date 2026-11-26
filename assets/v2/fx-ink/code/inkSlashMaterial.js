@@ -8,8 +8,8 @@
 //   each frame: if (!s.update(dt)) { scene.remove(s.mesh); s.dispose(); }
 import * as THREE from 'three';
 
-export const ELEM_COLORS = { jade: '#2EE6A6', fire: '#FF2E4A', lightning: '#FFC83A', poison: '#B04DFF', ice: '#8EE8FF' };   // BRIEF: 기본 비취, 화염 진홍, 번개 금, 독 자색, 얼음 옥빛
-export const ELEM_HOT = { jade: '#E8FFF4', fire: '#FFE6E0', lightning: '#FFF8DC', poison: '#F4E6FF', ice: '#F4FDFF' };
+export const ELEM_COLORS = { jade: '#4EEAD0', fire: '#FF6E4A', lightning: '#F5CE68', poison: '#B682FF', ice: '#8EE4FF' };   // v1.58 엠버 앤 블레이드×청묵 통일 팔레트
+export const ELEM_HOT = { jade: '#E6FFF8', fire: '#FFE8D6', lightning: '#FFF6D8', poison: '#F2E6FF', ice: '#EDF9FF' };
 export function elemKey(e) { return ELEM_COLORS[e] ? e : 'jade'; }   // S.dashElem null -> jade
 
 const VERT = /* glsl */`
@@ -56,8 +56,9 @@ void main() {
   float hot = exp(-pow(u / (0.25 * cw), 2.0)) * taper;
   float halo = exp(-pow(u / (3.0 * cw), 2.0)) * taper * 0.16;
   float cfade = (1.0 - smoothstep(0.0, 0.45, uProgress)) * (uProgress < 0.06 ? 1.3 : 1.0);
-  vec3 glow = (uCoreColor * (core * 0.8 + halo) + uHot * hot * 0.9) * cfade * uCoreGain * (0.35 + 0.65 * ink + 0.25 * body);   // light lives in the wet ink, breaks with the dry-brush gaps
-  vec3 inkCol = uInk * (0.8 + 0.4 * (1.0 - load)) + uRim * 0.004 * prof;                 // ink must stay the darkest value on the ground (sheen ~0)
+  vec3 glow = (uCoreColor * (core * 0.78 + halo * 0.95) + uHot * hot * 0.72) * cfade * uCoreGain * (0.35 + 0.65 * ink + 0.25 * body);   // light lives in the wet ink, breaks with the dry-brush gaps
+  glow = min(glow, vec3(1.55));                                                          // v1.58 과노출 화이트아웃 방지 소프트 캡
+  vec3 inkCol = uInk * (0.82 + 0.36 * (1.0 - load)) + uCoreColor * 0.045 * prof + uRim * 0.003 * prof;
   gl_FragColor = vec4(inkCol * a + glow, a);
   #include <colorspace_fragment>
 }`;
@@ -69,7 +70,7 @@ export function createInkSlashMaterial(opt = {}) {
       uTime: { value: 0 }, uProgress: { value: 0 }, uSeed: { value: opt.seed != null ? opt.seed : Math.random() * 100 },
       uCoreGain: { value: opt.coreGain != null ? opt.coreGain : 1.6 },   // >1 = bloom picks it up (bloom threshold 1.0); 1.2 when bloom is off
       uInkAlpha: { value: opt.inkAlpha != null ? opt.inkAlpha : 0.95 }, uAspect: { value: opt.aspect || 4 }, uDry: { value: opt.dry != null ? opt.dry : 1 },
-      uInk: { value: new THREE.Color('#0E0C0A') }, uRim: { value: new THREE.Color('#E9DFC8') },
+      uInk: { value: new THREE.Color('#0B1418') }, uRim: { value: new THREE.Color('#DCEAE6') },
       uCoreColor: { value: new THREE.Color(opt.color || ELEM_COLORS[e]) }, uHot: { value: new THREE.Color(ELEM_HOT[e]) },
     },
     vertexShader: VERT, fragmentShader: FRAG, transparent: true, depthWrite: false, depthTest: true, side: THREE.DoubleSide,

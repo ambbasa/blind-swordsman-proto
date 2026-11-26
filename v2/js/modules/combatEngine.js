@@ -1,5 +1,5 @@
 import { RUN_UPGRADES } from './upgrades.js';
-import { createLevelUpUi } from './levelUpUi.js?v=v157';
+import { createLevelUpUi } from './levelUpUi.js?v=v158';
 /* v2/js/modules/combatEngine.js — 심안: 묵검 v1.26 전투 코어(일섬·패링·피해·상태이상·강화적용) */
 
 export function createCombatEngine(rt) {
@@ -267,23 +267,21 @@ function castCleave(rec) {
   if (rt.audio) { rt.audio.explode(); rt.audio.bell(0, 'bolt'); }
   if (rt.three && rt.three.ink) rt.three.ink.hit(rt.S.hero.x + 0.5, rt.S.hero.z, 0, 1);
   rt.inkFx.ring(R, rt.FX_COLORS.jade, 0.7);
-  if (rt.three && rt.three.lights && rt.S.hero) rt.three.lights.burst(rt.S.hero.x, 2.2, rt.S.hero.z, { color: 0x62f2c8, intensity: 8.5, duration: 0.42, distance: 20 });
-  if (rt.S && (!rt.a11yShake() && !rt.reducedMotion())) rt.S.impactFrameT = 0.085;
+  if (rt.three && rt.three.lights && rt.S.hero) rt.three.lights.burst(rt.S.hero.x, 2.2, rt.S.hero.z, { color: 0x4eead0, intensity: 5.8, duration: 0.38, distance: 18 });
   if (rt.three && rt.three.vfx3d && rt.S.hero) {
-    triggerGroundCrackHeat(rt.S.hero.x, rt.S.hero.z, 7.2, 0x5cf2c8);
-    rt.three.vfx3d.spawnSwirl(rt.S.hero.x, rt.S.hero.z, { r0: 1.8, r1: R * 1.15, accentHex: 0x4be8bc, dur: 0.52 });
-    if (rt.three.shaderFx3d) rt.three.shaderFx3d.spawnShockwave(rt.S.hero.x, rt.S.hero.z, { r0: 1.2, r1: R * 1.25, colorHex: 0x5cf2c8, coreHex: 0xfffce8, dur: 0.48 });
-    rt.three.vfx3d.spawnSparks(rt.S.hero.x, rt.S.hero.z, 32, { color: 0xffc85a, speed: 9.2 });
+    rt.three.vfx3d.spawnSwirl(rt.S.hero.x, rt.S.hero.z, { r0: 1.6, r1: R * 1.08, accentHex: 0x4eead0, dur: 0.48 });
+    if (rt.three.shaderFx3d) rt.three.shaderFx3d.spawnShockwave(rt.S.hero.x, rt.S.hero.z, { r0: 1.1, r1: R * 1.18, colorHex: 0x4eead0, coreHex: 0xf5ce68, dur: 0.46 });
+    rt.three.vfx3d.spawnSparks(rt.S.hero.x, rt.S.hero.z, 20, { color: 0xf5ce68, speed: 8.4 });
     for (let li = 0; li < 2; li++) {
       const la = Math.random() * Math.PI * 2;
       rt.three.vfx3d.spawnLightning(
-        { x: rt.S.hero.x, y: 1.2, z: rt.S.hero.z },
-        { x: rt.S.hero.x + Math.cos(la) * R * 0.9, y: 0.15, z: rt.S.hero.z + Math.sin(la) * R * 0.9 },
-        { color: 0x6ef2d0, core: 0xf4fffc, hold: 0.14, fade: 0.20, sparks: 8 }
+        { x: rt.S.hero.x, y: 1.15, z: rt.S.hero.z },
+        { x: rt.S.hero.x + Math.cos(la) * R * 0.85, y: 0.15, z: rt.S.hero.z + Math.sin(la) * R * 0.85 },
+        { color: 0x4eead0, core: 0xe6fff8, hold: 0.13, fade: 0.18, sparks: 6 }
       );
     }
-    rt.three.vfx3d.triggerImpactFrame({ dur: 0.085, safe: rt.a11yShake() });
-    triggerGroundCrackHeat(rt.S.hero.x, rt.S.hero.z, R * 1.1, 0x5ef2c8);
+    if (!rt.a11yShake() && !rt.reducedMotion()) rt.three.vfx3d.triggerImpactFrame({ dur: 0.08, safe: rt.a11yShake() });
+    triggerGroundCrackHeat(rt.S.hero.x, rt.S.hero.z, R * 0.95, 0x4eead0);
   }
   rt.showJudge('참!');
   rt.renderHud();
@@ -919,7 +917,7 @@ function makeSlash(from, to, shape) {
     width: rt.pathR() * (isCustomTrail ? 2.15 : 1.92) * wMul,
     elem: slashElem,
     color: customCore,
-    coreGain: (q === 'off' ? 1.25 : 1.65) * trailGainBoost * (1 + flv * 0.12)
+    coreGain: Math.min(2.1, (q === 'off' ? 1.18 : 1.48) * trailGainBoost * (1 + flv * 0.09))
   });
   if (customHot != null && s.material && s.material.uniforms && s.material.uniforms.uHot && s.material.uniforms.uHot.value) {
     s.material.uniforms.uHot.value.set(customHot);
@@ -932,7 +930,7 @@ function makeSlash(from, to, shape) {
     const arc = rt.createSlashArc({ actNo: rt.actOf((rt.S && rt.S.stageNo) || rt.save.stage || 1),
       from: from, to: to, elem: slashElem,
       trailColor: customCore, trailHot: customHot, forgeLv: flv,
-      coreGain: (q === 'off' ? 1.15 : 1.55) * trailGainBoost,
+      coreGain: Math.min(2.0, (q === 'off' ? 1.10 : 1.42) * trailGainBoost),
       height: (trId === 'gold_leaf' ? 0.85 : (isCustomTrail ? 0.70 : 0.50)) + rt.pathR() * 0.14,
       width: Math.max(isCustomTrail ? 1.25 : 0.9, rt.pathR() * (isCustomTrail ? 1.18 : 0.95) * wMul)
     });

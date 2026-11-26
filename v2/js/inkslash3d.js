@@ -56,10 +56,10 @@ function acquireArcSlot() {
   return oldest;
 }
 
-const ELEM_CORE = { ice: 0x92ebff, fire: 0xff7038, poison: 0xc27aff, lightning: 0x86c4ff };
-const ELEM_HOT  = { ice: 0xe8fbff, fire: 0xffe49c, poison: 0xf2d8ff, lightning: 0xf4f9ff };
+const ELEM_CORE = { ice: 0x8ee4ff, fire: 0xff6e4a, poison: 0xb682ff, lightning: 0xf5ce68 };
+const ELEM_HOT  = { ice: 0xedf9ff, fire: 0xffe8d6, poison: 0xf2e6ff, lightning: 0xfff6d8 };
 
-export function createSlashArc({ from, to, height = 1.62, width = 0.70, elem = null, coreGain = 2.35, life = 0.56, seed, actNo = null, trailColor = null, trailHot = null, forgeLv = 0 }) {
+export function createSlashArc({ from, to, height = 1.56, width = 0.68, elem = null, coreGain = 1.55, life = 0.50, seed, actNo = null, trailColor = null, trailHot = null, forgeLv = 0 }) {
   const dx = to.x - from.x, dz = to.z - from.z;
   const len = Math.max(0.2, Math.hypot(dx, dz));
   const ux = dx / len, uz = dz / len;
@@ -91,7 +91,7 @@ export function createSlashArc({ from, to, height = 1.62, width = 0.70, elem = n
     : (trailColor != null ? trailColor : (actTheme ? actTheme.slashCore : 0x38e8ff));
   const resolvedHot = elem ? (ELEM_HOT[elem] || 0xffffff)
     : (trailHot != null ? trailHot : (actTheme ? actTheme.slashHot : 0xffffff));
-  const resolvedGain = coreGain * (1 + Math.max(0, Math.min(3, forgeLv | 0)) * 0.14);
+  const resolvedGain = Math.min(2.1, coreGain * (1 + Math.max(0, Math.min(3, forgeLv | 0)) * 0.10));
 
   const u = slot.material.uniforms;
   if (u) {

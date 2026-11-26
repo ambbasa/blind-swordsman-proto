@@ -63,7 +63,7 @@ void main() {
 
   float edge = 1.0 - smoothstep(cut, cut + uEdgeWidth, dissolve);
   float softMask = smoothstep(1.0, 0.28, radial);
-  vec3 col = mix(uBodyCol, uEdgeCol * 2.1, edge);
+  vec3 col = mix(uBodyCol, uEdgeCol * 1.55, edge);
   float alpha = softMask * (1.0 - smoothstep(0.75, 1.0, uProgress)) * (0.68 + 0.32 * edge);
   if (alpha < 0.02) discard;
   gl_FragColor = vec4(col, alpha);
@@ -99,8 +99,8 @@ void main() {
   float intensity = (crest + inner + ripple) * fade;
   if (intensity < 0.015) discard;
 
-  vec3 col = mix(uColor, uCoreColor, clamp(crest * 1.15, 0.0, 1.0)) * (1.25 + crest * 0.85);
-  gl_FragColor = vec4(col, clamp(intensity * 0.92, 0.0, 0.95));
+  vec3 col = mix(uColor, uCoreColor, clamp(crest * 0.95, 0.0, 1.0)) * (0.92 + crest * 0.45);
+  gl_FragColor = vec4(col, clamp(intensity * 0.72, 0.0, 0.76));
 }
 `;
 
@@ -279,7 +279,7 @@ export class SimanShaderFx3D {
     const u = slot.mat.uniforms;
     u.uProgress.value = 0;
     u.uSeed.value = Math.random() * 50;
-    u.uBodyCol.value.setHex(opts.bodyHex != null ? opts.bodyHex : 0x1e1816);
+    u.uBodyCol.value.setHex(opts.bodyHex != null ? opts.bodyHex : 0x101c22);
     u.uEdgeCol.value.setHex(opts.edgeHex != null ? opts.edgeHex : 0xff9a44);
   }
 
