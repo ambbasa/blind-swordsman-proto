@@ -1,4 +1,4 @@
-import { createBossProjectiles } from './bossProjectiles.js?v=v159';
+import { createBossProjectiles } from './bossProjectiles.js?v=v160';
 /* v2/js/modules/bossEngine.js — 심안: 묵검 v1.26 보스 AI · 19종 패턴/기믹 엔진 */
 
 export function createBossEngine(rt) {
