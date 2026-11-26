@@ -1162,8 +1162,8 @@ function triggerComboBurst(n) {
   if (rt.audio) rt.audio.explode();
   if (rt.three && rt.three.bloom && rt.three.bloom.setStrength && rt.fxQ !== 'off') {
     /* 콤보 버스트 순간에는 프리셋보다 조금 더 밝게 번쩍였다가 돌아온다(임계값 1.15 는 그대로). */
-    const prev = rt.three.bloom.quality === 'low' ? 0.7 : 0.85;
-    rt.three.bloom.setStrength(1.45);
+    const prev = 0.16;
+    rt.three.bloom.setStrength(0.36);
     setTimeout(function () { if (rt.three.bloom) rt.three.bloom.setStrength(prev); }, rt.qa.noDelay ? 0 : 300);
   }
   if (rt.art && rt.art.playFx && rt.three) {

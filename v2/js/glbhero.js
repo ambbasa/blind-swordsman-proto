@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { applyForgedMetal } from './modules/metalStudioEnv.js';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
 import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v103';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v148';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v149';
 
 const URL_GLB = new URL('../assets/models/hero.glb?v=v103', import.meta.url).href;
 let pending = null;
@@ -84,42 +84,44 @@ export function makeHeroGlb(height) {
         let targetMat = mat;
         if (!isHead) {
           const phys = new THREE.MeshPhysicalMaterial({
-            color: 0xb4c2d4,
+            color: 0xffffff,
             map: mat.map || null,
             normalMap: mat.normalMap || null,
             roughnessMap: mat.roughnessMap || null,
-            roughness: 0.86,
-            metalness: 0.02,
-            sheen: 0.56,
-            sheenRoughness: 0.56,
+            roughness: 0.96,
+            metalness: 0.0,
+            sheen: 0.02,
+            sheenRoughness: 0.95,
             sheenColor: new THREE.Color(0x827d72)
           });
           if (mat.normalScale && phys.normalScale) phys.normalScale.copy(mat.normalScale);
           if (phys.map) {
             phys.emissiveMap = phys.map;
             phys.emissive = new THREE.Color(0xffffff);
-            phys.emissiveIntensity = 0.58;
+            phys.emissiveIntensity = 0.12;
           }
-          phys.customProgramCacheKey = function () { return 'hero-toon-v135'; };
+          phys.customProgramCacheKey = function () { return 'hero-matte-toon-v149'; };
           mat.dispose();
           targetMat = phys;
         } else {
-          targetMat.roughness = 0.68;
-          targetMat.metalness = 0.02;
-          if (targetMat.color) targetMat.color.setHex(0xdce4ee);
+          targetMat.roughness = 0.96;
+          targetMat.metalness = 0.0;
+          targetMat.roughnessMap = null;
+          targetMat.metalnessMap = null;
+          if (targetMat.color) targetMat.color.setHex(0xffffff);
           if (targetMat.map) {
             targetMat.emissiveMap = targetMat.map;
-            targetMat.emissive = new THREE.Color(0xeef6ff);
-            targetMat.emissiveIntensity = 0.72;
+            targetMat.emissive = new THREE.Color(0xfff6ea);
+            targetMat.emissiveIntensity = 0.12;
           }
-          targetMat.customProgramCacheKey = function () { return 'hero-head-toon-v135'; };
+          targetMat.customProgramCacheKey = function () { return 'hero-head-matte-toon-v149'; };
         }
         mat = targetMat;
         /* v1.38 엠버 앤 블레이드식 2.5D 툰 스텝 셰이딩 + 선명한 청백 림 라이트 (의복 치장 틴트 유지) */
         mat.userData.uCloakTint = { value: new THREE.Color(0xffffff) };
         mat.userData.uCloakMix = { value: 0.0 };
         mat.userData.uToonRimCol = { value: new THREE.Color(isHead ? 0xe8f6ff : 0x7ec8e8) };
-        mat.userData.uToonRimPow = { value: isHead ? 0.52 : 0.34 };
+        mat.userData.uToonRimPow = { value: 0.0 };
         mat.onBeforeCompile = function (shader) {
           shader.uniforms.uCloakTint = mat.userData.uCloakTint;
           shader.uniforms.uCloakMix = mat.userData.uCloakMix;
@@ -381,7 +383,7 @@ export function applyHeroGlbCloak(G, prof, forgeLv) {
   for (let i = 0; i < G.bodyMeshes.length; i++) {
     const m = G.bodyMeshes[i].material;
     if (!m) continue;
-    m.emissiveIntensity = (m.userData.baseEmissiveInt || 0.46) + flv * 0.04;
+    m.emissiveIntensity = (m.userData.baseEmissiveInt || 0.12) + flv * 0.015;
   }
   for (let i = 0; i < G.swordMeshes.length; i++) {
     const m = G.swordMeshes[i].material;

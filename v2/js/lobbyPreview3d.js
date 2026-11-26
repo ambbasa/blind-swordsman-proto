@@ -1,7 +1,7 @@
 /* v2/js/lobbyPreview3d.js — v0.85 로비·치장 화면 실시간 3D 주인공 미리보기 (M2M_Idle + 터치 회전 + 도포/검 강화 반영) */
 import * as THREE from 'three';
-import { preloadHeroGlb, makeHeroGlb, applyHeroGlbCloak, applyHeroGlbSwordTrail } from './glbhero.js?v=v148';
-import { preloadMonsterGlb, makeBossGlb } from './glbboss.js?v=v148';
+import { preloadHeroGlb, makeHeroGlb, applyHeroGlbCloak, applyHeroGlbSwordTrail } from './glbhero.js?v=v149';
+import { preloadMonsterGlb, makeBossGlb } from './glbboss.js?v=v149';
 
 let renderer = null;
 let scene = null;
@@ -44,12 +44,12 @@ export function startLobby3d(canvas, cloakProf, forgeLv) {
     camera.position.set(0, 1.36, 5.25);
     camera.lookAt(0, 1.16, 0);
 
-    const amb = new THREE.AmbientLight(0xfff4e0, 1.1);
+    const amb = new THREE.AmbientLight(0xfff4e4, 0.72);
     scene.add(amb);
-    const key = new THREE.DirectionalLight(0xffe8c2, 1.8);
+    const key = new THREE.DirectionalLight(0xfff0d8, 1.35);
     key.position.set(2.5, 4.0, 3.2);
     scene.add(key);
-    const rim = new THREE.DirectionalLight(0x9cf0ff, 1.65);
+    const rim = new THREE.DirectionalLight(0xb8d4e8, 0.45);
     rim.position.set(-2.5, 2.2, -2.5);
     scene.add(rim);
 
@@ -145,9 +145,9 @@ export function startCodex3d(canvas, species) {
     cCamera = new THREE.PerspectiveCamera(34, 1, 0.1, 30);
     cCamera.position.set(0, 1.45, 5.4);
     cCamera.lookAt(0, 1.15, 0);
-    cScene.add(new THREE.AmbientLight(0xfff4e0, 1.15));
-    const ck = new THREE.DirectionalLight(0xffe8c2, 1.85); ck.position.set(2.8, 4.2, 3.4); cScene.add(ck);
-    const cr = new THREE.DirectionalLight(0x9cf0ff, 1.6); cr.position.set(-2.6, 2.4, -2.8); cScene.add(cr);
+    cScene.add(new THREE.AmbientLight(0xfff4e4, 0.72));
+    const ck = new THREE.DirectionalLight(0xfff0d8, 1.35); ck.position.set(2.8, 4.2, 3.4); cScene.add(ck);
+    const cr = new THREE.DirectionalLight(0xb8d4e8, 0.45); cr.position.set(-2.6, 2.4, -2.8); cScene.add(cr);
     canvas.addEventListener('pointerdown', function (e) {
       cDrag = true; cLastX = e.clientX;
       try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
@@ -175,7 +175,7 @@ export function startCodex3d(canvas, species) {
       cScene.remove(cRoot);
       cRoot.traverse(function (o) {
         if (o.isMesh) {
-          if (o.geometry) o.geometry.dispose();
+          if (o.geometry && !(o.userData && o.userData.sharedGeom)) o.geometry.dispose();
           const ms = Array.isArray(o.material) ? o.material : [o.material];
           ms.forEach(function (m) { if (m && m.dispose) m.dispose(); });
         }
