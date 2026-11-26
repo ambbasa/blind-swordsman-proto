@@ -1,4 +1,4 @@
-import { createBossProjectiles } from './bossProjectiles.js?v=v160';
+import { createBossProjectiles } from './bossProjectiles.js?v=v161';
 /* v2/js/modules/bossEngine.js — 심안: 묵검 v1.26 보스 AI · 19종 패턴/기믹 엔진 */
 
 export function createBossEngine(rt) {
@@ -10,8 +10,9 @@ function stepBoss(z, dt) {
   const walkT = bt.walkT, teleT = bt.teleT, chargeSp = bt.chargeSp, chargeT = bt.chargeT, stunT = bt.stunT;
   z.state = z.state || 'walk';
   z.stateT = (z.stateT || 0) + dt;
-  if(z.state==='sealing'){ if(z.stateT>.8) rt.killZombie(z,rt.S.lastDash); return true; }
-  if((!z.hp && z.state !== 'seal') || z.openUntil>rt.S.elapsed) return true;
+  // The run clock pauses during the seal; its timeout must use the boss clock.
+  if (z.state === 'seal' || z.state === 'sealing') return stepBossPat(z, dt);
+  if (!z.hp || z.openUntil > rt.S.elapsed) return true;
   const pats = bossPatList(z);
   if (pats) {
     if (z.cue) z.cue.t += dt;
