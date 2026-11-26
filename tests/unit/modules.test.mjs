@@ -711,3 +711,43 @@ console.log('16 STAGE SCENERY PLANS & SHIPPED MODELS PASSED');
   rt.titleSel = 9;
   assert.equal(flow.refreshTitleHelp().run, 9);
 }
+
+/* --- v1.62 리팩터링 분리 모듈 검증: dashController, bossGimmickStep, bossOverlay --- */
+import { createDashController } from '../../v2/js/modules/dashController.js';
+import { createBossGimmickStep } from '../../v2/js/modules/bossGimmickStep.js';
+import { createBossOverlay } from '../../v2/js/modules/bossOverlay.js';
+
+{
+  const dc = createDashController(
+    {
+      $: () => null,
+      S: { arena: { on: false, x: 0, z: 0 }, hero: { x: 0, z: 0 }, combo: 0 },
+      CFG: { arenaEdge: 0.6 },
+      three: { chunks: { bounds: { x: 0, z: 0, r: 16.5 } } },
+      arenaR: () => 16.5
+    },
+    { showJudge() {}, stampSkill() {} }
+  );
+  assert.equal(typeof dc.beginDash, 'function');
+  assert.equal(typeof dc.resolvePropCollision, 'function');
+  const clamped = dc.clipWorld({ x: 30, z: 0 }, 0.5);
+  assert.ok(clamped.x <= 16.01 && Math.abs(clamped.z) < 1e-6, 'clipWorld clamps to arena radius');
+
+  const gs = createBossGimmickStep(
+    { S: { elapsed: 0 } },
+    {
+      heroHurt() {}, notePatSeen() {}, applyVulnStack() {}, clearZoneSpirits() {},
+      spawnDonutZoneSpirit() {}, spawnPizzaSafeSpirit() {}, bossJustDodge() {},
+      bossPoise() {}, spawnBossShot() {}, spawnBossWave() {}
+    }
+  );
+  assert.equal(gs.stepBossGimmick({ state: 'walk' }, 0.016, {}), null);
+  assert.equal(gs.stepBossGimmick({ state: 'donut' }, 0.016, {}), null);
+
+  const bo = createBossOverlay(
+    { S: { boss: null, sealFx: 0 } },
+    { bossPat: () => ({}), kiaiWin: () => false, bossMinions: () => [], reflectReady: () => false, bossPatList: () => null, bossBannerInfo: () => null }
+  );
+  assert.equal(typeof bo.drawBossPat, 'function');
+  console.log('v1.62 REFACTORED MODULES (dashController, bossGimmickStep, bossOverlay) PASSED');
+}

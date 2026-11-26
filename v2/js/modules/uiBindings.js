@@ -1,6 +1,6 @@
 /* v2/js/modules/uiBindings.js — 심안: 묵검 v1.26 DOM 이벤트 가드·UI 바인딩 */
 
-import { createDrillState, getDrillDef } from './trainingDrills.js?v=v161';
+import { createDrillState, getDrillDef } from './trainingDrills.js?v=v162';
 
 export function createUiBindings(rt) {
   const $ = rt.$;
@@ -249,7 +249,8 @@ function bindUi() {
       Object.assign(rt.save, parsed);
       rt.migrateMetaV4(rt.save);
       rt.persist();
-      rt.refreshTitleStages();
+      rt.refreshTitleHelp();
+      try { rt.renderStageSelect(); } catch (_) {}
       try { rt.refreshShop(); } catch (_) {}
       try { rt.syncLobby3dStyle(rt.cloakOf(rt.save), rt.trailOf(rt.save)); } catch (_) {}
       rt.toast('기록을 복원했습니다.');
