@@ -2,7 +2,27 @@
 
 export function createStageFlow(rt) {
   const $ = rt.$;
+function failStart(error) {
+  rt.pendingStage = null;
+  rt.quitRun();
+  rt.toast('무대를 열지 못했습니다. 다시 출전해 주세요.');
+  console.error('[심안] 출전 실패', error);
+}
 function startRun(opts) {
+  if (!rt.bootComplete) {
+    beginStage((opts && opts.stage) || rt.upcomingRun(), opts);
+    goStageNow(true);
+    return null;
+  }
+  try {
+    if (!rt.art || !rt.three) throw new Error('전투 리소스가 준비되지 않았습니다.');
+    return startReadyRun(opts);
+  } catch (error) {
+    failStart(error);
+    return null;
+  }
+}
+function startReadyRun(opts) {
   const _tRun = performance.now();
   opts = opts || {};
   /* QA sandbox도 장을 지정할 수 있다(v0.32 지형·보스 검증). 지정이 없으면 1장. */
@@ -66,19 +86,15 @@ function startRun(opts) {
   if (!opts.sandbox) {
     const ns = rt.S.pool[rt.S.pool.length - 1];
     if (ns && !rt.seen('shape:' + ns)) {
-      rt.markSeen('shape:' + ns);
       rt.S.newShape = { shape: ns, guide: 0, need: 1, t0: rt.S.elapsed };
     }
   }
   /* §13 데이터: 판 시작(장·모드·판 번호). 기기 안에만 쌓인다. */
-  rt.telemetry.event('stage_start', { stage: opts.sandbox ? 0 : stageNo, mode: rt.S.mode, run: opts.sandbox ? 0 : (rt.save.runs || 0) + 1, sandbox: !!opts.sandbox, streak: rt.S.streak, help: rt.S.help.slice() });
   if (!opts.sandbox) {
     /* 스테이지의 새 획을 먼저 연습할 시간을 준다(첫 10초는 잔몹 상한 2). */
     rt.S.practiceShape = rt.S.pool[rt.S.pool.length - 1];
     rt.S.practiceT = rt.CFG.practiceSec;
     rt.S.practiceSpawns = rt.CFG.practiceSpawns;
-    if (!opts.replay) rt.save.runs = (rt.save.runs || 0) + 1;
-    rt.persist();
   }
   const appEl = $('app');
   if (appEl) {
@@ -134,8 +150,14 @@ function startRun(opts) {
       rt.showGuide('<b>' + (rt.SHAPE_MARK[sh] || '') + '</b> ' + hint + ' — 그으면 일섬', stageNo === 1 ? 7 : 5);
     }
   }
-  if (!rt.raf) rt.loop(rt.now());
   rt.syncHeroWeaponCosmetic();
+  rt.telemetry.event('stage_start', { stage: opts.sandbox ? 0 : stageNo, mode: rt.S.mode, run: opts.sandbox ? 0 : (rt.save.runs || 0) + 1, sandbox: !!opts.sandbox, streak: rt.S.streak, help: rt.S.help.slice() });
+  if (!opts.sandbox) {
+    if (rt.S.newShape) rt.markSeen('shape:' + rt.S.newShape.shape);
+    if (!opts.replay) rt.save.runs = (rt.save.runs || 0) + 1;
+    rt.persist();
+  }
+  if (!rt.raf) rt.loop(rt.now());
   rt.perfMark('startRun', performance.now() - _tRun, { stage: stageNo });
 }
 
@@ -1181,6 +1203,7 @@ function upcomingRun() {
 function titleChip(shape) {
   const alt = rt.SHAPE_MARK[shape] || shape;
   const src = rt.art && rt.art.sealUrl ? rt.art.sealUrl(shape) : '';
+  if (!src) return '<span class="hanji-chip">' + alt + '</span>';
   return '<span class="hanji-chip" data-shape="' + shape + '" title="' + alt + '"><img src="' + src + '" alt="' + alt + '" width="40" height="40"></span>';
 }
 /* v0.23 해금: 앞 장을 깨면 다음 장이 열리고, 한 막에 들어서 첫 장을 깼다면
@@ -1334,14 +1357,14 @@ function fillStageIntro(st) {
   const b = $('btnStageGo');
   if (b) b.textContent = '일섬 (시작)';
 }
-function beginStage(n) {
+function beginStage(n, opts) {
   const _t0 = performance.now();
   const st = rt.stageOf(n);
   rt.titleSel = st.id;
   fillStageIntro(st);
   rt.showOv('ov-stage');
   const hasGim = !!((st.terrain && st.terrain.kind !== 'none') || (st.subgoal && st.subgoal.id));
-  const ps = rt.pendingStage = { no: st.id, until: rt.now() + (rt.qa.noDelay ? 0 : (hasGim ? 3800 : 2600)), at: rt.now(), ready: false };
+  const ps = rt.pendingStage = { no: st.id, opts, until: rt.now() + (rt.qa.noDelay ? 0 : (hasGim ? 3800 : 2600)), at: rt.now(), ready: false };
   // Give the intro card a paint before opening the audio device. Only start
   // the beat clock in startRun, even when the player skips the card early.
   const audioReady = new Promise(resolve => {
@@ -1357,30 +1380,35 @@ function beginStage(n) {
     }));
   });
   /* 소개 카드가 떠 있는 동안 무대를 짓고 셰이더를 데운다 — 카드가 걷힌 뒤 멈추지 않게. */
-  if (rt.three && (!rt.three.map || rt.three.map.stageId !== st.id || rt.three.map.id !== st.map)) { rt.applyStageAtmo(st); rt.switchMap(st.map, st.id); }
-  const stageReady = Promise.race([
-    Promise.resolve(rt.three && rt.three._mapP).then(() => rt.qa.skipWarm ? null : warmShaders()).catch(() => null),
-    new Promise(resolve => setTimeout(resolve, 2200))
-  ]);
+  const prepareMap = async () => {
+    await rt.worldReady;
+    if (rt.pendingStage !== ps) return;
+    if (rt.three && (!rt.three.map || rt.three.map.stageId !== st.id || rt.three.map.id !== st.map)) { rt.applyStageAtmo(st); rt.switchMap(st.map, st.id); }
+    await Promise.race([
+      Promise.resolve(rt.three && rt.three._mapP).then(() => rt.qa.skipWarm ? null : warmShaders()).catch(() => null),
+      new Promise(resolve => setTimeout(resolve, 2200))
+    ]);
+  };
+  const stageReady = prepareMap();
   const audioCap = Promise.race([audioReady, new Promise(resolve => setTimeout(resolve, 600))]);
-  Promise.allSettled([stageReady, audioCap]).then(() => {
+  Promise.all([stageReady, audioCap]).then(() => {
     ps.ready = true;
     if (rt.pendingStage === ps && rt.now() >= ps.until) goStageNow(true);
-  });
+  }).catch(error => { if (rt.pendingStage === ps) failStart(error); });
   rt.perfMark('beginStage', performance.now() - _t0, { stage: st.id });
   return st.id;
 }
 function goStageNow(force) {
   if (!rt.pendingStage) return null;
   /* 카드를 눌러 넘겨도 무대가 다 지어질 때까지는 기다렸다가 바로 시작한다. */
-  if (!rt.pendingStage.ready && force !== true) {
+  if (!rt.pendingStage.ready) {
     rt.pendingStage.until = Math.min(rt.pendingStage.until, rt.now());
     $('btnStageGo').textContent = '무대 준비 중…';
     return null;
   }
-  const n = rt.pendingStage.no;
+  const { no: n, opts } = rt.pendingStage;
   rt.pendingStage = null;
-  try { startRun({ stage: n }); } catch (e) { console.error('[심안] startRun 오류:', e); rt.toast('출전 오류: ' + (e && e.message || e)); rt.showOv('ov-title'); }
+  startRun(opts || { stage: n });
   return n;
 }
 function spawnPool() {

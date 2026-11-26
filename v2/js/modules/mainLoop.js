@@ -262,7 +262,7 @@ function loop(ts) {
   }
   if (rt.toastT && rt.now() > rt.toastT) { $('toast').hidden = true; rt.toastT = 0; }
   if (rt.guideUntil && rt.S && (rt.S.elapsed || 0) >= rt.guideUntil) rt.hideGuide();
-  if (rt.pendingStage && rt.now() >= rt.pendingStage.until && (rt.pendingStage.ready || rt.now() >= rt.pendingStage.until + 8000)) rt.goStageNow(true);
+  if (rt.pendingStage && rt.now() >= rt.pendingStage.until && rt.pendingStage.ready) rt.goStageNow(true);
   if (rt.S && rt.S.comboBurstT > 0) {
     rt.S.comboBurstT -= raw;
     if (rt.S.comboBurstT <= 0) {

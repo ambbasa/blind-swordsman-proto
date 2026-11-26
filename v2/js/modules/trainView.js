@@ -100,10 +100,10 @@ export function createTrainController(deps) {
     const st = trainStatsOfSave(save, train.shape);
     const el = elById('trainStats');
     if (el) {
-      el.textContent = (SHAPE_LABEL[train.shape] + ' 최근 ' + st.n + '회 · 인식 ' + (st.n ? Math.round(st.rate * 100) : 0) + '%'
-        + (st.n && st.rate < 0.8 ? ' — 요령 애니메이션을 봅니다' : ''));
+      const last = train.result ? train.result.text + ' · ' : '';
+      el.textContent = last + '최근 ' + st.n + '회 중 ' + st.hit + '회 성공';
     }
-    train.need = st.n >= 3 && st.rate < 0.8 ? 1 : 0;
+    train.need = st.n >= 3 && st.rate < 0.8 && !train.result?.ok ? 1 : 0;
   }
 
   function trainDraw() {
@@ -139,7 +139,9 @@ export function createTrainController(deps) {
       const stEl = elById('trainStats');
       if (stEl) {
         const def = getDrillDef(train.drill.kind);
-        stEl.textContent = def.name + ' · 연속 성공 ' + train.drill.streak + '회 · 최고 기록 ' + train.drill.best + '회';
+        const feedback = train.drill.msg || def.name;
+        const text = feedback + ' · 최고 기록 ' + train.drill.best + '회';
+        if (stEl.textContent !== text) stEl.textContent = text;
       }
       return;
     }
@@ -188,9 +190,9 @@ export function createTrainController(deps) {
 
   function openTrain() {
     showOv('ov-train');
-    renderTrainShapes();
     train.pts = [];
     train.result = null;
+    renderTrainShapes();
     if (!train.raf) train.raf = requestAnimationFrame(trainLoop);
     telemetry.event('train_open', { shape: train.shape });
   }
@@ -222,7 +224,7 @@ export function createTrainController(deps) {
     save.train.stats[train.shape] = (save.train.stats[train.shape] || []).concat([ok ? 1 : 0]).slice(-20);
     save.train.seen = (save.train.seen || 0) + 1;
     persist();
-    train.result = { ok: ok, text: ok ? ('맞았습니다 — ' + SHAPE_LABEL[train.shape]) : ('읽힌 무늬: ' + (SHAPE_LABEL[rec.type] || rec.type || '?')) };
+    train.result = { ok: ok, text: ok ? ('맞았습니다: ' + SHAPE_LABEL[train.shape]) : ('읽힌 무늬: ' + (SHAPE_LABEL[rec.type] || rec.type || '?')) };
     renderTrainShapes();
     telemetry.event('train_stroke', { shape: train.shape, got: rec.type || null, ok: ok, score: +(rec.bestScore || 0).toFixed(2) });
   }
@@ -231,6 +233,30 @@ export function createTrainController(deps) {
     const cv = elById('trainCanvas');
     if (!cv) return;
     const btnParry = elById('btnTrainParry');
+    // Mobile browsers can suppress the compatibility click immediately after a canvas stroke.
+    // Complete a stationary single-finger footer tap here, leaving scrolling and keyboard clicks alone.
+    const footer = btnParry?.closest('.train-foot');
+    if (footer) {
+      let tap = null;
+      footer.addEventListener('touchstart', e => {
+        const button = e.target.closest('button');
+        const t = e.touches[0];
+        tap = button && e.touches.length === 1 ? { button, x: t.clientX, y: t.clientY } : null;
+      }, { passive: true });
+      footer.addEventListener('touchmove', e => {
+        const t = e.touches[0];
+        if (tap && Math.hypot(t.clientX - tap.x, t.clientY - tap.y) > 10) tap = null;
+      }, { passive: true });
+      footer.addEventListener('touchcancel', () => { tap = null; });
+      footer.addEventListener('touchend', e => {
+        const start = tap, t = e.changedTouches[0];
+        tap = null;
+        if (!start || !e.cancelable || e.touches.length || start.button.disabled) return;
+        if (!start.button.contains(document.elementFromPoint(t.clientX, t.clientY))) return;
+        e.preventDefault();
+        start.button.click();
+      }, { passive: false });
+    }
     if (btnParry) btnParry.addEventListener('click', function () {
       train.parryMode = !train.parryMode;
       resetDrillRound(train.drill);

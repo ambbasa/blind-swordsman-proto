@@ -846,6 +846,8 @@ const _rt = {
   get paperPropCanvas() { return paperPropCanvas; },
   get pathR() { return pathR; },
   get pauseRun() { return pauseRun; },
+  get worldReady() { return worldReady; },
+  get bootComplete() { return GPv2.ready === true; },
   get pendingStage() { return pendingStage; }, set pendingStage(v) { pendingStage = v; },
   get perfMark() { return perfMark; },
   get persist() { return persist; },
@@ -1239,6 +1241,7 @@ const { applyCameraLens, applyFxinkAtmo, applyStageAtmo, camDist, drawSightFog, 
 async function boot() {
   const _tBoot = performance.now();
   loadSave();
+  const idled = checkIdle();
   qa.mute = !!save.muted;
   try {
     guardEvents();
@@ -1283,8 +1286,7 @@ async function boot() {
   refreshTitleHelp();
   renderModes();
   syncA11yUi();
-  const idled = checkIdle();
-  if (!idled) showOv('ov-title');
+  if (!idled && !document.querySelector('.ov.show')) showOv('ov-title');
   /* An unclaimed idle reward keeps the old lastSeen, so a refresh does not lose it. */
   persist(!idled);
   /* v0.35/v0.49: 타이틀이 즉시 조작 가능해진 뒤 백그라운드로 예열·디오라마 프리로드 수행 */
@@ -1315,7 +1317,7 @@ async function boot() {
 
 const GPv2 = createQaBridge(_rt);
 window.GPv2 = GPv2;
-boot();
+const worldReady = boot();
 
 /* v0.85 보스·중갑·석상 무기 스윙/내려찍기 임팩트 프레임 동기화 & 로비 실시간 3D 미리보기 */
 if (typeof window !== 'undefined') {

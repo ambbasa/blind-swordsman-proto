@@ -154,15 +154,13 @@ function onMove(e) {
   const chipped = rt.pointers._chip && rt.pointers._chip.color;
   paintInk(rt.pointers.pts, 1, chipped);
   if (rt.S && rt.S.playing && !rt.S.paused && rt.pointers.pts.length >= 3 && rt.G && rt.G.recognize) {
-    const rec = rt.G.recognize(rt.pointers.pts, { allowBolt: true });
-    const res = resolveStrokeType(rec, rt.pointers.pts);
+    const { rec, res } = readStroke(rt.pointers.pts);
     const type = res.type;
     let aim = null, to = null;
-    if (type && type !== 'tap' && type !== 'circle') {
+    if (type && type !== 'tap' && type !== 'circle' && type !== 'star' && rt.S.boss?.state !== 'seal') {
       const dir = AUTO_TARGET[type] ? null : rt.strokeAimDir(rt.pointers.pts, type);
       if (rt.S.sandbox || !rt.S.pool || rt.S.pool.indexOf(type) >= 0) aim = rt.pickSpirits(type, 1, rt.S.hero, dir, null)[0] || null;
-      if (aim && (rt.now() - (rt.pointers._prevT || 0) > 12)) {
-        rt.pointers._prevT = rt.now();
+      if (aim) {
         const end = rt.dashEndPoint(rt.S.hero, aim);
         to = { x: end.x, z: end.z };
       }
@@ -192,8 +190,8 @@ function onUp(e) {
   const pts = rt.pointers.pts;
   rt.pointers._chip = null;
   setDrawingActive(false);
-  if (rt.S) { rt.S.preview = null; rt.S.aimTarget = null; }
   finishStroke(pts);
+  if (rt.S) { rt.S.preview = null; rt.S.aimTarget = null; }
 }
 /* 모호한(45°) 직선은 조준으로 확정한다: 획 방향 콘 안 혼령의 hline/vline 분포를 따름. */
 function resolveTieAxis(dir) {
@@ -234,16 +232,33 @@ function ambiguousHint(rec) {
 }
 /* 방향 무시 자동 추격기: V·⚡ */
 const AUTO_TARGET = { vee: 1, bolt: 1 };
+function readStroke(pts) {
+  const rec = rt.G.recognize(pts, { allowBolt: true, seal: !!(rt.S && rt.S.boss && rt.S.boss.state === "seal"), totem: !!(rt.S && rt.S.boss && rt.S.boss.alive && rt.bossMinions().length) });
+  let res = resolveStrokeType(rec, pts);
+  /* v0.97 모바일 한손 엄지 빠른 플릭 보정: 짧지만 곧은 스와이프(26px 이상, 직진도 0.80+)는 가로/세로선으로 구제 */
+  if (!res.type && rt.IS_MOBILE && pts && pts.length >= 2 && rt.G && rt.G.pathLen && rt.G.straightness) {
+    const fl = rt.G.pathLen(pts);
+    if (fl >= 26 && rt.G.straightness(pts) >= 0.80) {
+      const dx = Math.abs(pts[pts.length - 1].x - pts[0].x);
+      const dy = Math.abs(pts[pts.length - 1].y - pts[0].y);
+      const flickType = dx >= dy ? 'hline' : 'vline';
+      res = { type: flickType, rec: rec, flickRecovered: true };
+    }
+  }
+  return { rec, res };
+}
 function finishStroke(pts, opts) {
   opts = opts || {};
   rt.lastStroke = (pts || []).slice(); rt.inkFade = 0.28;
   paintInk(rt.lastStroke, 1);
   if (!rt.S || !rt.S.playing || rt.S.paused) return null;
-  const rec = rt.G.recognize(pts, { allowBolt: true, seal: !!(rt.S && rt.S.boss && rt.S.boss.state === "seal"), totem: !!(rt.S && rt.S.boss && rt.S.boss.alive && rt.bossMinions().length) });
+  const { rec, res } = readStroke(pts);
+  const tInput = rt.now();
   rt.S.lastRec = rec;
   /* §13 데이터: 획 하나하나의 의도/결과/점수/2등 점수/길이/실패 이유 — 인식 튜닝의 원자료다. */
   rt.telemetry.event('stroke', {
     want: (rt.S.aimTarget && rt.S.aimTarget.alive) ? rt.spiritShape(rt.S.aimTarget) : null,
+    tInput, aimedId: rt.S.aimTarget ? rt.S.aimTarget.id : null, resolved: res.type || null,
     got: rec.type || null, best: rec.best || null, score: +(rec.bestScore || 0).toFixed(2),
     second: rt.secondScore(rec), len: Math.round(rt.G.pathLen(pts)), why: rec.reason || null
   });
@@ -262,20 +277,9 @@ function finishStroke(pts, opts) {
   /* 기물 무늬는 은신·영창 중에도 그 기물로 일섬한다(피할 곳은 늘 열려 있어야 한다). */
   const totemStroke = rt.TOTEM_SHAPES.indexOf(rec.type) >= 0;
   if (!totemStroke && rt.veilStroke(pts)) { rec.veil = true; return rec; }
-  let res = resolveStrokeType(rec, pts);
-  /* v0.97 모바일 한손 엄지 빠른 플릭 보정: 짧지만 곧은 스와이프(26px 이상, 직진도 0.80+)는 가로/세로선으로 구제 */
-  if (!res.type && rt.IS_MOBILE && pts && pts.length >= 2 && rt.G && rt.G.pathLen && rt.G.straightness) {
-    const fl = rt.G.pathLen(pts);
-    if (fl >= 26 && rt.G.straightness(pts) >= 0.80) {
-      const dx = Math.abs(pts[pts.length - 1].x - pts[0].x);
-      const dy = Math.abs(pts[pts.length - 1].y - pts[0].y);
-      const flickType = dx >= dy ? 'hline' : 'vline';
-      res = { type: flickType, rec: rec, flickRecovered: true };
-    }
-  }
   if (!res.type) {
     rt.inkFade = 0.16;
-    rt.toast((read ? read + ' ' : '잘 안 그려졌어요. ') + rt.failHint());
+    rt.toast(rec.reason === 'short' ? '조금 더 길게 그어 보세요' : rt.failHint());
     setTimeout(clearInk, rt.qa.noDelay ? 80 : 160);
     return rec;
   }
@@ -296,7 +300,7 @@ function finishStroke(pts, opts) {
     return m && m.alive && (m.orbitSlot != null || m.zoneTag) && (m.shape === rec.type || rt.spiritShape(m) === rec.type);
   });
   if (!rt.S.sandbox && !activeAnchorStroke && rt.S.pool && rt.S.pool.indexOf(rec.type) < 0 && rt.TOTEM_SHAPES.indexOf(rec.type) < 0) {
-    rt.toast((read ? read + ' ' : '') + '지금은 ' + rt.failHint());
+    rt.toast('지금은 ' + rt.S.pool.map(sh => rt.SHAPE_MARK[sh] || sh).join(' · ') + ' 무늬를 그리세요');
     rt.inkFade = 0.16;
     setTimeout(clearInk, rt.qa.noDelay ? 80 : 160);
     return rec;
@@ -310,7 +314,6 @@ function finishStroke(pts, opts) {
   /* 칼날 소리의 높이: 화면에서 그린 획 길이를 0~1로 옮긴다(80px~280px). */
   rt.S.strokeLenRatio = rt.clamp((rt.G.pathLen(pts) - 80) / 200, 0, 1);
   /* 선입력 버퍼: 돌진·비틀거림 중에 들어온 획은 버리지 않고 2칸 FIFO 큐에 예약한다. */
-  const tInput = rt.now();
   const stumbling = !!(rt.S.terrain && rt.S.terrain.stumbleT > 0);
   if (rt.S.dash || (rt.S.dashQueue && rt.S.dashQueue.length) || stumbling) {
     const qres = rt.enqueueInputBuf({
@@ -332,7 +335,7 @@ function finishStroke(pts, opts) {
   rec.targets = dash && dash.targets;
   rec.dash = dash;
   /* §8.1 튜토리얼 첫 성공: 0.05초 히트스톱 + 칼소리 + "일섬!" */
-  if (dash && rt.S.tutorial) rt.tutorialFirstSuccess();
+  if (dash && dash.targets && dash.targets.length && rt.S.tutorial) rt.tutorialFirstSuccess();
   return rec;
 }
 /* §4.2: 빈틈이 0.5초 안에 열리는 순간에 그은 획은 선입력으로 잡아 둔다 — 튕기고 다시 긋는 일을 줄인다. */

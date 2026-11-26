@@ -1,3 +1,4 @@
+import { STAGE_SCENERY, groundPoint } from './modules/stageScenery.js';
 /* 심안 v0.22 — 3×3 시드 청크 무한 맵 (inkchunks.js)
    24m × 24m 청크 하나를 (cx, cz, stageId) 시드로 절차 생성한다.
    영웅이 청크 경계를 넘을 때마다 3×3 창을 밀고, 창 밖으로 나간 청크는 버린다.
@@ -1273,7 +1274,7 @@ function createChunkWindow(opts) {
     const pulse = 0.9 + Math.sin(t * 2.4) * 0.1;
     if (groundMat && groundMat.color) groundMat.color.copy(groundBase).multiplyScalar(0.94 + 0.035 * pulse);
     heroLight.position.set(hx || 0, 3.5, (hz || 0) + 1.8);
-    heroLight.intensity = 30 + 4 * pulse;
+    heroLight.intensity = 23 + 3 * pulse;
 
     rimLight.position.set((hx || 0) + 3.4, 5.6, (hz || 0) - 3.2);
   };
@@ -1392,46 +1393,15 @@ function createArenaWorld(opts) {
   const group = new THREE.Group();
   group.name = 'arenaWorld-' + mapId + '-' + stageId;
 
-  // v0.49: Map the painted courtyard cleanly across the playable area without mirrored kaleidoscope tiling,
-  // then blend organic multi-octave sumi-ink & hanji vertex washes over the 96x96 ground mesh.
-  const texStageId = stageId > 12 ? (stageId - 4) : stageId;
-  const url = new URL('../assets/ink-edition/terrain-' + texStageId + '.webp', import.meta.url);
-  const map = new THREE.TextureLoader().load(url.href);
-  map.colorSpace = THREE.SRGBColorSpace;
-  map.anisotropy = 4;
-  map.wrapS = map.wrapT = THREE.ClampToEdgeWrapping;
-  const coverage = 1.24;
-  map.repeat.setScalar(coverage);
-  map.offset.set((1 - coverage) * 0.5, (1 - coverage) * 0.5);
-  map.center.set(0.5, 0.5);
-  map.rotation = Math.PI / 4 + ((stageId * 0.31) % 0.6);
-  const ACT4_GROUND_TINT = {
-    13: [1.14, 0.80, 0.76],
-    14: [0.80, 0.92, 1.12],
-    15: [0.94, 0.88, 0.92],
-    16: [1.12, 0.98, 0.80]
-  };
-  const gt = ACT4_GROUND_TINT[stageId] || [1, 0.96, 0.90];
-  const groundBase = new THREE.Color(gt[0], gt[1], gt[2]).multiplyScalar(FLOOR_MUL * (stageId > 12 ? 2.55 : 2.3));
-  const softGround = [1,3,6,7,10,14].includes(stageId);
-  const detail = new THREE.TextureLoader().load(new URL('../assets/ink-edition/' +
-    (softGround ? 'earth' : 'stone') + '-relief.webp', import.meta.url).href);
-  detail.wrapS = detail.wrapT = THREE.RepeatWrapping;
-  detail.repeat.set(16, 16);
-  detail.center.set(0.5, 0.5);
-  detail.rotation = stageId * 0.47;
-  detail.anisotropy = 4;
-  /* v1.38 엠버 앤 블레이드 × 청묵 핸드페인팅 바닥: 자글자글한 실사 돌사진(terrain-N.webp) 대신 부드러운 저채도 청묵 붓터치 면 */
+  const plan = STAGE_SCENERY[stageId] || STAGE_SCENERY[1];
+  const groundBase = new THREE.Color(0xbabcb7);
+  const softGround = plan.ground === 'river' || plan.ground === 'trail';
   const emberGroundTex = (function () {
-    /* v1.41 엠버 앤 블레이드식 핸드페인팅 사당 마당 바닥: 대형 불규칙 판석 + 중앙 고대 원형 제단 문양 + 외곽 먹물 이끼 */
     const S = 1024;
     const c = document.createElement('canvas');
     c.width = c.height = S;
     const g = c.getContext('2d');
-    const act = Math.max(1, Math.min(4, Math.ceil((stageId || 1) / 4)));
-    const pal = act === 3
-      ? { base: '#21262b', mid: '#2b3238', edge: '#111519', slabHi: 'rgba(84,96,104,0.18)', slabLo: 'rgba(12,15,19,0.28)', line: 'rgba(9,12,15,0.52)', glyph: 'rgba(210,120,104,0.16)' }
-      : { base: '#1d2f35', mid: '#273f46', edge: '#0f1a1e', slabHi: 'rgba(88,132,140,0.19)', slabLo: 'rgba(10,18,22,0.30)', line: 'rgba(8,14,18,0.54)', glyph: 'rgba(124,224,210,0.16)' };
+    const pal = { base: plan.edge, mid: plan.mid, edge: plan.edge };
 
     const rg = g.createRadialGradient(S * 0.5, S * 0.5, S * 0.06, S * 0.5, S * 0.5, S * 0.54);
     rg.addColorStop(0, pal.mid);
@@ -1443,75 +1413,92 @@ function createArenaWorld(opts) {
     let rs = (stageId || 1) * 9973 + 31;
     const rr = function () { rs = (rs * 16807) % 2147483647; return (rs - 1) / 2147483646; };
 
-    /* 1) 대형 불규칙 판석(Flagstone) 면 & 어두운 줄눈 (노이즈 없이 큼직한 면 분할) */
-    const cols = 10, rows = 10, cw = S / cols, ch = S / rows;
-    for (let r = 0; r < rows; r++) {
-      const xOff = (r % 2) * (cw * 0.45);
-      for (let col = -1; col <= cols; col++) {
-        const bx = col * cw + xOff + (rr() - 0.5) * 14;
-        const by = r * ch + (rr() - 0.5) * 12;
-        const bw = cw - 7 - rr() * 6;
-        const bh = ch - 7 - rr() * 6;
-        const distC = Math.hypot((bx + bw * 0.5) - S * 0.5, (by + bh * 0.5) - S * 0.5) / (S * 0.5);
-        if (distC > 0.92 && rr() < 0.55) continue;
-        g.fillStyle = rr() > 0.48 ? pal.slabHi : pal.slabLo;
-        g.beginPath();
-        g.roundRect(bx + 3, by + 3, Math.max(16, bw), Math.max(16, bh), 8);
-        g.fill();
-        g.strokeStyle = pal.line;
-        g.lineWidth = 2.4;
-        g.stroke();
-        /* 일부 판석에 굵직한 핸드페인팅 균열선 1줄 */
-        if (rr() < 0.24) {
-          g.strokeStyle = 'rgba(7,11,14,0.42)';
-          g.lineWidth = 1.6;
-          g.beginPath();
-          g.moveTo(bx + bw * (0.2 + rr() * 0.2), by + bh * 0.15);
-          g.lineTo(bx + bw * (0.45 + rr() * 0.2), by + bh * (0.5 + rr() * 0.15));
-          g.lineTo(bx + bw * (0.6 + rr() * 0.25), by + bh * 0.85);
-          g.stroke();
+    // Build broad masses first; detail stays on the banks rather than beneath the hero.
+    const unit = S / (2 * ARENA.GROUND);
+    const route = plan.route.map(([side, depth]) => {
+      const { x, z } = groundPoint(side, depth);
+      return [S / 2 + x * unit, S / 2 + z * unit];
+    });
+    // Continue the lane beyond the fighting area; a round stroke cap in the
+    // camera looks like a painted button rather than a road into the scenery.
+    function beyond(a, b) {
+      const dx = a[0] - b[0], dy = a[1] - b[1];
+      const scale = unit * 28 / Math.hypot(dx, dy);
+      return [a[0] + dx * scale, a[1] + dy * scale];
+    }
+    route.unshift(beyond(route[0], route[1]));
+    route.push(beyond(route[route.length - 1], route[route.length - 2]));
+    function traceRoute() {
+      g.beginPath(); g.moveTo(...route[0]);
+      for (let i = 1; i < route.length - 1; i++) {
+        const next = route[i+1], here = route[i];
+        g.quadraticCurveTo(...here, (here[0]+next[0])/2, (here[1]+next[1])/2);
+      }
+      g.lineTo(...route[route.length-1]);
+    }
+    g.lineJoin = g.lineCap = 'round';
+    // Overlapping translucent shoulders soften the boundary without a blur pass.
+    traceRoute();
+    g.strokeStyle = plan.path;
+    const width = plan.ground === 'river' ? 5.4 : 6.8;
+    for (const [extra, opacity] of [[2.1, 0.09], [1.1, 0.12], [0, 0.24]]) {
+      g.globalAlpha = opacity;
+      g.lineWidth = (width + extra) * unit;
+      g.stroke();
+    }
+    g.globalAlpha = 1;
+    if (plan.ground === 'court') {
+      g.beginPath();
+      for (let i=0;i<8;i++) {
+        const a = i*Math.PI/4 + Math.PI/8, x=S/2+Math.cos(a)*unit*9, y=S/2+Math.sin(a)*unit*9;
+        if (!i) g.moveTo(x,y); else g.lineTo(x,y);
+      }
+      g.closePath(); g.fillStyle=plan.mid; g.fill(); g.lineWidth=unit*0.22; g.strokeStyle=plan.path; g.stroke();
+    }
+    // Dress the shoulders, not the centre of the stroke lane. Work in route
+    // coordinates so paving, snow and shingle follow bends at any camera angle.
+    for (let section = 1; section < route.length; section++) {
+      const [ax, ay] = route[section - 1];
+      const [bx, by] = route[section];
+      const dx = bx - ax, dy = by - ay;
+      const length = Math.hypot(dx, dy);
+      const rows = Math.ceil(length / (unit * 1.35));
+      for (let j = 0; j < rows; j++) {
+        const t = (j + 0.5) / rows;
+        for (const bank of [-1, 1]) {
+          const offset = bank * unit * (2.4 + rr() * 1.4);
+          g.save();
+          g.translate(ax + t * dx - dy / length * offset, ay + t * dy + dx / length * offset);
+          g.rotate(Math.atan2(dy, dx));
+          g.scale(unit, unit);
+          if (plan.ground === 'river' || plan.ground === 'trail') {
+            // Short brush marks read as sediment, snow or grass, not an attack telegraph.
+            g.fillStyle = stageId === 6 ? 'rgba(234,244,242,.47)' : plan.path;
+            g.globalAlpha = stageId === 6 ? 0.85 : 0.36;
+            g.beginPath();
+            g.moveTo(-1.05, 0); g.quadraticCurveTo(-0.4, -0.55, 1.05, -0.16);
+            g.quadraticCurveTo(0.4, 0.03, -1.05, 0.14); g.fill();
+          } else {
+            g.fillStyle = plan.path; g.globalAlpha = 0.31;
+            g.beginPath(); g.moveTo(-0.7, -0.48); g.lineTo(0.48, -0.49);
+            g.lineTo(0.83, -0.19); g.lineTo(0.68, 0.39); g.lineTo(-0.55, 0.5);
+            g.closePath(); g.fill();
+          }
+          g.restore();
         }
       }
     }
-
-    /* 2) 전장 중앙 고대 원형 석조 제단 & 동심원 붓선 문양 */
-    const cx = S * 0.5, cy = S * 0.5;
-    g.save();
-    const ringR = [S * 0.13, S * 0.23, S * 0.255, S * 0.36];
-    ringR.forEach(function (rad, idx) {
-      g.beginPath();
-      g.arc(cx, cy, rad, 0, Math.PI * 2);
-      g.strokeStyle = idx === 1 ? pal.glyph : pal.line;
-      g.lineWidth = idx === 2 ? 3.5 : (idx === 1 ? 5.0 : 2.5);
-      g.stroke();
-    });
-    /* 8방위 제단 방사 분할선 */
-    for (let k = 0; k < 8; k++) {
-      const a = (k / 8) * Math.PI * 2;
-      g.beginPath();
-      g.moveTo(cx + Math.cos(a) * ringR[0], cy + Math.sin(a) * ringR[0]);
-      g.lineTo(cx + Math.cos(a) * ringR[3], cy + Math.sin(a) * ringR[3]);
-      g.strokeStyle = pal.line;
-      g.lineWidth = 2.2;
-      g.stroke();
+    for (let i=0;i<880;i++) {
+      const x=rr()*S, y=rr()*S, w=(1+rr()*4.8), h=w*(0.15+rr()*0.4);
+      g.fillStyle = i%3 ? 'rgba(255,240,213,.09)' : 'rgba(16,18,26,.14)';
+      g.beginPath(); g.moveTo(x-w,y); g.lineTo(x+w*.6,y-h); g.lineTo(x+w,y); g.lineTo(x-w*.4,y+h); g.fill();
     }
-    g.restore();
-
-    /* 3) 부드러운 수묵 붓터치 얼룩 & 외곽 먹물 그림자 링 */
-    for (let i = 0; i < 28; i++) {
-      const bx = rr() * S, by = rr() * S, rx = 70 + rr() * 140, ry = 36 + rr() * 80, ang = rr() * Math.PI;
-      g.save();
-      g.translate(bx, by);
-      g.rotate(ang);
-      const sg = g.createRadialGradient(0, 0, 4, 0, 0, rx);
-      sg.addColorStop(0, i % 3 === 0 ? pal.slabHi : pal.slabLo);
-      sg.addColorStop(1, 'rgba(0,0,0,0)');
-      g.fillStyle = sg;
-      g.scale(1, ry / rx);
-      g.beginPath(); g.arc(0, 0, rx, 0, Math.PI * 2); g.fill();
-      g.restore();
+    // Graphic contact shadows anchor every provisional and replacement structure.
+    for (const [,side,depth] of plan.slots) {
+      const {x,z} = groundPoint(side,depth);
+      g.beginPath(); g.ellipse(S/2+x*unit,S/2+z*unit,unit*2.1,unit*1.35,-0.52,0,Math.PI*2);
+      g.fillStyle='rgba(15,18,24,.12)'; g.fill();
     }
-
     const tx = new THREE.CanvasTexture(c);
     tx.colorSpace = THREE.SRGBColorSpace;
     tx.wrapS = tx.wrapT = THREE.ClampToEdgeWrapping;
@@ -1523,7 +1510,6 @@ function createArenaWorld(opts) {
     map: emberGroundTex, bumpMap: null, color: new THREE.Color(0xcfdce0), roughness: 0.94, metalness: 0.0,
     vertexColors: true
   });
-  /* v0.66: 전 스테이지 바닥을 원래의 수묵 페인팅 지면(terrain-N.webp + relief bumpMap)으로 원복 */
   groundMat.userData.inkGround = true;
   groundMat.userData.cardProfile = 'ground';
   const groundGeo = new THREE.PlaneGeometry(ARENA.GROUND * 2, ARENA.GROUND * 2, 96, 96);
@@ -1563,7 +1549,6 @@ function createArenaWorld(opts) {
   }
   groundGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   if (stageId === 4) {
-    groundMat.bumpScale *= 0.55;
     const moon = new THREE.Mesh(new THREE.CircleGeometry(3.5, 48),
       new THREE.MeshBasicMaterial({ color: 0xac5045, fog: true }));
     moon.name = 'vermilionMoon';
@@ -1709,7 +1694,7 @@ function createArenaWorld(opts) {
     const pulse = 0.9 + Math.sin((t || 0) * 2.4) * 0.1;
     if (groundMat && groundMat.color) groundMat.color.copy(groundBase).multiplyScalar(0.94 + 0.035 * pulse);
     heroLight.position.set(hx || 0, 3.5, (hz || 0) + 1.8);
-    heroLight.intensity = 30 + 4 * pulse;
+    heroLight.intensity = 23 + 3 * pulse;
     rimLight.position.set((hx || 0) + 3.4, 5.6, (hz || 0) - 3.2);
 
   };
@@ -1761,9 +1746,9 @@ function createArenaWorld(opts) {
     jarMat.dispose(); sealMat.dispose();
     if (screenMesh) { if (screenMesh.parent) screenMesh.parent.remove(screenMesh); screenMesh.geometry.dispose(); screenMesh.material.dispose(); }
     if (SCREEN.tex) { try { SCREEN.tex.dispose(); } catch (e) {} }
-    groundGeo.dispose(); groundMat.dispose(); detail.dispose();
-    if (arena) { arena.body.skeleton.dispose(); arena.materials.forEach(m => m.dispose()); }
-    if (map && map.userData && map.userData.shared !== true) { try { map.dispose(); } catch (e) {} }
+    groundGeo.dispose(); groundMat.dispose(); emberGroundTex.dispose();
+    if (arena) { arena.glbProps.dispose(); arena.body?.skeleton.dispose(); arena.materials.forEach(m => m.dispose()); }
+
     group.removeFromParent();
   };
 

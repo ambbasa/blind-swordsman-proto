@@ -1,0 +1,63 @@
+// Layout coordinates are metres, in camera-right / away-from-camera axes.
+// Every slot has a procedural fallback; model paths resolve relative to models/props/.
+export const LANDMARKS = {
+  marketAwning: { name: '그을린 포목전 좌판', proxy: 'market', height: 3.4, model: null },
+  brokenGate: { name: '기울어진 홍예 성문', proxy: 'door', height: 6, model: null },
+  bambooShrine: { name: '금줄을 두른 서낭목', proxy: 'tree', height: 6, model: null },
+  moonPavilion: { name: '달맞이 누대', proxy: 'court', height: 5, model: null },
+  mistPagoda: { name: '깎여 나간 층층 석탑', proxy: 'pagoda', height: 7, model: null },
+  snowHall: { name: '눈 쌓인 무너진 법당', proxy: 'roof', height: 5, model: null },
+  rootArch: { name: '뿌리가 얽힌 고목 아치', proxy: 'deadTree', height: 6, model: null },
+  bellGate: { name: '범종을 매단 산문', proxy: 'door', height: 6, model: null },
+  bloodAltar: { name: '쪼개진 혈석 제단', proxy: 'altarStone', height: 5, model: null },
+  ribBridge: { name: '갈비뼈로 엮은 나루다리', proxy: 'ribs', height: 3, model: null },
+  siegeTower: { name: '포대가 무너진 망루', proxy: 'pagoda', height: 7, model: null },
+  riftSpire: { name: '갈라진 심연의 첨탑', proxy: 'spire', height: 7, model: null },
+  corridorPillar: { name: '형벌 회랑의 파손 열주', proxy: 'spire', height: 6, model: null },
+  ferryJetty: { name: '기울어진 나룻배와 잔교', proxy: 'bridge', height: 3, model: null },
+  blackPavilion: { name: '검게 탄 중층 누각', proxy: 'court', height: 7, model: null },
+  sealMonolith: { name: '반으로 갈라진 봉인비', proxy: 'sealStone', height: 6, model: null },
+  pine_tree: { proxy: 'tree', height: 4.5, model: 'pine_tree.glb' },
+  rock_cluster: { proxy: 'rubble', height: 1.3, model: 'rock_cluster.glb' },
+  lantern: { proxy: 'lamp', height: 2.2, model: 'lantern.glb' },
+  shrine: { proxy: 'shrine', height: 3.6, model: 'shrine.glb' }
+};
+
+export const STAGE_SCENERY = {
+  1: { name: '잿빛 장터', edge: '#32302e', mid: '#766757', path: '#987552', ground: 'street',
+    route: [[-12,-7],[-5,-3],[3,3],[10,9]], slots: [["marketAwning",-7,7],["roof",6,12],["market",-12,1],["lamp",11,2],["rubble",8,-8]] },
+  2: { name: '무너진 성문', edge: '#2c3438', mid: '#677070', path: '#897f6d', ground: 'stone',
+    route: [[-3,-16],[0,-6],[0,5],[2,15]], slots: [["brokenGate",2,10],["wall",-7,12],["wall",10,6],["rubble",-10,2],["rock_cluster",9,-6]] },
+  3: { name: '대나무 골', edge: '#20372f', mid: '#526952', path: '#9c986b', ground: 'trail',
+    route: [[-12,-9],[5,-5],[-4,4],[6,14]], slots: [["bambooShrine",-6,10],["grove",-10,3],["grove",8,8],["grove",11,0],["rock_cluster",-9,-7]] },
+  4: { name: '붉은 달', edge: '#352834', mid: '#735154', path: '#ad7563', ground: 'court',
+    route: [[-8,-12],[0,-5],[2,4],[-4,13]], slots: [["moonPavilion",5,11],["wall",-8,10],["deadTree",-12,1],["lamp",10,2],["rubble",8,-8]] },
+  5: { name: '안개 석탑', edge: '#2c4040', mid: '#637779', path: '#91a6a0', ground: 'stone',
+    route: [[-10,-14],[-2,-6],[-5,3],[-3,15]], slots: [["mistPagoda",-4,10],["rock_cluster",-12,3],["pine_tree",10,10],["lamp",7,4],["rubble",9,-6]] },
+  6: { name: '설산 폐사찰', edge: '#414958', mid: '#839297', path: '#b9c3c0', ground: 'trail',
+    route: [[10,-15],[3,-6],[5,2],[-6,13]], slots: [["snowHall",-6,11],["pine_tree",10,9],["rock_cluster",-11,2],["deadTree",8,1],["lamp",-8,-7]] },
+  7: { name: '고목 골', edge: '#353329', mid: '#676748', path: '#88734f', ground: 'trail',
+    route: [[9,-12],[-5,-5],[4,4],[-7,13]], slots: [["rootArch",6,8],["deadTree",-8,9],["tree",11,0],["rubble",-10,0],["grove",-12,-7]] },
+  8: { name: '무명 산문', edge: '#302c3c', mid: '#645d70', path: '#9e8668', ground: 'street',
+    route: [[2,-16],[2,-6],[0,4],[0,16]], slots: [["bellGate",0,11],["shrine",-9,11],["lantern",9,7],["lamp",-8,2],["wall",12,0]] },
+  9: { name: '혈석 제단', edge: '#35262c', mid: '#714749', path: '#a96759', ground: 'court',
+    route: [[9,-14],[6,-5],[-3,2],[-5,13]], slots: [["bloodAltar",-4,10],["spire",-11,4],["spire",9,7],["rock_cluster",11,-2],["lamp",-9,-6]] },
+  10: { name: '뼈의 강', edge: '#353538', mid: '#736d63', path: '#ab9b81', ground: 'river',
+    route: [[-16,5],[-7,0],[2,3],[15,-6]], slots: [["ribBridge",-6,8],["ribs",9,5],["bridge",-10,0],["deadTree",10,-3],["rock_cluster",-10,-8]] },
+  11: { name: '혈월 성채', edge: '#372d32', mid: '#725457', path: '#a16b59', ground: 'stone',
+    route: [[9,-14],[4,-5],[4,4],[7,14]], slots: [["siegeTower",7,10],["wall",-3,13],["wall",-11,6],["lamp",10,0],["rubble",-9,-6]] },
+  12: { name: '나락의 심연', edge: '#252830', mid: '#4b4a5b', path: '#8e6978', ground: 'court',
+    route: [[-12,-12],[-6,-4],[1,3],[8,13]], slots: [["riftSpire",-6,9],["spire",8,11],["ribs",-11,1],["rock_cluster",10,1],["rubble",8,-8]] },
+  13: { name: '무간의 회랑', edge: '#40272c', mid: '#795050', path: '#aa7569', ground: 'street',
+    route: [[0,-16],[0,-6],[0,6],[0,16]], slots: [["corridorPillar",-7,7],["corridorPillar",7,7],["wall",-9,-1],["wall",9,-1],["door",0,15]] },
+  14: { name: '망각의 나루', edge: '#293741', mid: '#546b73', path: '#96a8a6', ground: 'river',
+    route: [[-13,-10],[-4,-4],[5,1],[11,14]], slots: [["ferryJetty",7,8],["deadTree",-9,9],["ribs",-11,1],["lantern",10,0],["rock_cluster",8,-8]] },
+  15: { name: '검은 누각', edge: '#302933', mid: '#644d62', path: '#948395', ground: 'stone',
+    route: [[-11,-13],[-4,-6],[-3,5],[-6,15]], slots: [["blackPavilion",-6,11],["roof",6,13],["wall",-12,3],["lantern",8,3],["rubble",10,-6]] },
+  16: { name: '심안의 끝', edge: '#233136', mid: '#536665', path: '#97ada1', ground: 'court',
+    route: [[0,-15],[-3,-7],[0,4],[0,15]], slots: [["sealMonolith",0,10],["spire",-9,8],["spire",9,8],["lamp",-9,0],["lamp",9,0]] }
+};
+
+export function groundPoint(side, depth) {
+  return { x: (side - depth) * Math.SQRT1_2, z: (-side - depth) * Math.SQRT1_2 };
+}

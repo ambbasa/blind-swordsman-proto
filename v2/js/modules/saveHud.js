@@ -256,7 +256,7 @@ function renderHud() {
   /* v1.32 판별 3종 임무 진행도 & 실시간 기예 등급 HUD */
   const mh = $('missionHud');
   if (mh) {
-    if (rt.S.missions && rt.S.missions.length === 3 && rt.evalRunMissions) {
+    if (!rt.S.tutorial?.on && rt.S.missions && rt.S.missions.length === 3 && rt.evalRunMissions) {
       const mev = rt.evalRunMissions(rt.S.missions, rt.S, maxHp());
       const nextTodo = mev.items.find(function (x) { return !x.done; });
       const mTxt = mev.doneCount >= 3 ? '임무 3/3 완료' : ('임무 ' + mev.doneCount + '/3 · ' + (nextTodo ? nextTodo.label : ''));

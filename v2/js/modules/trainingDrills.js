@@ -112,7 +112,8 @@ export function stepDrill(st, dt) {
   if (st.kind === 'parry') {
     if (rem <= -0.16) {
       st.streak = 0;
-      st.msg = '놓침 — 옥빛 링이 닿을 때 탭하세요';
+      st.msg = '놓쳤어요 — 다음에는 조금 더 일찍';
+      st.lastTapRadius = null;
       st.msgOk = false;
       resetDrillRound(st);
       return 'miss';
@@ -151,7 +152,8 @@ export function handleDrillInput(st, nx, ny) {
       return 'just';
     }
     st.streak = 0;
-    st.msg = rem > 0.18 && rem <= 0.45 ? ('조금 빠름 (' + ms + 'ms 남음)') : '타이밍 어긋남 — 링이 모일 때 탭';
+    st.msg = rem > 0.18 ? '조금 더 기다리세요' : '조금 더 일찍 탭하세요';
+    st.lastTapRadius = 30 + 62 * Math.max(0, Math.min(1, rem / 0.38));
     st.msgOk = false;
     resetDrillRound(st);
     return 'fail';
@@ -248,8 +250,15 @@ export function drawDrillCanvas(ctx, W, H, st) {
   if (st.kind === 'parry' || st.kind === 'rhythm') {
     const win = st.kind === 'rhythm' ? 0.22 : 0.18;
     const tele = st.kind === 'rhythm' ? 0.52 : 0.38;
-    const inJust = rem <= win && rem >= -0.06;
+    const inJust = rem <= win && rem >= (st.kind === 'parry' ? -0.04 : -0.06);
     ctx.save();
+    if (st.kind === 'parry' && !st.msgOk && st.lastTapRadius != null && st.t < 0.45) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(232,140,105,' + (1 - st.t / 0.45) + ')';
+      ctx.setLineDash([3, 5]);
+      ctx.beginPath(); ctx.arc(cx, cy, st.lastTapRadius, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
     if (rem <= tele && rem > -0.16) {
       const rf = Math.max(0, Math.min(1, rem / tele));
       const innerR = 30, outerR = 30 + 62 * rf;

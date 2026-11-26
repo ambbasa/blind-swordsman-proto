@@ -26,6 +26,7 @@ import {
   newSaveMeta, migrateMetaV4, relicSlots, swordFx, swordForgeLv, cloakOf, trailOf
 } from '../../v2/js/meta.js';
 import { getSwordSvg, getRelicSvg, getCosmeticSvg } from '../../v2/js/modules/itemArt.js';
+import { LANDMARKS, STAGE_SCENERY, groundPoint } from '../../v2/js/modules/stageScenery.js';
 import { STAGES, ACT_NAMES, HANJI_TONE, actOf, stageOf } from '../../v2/js/modules/stages.js';
 import { MODES, MODE_ORDER, CHALLENGES, RUN_UPGRADES, EVO_RECIPES, modeOf, challengeOf } from '../../v2/js/modules/upgrades.js';
 import { PAT_CODE, getPatternMeta } from '../../v2/js/modules/bossCatalog.js';
@@ -371,6 +372,14 @@ import { GIMMICK_DRILLS, getDrillDef, createDrillState, handleDrillInput } from 
     const st = createDrillState(id);
     assert.equal(getDrillDef(id).id, id);
     if (id === 'parry') {
+      st.t = st.dur - 0.6;
+      assert.equal(handleDrillInput(st, 0.5, 0.5), 'fail');
+      assert.match(st.msg, /기다리세요/);
+      assert.ok(st.lastTapRadius > 30);
+      st.t = st.dur + 0.1;
+      assert.equal(handleDrillInput(st, 0.5, 0.5), 'fail');
+      assert.match(st.msg, /일찍/);
+      assert.equal(st.lastTapRadius, 30);
       st.t = st.dur - 0.05;
       assert.equal(handleDrillInput(st, 0.5, 0.5), 'just');
       assert.equal(st.streak, 1);
@@ -660,3 +669,24 @@ import { createShopLogic } from '../../v2/js/modules/shopLogic.js';
   console.log('v1.32 RUN_MISSIONS, STYLE_SCORE & 3-STAR TESTS PASSED');
 }
 }
+
+// Stages sharing a combat map still need their own scenery. A replacement must
+// not change the playable centre or point to a nonexistent shipped model.
+assert.equal(Object.keys(STAGE_SCENERY).length, STAGES.length);
+for (const stage of STAGES) {
+  const plan = STAGE_SCENERY[stage.id];
+  assert.equal(plan.name, stage.name);
+  assert.ok(plan.route.length >= 3 && plan.slots.length >= 4);
+  const [signature] = plan.slots[0];
+  assert.ok(LANDMARKS[signature].height > 0);
+  for (const [, side, depth] of plan.slots) {
+    const { x, z } = groundPoint(side, depth);
+    assert.ok(Number.isFinite(x) && Number.isFinite(z));
+    assert.ok(Math.hypot(x, z) >= 7, stage.name + ': central gesture space');
+  }
+}
+assert.equal(new Set(Object.values(STAGE_SCENERY).map(plan => plan.slots[0][0])).size, STAGES.length);
+for (const spec of Object.values(LANDMARKS)) {
+  if (spec.model) assert.ok(fs.existsSync(new URL('../../v2/assets/models/props/' + spec.model, import.meta.url)));
+}
+console.log('16 STAGE SCENERY PLANS & SHIPPED MODELS PASSED');
