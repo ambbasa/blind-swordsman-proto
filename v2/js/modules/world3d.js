@@ -396,9 +396,16 @@ function disposeCharGeom(g) {
     return;
   }
   try {
+    const isGlb = !!(g && g.userData && g.userData.m3d && g.userData.m3d.glb);
     g.traverse(function (o) {
-      if (o.geometry) o.geometry.dispose();
-      if (o.material && o.material.dispose) o.material.dispose();
+      if (o.isSkinnedMesh && o.skeleton && o.skeleton.dispose) o.skeleton.dispose();
+      if (o.geometry && !isGlb && !(o.userData && o.userData.sharedGeom)) o.geometry.dispose();
+      if (o.material) {
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        for (let i = 0; i < mats.length; i++) {
+          if (mats[i] && mats[i].dispose && !(mats[i].userData && mats[i].userData.sharedMat)) mats[i].dispose();
+        }
+      }
     });
   } catch (e) {}
 }

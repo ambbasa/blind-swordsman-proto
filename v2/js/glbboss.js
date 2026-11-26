@@ -2,16 +2,16 @@ import * as THREE from 'three';
 import { applyForgedMetal, getMetalStudioEnv } from './modules/metalStudioEnv.js';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
 import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v103';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v145';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v146';
 
 const MODEL_URLS = {
-  boss:      new URL('../assets/models/boss.glb?v=v145', import.meta.url).href,
-  boss_act2: new URL('../assets/models/boss_act2.glb?v=v145', import.meta.url).href,
-  boss_act3: new URL('../assets/models/boss_act3.glb?v=v145', import.meta.url).href,
-  boss_act4: new URL('../assets/models/boss_act4.glb?v=v145', import.meta.url).href,
-  minion:    new URL('../assets/models/minion.glb?v=v145', import.meta.url).href,
-  heavy:     new URL('../assets/models/heavy.glb?v=v145', import.meta.url).href,
-  stone:     new URL('../assets/models/stone.glb?v=v145', import.meta.url).href
+  boss:      new URL('../assets/models/boss.glb?v=v146', import.meta.url).href,
+  boss_act2: new URL('../assets/models/boss_act2.glb?v=v146', import.meta.url).href,
+  boss_act3: new URL('../assets/models/boss_act3.glb?v=v146', import.meta.url).href,
+  boss_act4: new URL('../assets/models/boss_act4.glb?v=v146', import.meta.url).href,
+  minion:    new URL('../assets/models/minion.glb?v=v146', import.meta.url).href,
+  heavy:     new URL('../assets/models/heavy.glb?v=v146', import.meta.url).href,
+  stone:     new URL('../assets/models/stone.glb?v=v146', import.meta.url).href
 };
 function isBossSp(sp) { return sp === 'boss' || sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4'; }
 const BOSS_WEAPON_FX = {
@@ -22,6 +22,7 @@ const BOSS_WEAPON_FX = {
 };
 const _impactWp = new THREE.Vector3();
 const sources = {};
+const boundsCache = {};
 const pendings = {};
 let loaderPromise = null;
 let cloneSkinned = null;
@@ -86,6 +87,7 @@ export function makeBossGlb(height, species) {
   scene.traverse(function (o) {
     if (!o.isMesh) return;
     o.frustumCulled = false;
+    o.userData.sharedGeom = true;
     tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3;
     if (/outline/i.test(o.name)) {
       o.material = new THREE.MeshBasicMaterial({
@@ -178,14 +180,23 @@ export function makeBossGlb(height, species) {
       bodyMeshes.push(o);
     }
   });
-  scene.updateMatrixWorld(true);
-  const measureTarget = body || scene;
-  const box = new THREE.Box3().setFromObject(measureTarget);
-  const size = box.getSize(new THREE.Vector3());
+  let bInfo = boundsCache[sp];
+  if (!bInfo) {
+    scene.updateMatrixWorld(true);
+    const measureTarget = body || scene;
+    const box = new THREE.Box3().setFromObject(measureTarget);
+    bInfo = {
+      cx: (box.min.x + box.max.x) * 0.5,
+      minY: box.min.y,
+      cz: (box.min.z + box.max.z) * 0.5,
+      sizeY: Math.max(1e-4, box.max.y - box.min.y)
+    };
+    boundsCache[sp] = bInfo;
+  }
   const fit = new THREE.Group();
-  const k = height / Math.max(1e-4, size.y);
+  const k = height / bInfo.sizeY;
   scene.scale.setScalar(k);
-  scene.position.set(-(box.min.x + box.max.x) / 2 * k, -box.min.y * k, -(box.min.z + box.max.z) / 2 * k);
+  scene.position.set(-bInfo.cx * k, -bInfo.minY * k, -bInfo.cz * k);
   fit.add(scene);
   const holder = new THREE.Group();
   holder.add(fit);

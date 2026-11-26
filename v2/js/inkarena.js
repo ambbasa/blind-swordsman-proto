@@ -19,8 +19,8 @@
 import * as THREE from 'three';
 import * as TEX from './inktex3d.js';
 import { SKIN_VERT } from './inkbody3d.js';
-import { INK3D } from './inkhero3d.js?v=v145';
-import { attachGlbArenaProps, preloadArenaProps, glbPropsEnabled } from './glbprops.js?v=v145';
+import { INK3D } from './inkhero3d.js?v=v146';
+import { attachGlbArenaProps, preloadArenaProps, glbPropsEnabled } from './glbprops.js?v=v146';
 preloadArenaProps();
 import { actFromStageId, getActTheme3D, applyThemeToInkUniforms } from './modules/actTheme3d.js';
 import { mulberry } from './inkbake.js';

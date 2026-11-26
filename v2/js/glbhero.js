@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { applyForgedMetal } from './modules/metalStudioEnv.js';
 import { makeRig, tickPose } from './glbpose.js?v=v0792';
 import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v103';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v145';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v146';
 
 const URL_GLB = new URL('../assets/models/hero.glb?v=v103', import.meta.url).href;
 let pending = null;
@@ -346,7 +346,7 @@ export function setHeroGlbOpacity(G, o) {
     const m = G.allMeshes[i].material;
     if (!m) continue;
     const needT = o < 0.999;
-    if (m.transparent !== needT) { m.transparent = needT; m.needsUpdate = true; }
+    if (m.transparent !== needT) { m.transparent = needT; }
     m.opacity = o;
   }
 }

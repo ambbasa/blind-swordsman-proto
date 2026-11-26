@@ -3,10 +3,10 @@ import * as THREE from 'three';
 import { mulberry } from './inkbake.js';
 
 const PROP_URLS = {
-  shrine:       new URL('../assets/models/props/shrine.glb?v=v145', import.meta.url).href,
-  rock_cluster: new URL('../assets/models/props/rock_cluster.glb?v=v145', import.meta.url).href,
-  lantern:      new URL('../assets/models/props/lantern.glb?v=v145', import.meta.url).href,
-  pine_tree:    new URL('../assets/models/props/pine_tree.glb?v=v145', import.meta.url).href
+  shrine:       new URL('../assets/models/props/shrine.glb?v=v146', import.meta.url).href,
+  rock_cluster: new URL('../assets/models/props/rock_cluster.glb?v=v146', import.meta.url).href,
+  lantern:      new URL('../assets/models/props/lantern.glb?v=v146', import.meta.url).href,
+  pine_tree:    new URL('../assets/models/props/pine_tree.glb?v=v146', import.meta.url).href
 };
 
 const ACT_TINTS = {
@@ -190,8 +190,8 @@ export function attachGlbArenaProps(parentGroup, opts) {
     const mat = createPropMaterial(asset.material, type, actNo);
     const mesh = new THREE.InstancedMesh(asset.geometry, mat, list.length);
     mesh.name = 'glb-prop-' + type;
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
     mesh.frustumCulled = false;
     for (let i = 0; i < list.length; i++) {
       const p = list[i];
