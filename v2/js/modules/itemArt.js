@@ -43,7 +43,7 @@ const TRAIL_FILES = Object.freeze({
 });
 
 function imgTag(fileKey, alt) {
-  return '<img class="art-img" src="assets/icons/' + fileKey + '.webp?v=v071" alt="' + (alt || '') + '" decoding="async">';
+  return '<img class="art-img" src="assets/icons/' + fileKey + '.webp?v=v155" alt="' + (alt || '') + '" decoding="async">';
 }
 
 export function getSwordSvg(id) {
