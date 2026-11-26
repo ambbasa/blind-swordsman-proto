@@ -1475,7 +1475,7 @@ function beginDash(shape, opts) {
     const hint = nearby && rt.SHAPE_MARK[rt.spiritShape(nearby)];
     if (rt.audio && rt.audio.whiff) rt.audio.whiff();
     showJudge(hint ? ('대상 없음 · ' + hint + ' 그리기') : '대상 없음');
-    rt.toast(hint ? ('가까운 혼령을 향해 ' + hint) : '혼령이 보이면 종의 무늬를 그리세요');
+    rt.toast(hint ? ('가까운 혼령의 무늬: ' + hint) : '혼령이 보이면 종의 무늬를 그리세요');
     return { type: shape, targets: [], hits: [], items: [] };
   }
   rt.S.dashQuality = (opts.quality != null) ? opts.quality : 0;
@@ -1514,7 +1514,7 @@ function openMarketFork() {
   for (const target of [guard, escape]) {
     if (target) rt.spawnSpirit({ x: target.x, z: target.z, target });
   }
-  rt.showGuide('← 포위 탈출 · 장정에게 진입 →', 4);
+  rt.showGuide('왼쪽 획은 포위 밖으로 · 오른쪽 획은 장정 쪽으로', 4);
 }
 function startSeg() {
   if (!rt.S.dashQueue.length) {
@@ -1614,7 +1614,7 @@ function landDash(d) {
       frameDtMs: rt.frameDt * 1000,
       tailCanceled: !!d.tailCanceled
     });
-    rt.telemetry.event('dash_latency', { ...entry, tInput: rec.tInput, targetIds: rec.targets.slice(), hitIds: rec.hits.map(hit => hit.id) });
+    rt.telemetry.event('dash_latency', entry);
   }
 }
 function landingShock(at) {

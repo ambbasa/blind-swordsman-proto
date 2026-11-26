@@ -19,9 +19,9 @@
 import * as THREE from 'three';
 import * as TEX from './inktex3d.js';
 import { SKIN_VERT } from './inkbody3d.js';
-import { INK3D } from './inkhero3d.js?v=v153';
-import { attachSlotModels } from './glbprops.js?v=v154';
-import { LANDMARKS, STAGE_SCENERY, groundPoint } from './modules/stageScenery.js';
+import { INK3D } from './inkhero3d.js?v=v154';
+import { attachGlbArenaProps, preloadArenaProps, glbPropsEnabled } from './glbprops.js?v=v154';
+preloadArenaProps();
 import { actFromStageId, getActTheme3D, applyThemeToInkUniforms } from './modules/actTheme3d.js';
 import { mulberry } from './inkbake.js';
 import { createFracturedRockGeo } from './modules/skillAssets3d.js';
@@ -58,7 +58,7 @@ function propMat(opt) {
   u.uTexAmt.value = Math.min(u.uTexAmt.value, 0.55);
   u.uArt.value = joineryTexture();
   u.uHeight = { value: 5.5 };
-
+  u.uTexAmt.value = 0.98;
   const m = new THREE.ShaderMaterial({ uniforms: u, vertexShader: SKIN_VERT, fragmentShader: INK3D.FRAG, side: opt.side || THREE.FrontSide });
   m.userData.inkUniforms = u;
   m.userData.arenaMat = true;
@@ -70,12 +70,12 @@ function propMat(opt) {
    한지벽은 0.6~0.7 이 되도록 선형값을 낮게 잡았다(첫 시안은 hex 를 그대로 써서 돌·기와가
    회색 판때기로 떴다). */
 const PAL = {
-  1: { wood: 0x241d17, woodDark: 0x1c1611, plaster: 0xa89a80, tile: 0x151517, stone: 0x2a2a26, pine: 0x10160f, bamboo: 0x18210f, cloth: 0xac6a43, glow: 0xffc06a },
+  1: { wood: 0x241d17, woodDark: 0x1c1611, plaster: 0xa89a80, tile: 0x151517, stone: 0x2a2a26, pine: 0x10160f, bamboo: 0x18210f, cloth: 0x6d6050, glow: 0xffc06a },
   2: { wood: 0x282219, woodDark: 0x191512, plaster: 0x9d9a8e, tile: 0x181a1d, stone: 0x343634, pine: 0x131d18, bamboo: 0x1c2519, cloth: 0x5e6156, glow: 0xffc778 },
   3: { wood: 0x2a241a, woodDark: 0x1a1510, plaster: 0xa49b80, tile: 0x1a1c17, stone: 0x37382f, pine: 0x142014, bamboo: 0x1f2c15, cloth: 0x6a6250, glow: 0xffc46a },
   4: { wood: 0x2e221b, woodDark: 0x1c1410, plaster: 0xa6947f, tile: 0x1c1819, stone: 0x38312d, pine: 0x161d12, bamboo: 0x1e2614, cloth: 0x6b5a4b, glow: 0xffb066 },
   5: { wood: 0x26241e, woodDark: 0x161614, plaster: 0x9aa2a4, tile: 0x171a1e, stone: 0x323736, pine: 0x141f1c, bamboo: 0x1a251d, cloth: 0x565d5c, glow: 0xffc98a },
-  6: { wood: 0x282620, woodDark: 0x181816, plaster: 0xa2a8ab, tile: 0xbed2da, stone: 0x353a3d, pine: 0x15211e, bamboo: 0x1b261f, cloth: 0x585f5e, glow: 0xffcf95 },
+  6: { wood: 0x282620, woodDark: 0x181816, plaster: 0xa2a8ab, tile: 0x181a1e, stone: 0x353a3d, pine: 0x15211e, bamboo: 0x1b261f, cloth: 0x585f5e, glow: 0xffcf95 },
   7: { wood: 0x25241d, woodDark: 0x161613, plaster: 0x99a192, tile: 0x171a17, stone: 0x333830, pine: 0x131f17, bamboo: 0x1a2719, cloth: 0x545d51, glow: 0xffc47e },
   8: { wood: 0x262223, woodDark: 0x171517, plaster: 0x9e989f, tile: 0x17171b, stone: 0x343235, pine: 0x141c1c, bamboo: 0x1b221e, cloth: 0x56545a, glow: 0xf6c08c },
   9: { wood: 0x2b1f19, woodDark: 0x18110e, plaster: 0xa08a74, tile: 0x1c1416, stone: 0x38302c, pine: 0x191a13, bamboo: 0x24200f, cloth: 0x674b3c, glow: 0xff9a55 },
@@ -107,7 +107,6 @@ function makeBuilder(stageId, palette) {
     const upper = joint(name + '-frame',bones[base],0,1,0);
     const crown = joint(name + '-crown',bones[upper],0,2,0);
     frame = {base,upper,crown};
-    return bones[base];
   }
   function atlasCell(zone,color) {
     if (zone === 24) return 4;
@@ -275,11 +274,11 @@ function house(B, x, z, ry, opt) {
   const slopeLen = slope * 0.96;
   const cx0 = Math.cos(ang) * slopeLen * 0.5, cy0 = Math.sin(ang) * slopeLen * 0.5;
   for (const s of [-1, 1]) {
-    B.add(G.box, c.tile, ZONE.TILE, T(s * cx0, ridgeY + 0.02 - cy0, 0, slopeLen, 0.17, halfD * 2, 0, -s * ang));
+    B.add(G.box, c.tile, ZONE.TILE, T(s * cx0, ridgeY + 0.02 - cy0, 0, slopeLen, 0.17, halfD * 2, 0, s * ang));
     /* 기와 골 5줄 — 처마에서 용마루까지 */
     for (let k = 0; k < 5; k++) {
       const lz = -halfD + 0.35 + k * (halfD * 2 - 0.7) / 4;
-      B.add(G.box, c.tile, ZONE.TILE, T(s * cx0, ridgeY + 0.02 - cy0 + 0.10, lz, slopeLen, 0.10, 0.13, 0, -s * ang));
+      B.add(G.box, c.tile, ZONE.TILE, T(s * cx0, ridgeY + 0.02 - cy0 + 0.10, lz, slopeLen, 0.10, 0.13, 0, s * ang));
     }
     /* 처마 끝 — 두꺼운 먹선 띠 */
     B.add(G.box, c.woodDark, ZONE.WOOD, T(s * (halfW - 0.18), eaveY - 0.04, 0, 0.2, 0.16, halfD * 2));
@@ -662,6 +661,27 @@ export function buildArena(opts) {
 
   // Stage coordinates: lateral offset and depth away from the fixed camera.
   // Keep tall silhouettes at the back and flanks, outside the gesture lane.
+  function at(side, depth, radius, draw) {
+    let x = (side - depth) * Math.SQRT1_2, z = (-side - depth) * Math.SQRT1_2;
+    /* v0.64 여백·구도 정리: 중앙 전투 원(r < 14.0m)은 넉넉히 비우고 외곽 링에만 균형 배치 */
+    const dist0 = Math.hypot(x, z);
+    if (dist0 > 0.01 && dist0 < 14.0) {
+      const push = 14.0 / dist0;
+      x *= push; z *= push;
+    }
+    for (let i = 0; i < props.length; i++) {
+      const p = props[i];
+      const minSep = Math.max(5.0, (radius + p.r) * 1.08);
+      if (Math.hypot(x - p.x, z - p.z) < minSep) return;
+    }
+    B.beginStructure((draw.name || 'landmark') + '-' + spots.length,x,z);
+    draw(x, z, Math.PI / 4);
+    B.endStructure();
+    /* cr: 실제 캐릭터/몬스터 충돌 반경 (시각 밑면과 밀착, 투명 벽 방지) */
+    const cr = Math.min(2.15, Math.max(0.75, radius * 0.56));
+    const spot = { x, z, r: radius, cr };
+    props.push(spot); spots.push(spot);
+  }
   const tree = (x,z) => pine(B,x,z,rnd,c,1.2);
   const grove = (x,z) => bambooGrove(B,x,z,rnd,c,9);
   const rubble = (x,z) => rock(B,x,z,rnd,c,1.4);
@@ -731,7 +751,6 @@ export function buildArena(opts) {
     for(let j=0;j<5;j++) {
       const bone = new THREE.TorusGeometry(1.45-j*.1,.11,5,12,Math.PI*1.35);
       B.add(bone,0xcdbb98,ZONE.STONE,{x:x+j*.55,z,y:.23,ry:Math.PI/2,rz:-.4});
-      bone.dispose();
     }
   }
   /* v0.63 Kasumidera eaves.jpg: 사당/소전각 (석재 기단·계단·주홍 기둥 4·역광 한지 창살문·이중 기와 처마·치미) */
@@ -784,62 +803,47 @@ export function buildArena(opts) {
     B.add(gTop, col, ZONE.STONE, { x: x + tilt * 0.85, z: z - tilt * 0.55, y: h * 0.80, sx: 0.62, sy: h * 0.28, sz: 0.56, ry: yaw + 2.3, rz: tilt * 1.3 });
     gBase.dispose(); gMid.dispose(); gTop.dispose();
   }
-  const plan = STAGE_SCENERY[stageId] || STAGE_SCENERY[1];
-  // The signature stones use existing primitives and the same slot bone as the other proxies.
-  function altarStone(x,z,yaw) {
-    B.add(G.cyl6, c.stone, ZONE.STONE, { x, z, y:0.25, sx:3.5, sy:0.5, sz:3.2, ry:yaw });
-    B.add(G.cyl6, c.tile, ZONE.TILE, { x, z, y:0.58, sx:2.8, sy:0.22, sz:2.6, ry:yaw });
-    spire(x,z);
-  }
-  function sealStone(x,z,yaw) {
-    B.add(G.box, c.stone, ZONE.STONE, { x, z, y:0.32, sx:3.1, sy:0.64, sz:1.7, ry:yaw });
-    B.add(G.box, c.tile, ZONE.STONE, { x, z, y:2.35, sx:1.9, sy:3.8, sz:0.65, ry:yaw, rz:0.06 });
-    const front = 0.38;
-    B.lit(G.box, c.glow, { x:x+Math.sin(yaw)*front, z:z+Math.cos(yaw)*front, y:2.65,
-      sx:0.09, sy:1.8, sz:0.08, ry:yaw, rz:0.06 });
-  }
-  const builders = { altarStone, sealStone, market, roof, door, wall, court, grove, tree, deadTree, shrine,
-    rubble, lamp, pagoda, ribs, spire, bridge: (x,z,yaw) => bridge(B,x,z,yaw,5,c) };
-  const radii = { altarStone: 1.75, sealStone: 1.55, market: 1.7, roof: 2.1, door: 1.8, wall: 1.8, court: 2,
-    grove: 1.5, tree: 1.2, deadTree: 1.1, shrine: 1.5, rubble: 1,
-    lamp: 0.6, pagoda: 1.9, ribs: 1.4, spire: 1.45, bridge: 1.65 };
-  const slots = plan.slots.map(([key,side,depth]) => {
-    const spec = LANDMARKS[key];
-    const proxy = spec?.proxy || key;
-    const { x,z } = groundPoint(side,depth);
-    const yaw = Math.PI / 4;
-    const bone = B.beginStructure(key + '-' + spots.length,x,z);
-    builders[proxy](x,z,yaw);
-    B.endStructure();
-    const cr = radii[proxy];
-    const spot = { key,x,z,r: cr * 1.7,cr };
-    props.push(spot); spots.push(spot);
-    return { key, spec, bone, x,z,yaw };
-  });
-
-  // Low foreground clusters frame the portrait camera without adding blockers.
-  // They join the existing body draw, independent of the five replaceable slots.
-  const naturalBank = plan.ground === 'trail' || plan.ground === 'river';
-  for (const [side, depth] of [[-4.8,-8.8], [5.8,-6.2], [-7.5,3.9], [8.2,2.7]]) {
-    const center = groundPoint(side + rnd() * 0.7, depth + rnd());
-    for (let i = 0; i < 5; i++) {
-      const x = center.x + (rnd() - 0.5) * 2.4;
-      const z = center.z + (rnd() - 0.5) * 1.3;
-      const yaw = (rnd() - 0.5) * 0.95 + Math.PI / 4;
-      if (naturalBank) {
-        B.add(G.sphereLo, stageId === 6 ? c.tile : c.stone, ZONE.STONE,
-          { x, z, y:0.05, sx:0.42+rnd()*0.55, sy:0.22, sz:0.52, ry:yaw });
-        for (let blade = -1; blade <= 1; blade++) {
-          B.add(G.cone4, c.bamboo, ZONE.LEAF, { x:x+0.13*blade, z, y:0.19,
-            sx:0.09, sy:0.44+rnd()*0.22, sz:0.13, ry:yaw, rz:blade*0.35 });
+  /* v0.65: 외곽 절벽 링(cliffRing)과 아레나 경계(ARENA.R)를 담당해 전투 구역 충돌을 차단.
+     v0.97: 외곽 경계선(ARENA.R + 2.2m~4.8m)에 막(Act 1~4)별 3D 실루엣 프롭을 단일 SkinnedMesh에 합쳐 드로우콜 0 증가로 전장 개성 강화. */
+  const useGlbProps = glbPropsEnabled();
+  if (!useGlbProps) cliffRing(B,rnd,c);
+  const actNoProps = actFromStageId(stageId);
+  if (!useGlbProps) (function addActPerimeterProps() {
+    const count = 12;
+    for (let i = 0; i < count; i++) {
+      const ang = (i / count) * Math.PI * 2 + (rnd() - 0.5) * 0.22;
+      const rr = ARENA.R + 2.4 + rnd() * 2.2;
+      const px = Math.cos(ang) * rr, pz = Math.sin(ang) * rr;
+      if (actNoProps === 1) {
+        /* 1막: 대나무 군락 다발(3줄기 + 잎관) */
+        for (let k = 0; k < 3; k++) {
+          const ox = (rnd() - 0.5) * 0.75, oz = (rnd() - 0.5) * 0.75;
+          const bh = 5.4 + rnd() * 2.6;
+          const lean = (rnd() - 0.5) * 0.14;
+          B.add(G.cyl, 0x385842, ZONE.WOOD, { x: px + ox, y: bh * 0.5, z: pz + oz, sx: 0.14, sy: bh, sz: 0.14, rx: lean, rz: -lean * 0.8 });
+          B.add(G.cone4, 0x2f4d3a, ZONE.LEAF, { x: px + ox + lean * 2.2, y: bh + 0.35, z: pz + oz, sx: 0.95, sy: 1.25, sz: 0.95, ry: rnd() * 6.28 });
         }
+      } else if (actNoProps === 2) {
+        /* 2막: 설산 빙석 암봉 + 푸른 서리 발광 틈 */
+        const sh = 2.8 + rnd() * 2.2;
+        B.add(G.cone4, 0x7b8ea4, ZONE.STONE, { x: px, y: sh * 0.5, z: pz, sx: 1.35, sy: sh, sz: 1.25, ry: rnd() * 6.28 });
+        B.add(G.cone4, 0xdce8f8, ZONE.STONE, { x: px, y: sh * 0.82, z: pz, sx: 0.72, sy: sh * 0.36, sz: 0.72, ry: rnd() * 6.28 });
+        if (i % 2 === 0) B.lit(G.box, 0x9ce8ff, { x: px, y: sh * 0.45, z: pz, sx: 0.18, sy: sh * 0.42, sz: 0.18, ry: ang });
+      } else if (actNoProps === 3) {
+        /* 3막: 홍련 석등 & 주홍 기둥 화로 */
+        const ph = 3.0 + rnd() * 1.1;
+        B.add(G.box, 0x3a2526, ZONE.STONE, { x: px, y: 0.35, z: pz, sx: 0.95, sy: 0.70, sz: 0.95, ry: ang });
+        B.add(G.cyl, 0x862c28, ZONE.WOOD, { x: px, y: 0.7 + ph * 0.5, z: pz, sx: 0.24, sy: ph, sz: 0.24 });
+        B.lit(G.box, 0xff6e42, { x: px, y: 0.7 + ph + 0.28, z: pz, sx: 0.42, sy: 0.44, sz: 0.42, ry: ang });
+        B.add(G.cone4, 0x2a1d1f, ZONE.TILE, { x: px, y: 0.7 + ph + 0.72, z: pz, sx: 0.88, sy: 0.48, sz: 0.88, ry: ang });
       } else {
-        const timber = plan.ground === 'street';
-        B.add(timber ? G.box : G.cyl6, timber ? c.wood : c.stone, timber ? ZONE.WOOD : ZONE.STONE,
-          { x, z, y:0.06, sx:0.7+rnd()*0.75, sy:0.14, sz:timber ? 0.18 : 0.6, ry:yaw, rz:0.04 });
+        /* v1.38 4막: 튀는 띠 장식 제거 -> 차분한 어두운 청묵 현무암 석주 실루엣 */
+        const oh = 3.2 + rnd() * 1.4;
+        B.add(G.box, 0x162228, ZONE.STONE, { x: px, y: oh * 0.5, z: pz, sx: 0.64, sy: oh, sz: 0.64, ry: ang });
+        B.add(G.cone4, 0x1a282e, ZONE.STONE, { x: px, y: oh + 0.35, z: pz, sx: 0.60, sy: 0.70, sz: 0.60, ry: ang });
       }
     }
-  }
+  })();
 
   const bodyGeo = B.body.length ? merge(B.body) : null;
   const bodyMat = bodyGeo ? propMat() : null;
@@ -901,7 +905,12 @@ export function buildArena(opts) {
     glowMesh.material.color.copy(lanternBaseCol).multiplyScalar(flicker);
   }
   applyActTheme(actFromStageId(stageId));
-  const glbProps = attachSlotModels(group, slots);
+  const glbProps = attachGlbArenaProps(group, {
+    stageId: stageId,
+    actNo: actFromStageId(stageId),
+    arenaRadius: ARENA.R,
+    seed: opts.seed || ARENA.SEED
+  });
 
   return {
     group: group, body: body, hull: hullMesh, glow: glowMesh,
