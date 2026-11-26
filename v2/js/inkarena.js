@@ -1,7 +1,7 @@
 /* v2/js/inkarena.js — v1.56 고정 아레나 무대: 경계(ARENA.R) + GLB 지형지물(glbprops.js) 조립.
    구형 절차적 건물·절벽 링(?props=0 폴백)은 v1.56에서 정리됨. */
 import * as THREE from 'three';
-import { attachGlbArenaProps, preloadArenaProps } from './glbprops.js?v=v158';
+import { attachGlbArenaProps, preloadArenaProps } from './glbprops.js?v=v159';
 import { actFromStageId, getActTheme3D } from './modules/actTheme3d.js';
 
 preloadArenaProps();

@@ -465,10 +465,7 @@ function createArenaWorld(opts) {
   return world;
 }
 
-/** v0.48 무대 팩토리 — 기본은 고정 아레나, `?arena=0` 이면 옛 무한 청크(비교용). */
+/** v1.55 무대 팩토리 — 고정 아레나 생성. */
 export function createChunkWorld(opts) {
-  return createArenaWorld(opts);
-} catch (e) {}
-  if (legacy) return createChunkWindow(opts);
   return createArenaWorld(opts);
 }

@@ -72,20 +72,10 @@ def main():
     print("[bump_version] Runtime CJK check: 0 violations")
 
     if not args.skip_tests:
-        check_files = [
-            "v2/js/game.js",
-            "v2/js/inkarena.js",
-            "v2/js/inkchunks.js",
-            "v2/js/glbprops.js",
-            "v2/js/glbboss.js",
-            "v2/js/glbhero.js",
-            "v2/js/modules/combatEngine.js",
-            "v2/js/modules/levelUpUi.js",
-            "v2/js/modules/uiMotion.js",
-        ]
-        existing = [f for f in check_files if (ROOT / f).is_file()]
-        subprocess.run(["node", "--check"] + existing, cwd=ROOT, check=True)
-        print(f"[bump_version] node --check PASSED ({len(existing)} files)")
+        js_files = sorted((V2 / "js").rglob("*.js"))
+        for f in js_files:
+            subprocess.run(["node", "--check", str(f)], cwd=ROOT, check=True)
+        print(f"[bump_version] node --check PASSED ({len(js_files)} files)")
         res = subprocess.run(["node", "tests/unit/modules.test.mjs"], cwd=ROOT, check=True, text=True, capture_output=True)
         for line in res.stdout.strip().splitlines()[-5:]:
             print(" ", line)
