@@ -10,26 +10,14 @@
 import * as THREE from 'three';
 import { WF, paint as paintCard } from '../cardstock.js';
 import {
-  getClothWeaveNormal,
   buildArchedBridge3D,
-  buildTalismanGateLine3D,
-  buildGnarledDeadTree3D,
   buildCarvedLantern3D,
-  buildKasumideraTorii3D,
   buildFracturedBasaltRocks3D,
-  buildFracturedCragMonolith3D,
-  buildKasumideraGatehouse3D,
-  buildKasumideraPagoda3D,
-  buildKasumideraPavilion3D,
-  buildDrapedClothStall3D,
-  buildStoneFortressWall3D,
   buildKasumideraMoonStele3D,
-  buildRuinedMasonry3D,
   buildBronzeCenser3D,
   buildMossyStoneSteps3D,
   buildForestFloorFerns3D,
-  createFallingLeaves3D,
-  createSkyRays3D
+  createFallingLeaves3D
 } from './skillAssets3d.js';
 
 const MIST_VERT = /* glsl */`
@@ -1069,13 +1057,6 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     /* 5) v0.65 전 스테이지 100% 스킬 기반 PBR 3D 지형지물 전수 교체 & 여백 구도 컴포지터
        - 카메라 기준 좌표(side: 좌-/우+, depth: 북+/남-)로 모바일 세로 화면 구도를 정밀 배치
        - 모든 고체 기물은 colliders[]에 정확한 충돌 반경 등록 (홍살문·금줄문은 기둥만, 아치 목교는 통행 가능) */
-    const talismanGlow = [0x5be8c4, 0x5be8c4, 0x7ef0d6, 0xff7052, 0x5be8c4][actIdx] || 0x5be8c4;
-    const toriiWood = [0x263238, 0x263238, 0x223436, 0x342426, 0x202b30][actIdx] || 0x263238;
-    const rockHex = actIdx === 4 ? 0x1d292f : actIdx === 3 ? 0x26282c : 0x243036;
-    const lacquerHex = [0x263036, 0x263036, 0x223234, 0x322224, 0x1e282e][actIdx] || 0x263036;
-    const bannerHex = [0x2e4a4e, 0x2e4a4e, 0x284e48, 0x5c2424, 0x26444a][actIdx] || 0x2e4a4e;
-
-    const toStageXZ = (side, depth) => [(side - depth) * Math.SQRT1_2, (-side - depth) * Math.SQRT1_2];
     const registerLandmark = (node, x, z, rotY = Math.PI / 4, shadowR = 1.6, colR = 0, minSep = 3.8, force = false) => {
       if (!force) {
         for (let i = 0; i < placedPts.length; i++) {
@@ -1102,42 +1083,6 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       if (colR > 0) addCollider(x, z, colR);
       placedPts.push({ x, z, r: minSep });
     };
-    const putStage = (node, side, depth, rotOffset = 0, shadowR = 2.0, colR = 1.4, minSep = 4.2) => {
-      const [wx, wz] = toStageXZ(side, depth);
-      registerLandmark(node, wx, wz, Math.PI / 4 + rotOffset, shadowR, colR, minSep);
-    };
-    const putTorii = (side, depth, rotOffset = 0) => {
-      const [wx, wz] = toStageXZ(side, depth);
-      const span = 4.5, rotY = Math.PI / 4 + rotOffset;
-      registerLandmark(buildKasumideraTorii3D({ span, height: 4.0, woodHex: toriiWood }), wx, wz, rotY, 2.6, 0, 4.6);
-      for (const s of [-1, 1]) {
-        addCollider(wx + Math.cos(rotY) * s * (span * 0.44), wz - Math.sin(rotY) * s * (span * 0.44), 0.52);
-      }
-    };
-    const putTalismanGate = (side, depth, rotOffset = 0) => {
-      const [wx, wz] = toStageXZ(side, depth);
-      const span = 3.8, rotY = Math.PI / 4 + rotOffset;
-      registerLandmark(buildTalismanGateLine3D({ span, height: 2.9, glowHex: talismanGlow }), wx, wz, rotY, 2.0, 0, 4.2);
-      for (const s of [-1, 1]) {
-        addCollider(wx + Math.cos(rotY) * s * (span * 0.5), wz - Math.sin(rotY) * s * (span * 0.5), 0.45);
-      }
-    };
-    const putLantern = (side, depth, sc = 0.96) => {
-      const [wx, wz] = toStageXZ(side, depth);
-      registerLandmark(buildCarvedLantern3D({ glowHex: talismanGlow, scale: sc }), wx, wz, Math.PI / 4, 1.15, 0.72, 3.0);
-    };
-    const putRocks = (side, depth, sc = 1.0) => {
-      const [wx, wz] = toStageXZ(side, depth);
-      registerLandmark(buildFracturedBasaltRocks3D(rng, { rockHex, count: 3, scale: sc }), wx, wz, rng() * 6.28, 1.85, 1.35, 3.8);
-    };
-    const putCrag = (side, depth, h = 4.2) => {
-      const [wx, wz] = toStageXZ(side, depth);
-      registerLandmark(buildFracturedCragMonolith3D(rng, { rockHex, height: h }), wx, wz, 0, 1.9, 1.45, 4.2);
-    };
-    const putRuin = (side, depth) => {
-      const [wx, wz] = toStageXZ(side, depth);
-      registerLandmark(buildRuinedMasonry3D(rng, { stoneHex: rockHex }), wx, wz, rng() * 6.28, 1.75, 1.15, 3.4);
-    };
     const putBridgeRiver = () => {
       const rcfg = opts.riverCfg || {};
       const centerFn = rcfg.centerFn || ((u) => 5.5 * Math.sin(u * 0.085) + 2.0 * Math.sin(u * 0.021 + 1.3));
@@ -1162,153 +1107,8 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       placedPts.push({ x: bx - fx * (bLen * 0.45), z: bz - fz * (bLen * 0.45), r: 4.8 });
     };
 
-    /* v0.66: 모바일 세로(390×844) 실화면 시야(side ∈ [-7.4, +7.4], depth ∈ [-12, +15]) 안에
-       이전 기물과 동일한 역할의 고품질 3D 스킬 에셋을 풍성하고 균형감 있게 배치 (중앙 전투 원 r < 7.2m 보호) */
-    let _useGlbProps = true;
-    try {
-      const _q = new URLSearchParams(location.search);
-      if (_q.get('props') === '0' || _q.get('props') === 'proc') _useGlbProps = false;
-    } catch (_) {}
-    if (_useGlbProps) {
-      if (stageNo === 10 || stageNo === 14) putBridgeRiver();
-    } else switch (stageNo) {
-      case 1:
-        /* 1장 잿빛 장터: 북쪽 카스미데라 누각 + 화면 안 4방향 드리핑 직조 천막 좌판 + 한지 금줄문 + 조각 석등 2 */
-        putStage(buildKasumideraGatehouse3D({ fortress: false, lacquerHex, glowHex: talismanGlow }), 0, 14.8, 0, 3.2, 2.2);
-        putStage(buildDrapedClothStall3D({ clothHex: 0xb87644 }), -6.8, 8.6, 0.32, 1.8, 1.25);
-        putStage(buildDrapedClothStall3D({ clothHex: 0x52788c }), 6.8, 8.2, -0.32, 1.8, 1.25);
-        putStage(buildDrapedClothStall3D({ clothHex: 0xa8523e }), -6.4, -8.8, 2.75, 1.8, 1.25);
-        putStage(buildDrapedClothStall3D({ clothHex: 0x9e7844 }), 6.4, -9.0, -2.75, 1.8, 1.25);
-        putTalismanGate(-4.4, 12.0, 0.22);
-        putLantern(-7.2, 1.2); putLantern(7.2, -1.2);
-        break;
-      case 2:
-        /* 2장 무너진 성문: 성문 + 좌우 석재 성벽(군기 포함) + 금줄 홍살문 + 3D 파쇄 석재 잔해 4곳 + 석등 2 */
-        putStage(buildKasumideraGatehouse3D({ fortress: true, lacquerHex, glowHex: talismanGlow }), 0, 15.0, 0, 3.2, 2.2);
-        putStage(buildStoneFortressWall3D({ len: 5.0, bannerHex }), -6.6, 14.2, 0.16, 2.2, 1.9);
-        putStage(buildStoneFortressWall3D({ len: 5.0, bannerHex }), 6.6, 14.2, -0.16, 2.2, 1.9);
-        putTorii(5.6, 9.8, -0.32);
-        putRuin(-6.8, 4.6); putRuin(7.0, 2.4);
-        putRuin(-6.4, -8.4); putRuin(6.4, -8.6);
-        putLantern(-6.2, 9.6); putLantern(6.8, -3.4);
-        break;
-      case 3:
-        /* 3장 대나무 골: 청죽 군락 + 한지 금줄문 + 파쇄 바위 2 + 조각 석등 2 (정자 제거로 대숲 본연의 여백 유지) */
-        putTalismanGate(-5.4, 12.2, 0.25);
-        putRocks(-6.6, -4.8, 0.92); putRocks(6.6, 6.8, 0.90);
-        putLantern(-5.6, 7.6); putLantern(5.8, -5.2);
-        break;
-      case 4:
-        /* 4장 붉은 달: 카스미데라 정자 + 아치형 주홍 목교 + 한지 금줄문 + 월석 비석 3 + 조각 석등 2 */
-        putStage(buildKasumideraPavilion3D({ lacquerHex, glowHex: talismanGlow }), -5.8, 12.4, 0.30, 2.5, 1.8);
-        putStage(buildArchedBridge3D({ length: 6.8, width: 2.2, archH: 0.90, railHex: 0xb53226 }), 6.6, 2.4, -0.52, 3.2, 0);
-        {
-          const [b4x, b4z] = toStageXZ(6.6, 2.4);
-          addBridge(b4x, b4z, -0.52, 6.8, 2.2, 0.90);
-        }
-        putTalismanGate(-1.6, 13.0, 0.10);
-        putLantern(6.0, 10.2); putLantern(-6.8, 2.2);
-        break;
-      case 5:
-        /* 5장 안개 석탑: 중앙 4층 카스미데라 목탑 + 시야 안 좌우 목탑 2 + 비취 산문 + 금줄문 + 석등 3 */
-        putStage(buildKasumideraPagoda3D({ scale: 1.0, lacquerHex: 0x9c3228, glowHex: 0x88f2ca }), 0, 14.6, 0, 3.0, 2.1);
-        putStage(buildKasumideraPagoda3D({ scale: 0.72, lacquerHex: 0x8a2c24, glowHex: 0x88f2ca }), -7.4, 5.2, 0.35, 2.4, 1.7);
-        putStage(buildKasumideraPagoda3D({ scale: 0.72, lacquerHex: 0x8a2c24, glowHex: 0x88f2ca }), 7.4, 5.2, -0.35, 2.4, 1.7);
-        putTorii(5.4, 10.6, -0.32);
-        putTalismanGate(-5.4, 10.8, 0.28);
-        putLantern(-6.4, -7.2); putLantern(6.4, -7.2); putLantern(0, -11.4);
-        break;
-      case 6:
-        /* 6장 눈보라 안마당: 설원 누각 + 산문 + 파쇄 설암 2 + 조각 석등 2 */
-        putStage(buildKasumideraGatehouse3D({ fortress: false, lacquerHex: 0x7c3e36, tileHex: 0x627382, glowHex: 0xbce6ff }), 0, 14.8, 0, 3.2, 2.2);
-        putTorii(5.6, 10.6, -0.32);
-        putRocks(-6.6, -8.2, 0.95); putRocks(6.8, 3.4, 0.95);
-        putLantern(-6.0, 9.6); putLantern(6.0, -10.2);
-        break;
-      case 7:
-        /* 7장 고목 골: 모바일 시야 테두리를 감싸는 8그루 굽은 고목 + 한지 금줄문 + 파쇄 바위 2 + 석등 2 */
-        {
-          const deadCoords = [[-6.8, 10.4], [6.8, 10.0], [-7.4, 2.8], [7.4, 2.4], [-7.0, -5.6], [7.0, -5.8], [-3.8, -11.4], [4.0, -11.2]];
-          for (let di = 0; di < deadCoords.length; di++) {
-            const [wx, wz] = toStageXZ(deadCoords[di][0], deadCoords[di][1]);
-            registerLandmark(buildGnarledDeadTree3D(rng, 0.96 + rng() * 0.32, 0x5c4634), wx, wz, rng() * Math.PI * 2, 1.8, 0.82, 3.6);
-          }
-        }
-        putTalismanGate(-4.4, 12.2, 0.20);
-        putRocks(0, 14.2, 1.05);
-        putLantern(-6.2, 6.8); putLantern(6.2, -9.2);
-        break;
-      case 8:
-        /* 8장 무명 산문: 성소 대문 + 금줄 산문 + 석등 3 (+ 3D 범종각) */
-        putStage(buildKasumideraGatehouse3D({ fortress: true, lacquerHex, glowHex: 0xffd27a }), 0, 14.8, 0, 3.2, 2.2);
-        putTorii(5.6, 10.4, -0.30);
-        putLantern(-6.4, -8.0); putLantern(6.4, -8.0); putLantern(-5.6, 10.2);
-        break;
-      case 9:
-        /* 9장 혈석 제단: 중앙 제단 정자 1 + 붉은 금줄 홍살문 + 현무암 암봉 4 + 석등 2 */
-        putStage(buildKasumideraPavilion3D({ lacquerHex: 0xa82824, glowHex: 0xff5a42 }), 0, 14.8, 0, 2.6, 1.9);
-        putTorii(5.6, 10.2, -0.34);
-        putCrag(-6.6, 10.0, 4.2); putCrag(-6.8, -8.4, 3.9); putCrag(6.8, -8.4, 4.1); putCrag(0, -12.0, 3.8);
-        putLantern(-5.6, 7.6); putLantern(5.6, 7.6);
-        break;
-      case 10:
-        /* 10장 뼈의 강: 강 정중앙 수직 아치 목교 + 금줄문 + 파쇄 바위 3 + 석등 2 */
-        putBridgeRiver();
-        putTalismanGate(-3.8, 12.2, 0.14);
-        putRocks(6.8, 6.2, 1.02); putRocks(-6.8, -6.6, 1.0); putRocks(6.4, -9.2, 0.95);
-        putLantern(6.2, 10.2); putLantern(-6.2, -10.6);
-        break;
-      case 11:
-        /* 11장 혈월 성채: 성채 대문 + 좌우 성벽 2 + 주홍 홍살문 + 금줄문 + 조각 석등 2 (+ 화로 4) */
-        putStage(buildKasumideraGatehouse3D({ fortress: true, lacquerHex: 0xa82824, glowHex: 0xff7042 }), 0, 15.0, 0, 3.2, 2.2);
-        putStage(buildStoneFortressWall3D({ len: 5.0, bannerHex: 0xb52a26 }), -6.6, 14.2, 0.16, 2.2, 1.9);
-        putStage(buildStoneFortressWall3D({ len: 5.0, bannerHex: 0xb52a26 }), 6.6, 14.2, -0.16, 2.2, 1.9);
-        putTorii(5.6, 9.8, -0.32);
-        putTalismanGate(-5.6, 10.0, 0.28);
-        putRocks(-7.2, -2.0, 0.95); putRocks(7.2, -2.0, 0.95);
-        putLantern(-6.4, -9.2); putLantern(6.4, -9.2);
-        break;
-      case 12:
-        /* 12장 심연의 문: 북쪽 주홍 금줄 산문 + 시야 테두리 6기 16-평면 현무암 암봉 + 석등 2 */
-        putTorii(0, 14.0, 0);
-        putCrag(-6.8, 8.6, 4.4); putCrag(6.8, 8.6, 4.4);
-        putCrag(-7.4, -0.4, 4.0); putCrag(7.4, -0.4, 4.0);
-        putCrag(-6.4, -9.2, 4.2); putCrag(6.4, -9.2, 4.2);
-        putLantern(-5.8, 11.4); putLantern(5.8, 11.4);
-        break;
-      case 13:
-        /* 13장 무간의 회랑: 성소 대문 + 암봉 2 + 조각 석등 2 (+ 붉은 회랑 열주·향로) */
-        putStage(buildKasumideraGatehouse3D({ fortress: true, lacquerHex: 0x9c2024, glowHex: 0xff5442 }), 0, 15.0, 0, 3.2, 2.2);
-        putCrag(-6.8, -8.8, 4.4); putCrag(6.8, -8.8, 4.4);
-        putLantern(-6.0, 10.4); putLantern(6.0, 10.4);
-        break;
-      case 14:
-        /* 14장 망각의 나루: 자색 아치 목교(겹침 금지) + 반대편 원경 산문 + 파쇄 바위 2 + 조각 석등 2 */
-        putBridgeRiver();
-        putTorii(6.4, 11.4, -0.35);
-        putRocks(6.8, 5.8, 0.95); putRocks(-6.8, -9.2, 0.95);
-        putLantern(5.4, 13.0); putLantern(-5.6, -11.8);
-        break;
-      case 15:
-        /* v1.38 15장 검은 누각: 중앙 개방 + 외곽 청묵 성채 대문·석벽·현무암·조각 석등 */
-        putStage(buildKasumideraGatehouse3D({ fortress: true, lacquerHex: 0x1e282e, tileHex: 0x141d22, glowHex: 0x5be8c4 }), 0, 16.4, 0, 3.2, 2.2);
-        putStage(buildStoneFortressWall3D({ len: 5.0, stoneHex: 0x1d282e, bannerHex: 0x264248 }), -7.4, 15.4, 0.18, 2.2, 1.9);
-        putStage(buildStoneFortressWall3D({ len: 5.0, stoneHex: 0x1d282e, bannerHex: 0x264248 }), 7.4, 15.4, -0.18, 2.2, 1.9);
-        putRocks(-10.8, 3.5, 1.05); putRocks(10.8, 3.5, 1.05);
-        putLantern(-8.8, -10.2); putLantern(8.8, -10.2);
-        break;
-      case 16:
-      default:
-        /* v1.38 16장 심안의 끝: 중앙 분홍 수정/보라 도리이 전면 제거 -> 중앙 100% 개방 + 외곽 청묵 누각·현무암·고목·석등 */
-        putStage(buildKasumideraGatehouse3D({ fortress: true, lacquerHex: 0x1d272d, tileHex: 0x131c21, glowHex: 0x5be8c4 }), 0, 16.8, 0, 3.2, 2.2);
-        putRocks(-10.6, 9.2, 1.15); putRocks(10.6, 9.2, 1.15);
-        putRocks(-10.8, -9.8, 1.05); putRocks(10.8, -9.8, 1.05);
-        putLantern(-8.4, 11.2, 1.0); putLantern(8.4, 11.2, 1.0);
-        putLantern(-8.6, -11.0, 0.95); putLantern(8.6, -11.0, 0.95);
-        putStage(buildGnarledDeadTree3D(rng, 1.15, 0x1a2428), -11.4, -2.5, 0.4, 1.8, 1.0);
-        putStage(buildGnarledDeadTree3D(rng, 1.10, 0x1a2428), 11.4, -2.5, -0.4, 1.8, 1.0);
-        break;
-    }
+
+    if (stageNo === 10 || stageNo === 14) putBridgeRiver();
   }
 
   /* InstancedMesh 일괄 플러시 (단일 배칭으로 드로우콜 최소화) */
