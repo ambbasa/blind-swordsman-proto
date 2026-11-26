@@ -10,6 +10,8 @@ Three.js 기반 3D 관절 뼈대·수묵 툰 셰이더와 Web Audio API 주파�
 
 [16장 전투 화면과 플레이 검증](docs/qa/stage-scenery-playtest.md) · [장별 3D 지형지물 제작 목록 및 교체 방법](docs/stage-scenery-assets.md)
 
+[20종 지형 원화 및 GLB 생성 방법](design/scenery-concepts/README.md)
+
 ## 로컬 실행
 외부 빌드 도구 없이 순수 ES 모듈로 실행할 수 있습니다.
 
