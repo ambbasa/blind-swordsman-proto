@@ -1,3 +1,4 @@
+import { animateLevelCards, animateCardPick } from './uiMotion.js?v=v151';
 /* v2/js/modules/combatEngine.js — 심안: 묵검 v1.26 전투 코어(일섬·패링·피해·상태이상·강화적용) */
 
 export function createCombatEngine(rt) {
@@ -1325,6 +1326,7 @@ function collectItem(it, rec) {
   } else if (it.kind === 'charm') {
     /* 부적 상자(잭팟): 강화 3연속 — §5.2 부적 상자는 지금처럼 멈추는 창을 쓴다. */
     rt.S.forcePauseLv = true;
+    rt.S._charmLv = (rt.S._charmLv || 0) + 3;
     rt.S._pendingLv = (rt.S._pendingLv || 0) + 2;
     rt.S.slowT = Math.max(rt.S.slowT || 0, 0.35);
     if (rt.audio) {
@@ -1766,8 +1768,29 @@ function pickQuick(id, auto) {
   if (rt.S && rt.S._pendingLv > 0) { rt.S._pendingLv--; openLevelUp(); }
   return true;
 }
+const CARD_THEME = {
+  fire: { key: 'fire', tag: '화염' },
+  ice: { key: 'ice', tag: '빙결' },
+  poison: { key: 'poison', tag: '독무' },
+  dmg: { key: 'sword', tag: '검술' },
+  width: { key: 'sword', tag: '검술' },
+  dash: { key: 'sword', tag: '검술' },
+  echo: { key: 'sword', tag: '검술' },
+  counter: { key: 'sword', tag: '검술' }
+};
+function cardPipsHtml(u) {
+  const lv = upLv(u.id);
+  const maxP = Math.min(5, u.maxLv || 5);
+  const nextLv = Math.min(maxP, lv + 1);
+  let h = '<span class="up-pips" aria-hidden="true">';
+  for (let i = 1; i <= maxP; i++) {
+    const cls = i <= lv ? 'pip on' : (i === nextLv ? 'pip next' : 'pip');
+    h += '<i class="' + cls + '">◆</i>';
+  }
+  return h + '</span>';
+}
 function openLevelUp() {
-  /* 참(斬) 연출 중에는 카드를 잠시 미룬다 — 필살의 손맛을 가리지 않도록. */
+  /* 필살기 연출 중에는 카드를 잠시 미룬다. */
   if (rt.S && rt.S.cleaveFx > 0.05) { rt.S._cleaveLv = (rt.S._cleaveLv || 0) + 1; return; }
   if (!rt.S) return;
   rt.S.upLv = rt.S.upLv || {};
@@ -1775,24 +1798,53 @@ function openLevelUp() {
   if (rt.S.paused === 'levelup') { rt.S._pendingLv = (rt.S._pendingLv || 0) + 1; return; }
   rt.S.paused = 'levelup';
   rt.S.levelPicks = rollPicks(3);
+
+  const rem = (rt.S._pendingLv || 0) + 1;
+  const isCharm = (rt.S._charmLv || 0) > 0;
+  const kEl = $('levelKicker');
+  const tEl = $('levelTitle');
+  const sEl = $('levelSub');
+  if (kEl) {
+    if (isCharm) kEl.textContent = '부적 상자 보너스 · 남은 선택 ' + rem + '회';
+    else if (rem > 1) kEl.textContent = '심안 각성 · Lv ' + rt.S.level + ' · 남은 선택 ' + rem + '회';
+    else kEl.textContent = '심안 각성 · Lv ' + rt.S.level;
+  }
+  if (tEl) tEl.textContent = isCharm ? '부적 상자 각인' : '각인 선택';
+  if (sEl) sEl.textContent = isCharm ? '보너스 각인을 차례로 새기세요' : '검에 새길 기운 하나를 고르세요';
+
   const boxEl = $('levelChoices'); boxEl.innerHTML = '';
+  const cardBtns = [];
+  let pickedLock = false;
   rt.S.levelPicks.forEach(function (u) {
+    const mat = evoMatInfo(u.id);
+    const theme = mat.length ? { key: 'evo', tag: '진화 재료' } : (CARD_THEME[u.id] || { key: 'spirit', tag: '심안' });
     const b = document.createElement('button');
     b.type = 'button';
-    b.className = 'btn up-card' + (evoMatInfo(u.id).length ? ' evo-mat' : '');
+    b.className = 'btn up-card theme-' + theme.key + (mat.length ? ' evo-mat' : '');
     b.dataset.up = u.id;
     const icon = (rt.art && rt.art.upIconUrl) ? rt.art.upIconUrl(u.id) : '';
-    const mat = evoMatInfo(u.id);
-    b.innerHTML = '<img class="up-icon" src="' + icon + '" alt="" width="34" height="34">'
-      + '<span class="up-text"><strong>' + u.name + '</strong>'
-      + '<span class="up-lv' + (upLv(u.id) ? '' : ' new') + '">' + upCardLevelText(u) + '</span>'
+    b.innerHTML = '<span class="up-socket"><img class="up-icon" src="' + icon + '" alt="" width="38" height="38"></span>'
+      + '<span class="up-text">'
+      + '<span class="up-head"><strong>' + u.name + '</strong>'
+      + '<span class="up-tag">' + theme.tag + '</span>'
+      + '<span class="up-lv' + (upLv(u.id) ? '' : ' new') + '">' + upCardLevelText(u) + '</span></span>'
+      + cardPipsHtml(u)
       + '<span class="up-desc">' + upDesc(u) + '</span>'
-      + (mat.length ? '<span class="up-evo">진화 재료 — ' + mat.join(' · ') + '</span>' : '') + '</span>';
-    b.addEventListener('click', function () { pickUpgrade(u.id); });
+      + (mat.length ? '<span class="up-evo">진화 조합 — ' + mat.join(' · ') + '</span>' : '')
+      + '</span>'
+      + '<span class="up-seal" hidden>각인</span>';
+    b.addEventListener('click', function () {
+      if (pickedLock) return;
+      pickedLock = true;
+      const skip = !!(rt.qa && (rt.qa.noDelay || rt.qa.autoStroke));
+      animateCardPick(b, cardBtns, function () { pickUpgrade(u.id); }, skip);
+    });
     boxEl.appendChild(b);
+    cardBtns.push(b);
   });
   renderEvoHint();
   rt.showOv('ov-level');
+  if (!(rt.qa && rt.qa.noDelay)) animateLevelCards($('ov-level'), cardBtns);
   rt.telemetry.event('levelup_pause', { level: rt.S.level, picks: rt.S.levelPicks.map(function (u) { return u.id; }) });
 }
 const UPGRADE_FX = { dmg: 'vermilion', width: 'jade', dash: 'jade', ring: 'paper', charge: 'gold', heal: 'vermilion', perfect: 'gold', parry: 'paper', ice: 'ice', fire: 'fire', poison: 'poison', bell: 'gold', ward: 'gold', bolt: 'gold', echo: 'jade', reson: 'paper', counter: 'gold', inkstep: 'paper' };
@@ -1813,9 +1865,10 @@ function upgradeFx(id) {
 function pickUpgrade(id) {
   if (!rt.S || rt.S.paused !== 'levelup') return false;
   rt.hideOvs(); rt.S.paused = null;
+  if (rt.S._charmLv > 0) rt.S._charmLv--;
   applyUpgrade(id, false);
   if (rt.S._pendingLv) { rt.S._pendingLv--; openLevelUp(); }
-  else rt.S.forcePauseLv = false;
+  else { rt.S.forcePauseLv = false; rt.S._charmLv = 0; }
   return true;
 }
 /* 카드 하나를 실제로 적용한다 — 멈추는 창과 멈추지 않는 선택이 같은 길을 쓴다. */

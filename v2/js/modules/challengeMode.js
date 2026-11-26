@@ -112,7 +112,6 @@ export function createChallengeController(deps) {
         S.boss = null; S.bossSpawned = false;
         S.rushNext = 1.2;
         gainXp(xpNeed(S.level) - (S.xp || 0));
-        openLevelUp();
         return;
       }
       return;

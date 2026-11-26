@@ -1,3 +1,4 @@
+import { animateResultOverlay } from './uiMotion.js?v=v151';
 /* v2/js/modules/runLoop.js — 심안: 묵검 v1.26 전투 스텝·군중 분리·카메라·런 종료 엔진 */
 
 export function createRunLoop(rt) {
@@ -183,6 +184,7 @@ function endRun(win, msg) {
   }
   $('btnResultGo').classList.toggle('long', $('btnResultGo').textContent.length > 8);
   rt.showOv('ov-result');
+  if (!(rt.qa && rt.qa.noDelay)) animateResultOverlay($('ov-result'), $('resultStars'), $('resultStats'));
   rt.renderHud();
 }
 
