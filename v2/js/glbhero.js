@@ -1,18 +1,20 @@
 /* v2/js/glbhero.js — v0.83 시안 B(하데스풍 주홍 먹선 검객) 3D GLB 로더·3연타 검술 콤보·회피·피격 상태 머신 */
 import * as THREE from 'three';
 import { applyForgedMetal } from './modules/metalStudioEnv.js';
-import { makeRig, tickPose } from './glbpose.js?v=v163';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v163';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v163';
+import { makeRig, tickPose } from './glbpose.js?v=v164';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v164';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v164';
 
-const URL_GLB = new URL('../assets/models/hero.glb?v=v163', import.meta.url).href;
+const URL_GLB = new URL('../assets/models/hero.glb?v=v164', import.meta.url).href;
 let pending = null;
 let source = null;
 let cloneSkinned = null;
 let enabled = true;
+let showOutline = false;
 try {
   const q = new URLSearchParams(location.search);
   if (q.get('hero') === 'proc' || q.get('hero') === '0') enabled = false;
+  if (q.get('outline') === '1') showOutline = true;
 } catch (e) {}
 
 export function heroGlbEnabled() { return enabled; }
@@ -33,7 +35,7 @@ export function preloadHeroGlb() {
       return gltf;
     });
   }).catch(function (e) {
-    console.warn('[심안] hero.glb?v=v163', e);
+    console.warn('[심안] hero.glb?v=v164', e);
     pending = null;
     return null;
   });
@@ -63,20 +65,34 @@ export function makeHeroGlb(height) {
         side: THREE.FrontSide,
         depthWrite: true
       });
+      o.visible = showOutline;
       outlineMeshes.push(o);
     } else {
       const srcMat = Array.isArray(o.material) ? o.material[0] : o.material;
       let mat = srcMat ? srcMat.clone() : new THREE.MeshStandardMaterial({ color: 0xffffff });
       if (isSword) {
-        /* v1.00 3d-metal-material: 진성 도체 강철 F0 + PMREM HDR 반사 자동 바인딩 */
-        mat.metalness = 1.0;
-        mat.roughness = 0.22;
-        mat.color.setRGB(0.56, 0.57, 0.58, THREE.LinearSRGBColorSpace);
-        mat.emissive = new THREE.Color(0x1e2028);
-        mat.emissiveIntensity = 0.35;
-        o.onBeforeRender = function (r) {
-          if (!mat.envMap && r) applyForgedMetal(mat, r, { roughness: 0.22, envMapIntensity: 0.96 });
-        };
+        const isEmberCore = /ember|core/i.test(o.name) || (srcMat && /(ember|jade)core/i.test(srcMat.name || ''));
+        if (isEmberCore) {
+          const isJadeCore = srcMat && /jade/i.test(srcMat.name || '');
+          /* 장도 중앙 발광 균열 코어 (비취 백옥 / 홍련 백홍) */
+          mat.metalness = 0.0;
+          mat.roughness = 0.14;
+          mat.color.setHex(isJadeCore ? 0xeafff8 : 0xfff0f4);
+          mat.emissive = new THREE.Color(isJadeCore ? 0x4ef5c8 : 0xff4264);
+          mat.emissiveIntensity = 1.40;
+        } else {
+          /* v1.00 3d-metal-material: 진성 도체 강철 F0 + PMREM HDR 반사 자동 바인딩 */
+          const isJadeBlade = srcMat && /jade/i.test(srcMat.name || '');
+          const isCrimsonBlade = srcMat && /crimson/i.test(srcMat.name || '');
+          mat.metalness = (isJadeBlade || isCrimsonBlade) ? 0.78 : 1.0;
+          mat.roughness = 0.24;
+          if (!isJadeBlade && !isCrimsonBlade) mat.color.setRGB(0.56, 0.57, 0.58, THREE.LinearSRGBColorSpace);
+          mat.emissive = new THREE.Color(isJadeBlade ? 0x0f5446 : (isCrimsonBlade ? 0x5c0c1c : 0x1e2028));
+          mat.emissiveIntensity = (isJadeBlade || isCrimsonBlade) ? 0.44 : 0.35;
+          o.onBeforeRender = function (r) {
+            if (!mat.envMap && r) applyForgedMetal(mat, r, { roughness: 0.24, envMapIntensity: 0.92 });
+          };
+        }
         o.castShadow = true;
         swordMeshes.push(o);
       } else {
@@ -88,23 +104,23 @@ export function makeHeroGlb(height) {
             map: mat.map || null,
             normalMap: mat.normalMap || null,
             roughnessMap: mat.roughnessMap || null,
-            roughness: 0.96,
+            roughness: 0.94,
             metalness: 0.0,
-            sheen: 0.02,
-            sheenRoughness: 0.95,
-            sheenColor: new THREE.Color(0x827d72)
+            sheen: 0.04,
+            sheenRoughness: 0.92,
+            sheenColor: new THREE.Color(0x88847c)
           });
           if (mat.normalScale && phys.normalScale) phys.normalScale.copy(mat.normalScale);
           if (phys.map) {
             phys.emissiveMap = phys.map;
             phys.emissive = new THREE.Color(0xffffff);
-            phys.emissiveIntensity = 0.12;
+            phys.emissiveIntensity = 0.14;
           }
-          phys.customProgramCacheKey = function () { return 'hero-matte-toon-v153'; };
+          phys.customProgramCacheKey = function () { return 'hero-ember-hardrim-v163'; };
           mat.dispose();
           targetMat = phys;
         } else {
-          targetMat.roughness = 0.96;
+          targetMat.roughness = 0.94;
           targetMat.metalness = 0.0;
           targetMat.roughnessMap = null;
           targetMat.metalnessMap = null;
@@ -112,16 +128,16 @@ export function makeHeroGlb(height) {
           if (targetMat.map) {
             targetMat.emissiveMap = targetMat.map;
             targetMat.emissive = new THREE.Color(0xfff6ea);
-            targetMat.emissiveIntensity = 0.12;
+            targetMat.emissiveIntensity = 0.14;
           }
-          targetMat.customProgramCacheKey = function () { return 'hero-head-matte-toon-v153'; };
+          targetMat.customProgramCacheKey = function () { return 'hero-head-ember-hardrim-v163'; };
         }
         mat = targetMat;
-        /* v1.38 엠버 앤 블레이드식 2.5D 툰 스텝 셰이딩 + 선명한 청백 림 라이트 (의복 치장 틴트 유지) */
+        /* v1.63 엠버 앤 블레이드식 무선 + 2단 하드 툰 색면 + 순백 그래픽 하드 림라이트 */
         mat.userData.uCloakTint = { value: new THREE.Color(0xffffff) };
         mat.userData.uCloakMix = { value: 0.0 };
-        mat.userData.uToonRimCol = { value: new THREE.Color(isHead ? 0xe8f6ff : 0x7ec8e8) };
-        mat.userData.uToonRimPow = { value: 0.0 };
+        mat.userData.uToonRimCol = { value: new THREE.Color(isHead ? 0xffffff : 0xf2f8ff) };
+        mat.userData.uToonRimPow = { value: isHead ? 0.62 : 0.72 };
         mat.onBeforeCompile = function (shader) {
           shader.uniforms.uCloakTint = mat.userData.uCloakTint;
           shader.uniforms.uCloakMix = mat.userData.uCloakMix;
@@ -143,11 +159,18 @@ export function makeHeroGlb(height) {
           }
           shader.fragmentShader = shader.fragmentShader.replace(
             "#include <dithering_fragment>",
-            "float tLum = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));\n" +
-            "float tStep = (floor(tLum * 3.0) + smoothstep(0.40, 0.56, fract(tLum * 3.0))) / 3.0;\n" +
-            "gl_FragColor.rgb *= mix(1.0, (tStep + 0.04) / max(tLum + 0.04, 0.05), 0.48);\n" +
-            "float fRim = pow(1.0 - clamp(abs(dot(normalize(vNormal), normalize(vViewPosition))), 0.0, 1.0), 2.4);\n" +
-            "gl_FragColor.rgb += uToonRimCol * fRim * uToonRimPow;\n" +
+            "vec3 vn = normalize(vNormal);\n" +
+            "vec3 vv = normalize(vViewPosition);\n" +
+            "vec3 keyDir = normalize(vec3(-0.55, 0.65, 0.52));\n" +
+            "float ndl = dot(vn, keyDir);\n" +
+            "float toonBand = smoothstep(-0.08, 0.08, ndl);\n" +
+            "vec3 coolShadow = vec3(0.76, 0.80, 0.90);\n" +
+            "vec3 litTint = vec3(1.04, 1.02, 0.99);\n" +
+            "gl_FragColor.rgb *= mix(coolShadow, litTint, toonBand);\n" +
+            "float fres = 1.0 - clamp(abs(dot(vn, vv)), 0.0, 1.0);\n" +
+            "float rimSide = smoothstep(-0.10, 0.35, dot(vn, normalize(vec3(-0.82, 0.45, 0.25))));\n" +
+            "float hardRim = smoothstep(0.56, 0.65, fres) * rimSide;\n" +
+            "gl_FragColor.rgb = mix(gl_FragColor.rgb, uToonRimCol, hardRim * uToonRimPow);\n" +
             "gl_FragColor.rgb = min(gl_FragColor.rgb, vec3(0.96));\n" +
             "#include <dithering_fragment>"
           );

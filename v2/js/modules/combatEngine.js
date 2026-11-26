@@ -1,5 +1,5 @@
 import { RUN_UPGRADES } from './upgrades.js';
-import { createLevelUpUi } from './levelUpUi.js?v=v163';
+import { createLevelUpUi } from './levelUpUi.js?v=v164';
 /* v2/js/modules/combatEngine.js — 심안: 묵검 v1.26 전투 코어(일섬·패링·피해·상태이상·강화적용) */
 
 export function createCombatEngine(rt) {

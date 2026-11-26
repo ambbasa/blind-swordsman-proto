@@ -1,17 +1,17 @@
 import * as THREE from 'three';
 import { applyForgedMetal, getMetalStudioEnv } from './modules/metalStudioEnv.js';
-import { makeRig, tickPose } from './glbpose.js?v=v163';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v163';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v163';
+import { makeRig, tickPose } from './glbpose.js?v=v164';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v164';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v164';
 
 const MODEL_URLS = {
-  boss:      new URL('../assets/models/boss.glb?v=v163', import.meta.url).href,
-  boss_act2: new URL('../assets/models/boss_act2.glb?v=v163', import.meta.url).href,
-  boss_act3: new URL('../assets/models/boss_act3.glb?v=v163', import.meta.url).href,
-  boss_act4: new URL('../assets/models/boss_act4.glb?v=v163', import.meta.url).href,
-  minion:    new URL('../assets/models/minion.glb?v=v163', import.meta.url).href,
-  heavy:     new URL('../assets/models/heavy.glb?v=v163', import.meta.url).href,
-  stone:     new URL('../assets/models/stone.glb?v=v163', import.meta.url).href
+  boss:      new URL('../assets/models/boss.glb?v=v164', import.meta.url).href,
+  boss_act2: new URL('../assets/models/boss_act2.glb?v=v164', import.meta.url).href,
+  boss_act3: new URL('../assets/models/boss_act3.glb?v=v164', import.meta.url).href,
+  boss_act4: new URL('../assets/models/boss_act4.glb?v=v164', import.meta.url).href,
+  minion:    new URL('../assets/models/minion.glb?v=v164', import.meta.url).href,
+  heavy:     new URL('../assets/models/heavy.glb?v=v164', import.meta.url).href,
+  stone:     new URL('../assets/models/stone.glb?v=v164', import.meta.url).href
 };
 function isBossSp(sp) { return sp === 'boss' || sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4'; }
 const BOSS_WEAPON_FX = {
@@ -27,9 +27,11 @@ const pendings = {};
 let loaderPromise = null;
 let cloneSkinned = null;
 let flagOn = true;
+let showOutline = false;
 try {
   const q = new URLSearchParams(location.search);
   if (q.get('monsters') === 'proc' || q.get('boss') === 'proc' || q.get('monsters') === '0') flagOn = false;
+  if (q.get('outline') === '1') showOutline = true;
 } catch (e) {}
 
 function ensureLoader() {
@@ -95,6 +97,7 @@ export function makeBossGlb(height, species) {
         side: THREE.FrontSide,
         depthWrite: true
       });
+      o.visible = showOutline;
       outline = o;
       outlineMeshes.push(o);
     } else {
@@ -115,8 +118,9 @@ export function makeBossGlb(height, species) {
           if (!mat.envMap && r) applyForgedMetal(mat, r, { roughness: bossSp ? 0.22 : 0.30, envMapIntensity: 0.94 });
         };
       } else {
-        /* v1.48 엠버 앤 블레이드풍 매트 카툰 툰 셰이딩: 플라스틱 광택·색상 프레넬 오라 전면 제거 */
-        mat.roughness = 0.96;
+        /* v1.63 엠버 앤 블레이드식 무선 + 2단 하드 툰 색면 + 절제된 백은 그래픽 림 (주인공보다 약하게 유지) */
+        const bossSp = isBossSp(sp);
+        mat.roughness = 0.95;
         mat.metalness = 0.0;
         mat.roughnessMap = null;
         mat.metalnessMap = null;
@@ -126,15 +130,22 @@ export function makeBossGlb(height, species) {
         if (mat.map) {
           mat.emissiveMap = mat.map;
           mat.emissive = new THREE.Color(0xfff6ea);
-          mat.emissiveIntensity = 0.07;
+          mat.emissiveIntensity = 0.08;
         }
-        mat.customProgramCacheKey = function () { return 'carved-matte-toon-v153'; };
+        const rimPow = bossSp ? 0.44 : 0.32;
+        mat.customProgramCacheKey = function () { return bossSp ? 'boss-ember-hardrim-v163' : 'mob-ember-hardrim-v163'; };
         mat.onBeforeCompile = function (shader) {
           shader.fragmentShader = shader.fragmentShader.replace(
             "#include <dithering_fragment>",
-            "float tL = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));\n" +
-            "float tS = (floor(tL * 3.0) + smoothstep(0.38, 0.54, fract(tL * 3.0))) / 3.0;\n" +
-            "gl_FragColor.rgb *= mix(1.0, (tS + 0.04) / max(tL + 0.04, 0.06), 0.62);\n" +
+            "vec3 vn = normalize(vNormal);\n" +
+            "vec3 vv = normalize(vViewPosition);\n" +
+            "float ndl = dot(vn, normalize(vec3(-0.55, 0.65, 0.52)));\n" +
+            "float toonBand = smoothstep(-0.08, 0.08, ndl);\n" +
+            "gl_FragColor.rgb *= mix(vec3(0.72, 0.76, 0.86), vec3(1.03, 1.01, 0.98), toonBand);\n" +
+            "float fres = 1.0 - clamp(abs(dot(vn, vv)), 0.0, 1.0);\n" +
+            "float rimSide = smoothstep(-0.08, 0.38, dot(vn, normalize(vec3(-0.82, 0.45, 0.25))));\n" +
+            "float hardRim = smoothstep(0.60, 0.69, fres) * rimSide;\n" +
+            "gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.86, 0.91, 0.96), hardRim * " + rimPow.toFixed(2) + ");\n" +
             "gl_FragColor.rgb = min(gl_FragColor.rgb, vec3(0.95));\n" +
             "#include <dithering_fragment>"
           );
