@@ -1,5 +1,5 @@
 /* v2/sw.js — 심안: 묵검 v0.86 모바일 3D GLB & 에셋 오프라인 캐시 서비스 워커 */
-const CACHE_NAME = 'siman-v169';
+const CACHE_NAME = 'siman-v170';
 
 self.addEventListener('install', function (event) {
   self.skipWaiting();

@@ -98,7 +98,36 @@ def character_profiles():
         fit = profile["fit"]
         wrist_z = fit["z_shoulder"] - fit["arm_len"]
         profile["wrist_band"] = (max(0.40, wrist_z - 0.12), min(1.16, wrist_z + 0.24))
+
+    # 8-head sleek Ember-Eastern hero overrides (measured directly from hero_raw.glb):
+    # - True shoulder pivot is narrower (0.178m) and slightly higher (1.372m) than legacy 6-head template
+    # - Keep torso_clean below the true armpit split (z=1.14m, torso_max=0.138m) so underarm skin never stretches
+    if "hero" in profiles:
+        hp = profiles["hero"]
+        hp["fit"]["shoulder_x"] = 0.178
+        hp["fit"]["z_shoulder"] = 1.372
+        hp["torso_clean_z"] = 1.12
+        hp["torso_clean_x"] = 0.145
+        hp["coat_clean_z"] = 1.00
+        hp["coat_clean_x"] = 0.235
+        hp["arm_floor_z"] = 0.70
+        hp["shoulder_y_target"] = 0.070
+        hp["two_stage_arms"] = True
     return profiles
+
+
+def measure_elbow_targets(mesh_obj, z_shoulder, lh_wrist, rh_wrist, torso_x=0.145):
+    """Measure the exact 3D elbow centers halfway down each A-pose arm."""
+    z_l = 0.5 * (z_shoulder + lh_wrist.z)
+    z_r = 0.5 * (z_shoulder + rh_wrist.z)
+    vs = [v.co for v in mesh_obj.data.vertices]
+    l_pts = [p for p in vs if abs(p.z - z_l) <= 0.032 and p.x > torso_x + 0.020]
+    r_pts = [p for p in vs if abs(p.z - z_r) <= 0.032 and p.x < -(torso_x + 0.020)]
+    if not l_pts or not r_pts:
+        return None, None
+    lh_elbow = sum(l_pts, Vector((0, 0, 0))) / len(l_pts)
+    rh_elbow = sum(r_pts, Vector((0, 0, 0))) / len(r_pts)
+    return lh_elbow, rh_elbow
 
 
 def apply_smooth_with_bevel_normals(mesh_obj, sharp_angle_deg=42.0):
@@ -665,17 +694,29 @@ def build_ember_eastern_character(
         v.co.x = (v.co.x - cx) * s
         v.co.y = (v.co.y - cy_rough) * s
         v.co.z = (v.co.z - cz) * s
-    torso_vs = [v.co.y for v in body_high.data.vertices if 0.70 <= v.co.z <= 1.25 and abs(v.co.x) < 0.15]
-    if torso_vs:
-        torso_y = sum(torso_vs) / len(torso_vs)
-        y_shift = 0.020 - torso_y
-        for v in body_high.data.vertices:
-            v.co.y += y_shift
+    shoulder_y_target = cfg.get("shoulder_y_target")
+    if shoulder_y_target is not None:
+        sh_vs = [
+            v.co.y for v in body_high.data.vertices
+            if 1.33 <= v.co.z <= 1.39 and 0.14 <= abs(v.co.x) <= 0.21
+        ]
+        if sh_vs:
+            y_shift = shoulder_y_target - (sum(sh_vs) / len(sh_vs))
+            for v in body_high.data.vertices:
+                v.co.y += y_shift
+    else:
+        torso_vs = [v.co.y for v in body_high.data.vertices if 0.70 <= v.co.z <= 1.25 and abs(v.co.x) < 0.15]
+        if torso_vs:
+            torso_y = sum(torso_vs) / len(torso_vs)
+            y_shift = 0.020 - torso_y
+            for v in body_high.data.vertices:
+                v.co.y += y_shift
     body_high.data.update()
 
-    # 3) Fit 66-bone armature to exact 3D wrist & spread-leg landmarks
+    # 3) Fit 66-bone armature to exact 3D wrist, elbow & spread-leg landmarks
     lh_wrist, rh_wrist = measure_hand_targets(body_high, cfg.get("wrist_band"))
     horizontal_arms = cfg.get("horizontal_arms", False)
+    two_stage_arms = cfg.get("two_stage_arms", False) and not horizontal_arms
     source_fit = dict(cfg.get("source_fit", SRC_BOSS_FIT))
     fit["spread_stance"] = True
     bones = t_arm.data.bones
@@ -694,11 +735,22 @@ def build_ember_eastern_character(
         rh_wrist = Vector((rh_wrist.x, rh_wrist.y, rh_wrist.z + 0.020))
         fit["arm_min_z"] = max(fit["z_pelvis"] - 0.03, min(lh_wrist.z, rh_wrist.z) - 0.14)
 
+    lh_elbow, rh_elbow = (None, None)
+    if two_stage_arms:
+        lh_elbow, rh_elbow = measure_elbow_targets(
+            body_high, fit["z_shoulder"], lh_wrist, rh_wrist, torso_x=cfg.get("torso_clean_x", 0.145)
+        )
+
     sh_l = Vector((fit["shoulder_x"], 0.065, fit["z_shoulder"]))
     sh_r = Vector((-fit["shoulder_x"], 0.065, fit["z_shoulder"]))
-    fit["arm_len"] = round(0.5 * ((lh_wrist - sh_l).length + (rh_wrist - sh_r).length), 4)
+    if lh_elbow is not None and rh_elbow is not None:
+        len_l = (lh_elbow - sh_l).length + (lh_wrist - lh_elbow).length
+        len_r = (rh_elbow - sh_r).length + (rh_wrist - rh_elbow).length
+        fit["arm_len"] = round(0.5 * (len_l + len_r), 4)
+    else:
+        fit["arm_len"] = round(0.5 * ((lh_wrist - sh_l).length + (rh_wrist - sh_r).length), 4)
     refit_boss_armature(t_arm, source_fit, fit)
-    print(f"  + Refitted 66-bone armature (sh_z={fit['z_shoulder']:.2f}, arm_len={fit['arm_len']:.3f}, horiz={horizontal_arms})")
+    print(f"  + Refitted 66-bone armature (sh_x={fit['shoulder_x']:.3f}, sh_z={fit['z_shoulder']:.3f}, arm_len={fit['arm_len']:.3f}, 2stage={lh_elbow is not None})")
 
     # 4) Silhouette-preserving Decimate + Smooth-by-Angle + Tangent Normal Bake + 4-view Projection
     bpy.ops.object.select_all(action="DESELECT")
@@ -754,13 +806,16 @@ def build_ember_eastern_character(
     a_arm.name = "Temp_APose_Arm"
     a_arm.animation_data_clear()
 
-    targets = [("upperarm_l", "hand_l", lh_wrist), ("upperarm_r", "hand_r", rh_wrist)]
+    if lh_elbow is not None and rh_elbow is not None:
+        stage1_targets = [("upperarm_l", "lowerarm_l", lh_elbow), ("upperarm_r", "lowerarm_r", rh_elbow)]
+    else:
+        stage1_targets = [("upperarm_l", "hand_l", lh_wrist), ("upperarm_r", "hand_r", rh_wrist)]
     for suffix, side in (("l", 1), ("r", -1)):
         ankle = guardian_ankle(body, side, fit["z_ankle"])
-        targets.append((f"thigh_{suffix}", f"foot_{suffix}", ankle))
+        stage1_targets.append((f"thigh_{suffix}", f"foot_{suffix}", ankle))
 
     rotations = []
-    for start, end, target in targets:
+    for start, end, target in stage1_targets:
         rot = compute_arm_local_quat(a_arm, start, end, target)
         if rot.angle > math.radians(2):
             rotations.append((start, rot))
@@ -774,6 +829,24 @@ def build_ember_eastern_character(
     bpy.ops.pose.armature_apply(selected=False)
     bpy.ops.object.mode_set(mode="OBJECT")
 
+    # Stage 2: Align forearms from exact 3D elbows to exact 3D wrists so T-pose arms unfold completely straight
+    if lh_elbow is not None and rh_elbow is not None:
+        stage2_rots = []
+        for start, end, target in (("lowerarm_l", "hand_l", lh_wrist), ("lowerarm_r", "hand_r", rh_wrist)):
+            rot = compute_arm_local_quat(a_arm, start, end, target)
+            if rot.angle > math.radians(2):
+                stage2_rots.append((start, rot))
+        if stage2_rots:
+            bpy.ops.object.mode_set(mode="POSE")
+            for bname, q in stage2_rots:
+                pb = a_arm.pose.bones[bname]
+                pb.rotation_mode = "QUATERNION"
+                pb.rotation_quaternion = q
+            bpy.context.view_layer.update()
+            bpy.ops.pose.armature_apply(selected=False)
+            bpy.ops.object.mode_set(mode="OBJECT")
+            rotations.extend(stage2_rots)
+
     m2m.skin_via_voxel_heat(body, a_arm, fit)
 
     # Strip torso/belt arm-weight bleed on A-pose characters (prevents belt kinking)
@@ -783,11 +856,14 @@ def build_ember_eastern_character(
         spine_vg = body.vertex_groups.get("spine_02") or body.vertex_groups.get("spine_01")
         pelvis_vg = body.vertex_groups.get("pelvis") or spine_vg
         arm_floor_z = cfg.get("arm_floor_z", 0.78)
+        coat_clean_z = cfg.get("coat_clean_z", 0.0)
+        coat_clean_x = cfg.get("coat_clean_x", 0.0)
         cleaned = 0
         for v in body.data.vertices:
             in_torso = (v.co.z < cfg["torso_clean_z"] and abs(v.co.x) < cfg["torso_clean_x"])
-            below_arms = (v.co.z < arm_floor_z and abs(v.co.x) < 0.40)
-            if in_torso or below_arms:
+            in_coat = (v.co.z < coat_clean_z and abs(v.co.x) < coat_clean_x)
+            below_arms = (v.co.z < arm_floor_z and abs(v.co.x) < 0.45)
+            if in_torso or in_coat or below_arms:
                 had = False
                 for vg in arm_vgs:
                     try:

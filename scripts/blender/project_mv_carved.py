@@ -214,11 +214,13 @@ def project_4view_onto_mesh(mesh_obj, mv_dir, tex_size=1024, skip_side_arms=Fals
         if vname in ("left", "right"):
             if skip_side_arms:
                 # For 45-deg A-pose characters whose side turnarounds have arms hanging down over torso/hips,
-                # restrict side projection to head/neck (z > 1.38) and lower legs/boots (z < 0.72) only.
-                arm_occluded = (pos[..., 2] >= 0.72) & (pos[..., 2] <= 1.38)
+                # restrict side projection to head/neck (uz > 0.80) and lower legs/boots (uz < 0.42) only.
+                # Height-normalized uz matches hero H=1.72m (0.72/1.72=0.419, 1.38/1.72=0.802) at any scale.
+                arm_occluded = (uz >= 0.42) & (uz <= 0.80)
             else:
                 # Prevent outstretched T-pose fist in side views from stamping onto the inner ribcage
-                arm_occluded = (np.abs(pos[..., 0]) < 0.26) & (pos[..., 2] > 1.05) & (pos[..., 2] < 1.48)
+                x_mid = 0.5 * (xmin + xmax)
+                arm_occluded = (np.abs(pos[..., 0] - x_mid) < 0.22 * dx) & (uz > 0.61) & (uz < 0.86)
             valid = valid * (~arm_occluded)[..., None].astype(np.float32)
         w = (ndot[..., None] ** 4.0) * valid * alpha
         acc_rgb += samp[..., :3] * w
@@ -229,12 +231,41 @@ def project_4view_onto_mesh(mesh_obj, mv_dir, tex_size=1024, skip_side_arms=Fals
     blend = np.clip((acc_w - 0.04) / 0.14, 0.0, 1.0)
     final_rgb = proj_rgb * blend + fallback[..., :3] * (1.0 - blend)
 
+    # Dilate valid UV-island borders into empty gutters (12px) to prevent dark UV seam bleed on faces/limbs
+    uv_mask = np.linalg.norm(nrm, axis=-1) > 0.1
+    if uv_mask.any() and not uv_mask.all():
+        dil_rgb = final_rgb.copy()
+        cur = uv_mask.copy()
+        for _ in range(12):
+            if cur.all():
+                break
+            acc = np.zeros_like(dil_rgb)
+            cnt = np.zeros(cur.shape, dtype=np.float32)
+            for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)):
+                wt = 1.0 if (dy == 0 or dx == 0) else 0.707
+                sm = np.roll(np.roll(cur, dy, axis=0), dx, axis=1)
+                si = np.roll(np.roll(dil_rgb, dy, axis=0), dx, axis=1)
+                if dy == 1:
+                    sm[0, :] = False
+                elif dy == -1:
+                    sm[-1, :] = False
+                if dx == 1:
+                    sm[:, 0] = False
+                elif dx == -1:
+                    sm[:, -1] = False
+                acc += si * (sm[..., None] * wt)
+                cnt += sm * wt
+            fill = (~cur) & (cnt > 0)
+            dil_rgb[fill] = acc[fill] / cnt[fill][..., None]
+            cur = cur | fill
+        final_rgb = dil_rgb
+
     out = np.ones((tex_size, tex_size, 4), dtype=np.float32)
     out[..., :3] = np.clip(final_rgb, 0.0, 1.0)
     base_img.pixels.foreach_set(out.ravel())
     base_img.pack()
     cov = float((blend > 0.5).mean() * 100.0)
-    print(f"  + Projected crisp 4-view 2D turnaround ({mv_dir.name}) onto {mesh_obj.name} ({cov:.1f}% direct 2D coverage)")
+    print(f"  + Projected crisp 4-view 2D turnaround ({mv_dir.name}) onto {mesh_obj.name} ({cov:.1f}% direct 2D coverage, 12px UV margin)")
     return True
 
 
