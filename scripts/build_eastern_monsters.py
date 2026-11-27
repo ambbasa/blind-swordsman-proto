@@ -1,18 +1,20 @@
 """Build all 15 Ember & Blade Korean monsters/bosses from pre-split 4-view PNGs.
 
-Pipeline per monster:
+Pipeline per monster (visual parity with shipped `hero.glb` via `build_ember_eastern.py`):
   1. Read pre-aligned 1024x1024 multi-view inputs directly from:
      `design/character-concepts/ember-eastern-monsters/<key>/{front,back,left,right}.png`
-     (all 4 views share identical 1024x1024 dimensions and bottom-aligned feet baseline).
   2. Generate textured 3D mesh via local Hunyuan3D-2mv (`scripts/local_hunyuan3d.py --mv-dir ... --skip-delight`).
-  3. Rig, skin, animate (Idle/Walk/Attack/Hit/Die) using the monster's exact body archetype
+  3. Apply hero visual styling (UV-preserving Decimate, Smooth-by-Angle 42 deg, 4-view re-projection,
+     pigment plane cleanup, 1024px Normal Map bake, matte painterly BSDF) + archetype rigging & 5 clips
      via `scripts/blender/rig_eastern_monster.py`, saving BOTH:
        - Editable Blender project: `build/eastern_monsters/blend/<key>.blend`
        - Game-ready rigged GLB:    `build/eastern_monsters/models/<key>.glb`
+  4. Optional `--optimize` runs `scripts/blender/optimize_glb_mobile.py` (WebP compression + static channel strip).
 """
 import argparse
 from pathlib import Path
 import subprocess
+import sys
 
 from build_ember_carved import run_step
 from run_monsters_mv import find_blender, find_hy3d_python
@@ -60,6 +62,7 @@ def build_one(key, args):
     raw_glb = BUILD / "raw" / f"{key}.glb"
     out_glb = BUILD / "models" / f"{key}.glb"
     out_blend = BUILD / "blend" / f"{key}.blend"
+    out_preview = BUILD / "previews" / f"{key}_preview.png"
 
     def run(argv, blender=False):
         argv = list(map(str, argv))
@@ -79,12 +82,33 @@ def build_one(key, args):
     if args.skip_blender:
         return
 
-    run([
+    blender_cmd = [
         find_blender(args.blender), "--background", "--factory-startup",
         "--python-exit-code", "1", "--python", ROOT / "scripts/blender/rig_eastern_monster.py",
-        "--", "--in", raw_glb, "--out", out_glb, "--blend", out_blend,
-        "--key", key, "--archetype", archetype, "--height", height, "--tris", tris
-    ], blender=True)
+        "--",
+        "--in", raw_glb,
+        "--out", out_glb,
+        "--blend", out_blend,
+        "--mv-dir", mv_dir,
+        "--key", key,
+        "--archetype", archetype,
+        "--height", height,
+        "--tris", tris,
+        "--tex-size", args.tex_res,
+        "--sharp-angle", args.sharp_angle,
+        "--pigment-clean", args.pigment_clean,
+        "--rot-z-deg", args.rot_z_deg,
+    ]
+    if args.no_normal_bake:
+        blender_cmd.append("--no-normal-bake")
+    if args.no_project:
+        blender_cmd.append("--no-project")
+    if args.preview:
+        blender_cmd.extend(["--preview-out", out_preview])
+    run(blender_cmd, blender=True)
+
+    if args.optimize:
+        run([sys.executable, ROOT / "scripts/blender/optimize_glb_mobile.py", out_glb], blender=False)
 
 
 def main():
@@ -97,6 +121,13 @@ def main():
     p.add_argument("--steps", type=int, default=30)
     p.add_argument("--octree", type=int, default=384)
     p.add_argument("--tex-res", type=int, default=1024)
+    p.add_argument("--sharp-angle", type=float, default=42.0)
+    p.add_argument("--pigment-clean", type=float, default=0.35)
+    p.add_argument("--no-normal-bake", action="store_true")
+    p.add_argument("--no-project", action="store_true")
+    p.add_argument("--rot-z-deg", type=float, default=0.0)
+    p.add_argument("--preview", action="store_true", help="Render 3/4 Blender verification PNG")
+    p.add_argument("--optimize", action="store_true", help="Run optimize_glb_mobile.py on exported GLB")
     p.add_argument("--hy3d-python", default=find_hy3d_python())
     p.add_argument("--blender", default="blender")
     args = p.parse_args()
