@@ -41,7 +41,7 @@ from build_bosses_act234 import (
     refit_boss_armature,
 )
 from build_hero_master import M2M_DIR, attach_sword
-from project_mv_carved import _find_base_color_image, project_4view_onto_mesh
+from project_mv_carved import _bake_geom_map, _find_base_color_image, project_4view_onto_mesh
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -118,8 +118,8 @@ def character_profiles():
 
 def measure_elbow_targets(mesh_obj, z_shoulder, lh_wrist, rh_wrist, torso_x=0.145):
     """Measure the exact 3D elbow centers halfway down each A-pose arm."""
-    z_l = 0.5 * (z_shoulder + lh_wrist.z)
-    z_r = 0.5 * (z_shoulder + rh_wrist.z)
+    z_l = 0.5 * (z_shoulder + lh_wrist.z) - 0.022
+    z_r = 0.5 * (z_shoulder + rh_wrist.z) - 0.022
     vs = [v.co for v in mesh_obj.data.vertices]
     l_pts = [p for p in vs if abs(p.z - z_l) <= 0.032 and p.x > torso_x + 0.020]
     r_pts = [p for p in vs if abs(p.z - z_r) <= 0.032 and p.x < -(torso_x + 0.020)]
@@ -240,6 +240,203 @@ def bake_clean_normal_map(high_obj, low_obj, img_name, size=1024, strength=0.32)
     scene.render.engine = prev_engine
     print(f"  + Baked clean Normal Map only ({size}x{size}, strength={strength:.2f}, zero AO noise)")
     return n_img
+
+
+def polish_hero_face_texture(mesh_obj, tex_size=2048):
+    """Paint crisp anti-aliased Ember & Blade face, blindfold, Y-collar, and bangs without altering mesh topology."""
+    mat, base_img = _find_base_color_image(mesh_obj)
+    if base_img is None:
+        return
+
+    if base_img.size[0] != tex_size or base_img.size[1] != tex_size:
+        base_img.scale(tex_size, tex_size)
+
+    prev_smooth = [p.use_smooth for p in mesh_obj.data.polygons]
+    for p in mesh_obj.data.polygons:
+        p.use_smooth = True
+    pos = _bake_geom_map(mesh_obj, "POS", size=tex_size)
+    nrm = _bake_geom_map(mesh_obj, "NRM", size=tex_size)
+    for p, sm in zip(mesh_obj.data.polygons, prev_smooth):
+        p.use_smooth = sm
+
+    uv_mask = np.linalg.norm(nrm, axis=-1) > 0.1
+    buf = np.empty(tex_size * tex_size * 4, dtype=np.float32)
+    base_img.pixels.foreach_get(buf)
+    rgb = buf.reshape((tex_size, tex_size, 4))[..., :3].copy()
+
+    def dilate_uv(img_rgb, mask, iters=14):
+        out = img_rgb.copy()
+        cur = mask.copy()
+        for _ in range(iters):
+            if cur.all():
+                break
+            acc = np.zeros_like(out)
+            cnt = np.zeros(cur.shape, dtype=np.float32)
+            for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)):
+                wt = 1.0 if (dy == 0 or dx == 0) else 0.707
+                sm = np.roll(np.roll(cur, dy, axis=0), dx, axis=1)
+                si = np.roll(np.roll(out, dy, axis=0), dx, axis=1)
+                if dy == 1:
+                    sm[0, :] = False
+                elif dy == -1:
+                    sm[-1, :] = False
+                if dx == 1:
+                    sm[:, 0] = False
+                elif dx == -1:
+                    sm[:, -1] = False
+                acc += si * (sm[..., None] * wt)
+                cnt += sm * wt
+            fill = (~cur) & (cnt > 0)
+            out[fill] = acc[fill] / cnt[fill][..., None]
+            cur = cur | fill
+        return out
+
+    def smoothstep(edge0, edge1, val):
+        diff = np.asarray(edge1, dtype=np.float32) - np.asarray(edge0, dtype=np.float32)
+        safe = np.where(np.abs(diff) < 1e-6, 1e-6, diff)
+        t = np.clip((val - edge0) / safe, 0.0, 1.0)
+        return t * t * (3.0 - 2.0 * t)
+
+    # Erode 1px along UV borders to strip dark seam pixels before painting
+    eroded = uv_mask.copy()
+    for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+        eroded &= np.roll(np.roll(uv_mask, dy, axis=0), dx, axis=1)
+    rgb = dilate_uv(rgb, eroded, iters=14)
+
+    x, y, z = pos[..., 0], pos[..., 1], pos[..., 2]
+    nx, ny, nz = nrm[..., 0], nrm[..., 1], nrm[..., 2]
+    ax = np.abs(x)
+    luma = rgb[..., 0] * 0.299 + rgb[..., 1] * 0.587 + rgb[..., 2] * 0.114
+
+    col_skin_light  = np.array([0.895, 0.845, 0.822], dtype=np.float32)
+    col_skin_mid    = np.array([0.830, 0.778, 0.768], dtype=np.float32)
+    col_skin_shadow = np.array([0.690, 0.648, 0.688], dtype=np.float32)
+    col_skin_deep   = np.array([0.555, 0.515, 0.575], dtype=np.float32)
+    col_lip_upper   = np.array([0.620, 0.530, 0.555], dtype=np.float32)
+    col_lip_part    = np.array([0.460, 0.400, 0.445], dtype=np.float32)
+    col_bf_light    = np.array([0.895, 0.865, 0.790], dtype=np.float32)
+    col_bf_mid      = np.array([0.805, 0.770, 0.690], dtype=np.float32)
+    col_bf_shadow   = np.array([0.665, 0.630, 0.565], dtype=np.float32)
+    col_hair_dark   = np.array([0.110, 0.145, 0.215], dtype=np.float32)
+    col_hair_hi     = np.array([0.185, 0.250, 0.355], dtype=np.float32)
+    col_collar_wht  = np.array([0.880, 0.850, 0.775], dtype=np.float32)
+    col_cloth_blk   = np.array([0.120, 0.125, 0.140], dtype=np.float32)
+
+    bf_bottom_z = 1.540 - 0.007 * np.clip(ax / 0.065, 0.0, 1.0) + 0.003 * (x / 0.065)
+    v_inner_x = np.clip((z - 1.345) * 0.44, 0.0, 0.050)
+
+    in_face_area = uv_mask & (z >= 1.462) & (z < bf_bottom_z + 0.002) & (ax < 0.088) & (y < 0.01) & (ny < 0.15)
+    # Keep neck polish strictly on actual exposed skin pixels so original 4-view Y-collar stays 100% intact
+    in_neck_area = uv_mask & (z >= 1.355) & (z < 1.472) & (ax < 0.052) & (y < 0.015) & (ny < 0.15) & (luma > 0.42)
+    not_hair_side = ~((ax > 0.058) & (z > 1.485) & (luma < 0.36))
+    skin_mask = (in_face_area | in_neck_area) & not_hair_side
+
+    skin_col = np.broadcast_to(col_skin_light, rgb.shape).copy()
+    right_plane = smoothstep(0.16, 0.42, nx) * smoothstep(0.008, 0.032, x)
+    left_cheek = smoothstep(-0.42, -0.68, nx) * smoothstep(-0.038, -0.055, x)
+    skin_col = skin_col * (1.0 - 0.65 * right_plane[..., None]) + col_skin_shadow * (0.65 * right_plane[..., None])
+    skin_col = skin_col * (1.0 - 0.42 * left_cheek[..., None]) + col_skin_mid * (0.42 * left_cheek[..., None])
+
+    chin_v_z = 1.468 - 0.032 * np.clip(1.0 - ax / 0.048, 0.0, 1.0)
+    neck_shadow = (
+        smoothstep(1.482, 1.464, z) *
+        smoothstep(chin_v_z - 0.012, chin_v_z + 0.008, z) *
+        smoothstep(0.060, 0.025, ax)
+    )
+    jaw_under = smoothstep(-0.24, -0.52, nz) * smoothstep(1.502, 1.475, z) * smoothstep(1.455, 1.470, z)
+    skin_col = skin_col * (1.0 - 0.72 * neck_shadow[..., None]) + col_skin_shadow * (0.72 * neck_shadow[..., None])
+    skin_col = skin_col * (1.0 - 0.55 * jaw_under[..., None]) + col_skin_shadow * (0.55 * jaw_under[..., None])
+
+    nose_ridge = smoothstep(1.538, 1.530, z) * smoothstep(1.515, 1.522, z) * smoothstep(0.009, 0.003, ax) * smoothstep(-0.088, -0.098, y)
+    nose_under = smoothstep(1.522, 1.516, z) * smoothstep(1.507, 1.513, z) * smoothstep(0.013, 0.005, ax) * smoothstep(-0.08, -0.32, nz)
+    nose_rwall = smoothstep(1.536, 1.528, z) * smoothstep(1.512, 1.518, z) * smoothstep(0.003, 0.008, x) * smoothstep(0.019, 0.012, x) * smoothstep(0.22, 0.45, nx)
+    skin_col = skin_col * (1.0 - 0.55 * nose_ridge[..., None]) + np.array([0.93, 0.89, 0.87], dtype=np.float32) * (0.55 * nose_ridge[..., None])
+    skin_col = skin_col * (1.0 - 0.78 * nose_under[..., None]) + col_skin_deep * (0.78 * nose_under[..., None])
+    skin_col = skin_col * (1.0 - 0.55 * nose_rwall[..., None]) + col_skin_shadow * (0.55 * nose_rwall[..., None])
+
+    taper = smoothstep(0.0175, 0.003, ax)
+    bow = 0.0011 * np.cos(np.clip(ax / 0.010, 0.0, 1.0) * math.pi)
+    lip_z = 1.5012 + bow
+    upper_lip = (
+        smoothstep(0.0028 * (0.35 + 0.65 * taper), 0.0008, np.abs(z - (lip_z + 0.0010))) *
+        smoothstep(0.0175, 0.0110, ax) * smoothstep(-0.072, -0.084, y)
+    )
+    mouth_crease = (
+        smoothstep(0.0011, 0.0002, np.abs(z - (lip_z - 0.0006))) *
+        smoothstep(0.0170, 0.0090, ax) * smoothstep(-0.072, -0.084, y)
+    )
+    lower_lip_sh = (
+        smoothstep(0.0022, 0.0006, np.abs(z - 1.4932)) *
+        smoothstep(0.0095, 0.0035, ax) * smoothstep(-0.070, -0.082, y)
+    )
+    skin_col = skin_col * (1.0 - 0.68 * upper_lip[..., None]) + col_lip_upper * (0.68 * upper_lip[..., None])
+    skin_col = skin_col * (1.0 - 0.62 * mouth_crease[..., None]) + col_lip_part * (0.62 * mouth_crease[..., None])
+    skin_col = skin_col * (1.0 - 0.55 * lower_lip_sh[..., None]) + col_skin_shadow * (0.55 * lower_lip_sh[..., None])
+
+    nose_bridge_protect = 1.0 - 0.55 * smoothstep(0.012, 0.004, ax)
+    under_bf = (
+        smoothstep(bf_bottom_z - 0.0085, bf_bottom_z - 0.0015, z) *
+        smoothstep(bf_bottom_z + 0.002, bf_bottom_z - 0.0005, z) *
+        smoothstep(0.075, 0.055, ax) * nose_bridge_protect
+    )
+    skin_col = skin_col * (1.0 - 0.72 * under_bf[..., None]) + col_skin_deep * (0.72 * under_bf[..., None])
+    rgb[skin_mask] = skin_col[skin_mask]
+
+    # Blindfold & bangs
+    bf_top_z = 1.592 - 0.004 * (ax / 0.065)
+    is_hair_lock = (z > 1.590) | ((z > 1.568) & (y < -0.109)) | ((z > 1.576) & (luma < 0.28) & (ax > 0.018))
+    bf_mask = uv_mask & (z >= bf_bottom_z - 0.001) & (z <= bf_top_z) & (ax < 0.095) & (y < 0.04) & (~is_hair_lock)
+    fold_u = (z - bf_bottom_z) * 32.0 + x * 8.0
+    fold_mid = smoothstep(0.15, 0.45, np.sin(fold_u * 1.9))
+    fold_cr = smoothstep(0.76, 0.90, np.abs(np.cos(fold_u * 1.35)))
+    bf_rsh = smoothstep(0.18, 0.52, nx)
+    bf_col = np.broadcast_to(col_bf_light, rgb.shape).copy()
+    bf_col = bf_col * (1.0 - 0.48 * fold_mid[..., None]) + col_bf_mid * (0.48 * fold_mid[..., None])
+    bf_col = bf_col * (1.0 - 0.52 * fold_cr[..., None]) + col_bf_shadow * (0.52 * fold_cr[..., None])
+    bf_col = bf_col * (1.0 - 0.42 * bf_rsh[..., None]) + col_bf_shadow * (0.42 * bf_rsh[..., None])
+    rgb[bf_mask] = bf_col[bf_mask]
+
+    hair_bleed = uv_mask & (((z >= 1.584) & (luma > 0.30)) | ((z > 1.568) & (y < -0.109))) & (~bf_mask)
+    hair_up = smoothstep(0.25, 0.70, nz)
+    hair_col = np.broadcast_to(col_hair_dark, rgb.shape).copy()
+    hair_col = hair_col * (1.0 - 0.65 * hair_up[..., None]) + col_hair_hi * (0.65 * hair_up[..., None])
+    rgb[hair_bleed] = hair_col[hair_bleed]
+
+    # Preserve authentic 4-view Joseon Y-collar; apply soft 2-pass Gaussian AA on painted face/blindfold/hair zones
+    painted = skin_mask | bf_mask | hair_bleed
+    aa_rgb = rgb.copy()
+    for _ in range(2):
+        acc = aa_rgb * 4.0
+        for dy, dx, wt in ((-1, 0, 2.0), (1, 0, 2.0), (0, -1, 2.0), (0, 1, 2.0), (-1, -1, 1.0), (-1, 1, 1.0), (1, -1, 1.0), (1, 1, 1.0)):
+            acc += np.roll(np.roll(aa_rgb, dy, axis=0), dx, axis=1) * wt
+        aa_rgb = acc / 16.0
+    rgb[painted] = aa_rgb[painted]
+
+    rgb = dilate_uv(rgb, uv_mask, iters=14)
+    out = np.ones((tex_size, tex_size, 4), dtype=np.float32)
+    out[..., :3] = np.clip(rgb, 0.0, 1.0)
+    base_img.pixels.foreach_set(out.ravel())
+    base_img.pack()
+
+    # Flatten baked normal map on face/blindfold/neck only so stylized porcelain stays clean without mismatch
+    if mat and mat.use_nodes:
+        bsdf = next((n for n in mat.node_tree.nodes if n.type == "BSDF_PRINCIPLED"), None)
+        if bsdf and bsdf.inputs["Normal"].is_linked:
+            nmap = bsdf.inputs["Normal"].links[0].from_node
+            if nmap.type == "NORMAL_MAP" and nmap.inputs["Color"].is_linked:
+                nimg = nmap.inputs["Color"].links[0].from_node.image
+                if nimg is not None:
+                    nw, nh = nimg.size[0], nimg.size[1]
+                    nbuf = np.empty(nw * nh * 4, dtype=np.float32)
+                    nimg.pixels.foreach_get(nbuf)
+                    npix = nbuf.reshape((nh, nw, 4)).copy()
+                    step = max(1, tex_size // nw)
+                    head_zone = (uv_mask & (z >= 1.35) & (ax < 0.16))[::step, ::step][:nh, :nw]
+                    npix[head_zone, :3] = np.array([0.5, 0.5, 1.0], dtype=np.float32)
+                    nimg.pixels.foreach_set(npix.ravel())
+                    nimg.pack()
+
+    print(f"  + Polished {tex_size}px Ember & Blade face/blindfold/Y-collar texture (topology preserved)")
 
 
 def configure_matte_painterly_material(mesh_obj):
@@ -786,7 +983,10 @@ def build_ember_eastern_character(
         clean_pigment_planes(body, strength=pigment_clean, sigma_color=0.11)
 
     if bake_normals:
-        bake_clean_normal_map(body_high, body, f"{bid}_Normal", size=1024, strength=0.32)
+        bake_clean_normal_map(body_high, body, f"{bid}_Normal", size=1024, strength=0.22)
+
+    if bid == "hero":
+        polish_hero_face_texture(body, tex_size=max(tex_size, 2048))
 
     configure_matte_painterly_material(body)
     bpy.data.objects.remove(body_high, do_unlink=True)
@@ -944,7 +1144,7 @@ def build_ember_eastern_character(
         export_nla_strips=True,
         export_force_sampling=True,
         export_yup=True,
-        export_image_format="AUTO",
+        export_image_format="WEBP" if bpy.app.version >= (4, 0, 0) else "AUTO",
     )
     print(f"  [SAVED EMBER-EASTERN] {out_path} ({os.path.getsize(out_path):,} bytes)")
 
