@@ -32,7 +32,7 @@ export const STAGES = [
     tip: '제자리에서 짧게 콕 누르면 칼집으로 받아치는 패링이 됩니다.',
     time: 90, bossAt: 55, bossShapes: 3,
     shapes: ['hline'], spiritCap: 1,
-    terrain: { kind: 'none', name: '없음', line: '지형 규칙 없음 — 첫 획을 몸으로 익히는 장터' },
+    terrain: { kind: 'none', visual: 'none', name: '', line: '' },
     opening: { n: 5, ring: [0.45, 0.72], brute: 0 },
     mix: [[0, { imp: 1 }], [26, { imp: 0.8, brute: 0.2 }]],
     waves: [
@@ -49,7 +49,7 @@ export const STAGES = [
     tip: '금테를 두른 정예 원귀를 베면 부적 상자가 떨어집니다.',
     time: 110, eliteAt: 45, bossAt: 65, bossShapes: 4,
     shapes: ['hline', 'vline'], spiritCap: 1,
-    terrain: { kind: 'rubble', name: '잔해', line: '잔해 위에 착지하면 0.2초 비틀거림 — 다음 획은 선입력' },
+    terrain: { kind: 'none', visual: 'rubble', name: '', line: '' },
     opening: { n: 6, ring: [0.5, 0.8], brute: 1 },
     mix: [[0, { imp: 0.85, brute: 0.15 }], [22, { imp: 0.66, brute: 0.34 }], [46, { imp: 0.5, brute: 0.32, stone: 0.18 }]],
     waves: [
@@ -58,7 +58,7 @@ export const STAGES = [
     ],
     spawn: { ms: 800, max: 34, earlyMax: 10, earlyMinMs: 1200 },
     boss: { telegraph: 1.25, charge: 18, adds: 0, hazard: 0, patterns: ['sweep', 'kiai', 'slam', 'charge'], seal: true },
-    starCombo: 20, star3: { kind: 'combo', alt: { kind: 'terrain', key: 'rubble', need: 4, text: '잔해 위 착지 4회' } }, bossVisual: { var: 3, scale: 0.92 }, bossName: '성문의 문지기', bossLine: '무너진 성문에 매달려 우는 원혼',
+    starCombo: 20, star3: { kind: 'combo' }, bossVisual: { var: 3, scale: 0.92 }, bossName: '성문의 문지기', bossLine: '무너진 성문에 매달려 우는 원혼',
     atmo: { clear: 0x141a26, fogCol: [12, 17, 26], fog: 0.024, moon: 20.0, amb: 5.6, hemiI: 6.6, fill: 4.0, hemi: 0x5c6a8c, ground: 0x11141c, moonCol: 0xa9b8dd, tint: 'linear-gradient(180deg, rgba(44,64,150,0.20) 0%, rgba(8,18,58,0.26) 100%)' }
   },
   {
@@ -67,7 +67,7 @@ export const STAGES = [
     tip: 'V·번개 획은 가장 위협적인 귀물을 알아서 찾아갑니다.',
     time: 115, eliteAt: 48, bossAt: 70, bossShapes: 4,
     shapes: ['hline', 'vline', 'vee'], spiritCap: 2,
-    terrain: { kind: 'bamboo', name: '대숲', line: '대숲을 가로지르는 일섬은 0.3초 느려지지만 피해 +30%' },
+    terrain: { kind: 'none', visual: 'bamboo', name: '', line: '' },
     opening: { n: 7, ring: [0.55, 0.85], brute: 1 },
     mix: [[0, { imp: 0.8, brute: 0.2 }], [20, { imp: 0.6, brute: 0.3, stone: 0.1 }], [44, { imp: 0.45, brute: 0.33, stone: 0.22 }]],
     waves: [
@@ -77,7 +77,7 @@ export const STAGES = [
     ],
     spawn: { ms: 700, max: 40, earlyMax: 11, earlyMinMs: 1100 },
     boss: { telegraph: 1.15, charge: 19, adds: 0, hazard: 1, patterns: ['clones', 'charge', 'veil', 'kiai'], seal: true },
-    starCombo: 26, star3: { kind: 'combo', alt: { kind: 'terrain', key: 'bamboo', need: 3, text: '대숲 가로지른 일섬 3회' } }, bossVisual: { var: 3, scale: 0.94 }, bossName: '대숲의 울음', bossLine: '베인 대나무 사이에서 우는 것',
+    starCombo: 26, star3: { kind: 'combo' }, bossVisual: { var: 3, scale: 0.94 }, bossName: '대숲의 울음', bossLine: '베인 대나무 사이에서 우는 것',
     atmo: { clear: 0x121a15, fogCol: [11, 19, 14], fog: 0.026, moon: 18.0, amb: 5.4, hemiI: 6.2, fill: 3.6, hemi: 0x6f8472, ground: 0x12160f, moonCol: 0xb4d2b4, tint: 'linear-gradient(180deg, rgba(28,92,60,0.18) 0%, rgba(6,26,16,0.26) 100%)' }
   },
   {
@@ -86,7 +86,7 @@ export const STAGES = [
     tip: '보스가 돌진한 뒤 경직될 때 베면 절단이 두 번 들어갑니다.',
     time: 125, eliteAt: 50, bossAt: 75, bossShapes: 6,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 2,
-    terrain: { kind: 'moon', name: '월광 주기', line: '20초마다 5초 붉은 달빛 — 원귀 +20% · 처치 엽전 ×2' },
+    terrain: { kind: 'none', visual: 'moon', name: '', line: '' },
     opening: { n: 8, ring: [0.55, 0.9], brute: 2 },
     mix: [[0, { imp: 0.75, brute: 0.25 }], [18, { imp: 0.55, brute: 0.3, stone: 0.15 }], [40, { imp: 0.42, brute: 0.33, stone: 0.25 }]],
     waves: [
@@ -107,7 +107,7 @@ export const STAGES = [
     tip: '푸른 테의 원귀가 붉게 웅크리면 곧 곧장 달려옵니다 — 그 순간 일섬으로 비켜서세요.',
     time: 125, eliteAt: 52, bossAt: 78, bossShapes: 5,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 2,
-    terrain: { kind: 'fog', name: '짙은 안개 띠', line: '심안의 원이 10초 주기로 ±8% 숨을 쉽니다' },
+    terrain: { kind: 'none', visual: 'fog', name: '', line: '' },
     opening: { n: 8, ring: [0.55, 0.88], brute: 2 },
     mix: [[0, { imp: 0.7, brute: 0.22, charger: 0.08 }], [24, { imp: 0.52, brute: 0.26, charger: 0.14, stone: 0.08 }], [58, { imp: 0.42, brute: 0.26, charger: 0.16, stone: 0.1, thrower: 0.06 }]],
     waves: [
@@ -126,7 +126,7 @@ export const STAGES = [
     tip: '멀찍이 서서 부적을 던지는 원귀는 일섬으로 파고들어야 합니다.',
     time: 130, eliteAt: 54, bossAt: 80, bossShapes: 6,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 2,
-    terrain: { kind: 'snow', name: '눈밭', line: '착지 뒤 0.6m 미끄러짐 — 착지 지점을 계산하세요' },
+    terrain: { kind: 'none', visual: 'snow', name: '', line: '' },
     opening: { n: 9, ring: [0.5, 0.9], brute: 2 },
     mix: [[0, { imp: 0.66, brute: 0.24, thrower: 0.1 }], [22, { imp: 0.5, brute: 0.26, thrower: 0.14, stone: 0.1 }], [55, { imp: 0.4, brute: 0.24, thrower: 0.16, charger: 0.1, stone: 0.1 }]],
     waves: [
@@ -136,7 +136,7 @@ export const STAGES = [
     ],
     spawn: { ms: 620, max: 46, earlyMax: 12, earlyMinMs: 1000 },
     boss: { telegraph: 1.05, charge: 20, adds: 0, hazard: 3, patterns: ['volley', 'sweep', 'soak', 'donut', 'gaze'], seal: true },
-    starCombo: 34, star3: { kind: 'combo', alt: { kind: 'terrain', key: 'snow', need: 4, text: '눈밭 미끄러짐 4회' } }, bossVisual: { var: 3, scale: 0.98 }, bossName: '눈 밑의 중', bossLine: '향을 끊지 못한 채 눈에 덮인 자',
+    starCombo: 34, star3: { kind: 'combo' }, bossVisual: { var: 3, scale: 0.98 }, bossName: '눈 밑의 중', bossLine: '향을 끊지 못한 채 눈에 덮인 자',
     atmo: { clear: 0x161d25, fogCol: [22, 30, 40], fog: 0.034, moon: 16.0, amb: 5.4, hemiI: 6.8, fill: 3.6, hemi: 0x8aa0b4, ground: 0x11161d, moonCol: 0xdcecf8, tint: 'linear-gradient(180deg, rgba(120,160,200,0.20) 0%, rgba(14,24,38,0.30) 100%)' }
   },
   {
@@ -145,7 +145,7 @@ export const STAGES = [
     tip: '몸이 주황으로 부풀어 오르는 원귀는 터집니다 — 붙기 전에 베세요.',
     time: 135, eliteAt: 56, bossAt: 84, bossShapes: 7,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 3,
-    terrain: { kind: 'root', name: '뿌리', line: '뿌리 위 착지는 0.4초 묶이지만 착지 충격이 두 배' },
+    terrain: { kind: 'none', visual: 'root', name: '', line: '' },
     opening: { n: 10, ring: [0.5, 0.9], brute: 2 },
     mix: [[0, { imp: 0.6, brute: 0.26, bomber: 0.14 }], [20, { imp: 0.44, brute: 0.26, bomber: 0.16, charger: 0.14 }], [50, { imp: 0.34, brute: 0.24, bomber: 0.16, charger: 0.16, stone: 0.1 }]],
     waves: [
@@ -164,7 +164,7 @@ export const STAGES = [
     tip: '보스가 부르는 잔몹은 참으로 한꺼번에 쓸어 담으세요.',
     time: 145, eliteAt: 58, bossAt: 88, bossShapes: 9,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 3,
-    terrain: { kind: 'bell', name: '종루', line: '일섬으로 종을 치면 원 밖 원귀가 2초 드러납니다' },
+    terrain: { kind: 'none', visual: 'bell', name: '', line: '' },
     opening: { n: 10, ring: [0.5, 0.92], brute: 3 },
     mix: [[0, { imp: 0.58, brute: 0.26, thrower: 0.16 }], [18, { imp: 0.42, brute: 0.26, thrower: 0.18, charger: 0.14 }], [46, { imp: 0.32, brute: 0.24, thrower: 0.18, charger: 0.14, bomber: 0.12 }]],
     waves: [
@@ -185,7 +185,7 @@ export const STAGES = [
     tip: '다중 장판이 깔리면 빛나는 땅을 밟지 마세요 — 터지기 전에 빠져나옵니다.',
     time: 140, eliteAt: 58, bossAt: 88, bossShapes: 8,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 3,
-    terrain: { kind: 'blood', name: '혈석', line: '핏빛 바닥 위 원귀는 재생 — 혈석을 베어 끄세요' },
+    terrain: { kind: 'none', visual: 'blood', name: '', line: '' },
     opening: { n: 11, ring: [0.5, 0.92], brute: 3 },
     mix: [[0, { imp: 0.52, brute: 0.26, charger: 0.22 }], [18, { imp: 0.38, brute: 0.26, charger: 0.2, bomber: 0.16 }], [44, { imp: 0.28, brute: 0.24, charger: 0.18, bomber: 0.16, stone: 0.14 }]],
     waves: [
@@ -204,7 +204,7 @@ export const STAGES = [
     tip: '혼령 슬롯 카드가 있으면 넷이 동시에 종을 듭니다.',
     time: 145, eliteAt: 60, bossAt: 90, bossShapes: 9,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 4,
-    terrain: { kind: 'water', name: '물길', line: '물길을 가로지르는 일섬은 길이 −30%, 물 위 원귀는 느림' },
+    terrain: { kind: 'none', visual: 'water', name: '', line: '' },
     opening: { n: 12, ring: [0.5, 0.95], brute: 3 },
     mix: [[0, { imp: 0.48, brute: 0.26, thrower: 0.26 }], [16, { imp: 0.36, brute: 0.26, thrower: 0.2, charger: 0.18 }], [42, { imp: 0.26, brute: 0.24, thrower: 0.18, charger: 0.16, bomber: 0.16 }]],
     waves: [
@@ -223,7 +223,7 @@ export const STAGES = [
     tip: '정예 원귀의 부적 상자는 강화 3연속 — 놓치지 마세요.',
     time: 150, eliteAt: 62, bossAt: 94, bossShapes: 10,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 4,
-    terrain: { kind: 'wall', name: '성벽 포대', line: '30초마다 성벽에서 화살비 — 예고 원 1.2초를 피하세요' },
+    terrain: { kind: 'none', visual: 'wall', name: '', line: '' },
     opening: { n: 12, ring: [0.48, 0.95], brute: 4 },
     mix: [[0, { imp: 0.44, brute: 0.26, charger: 0.3 }], [16, { imp: 0.32, brute: 0.26, charger: 0.22, bomber: 0.2 }], [40, { imp: 0.24, brute: 0.24, charger: 0.2, bomber: 0.18, stone: 0.14 }]],
     waves: [
@@ -242,7 +242,7 @@ export const STAGES = [
     tip: '마지막 귀물은 장판을 다섯 겹으로 깝니다 — 붉은 예고선을 보고 일섬으로 빠져나가세요.',
     time: 160, eliteAt: 65, bossAt: 98, bossShapes: 11,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 4,
-    terrain: { kind: 'moon', name: '혈월 주기', line: '주기적으로 붉은 달이 떠 원귀가 빨라지고 엽전이 두 배가 됩니다' },
+    terrain: { kind: 'none', visual: 'moon', name: '', line: '' },
     opening: { n: 14, ring: [0.48, 1.0], brute: 4 },
     mix: [[0, { imp: 0.4, brute: 0.26, charger: 0.34 }], [14, { imp: 0.28, brute: 0.26, charger: 0.24, bomber: 0.22 }], [38, { imp: 0.2, brute: 0.24, charger: 0.22, bomber: 0.2, thrower: 0.14 }]],
     waves: [
@@ -257,11 +257,11 @@ export const STAGES = [
   },
   {
 id: 13, act: 4, name: '무간의 회랑', sub: '끝없는 핏빛 안개 회랑', map: 'map9', tag: '4막 진입',
-    goal: '4막의 첫 관문입니다. 혈석을 끄며 4분간 버텨 심연의 문지기를 베세요.',
-    tip: '혈석 위 원귀는 재생하므로 먼저 베어 불을 꺼야 합니다.',
+    goal: '4막의 첫 관문입니다. 핏빛 회랑에서 버텨 심연의 문지기를 베세요.',
+    tip: '연속 일섬으로 포위를 뚫고 보스 기믹에 맞춰 자리 잡으세요.',
     time: 155, eliteAt: 62, bossAt: 96, bossShapes: 10,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 4,
-    terrain: { kind: 'blood', name: '혈석', line: '핏빛 바닥 위 원귀는 재생 — 혈석을 베어 끄세요' },
+    terrain: { kind: 'none', visual: 'blood', name: '', line: '' },
     opening: { n: 14, mix: { imp: 0.4, brute: 0.3, charger: 0.3 } },
     mix: [[0, { imp: 0.35, brute: 0.25, charger: 0.25, thrower: 0.15 }], [95, { imp: 0.2, brute: 0.25, charger: 0.25, thrower: 0.15, bomber: 0.15 }]],
     waves: [
@@ -276,11 +276,11 @@ id: 13, act: 4, name: '무간의 회랑', sub: '끝없는 핏빛 안개 회랑',
   },
       {
     id: 14, act: 4, name: '망각의 나루', sub: '검은 물결이 흐르는 강', map: 'map10', tag: '격류와 은신',
-    goal: '흐르는 물길과 은신 보스에 맞서 무당방울 소리로 본체를 찾아내세요.',
-    tip: '물길을 가로지르는 일섬은 짧아지니 각도를 비스듬히 잡으세요.',
+    goal: '어두운 나루의 은신 보스에 맞서 무당방울 소리로 본체를 찾아내세요.',
+    tip: '은신 중에도 종이 울리는 방향으로 일섬하면 단번에 끊을 수 있습니다.',
     time: 160, eliteAt: 65, bossAt: 100, bossShapes: 10,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 4,
-    terrain: { kind: 'water', name: '물길', line: '물길을 가로지르는 일섬은 길이 −30%, 물 위 원귀는 느림' },
+    terrain: { kind: 'none', visual: 'water', name: '', line: '' },
     opening: { n: 14, mix: { imp: 0.35, brute: 0.25, thrower: 0.25, charger: 0.15 } },
     mix: [[0, { imp: 0.3, brute: 0.25, thrower: 0.25, charger: 0.2 }], [100, { imp: 0.2, brute: 0.2, thrower: 0.25, charger: 0.2, bomber: 0.15 }]],
     waves: [
@@ -294,12 +294,12 @@ id: 13, act: 4, name: '무간의 회랑', sub: '끝없는 핏빛 안개 회랑',
     atmo: { clear: 0x0e0c18, fogCol: [20, 18, 38], fog: 0.034, moon: 18.0, amb: 6.0, hemiI: 6.0, fill: 4.4, hemi: 0x8f86c8, ground: 0x120f1e, moonCol: 0xd4c6ff, tint: 'linear-gradient(180deg, rgba(96,76,175,0.22) 0%, rgba(16,12,32,0.34) 100%)' }
   },
   {
-    id: 15, act: 4, name: '검은 누각', sub: '화살비와 칼날이 교차하는 성채', map: 'map11', tag: '합과 화살비',
-    goal: '성벽의 화살비를 피하며 정예 무리를 뚫고 검은 검귀와 합을 겨루세요.',
-    tip: '화살비 예고 원이 뜨면 즉시 원 밖 혼령으로 일섬 탈출하세요.',
+    id: 15, act: 4, name: '검은 누각', sub: '검게 탄 성채, 교차하는 칼날', map: 'map11', tag: '검귀와 합',
+    goal: '정예 무리를 뚫고 검은 누각의 검귀와 합을 겨루세요.',
+    tip: '합 겨루기 문양이 뜨면 즉시 같은 무늬를 그어 받아치세요.',
     time: 165, eliteAt: 68, bossAt: 102, bossShapes: 11,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 4,
-    terrain: { kind: 'wall', name: '성벽 포대', line: '30초마다 성벽에서 화살비 — 예고 원 1.2초를 피하세요' },
+    terrain: { kind: 'none', visual: 'wall', name: '', line: '' },
     opening: { n: 15, mix: { imp: 0.3, brute: 0.3, charger: 0.2, thrower: 0.2 } },
     mix: [[0, { imp: 0.28, brute: 0.27, charger: 0.25, thrower: 0.2 }], [110, { imp: 0.18, brute: 0.22, charger: 0.22, thrower: 0.2, bomber: 0.18 }]],
     waves: [
@@ -318,7 +318,7 @@ id: 13, act: 4, name: '무간의 회랑', sub: '끝없는 핏빛 안개 회랑',
     tip: '보스 패턴이 바뀔 때 방울 소리와 금빛 빈틈을 끝까지 놓치지 마세요.',
     time: 175, eliteAt: 70, bossAt: 105, bossShapes: 12,
     shapes: ['hline', 'vline', 'vee', 'bolt'], spiritCap: 4,
-    terrain: { kind: 'moon', name: '심연 월광', line: '붉은 달이 뜨면 원귀가 빨라지고 처치 엽전이 두 배가 됩니다' },
+    terrain: { kind: 'none', visual: 'moon', name: '', line: '' },
     opening: { n: 16, mix: { imp: 0.25, brute: 0.3, charger: 0.25, thrower: 0.2 } },
     mix: [[0, { imp: 0.25, brute: 0.25, charger: 0.25, thrower: 0.25 }], [115, { imp: 0.16, brute: 0.22, charger: 0.22, thrower: 0.2, bomber: 0.2 }]],
     waves: [

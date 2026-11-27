@@ -19,8 +19,8 @@
 import * as THREE from 'three';
 import * as TEX from './inktex3d.js';
 import { SKIN_VERT } from './inkbody3d.js';
-import { INK3D } from './inkhero3d.js?v=v166';
-import { attachSlotModels } from './glbprops.js?v=v166';
+import { INK3D } from './inkhero3d.js?v=v167';
+import { attachSlotModels } from './glbprops.js?v=v167';
 import { LANDMARKS, STAGE_SCENERY, groundPoint } from './modules/stageScenery.js';
 import { actFromStageId, getActTheme3D, applyThemeToInkUniforms } from './modules/actTheme3d.js';
 import { mulberry } from './inkbake.js';
@@ -803,21 +803,21 @@ export function buildArena(opts) {
   const radii = { altarStone: 1.75, sealStone: 1.55, market: 1.7, roof: 2.1, door: 1.8, wall: 1.8, court: 2,
     grove: 1.5, tree: 1.2, deadTree: 1.1, shrine: 1.5, rubble: 1,
     lamp: 0.6, pagoda: 1.9, ribs: 1.4, spire: 1.45, bridge: 1.65 };
-  // v1.63: Keep only the 20 authored GLB landmarks (design/scenery-concepts);
-  // procedural proxy meshes and low foreground clusters are removed.
+  // v1.67: Place all 41 authored GLB landmarks with optional per-slot yaw/scale variation.
   const slots = plan.slots
     .filter(([key]) => LANDMARKS[key] && LANDMARKS[key].model)
-    .map(([key,side,depth]) => {
+    .map(([key, side, depth, yawDeg, scaleMul]) => {
       const spec = LANDMARKS[key];
       const proxy = spec.proxy || key;
-      const { x,z } = groundPoint(side,depth);
-      const yaw = Math.PI / 4;
-      const bone = B.beginStructure(key + '-' + spots.length,x,z);
+      const { x, z } = groundPoint(side, depth);
+      const yaw = Math.PI / 4 + ((yawDeg || 0) * Math.PI / 180);
+      const sMul = scaleMul || 1;
+      const bone = B.beginStructure(key + '-' + spots.length, x, z);
       B.endStructure();
-      const cr = radii[proxy] || 1.4;
-      const spot = { key,x,z,r: cr * 1.7,cr };
+      const cr = (radii[proxy] || 1.4) * Math.min(1.2, Math.max(0.75, sMul));
+      const spot = { key, x, z, r: cr * 1.7, cr };
       props.push(spot); spots.push(spot);
-      return { key, spec, bone, x,z,yaw };
+      return { key, spec, bone, x, z, yaw, height: spec.height * sMul };
     });
 
   const bodyGeo = B.body.length ? merge(B.body) : null;

@@ -9,7 +9,7 @@ import { groundSet, plainSet, mulberry } from './inkbake.js';
 import { texOf, panoOf } from './inkdiorama.js';
 import { floorInfo } from './inkfloor.js';
 import { buildArena, ARENA } from './inkarena.js';
-import { STAGE_SCENERY, groundPoint } from './modules/stageScenery.js';
+import { LANDMARKS, STAGE_SCENERY, groundPoint } from './modules/stageScenery.js';
 
 export const CHUNK = 24;
 export const WINDOW_R = 1; /* 3×3 */
@@ -186,11 +186,14 @@ function createArenaWorld(opts) {
       g.fillStyle = i%3 ? 'rgba(255,240,213,.09)' : 'rgba(16,18,26,.14)';
       g.beginPath(); g.moveTo(x-w,y); g.lineTo(x+w*.6,y-h); g.lineTo(x+w,y); g.lineTo(x-w*.4,y+h); g.fill();
     }
-    // Graphic contact shadows anchor every provisional and replacement structure.
-    for (const [,side,depth] of plan.slots) {
-      const {x,z} = groundPoint(side,depth);
-      g.beginPath(); g.ellipse(S/2+x*unit,S/2+z*unit,unit*2.1,unit*1.35,-0.52,0,Math.PI*2);
-      g.fillStyle='rgba(15,18,24,.12)'; g.fill();
+    // Graphic contact shadows anchor every grounded structure proportionally.
+    for (const [key, side, depth, , scaleMul] of plan.slots) {
+      if (key === 'skyLantern') continue;
+      const { x, z } = groundPoint(side, depth);
+      const h = ((LANDMARKS[key] && LANDMARKS[key].height) || 3.2) * (scaleMul || 1);
+      const sr = Math.min(2.2, Math.max(0.72, h * 0.38));
+      g.beginPath(); g.ellipse(S / 2 + x * unit, S / 2 + z * unit, unit * sr, unit * sr * 0.65, -0.52, 0, Math.PI * 2);
+      g.fillStyle = 'rgba(15,18,24,.12)'; g.fill();
     }
     const tx = new THREE.CanvasTexture(c);
     tx.colorSpace = THREE.SRGBColorSpace;

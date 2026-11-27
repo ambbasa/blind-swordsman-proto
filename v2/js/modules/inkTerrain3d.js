@@ -9,7 +9,7 @@
  */
 import * as THREE from 'three';
 import { WF, paint as paintCard } from '../cardstock.js';
-import { loadPropModel } from '../glbprops.js?v=v166';
+import { loadPropModel } from '../glbprops.js?v=v167';
 import {
   buildArchedBridge3D,
   buildCarvedLantern3D,

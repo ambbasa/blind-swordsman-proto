@@ -10,7 +10,7 @@ ramp.needsUpdate = true;
 
 function loadModel(file) {
   if (!sources.has(file)) {
-    const url = new URL('../assets/models/props/' + file + '?v=v166', import.meta.url);
+    const url = new URL('../assets/models/props/' + file + '?v=v167', import.meta.url);
     const promise = loader.loadAsync(url.href).then(({ scene }) => {
       const materials = new Map();
       function inkMaterial(source) {
@@ -57,9 +57,9 @@ export function attachSlotModels(group, slots) {
       if (!asset || disposed) return;
       const holder = new THREE.Group();
       holder.name = 'scenery-' + slot.key;
-      holder.position.set(slot.x, 0, slot.z);
+      holder.position.set(slot.x, slot.key === 'skyLantern' ? 2.6 : 0, slot.z);
       holder.rotation.y = slot.yaw;
-      holder.scale.setScalar(slot.spec.height / asset.height);
+      holder.scale.setScalar((slot.height || slot.spec.height) / asset.height);
       const model = asset.scene.clone();
       model.position.sub(new THREE.Vector3(asset.center.x, asset.base, asset.center.z));
       holder.add(model);
