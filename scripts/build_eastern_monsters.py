@@ -41,7 +41,7 @@ MONSTERS = {
     "jeoseung_boss":     ("robe",      2.45, 10500),
     # --- 4) Non-human specialized archetypes (3) ---
     "samjoko":           ("avian",     2.00,  8500),
-    "imugi_king_boss":   ("serpent",   2.90, 12000),
+    "imugi_king_boss":   ("serpent",   4.20, 14000),
     "jangsanbeom":       ("quadruped", 1.55,  9500),
 }
 
