@@ -346,9 +346,10 @@ function createArenaWorld(opts) {
   const heroLight = new THREE.PointLight(0xffb45c, 10, 18, 1.8);
   heroLight.position.set(0, 3.6, 1.6);
   group.add(heroLight);
-  const rimLight = new THREE.PointLight(0x9fc0e0, 2.5, 24, 1.6);
+  const _isMob = typeof window !== 'undefined' && (window.innerWidth <= 820 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent || ''));
+  const rimLight = new THREE.PointLight(0x9fc0e0, _isMob ? 0 : 2.5, 24, 1.6);
   rimLight.position.set(3.2, 5.4, -3.0);
-  group.add(rimLight);
+  if (!_isMob) group.add(rimLight);
 
   /* ---------- 뒤편 병풍 — 고정 무대이므로 카메라 초점을 그대로 따라간다(하늘함처럼). */
   let screenMesh = null;

@@ -10,17 +10,11 @@ ramp.needsUpdate = true;
 
 function loadModel(file) {
   if (!sources.has(file)) {
-    const url = new URL('../assets/models/props/' + file + '?v=v174', import.meta.url);
+    const url = new URL('../assets/models/props/' + file + '?v=v171', import.meta.url);
     const promise = loader.loadAsync(url.href).then(({ scene }) => {
       const materials = new Map();
       function inkMaterial(source) {
         if (!materials.has(source)) {
-          if (source.map) {
-            source.map.anisotropy = 4;
-            source.map.minFilter = THREE.LinearMipmapLinearFilter;
-            source.map.generateMipmaps = true;
-            source.map.needsUpdate = true;
-          }
           const col = source.color ? source.color.clone().multiplyScalar(0.92) : new THREE.Color(0xebe8e0);
           const mat = new THREE.MeshStandardMaterial({
             map: source.map, color: col, vertexColors: source.vertexColors,
@@ -72,6 +66,8 @@ export function attachSlotModels(group, slots) {
       const model = asset.scene.clone();
       model.position.sub(new THREE.Vector3(asset.center.x, asset.base, asset.center.z));
       holder.add(model);
+      holder.updateMatrixWorld(true);
+      holder.traverse(n => { n.matrixAutoUpdate = false; });
       group.add(holder);
       slot.bone.scale.setScalar(0.00001);
     });

@@ -808,7 +808,7 @@ function clearFieldForBoss() {
   (rt.S.zombies || []).forEach(function (z) {
     if (!z.alive || z.isBoss) return;
     z.alive = false;
-    if (z.obj && rt.three) rt.three.scene.remove(z.obj);
+    if (z.obj && rt.three) { rt.three.scene.remove(z.obj); if (z.obj.userData && z.obj.userData.dispose) z.obj.userData.dispose(); }
     if (rt.three && rt.three.ink && n < 14) rt.three.ink.kill(z.x, z.z, 0, 1);
     n++;
   });

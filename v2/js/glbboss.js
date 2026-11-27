@@ -1,17 +1,17 @@
 import * as THREE from 'three';
 import { applyForgedMetal, getMetalStudioEnv } from './modules/metalStudioEnv.js';
-import { makeRig, tickPose } from './glbpose.js?v=v174';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v174';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v174';
+import { makeRig, tickPose } from './glbpose.js?v=v171';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v171';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v171';
 
 const MODEL_URLS = {
-  boss:      new URL('../assets/models/boss.glb?v=v174', import.meta.url).href,
-  boss_act2: new URL('../assets/models/boss_act2.glb?v=v174', import.meta.url).href,
-  boss_act3: new URL('../assets/models/boss_act3.glb?v=v174', import.meta.url).href,
-  boss_act4: new URL('../assets/models/boss_act4.glb?v=v174', import.meta.url).href,
-  minion:    new URL('../assets/models/minion.glb?v=v174', import.meta.url).href,
-  heavy:     new URL('../assets/models/heavy.glb?v=v174', import.meta.url).href,
-  stone:     new URL('../assets/models/stone.glb?v=v174', import.meta.url).href
+  boss:      new URL('../assets/models/boss.glb?v=v171', import.meta.url).href,
+  boss_act2: new URL('../assets/models/boss_act2.glb?v=v171', import.meta.url).href,
+  boss_act3: new URL('../assets/models/boss_act3.glb?v=v171', import.meta.url).href,
+  boss_act4: new URL('../assets/models/boss_act4.glb?v=v171', import.meta.url).href,
+  minion:    new URL('../assets/models/minion.glb?v=v171', import.meta.url).href,
+  heavy:     new URL('../assets/models/heavy.glb?v=v171', import.meta.url).href,
+  stone:     new URL('../assets/models/stone.glb?v=v171', import.meta.url).href
 };
 function isBossSp(sp) { return sp === 'boss' || sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4'; }
 const BOSS_WEAPON_FX = {
@@ -153,7 +153,7 @@ export function makeBossGlb(height, species) {
       }
       o.material = mat;
       if (!body) body = o;
-      o.castShadow = true;
+      o.castShadow = !!bossSp;
       bodyMeshes.push(o);
     }
   });
@@ -388,5 +388,15 @@ export function disposeMonsterGlb(G) {
   if (G.mixer && G.root) {
     G.mixer.stopAllAction();
     G.mixer.uncacheRoot(G.root);
+  }
+  if (G.bodyMeshes) {
+    for (let i = 0; i < G.bodyMeshes.length; i++) {
+      const m = G.bodyMeshes[i];
+      if (m) {
+        m.onBeforeRender = null;
+        if (m.material && m.material.dispose) m.material.dispose();
+      }
+    }
+    G.bodyMeshes.length = 0;
   }
 }

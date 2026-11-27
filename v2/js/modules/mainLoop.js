@@ -147,7 +147,7 @@ let _heroCssY = '';
 function syncHeroCss(hs) {
   const host = $('app');
   if (!host || !hs) return;
-  const hxs = hs.x.toFixed(1) + 'px', hys = hs.y.toFixed(1) + 'px';
+  const hxs = Math.round(hs.x) + 'px', hys = Math.round(hs.y) + 'px';
   if (hxs !== rt._heroCssX) { host.style.setProperty('--hero-x', hxs); rt._heroCssX = hxs; }
   if (hys !== _heroCssY) { host.style.setProperty('--hero-y', hys); _heroCssY = hys; }
 }

@@ -58,18 +58,42 @@ export class InkFx {
   }
 }
 
+const _glowCache = new Map();
+function getGlowSprite(color, isFly) {
+  const key = (isFly ? 'f:' : 'b:') + color[0] + ',' + color[1] + ',' + color[2];
+  let c = _glowCache.get(key);
+  if (c) return c;
+  c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const gctx = c.getContext('2d');
+  const g = gctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  if (isFly) {
+    g.addColorStop(0, rgba([255, 250, 230], 0.95));
+    g.addColorStop(0.4, rgba(color, 0.8));
+    g.addColorStop(1, rgba(color, 0));
+  } else {
+    g.addColorStop(0, rgba([248, 252, 246], 0.85));
+    g.addColorStop(0.38, rgba(color, 0.78));
+    g.addColorStop(1, rgba(color, 0));
+  }
+  gctx.fillStyle = g;
+  gctx.fillRect(0, 0, 64, 64);
+  if (_glowCache.size > 48) _glowCache.clear();
+  _glowCache.set(key, c);
+  return c;
+}
+
 function drawBurst(ctx, e, k, project) {
   const p = project(e.x, e.z, e.y);
   const ek = ease(k);
   const r = 8 + e.r1 * ek;
   const inv = 1 - k;
   ctx.globalCompositeOperation = 'lighter';
-  /* 1) 핫 코어 플래시 + 다층 그라디언트 */
-  const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 0.95);
-  g.addColorStop(0, rgba([248, 252, 246], inv * 0.42));
-  g.addColorStop(0.38, rgba(e.color, inv * 0.38));
-  g.addColorStop(1, rgba(e.color, 0));
-  ctx.fillStyle = g; ctx.fillRect(p.x - r, p.y - r, r * 2, r * 2);
+  /* 1) 핫 코어 플래시 (오프스크린 글로우 스프라이트 캐시 사용) */
+  const prevA = ctx.globalAlpha;
+  ctx.globalAlpha = prevA * inv * 0.50;
+  ctx.drawImage(getGlowSprite(e.color, false), p.x - r, p.y - r, r * 2, r * 2);
+  ctx.globalAlpha = prevA;
   /* 2) 이중 충격파 링 (외곽 브러시 + 내부 날카로운 코어) */
   ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
   ctx.strokeStyle = rgba(e.color, inv * 0.78); ctx.lineWidth = (e.big ? 4.4 : 2.8) * inv + 0.8; ctx.stroke();
@@ -98,9 +122,7 @@ function drawFly(ctx, e, k, project) {
   const x = (1 - u) * (1 - u) * p.x + 2 * (1 - u) * u * mx + u * u * e.to.x;
   const y = (1 - u) * (1 - u) * p.y + 2 * (1 - u) * u * my + u * u * e.to.y;
   ctx.globalCompositeOperation = 'lighter';
-  const g = ctx.createRadialGradient(x, y, 0, x, y, 7);
-  g.addColorStop(0, rgba([255, 250, 230], 0.95)); g.addColorStop(0.4, rgba(e.color, 0.8)); g.addColorStop(1, rgba(e.color, 0));
-  ctx.fillStyle = g; ctx.fillRect(x - 7, y - 7, 14, 14);
+  ctx.drawImage(getGlowSprite(e.color, true), x - 7, y - 7, 14, 14);
 }
 
 function drawSeal(ctx, e, k, project, hero) {
