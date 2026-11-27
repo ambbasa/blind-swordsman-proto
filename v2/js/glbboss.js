@@ -1,17 +1,17 @@
 import * as THREE from 'three';
 import { applyForgedMetal, getMetalStudioEnv } from './modules/metalStudioEnv.js';
-import { makeRig, tickPose } from './glbpose.js?v=v172';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v172';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v172';
+import { makeRig, tickPose } from './glbpose.js?v=v173';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v173';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v173';
 
 const MODEL_URLS = {
-  boss:      new URL('../assets/models/boss.glb?v=v172', import.meta.url).href,
-  boss_act2: new URL('../assets/models/boss_act2.glb?v=v172', import.meta.url).href,
-  boss_act3: new URL('../assets/models/boss_act3.glb?v=v172', import.meta.url).href,
-  boss_act4: new URL('../assets/models/boss_act4.glb?v=v172', import.meta.url).href,
-  minion:    new URL('../assets/models/minion.glb?v=v172', import.meta.url).href,
-  heavy:     new URL('../assets/models/heavy.glb?v=v172', import.meta.url).href,
-  stone:     new URL('../assets/models/stone.glb?v=v172', import.meta.url).href
+  boss:      new URL('../assets/models/boss.glb?v=v173', import.meta.url).href,
+  boss_act2: new URL('../assets/models/boss_act2.glb?v=v173', import.meta.url).href,
+  boss_act3: new URL('../assets/models/boss_act3.glb?v=v173', import.meta.url).href,
+  boss_act4: new URL('../assets/models/boss_act4.glb?v=v173', import.meta.url).href,
+  minion:    new URL('../assets/models/minion.glb?v=v173', import.meta.url).href,
+  heavy:     new URL('../assets/models/heavy.glb?v=v173', import.meta.url).href,
+  stone:     new URL('../assets/models/stone.glb?v=v173', import.meta.url).href
 };
 function isBossSp(sp) { return sp === 'boss' || sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4'; }
 const BOSS_WEAPON_FX = {

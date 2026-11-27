@@ -308,32 +308,50 @@ def skin_via_voxel_heat(body, a_arm, fit):
     for b in a_arm.data.bones:
         b.use_deform = b.name in MAJOR_BONES
 
-    bpy.ops.object.select_all(action="DESELECT")
-    body.select_set(True)
-    bpy.context.view_layer.objects.active = body
-    bpy.ops.object.duplicate()
-    proxy = bpy.context.active_object
-    proxy.name = "Temp_Heat_Proxy"
-    proxy.vertex_groups.clear()
-
-    rm = proxy.modifiers.new(name="VoxelRemesh", type="REMESH")
-    rm.mode = "VOXEL"
-    rm.voxel_size = 0.028
-    bpy.ops.object.modifier_apply(modifier=rm.name)
-
-    bpy.ops.object.select_all(action="DESELECT")
-    proxy.select_set(True)
-    a_arm.select_set(True)
-    bpy.context.view_layer.objects.active = a_arm
     heat_ok = False
-    try:
-        bpy.ops.object.parent_set(type="ARMATURE_AUTO")
-        w_cnt = sum(1 for v in proxy.data.vertices if len(v.groups) > 0)
-        if w_cnt >= len(proxy.data.vertices) * 0.90:
-            heat_ok = True
-            print(f"  Voxel-Proxy Bone Heat OK ({w_cnt}/{len(proxy.data.vertices)} proxy verts)")
-    except Exception as e:
-        print(f"  Voxel-Proxy Bone Heat failed: {e}")
+    proxy = None
+    for vox_sz in (0.028, 0.024, 0.020, 0.032):
+        bpy.ops.object.select_all(action="DESELECT")
+        body.select_set(True)
+        bpy.context.view_layer.objects.active = body
+        bpy.ops.object.duplicate()
+        cand = bpy.context.active_object
+        cand.name = "Temp_Heat_Proxy"
+        cand.vertex_groups.clear()
+
+        rm = cand.modifiers.new(name="VoxelRemesh", type="REMESH")
+        rm.mode = "VOXEL"
+        rm.voxel_size = vox_sz
+        bpy.ops.object.modifier_apply(modifier=rm.name)
+
+        # Scale proxy + armature 10x during ARMATURE_AUTO so Blender's Bone Heat solver never hits small-scale degeneracy
+        cand.scale = (10.0, 10.0, 10.0)
+        a_arm.scale = (10.0, 10.0, 10.0)
+        bpy.context.view_layer.update()
+
+        bpy.ops.object.select_all(action="DESELECT")
+        cand.select_set(True)
+        a_arm.select_set(True)
+        bpy.context.view_layer.objects.active = a_arm
+        try:
+            bpy.ops.object.parent_set(type="ARMATURE_AUTO")
+            w_cnt = sum(1 for v in cand.data.vertices if len(v.groups) > 0)
+            if w_cnt >= len(cand.data.vertices) * 0.90:
+                heat_ok = True
+                proxy = cand
+                print(f"  Voxel-Proxy Bone Heat OK (voxel={vox_sz:.3f}, {w_cnt}/{len(cand.data.vertices)} proxy verts)")
+        except Exception as e:
+            print(f"  Voxel-Proxy Bone Heat (voxel={vox_sz:.3f}) failed: {e}")
+
+        # Restore exact 1.0 scale on armature (and proxy) before weight transfer
+        a_arm.scale = (1.0, 1.0, 1.0)
+        if heat_ok:
+            proxy.parent = None
+            proxy.matrix_world.identity()
+            bpy.context.view_layer.update()
+            break
+        bpy.context.view_layer.update()
+        bpy.data.objects.remove(cand, do_unlink=True)
 
     if heat_ok:
         transfer_vertex_weights(proxy, body)
@@ -361,7 +379,8 @@ def skin_via_voxel_heat(body, a_arm, fit):
         smooth_weights_mesh(body, iterations=3, factor=0.55)
         print("  Fallback to smooth distance weights")
 
-    bpy.data.objects.remove(proxy, do_unlink=True)
+    if proxy is not None:
+        bpy.data.objects.remove(proxy, do_unlink=True)
 
 def transfer_vertex_weights(src, dst):
     dst.vertex_groups.clear()

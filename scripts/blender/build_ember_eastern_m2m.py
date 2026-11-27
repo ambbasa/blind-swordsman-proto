@@ -48,7 +48,7 @@ ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MV_ROOT = ROOT / "design" / "character-concepts" / "ember-eastern-mv"
 
 TRI_BUDGETS = {
-    "hero": 14000,
+    "hero": 18000,
     "minion": 8500,
     "heavy": 10500,
     "stone": 10500,
@@ -99,13 +99,14 @@ def character_profiles():
         wrist_z = fit["z_shoulder"] - fit["arm_len"]
         profile["wrist_band"] = (max(0.40, wrist_z - 0.12), min(1.16, wrist_z + 0.24))
 
-    # 8-head sleek Ember-Eastern hero overrides (measured directly from hero_raw.glb):
-    # - True shoulder pivot is narrower (0.178m) and slightly higher (1.372m) than legacy 6-head template
-    # - Keep torso_clean below the true armpit split (z=1.14m, torso_max=0.138m) so underarm skin never stretches
+    # 8-head sleek Ember-Eastern hero overrides (measured directly from hero_raw.glb + 2D concept shoulder line):
+    # - Natural straight athletic shoulders (shoulder_x=0.184m, z_shoulder=1.398m) matching the 2D turnaround
+    # - Keep torso_clean below the true armpit split (z=1.14m, torso_max=0.145m) so underarm skin never stretches
     if "hero" in profiles:
         hp = profiles["hero"]
-        hp["fit"]["shoulder_x"] = 0.178
-        hp["fit"]["z_shoulder"] = 1.372
+        hp["fit"]["shoulder_x"] = 0.184
+        hp["fit"]["z_shoulder"] = 1.398
+        hp["fit"]["z_neck"] = 1.430
         hp["torso_clean_z"] = 1.12
         hp["torso_clean_x"] = 0.145
         hp["coat_clean_z"] = 1.00
@@ -619,6 +620,632 @@ def _build_ember_great_dao_mesh():
     return blade_obj, core_obj
 
 
+def weld_mesh_watertight(mesh_obj, dist=1e-4):
+    """Weld unwelded glTF UV-seam vertices BEFORE Decimate while keeping loop UVs intact."""
+    bm = bmesh.new()
+    bm.from_mesh(mesh_obj.data)
+    v_before = len(bm.verts)
+    b_before = sum(1 for e in bm.edges if e.is_boundary)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=dist)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    v_after = len(bm.verts)
+    b_after = sum(1 for e in bm.edges if e.is_boundary)
+    bm.to_mesh(mesh_obj.data)
+    bm.free()
+    mesh_obj.data.update()
+    print(
+        f"  + Welded glTF seams on {mesh_obj.name}: "
+        f"verts {v_before:,}->{v_after:,}, boundary edges {b_before:,}->{b_after:,}"
+    )
+
+
+def smooth_hero_back_shelf(mesh_obj, iterations=8):
+    """Smooth out Hunyuan3D's unintended curved mid-back shelf (z=1.09..1.22) BEFORE 4-view projection
+    so the black tunic flows cleanly down into the waist sash just like hero_mv/back.png.
+    """
+    bm = bmesh.new()
+    bm.from_mesh(mesh_obj.data)
+    bm.verts.ensure_lookup_table()
+    targets = [
+        v for v in bm.verts
+        if abs(v.co.x) < 0.155 and v.co.y > 0.055 and 1.07 <= v.co.z <= 1.24
+    ]
+    if targets:
+        tset = set(targets)
+        for _ in range(iterations):
+            new_y = {}
+            for v in targets:
+                nbs = [e.other_vert(v) for e in v.link_edges]
+                if not nbs:
+                    continue
+                # Smooth mainly depth (Y) with mild Z relaxation, stronger in center of shelf
+                cx_w = max(0.0, 1.0 - (abs(v.co.x) / 0.155) ** 2)
+                cz_w = math.sin(max(0.0, min(1.0, (v.co.z - 1.07) / 0.17)) * math.pi)
+                w = 0.55 * cx_w * cz_w
+                avg_y = sum(nb.co.y for nb in nbs) / len(nbs)
+                new_y[v] = v.co.y * (1.0 - w) + avg_y * w
+            for v, yv in new_y.items():
+                v.co.y = yv
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+        bm.to_mesh(mesh_obj.data)
+    bm.free()
+    mesh_obj.data.update()
+    print(f"  + Smoothed mid-back tunic shelf on {len(targets):,} verts (clean waist sash transition)")
+
+
+def sculpt_hero_shoulder_line(mesh_obj):
+    """Conform upper shoulder contour AFTER 4-view texture projection to a straight, natural athletic line
+    (shaving off any trapezius hump and lifting slumped outer deltoids cleanly, watertight & UV-preserving).
+    """
+    def _ss(e0, e1, v):
+        t = max(0.0, min(1.0, (v - e0) / max(1e-6, e1 - e0)))
+        return t * t * (3.0 - 2.0 * t)
+
+    bins = {}
+    for v in mesh_obj.data.vertices:
+        ax = abs(v.co.x)
+        if 0.065 <= ax <= 0.25 and 1.30 <= v.co.z <= 1.49:
+            b = int(round(ax * 100.0))
+            if b not in bins or v.co.z > bins[b]:
+                bins[b] = v.co.z
+
+    sh_moved = 0
+    for v in mesh_obj.data.vertices:
+        ax = abs(v.co.x)
+        z = v.co.z
+        if 0.068 <= ax <= 0.28 and 1.24 <= z <= 1.48:
+            z_line = 1.436 - 0.21 * (ax - 0.068)
+            b = int(round(min(0.25, ax) * 100.0))
+            z_cur_top = bins.get(b, z_line)
+            dz_needed = max(-0.018, min(+0.028, z_line - z_cur_top))
+            mx = _ss(0.068, 0.098, ax) * (1.0 - _ss(0.215, 0.280, ax))
+            mz = _ss(1.24, 1.36, z) * (1.0 - _ss(1.455, 1.485, z))
+            w = mx * mz
+            if w > 1e-4:
+                v.co.z += dz_needed * w
+                out_w = _ss(0.140, 0.195, ax) * (1.0 - _ss(0.225, 0.280, ax)) * mz
+                if out_w > 1e-4:
+                    sgn = 1.0 if v.co.x >= 0.0 else -1.0
+                    v.co.x += sgn * 0.008 * out_w
+                sh_moved += 1
+    mesh_obj.data.update()
+    print(f"  + Refined straight athletic shoulder line ({sh_moved:,} verts)")
+
+
+def slim_hero_head_and_neck(mesh_obj):
+    """Match the 2D turnaround's exact chin height, under-chin neck separation, and natural masculine jawline.
+
+    Avoids X-only narrowing (which elongates the face); instead lifts Hunyuan3D's drooped chin bottom
+    up to the true 2D chin line under the mouth and tucks the throat back for crisp jaw-neck separation.
+    """
+    def _ss(e0, e1, v):
+        t = max(0.0, min(1.0, (v - e0) / max(1e-6, e1 - e0)))
+        return t * t * (3.0 - 2.0 * t)
+
+    head_ys = [v.co.y for v in mesh_obj.data.vertices if v.co.z >= 1.54]
+    head_cy = sum(head_ys) / len(head_ys) if head_ys else 0.0
+    neck_ys = [v.co.y for v in mesh_obj.data.vertices if 1.43 <= v.co.z <= 1.50 and abs(v.co.x) < 0.08]
+    neck_cy = sum(neck_ys) / len(neck_ys) if neck_ys else head_cy
+
+    head_moved = 0
+    for v in mesh_obj.data.vertices:
+        ax = abs(v.co.x)
+        z = v.co.z
+
+        # 1) Lift drooped chin/lower-jaw bottom UP (+2.2cm peak at z~1.50) to match the 2D turnaround chin line
+        if 1.460 <= z <= 1.575 and ax < 0.085:
+            # Front/side of chin & jaw (y < head_cy + 0.025)
+            front_w = 1.0 - _ss(head_cy + 0.005, head_cy + 0.045, v.co.y)
+            chin_z_w = _ss(1.460, 1.498, z) * (1.0 - _ss(1.522, 1.575, z))
+            chin_x_w = 1.0 - _ss(0.052, 0.085, ax)
+            cw = front_w * chin_z_w * chin_x_w
+            if cw > 1e-4:
+                v.co.z += 0.022 * cw
+                head_moved += 1
+
+        # 2) Tuck throat directly beneath the lifted chin (+1.2cm toward +Y) & gently slim neck (-8%)
+        if 1.425 <= z <= 1.515 and ax < 0.082:
+            nw = _ss(1.425, 1.452, z) * (1.0 - _ss(1.492, 1.515, z)) * (1.0 - _ss(0.052, 0.082, ax))
+            if nw > 1e-4:
+                v.co.x *= 1.0 - 0.08 * nw
+                v.co.y = neck_cy + (v.co.y - neck_cy) * (1.0 - 0.08 * nw)
+                # Carve crisp under-chin throat recess on the front (-Y) side
+                throat_front = 1.0 - _ss(neck_cy - 0.015, neck_cy + 0.015, v.co.y)
+                v.co.y += 0.012 * nw * throat_front
+                head_moved += 1
+
+        # 3) Very gentle natural head slimming (-4% X/Y only, preserving masculine cheekbone/jaw width)
+        if z >= 1.505:
+            hw = _ss(1.505, 1.555, z)
+            v.co.x *= 1.0 - 0.04 * hw
+            v.co.y = head_cy + (v.co.y - head_cy) * (1.0 - 0.04 * hw)
+            head_moved += 1
+
+    mesh_obj.data.update()
+    print(f"  + Matched 2D chin line, jaw-neck separation & natural head ratio ({head_moved:,} verts)")
+
+
+def refit_hero_hand_bones(t_arm, hand_scale=0.78, z_shoulder=1.412):
+    """Raise hero clavicles to heroic horizontal line and scale/connect 40 finger bones around each wrist."""
+    bpy.ops.object.select_all(action="DESELECT")
+    t_arm.select_set(True)
+    bpy.context.view_layer.objects.active = t_arm
+    bpy.ops.object.mode_set(mode="EDIT")
+    ebones = t_arm.data.edit_bones
+    saved_rolls = {eb.name: eb.roll for eb in ebones}
+    finger_prefixes = ("thumb_", "index_", "middle_", "ring_", "pinky_")
+
+    # Keep clavicles centered inside the upper chest (never poking out the front V-collar!) so Bone Heat succeeds 100%
+    for suffix in ("l", "r"):
+        cl = ebones.get(f"clavicle_{suffix}")
+        if cl is not None:
+            cl.head.y = 0.015
+            cl.head.z = z_shoulder - 0.022
+            cl.tail.z = z_shoulder
+            cl.roll = saved_rolls[cl.name]
+
+    for suffix in ("l", "r"):
+        hb = ebones.get(f"hand_{suffix}")
+        if hb is None:
+            continue
+        h0 = hb.head.copy()
+        for eb in ebones:
+            if eb.name.endswith(f"_{suffix}") and eb.name.startswith(finger_prefixes):
+                eb.head = h0 + (eb.head - h0) * hand_scale
+                eb.tail = h0 + (eb.tail - h0) * hand_scale
+                eb.roll = saved_rolls[eb.name]
+        # Span hand bone cleanly across the refitted palm to middle MCP
+        mid1 = ebones.get(f"middle_01_{suffix}")
+        if mid1 is not None:
+            axis = (hb.tail - hb.head).normalized()
+            palm_len = max(0.052, (mid1.head - h0).dot(axis) * 0.88)
+            hb.tail = h0 + axis * palm_len
+            hb.roll = saved_rolls[hb.name]
+
+        # Physically connect every finger phalanx chain (01 -> 02 -> 03 -> 04_leaf) so joints never detach
+        for fname in ("thumb", "index", "middle", "ring", "pinky"):
+            for idx_n in ("02", "03", "04_leaf"):
+                eb_c = ebones.get(f"{fname}_{idx_n}_{suffix}")
+                if eb_c is not None and eb_c.parent is not None:
+                    eb_c.head = eb_c.parent.tail.copy()
+                    eb_c.use_connect = True
+                    eb_c.roll = saved_rolls[eb_c.name]
+
+    bpy.ops.object.mode_set(mode="OBJECT")
+    # Remove oversized M2M icosphere custom shapes on finger/hand bones so bones read cleanly as connected joints
+    t_arm.data.display_type = "OCTAHEDRAL"
+    for pb in t_arm.pose.bones:
+        if any(pb.name.startswith(p) for p in ("hand_", "thumb_", "index_", "middle_", "ring_", "pinky_")):
+            pb.custom_shape = None
+    print(f"  + Refitted & connected 40 hero finger bones (scale={hand_scale:.2f}, exact rolls preserved)")
+
+
+def _make_hero_hands_texture(img_name="Hero_Hands_BaseColor", size=256):
+    """Create a crisp 256x256 matte painterly texture for Hero_Hands (left half: charcoal glove + crimson trim, right half: porcelain fingers)."""
+    old = bpy.data.images.get(img_name)
+    if old is not None:
+        bpy.data.images.remove(old)
+    img = bpy.data.images.new(img_name, width=size, height=size, alpha=True)
+    arr = np.zeros((size, size, 4), dtype=np.float32)
+    half = size // 2
+
+    # UV layout:
+    # u in [0.0, 0.5): matte ink-charcoal fingerless glove + refined dark crimson cuff/knuckle piping
+    # u in [0.5, 1.0): warm porcelain skin + subtle warm-rose knuckle tint + pale nail cap
+    for y in range(size):
+        v = y / max(1, size - 1)
+        # Left half: glove (v=0 wrist cuff -> v=1 knuckle cuff)
+        if v < 0.12 or v > 0.92:
+            # Refined dark crimson silk piping matching hero's shoulder/waist sash
+            r, g, b = 0.40, 0.075, 0.095
+        else:
+            # Matte charcoal cloth/leather with subtle tonal plane lift toward knuckles
+            lift = 0.022 * math.sin(v * math.pi)
+            r, g, b = 0.098 + lift, 0.095 + lift, 0.114 + lift * 1.1
+        arr[y, :half, 0] = r
+        arr[y, :half, 1] = g
+        arr[y, :half, 2] = b
+        arr[y, :half, 3] = 1.0
+
+        # Right half: porcelain fingers (v=0 MCP base -> v=1 fingertip)
+        # Warm porcelain base sampled from hero face palette
+        sr, sg, sb = 0.85, 0.72, 0.63
+        # Subtle warm-rose knuckle shading at PIP (~0.38) and DIP (~0.68)
+        k_pip = math.exp(-((v - 0.38) / 0.065) ** 2)
+        k_dip = math.exp(-((v - 0.68) / 0.055) ** 2)
+        k_amt = 0.075 * k_pip + 0.060 * k_dip
+        sr -= k_amt * 0.45
+        sg -= k_amt * 1.05
+        sb -= k_amt * 1.15
+        # Soft fingertip/nail highlight near v > 0.86
+        if v > 0.84:
+            nt = min(1.0, (v - 0.84) / 0.12)
+            sr = sr * (1.0 - nt * 0.25) + 0.91 * (nt * 0.25)
+            sg = sg * (1.0 - nt * 0.25) + 0.79 * (nt * 0.25)
+            sb = sb * (1.0 - nt * 0.25) + 0.72 * (nt * 0.25)
+        # Subtle palmar crease darkening on inner edge of right half (u in [0.50..0.64])
+        arr[y, half:, 0] = sr
+        arr[y, half:, 1] = sg
+        arr[y, half:, 2] = sb
+        arr[y, half:, 3] = 1.0
+
+    # Gently shade palmar side (left strip of right half) for readable finger separation
+    palm_strip = int(size * 0.12)
+    arr[:, half : half + palm_strip, 0] *= 0.88
+    arr[:, half : half + palm_strip, 1] *= 0.85
+    arr[:, half : half + palm_strip, 2] *= 0.84
+
+    img.pixels.foreach_set(arr.ravel())
+    img.pack()
+    return img
+
+
+def replace_hero_hands_articulated(body, t_arm):
+    """Trim Hunyuan3D's blobby fused hands at the wrist cuffs (keeping Hero_Body 100% watertight)
+    and build clean articulated 5-finger fingerless-glove hands (`Hero_Hands`) rigged 1:1 to all 30 finger bones.
+    """
+    # 1) Razor-clean planar slice of blobby fused hands on Hero_Body at each wrist cuff (0 jagged flaps!)
+    bm_body = bmesh.new()
+    bm_body.from_mesh(body.data)
+    bm_body.verts.ensure_lookup_table()
+    bm_body.edges.ensure_lookup_table()
+    bm_body.faces.ensure_lookup_table()
+    uv_body = bm_body.loops.layers.uv.active
+
+    cut_limits = {}
+    for suffix, sgn in (("r", -1.0), ("l", 1.0)):
+        hb = t_arm.data.bones.get(f"hand_{suffix}")
+        if hb is None:
+            continue
+        cut_x = abs(hb.head_local.x) - 0.014
+        cut_limits[suffix] = (sgn, cut_x, hb.head_local.copy())
+
+        # Collect only arm geometry on this side (z > 1.05, sgn*x > cut_x - 0.14) and bisect cleanly
+        arm_faces = [
+            f for f in bm_body.faces
+            if any(v.co.z > 1.05 and sgn * v.co.x > cut_x - 0.14 for v in f.verts)
+        ]
+        arm_edges = list({e for f in arm_faces for e in f.edges})
+        arm_verts = list({v for f in arm_faces for v in f.verts})
+        if arm_faces:
+            bmesh.ops.bisect_plane(
+                bm_body,
+                geom=arm_faces + arm_edges + arm_verts,
+                dist=1e-4,
+                plane_co=Vector((sgn * cut_x, 0.0, 1.36)),
+                plane_no=Vector((sgn, 0.0, 0.0)),
+                use_snap_center=False,
+                clear_outer=True,
+                clear_inner=False,
+            )
+
+    # Remove any isolated vertices left behind
+    loose = [v for v in bm_body.verts if not v.link_faces]
+    if loose:
+        bmesh.ops.delete(bm_body, geom=loose, context="VERTS")
+
+    # Cleanly cap the recessed wrist cuff openings so Hero_Body stays 100% watertight (0 boundary edges)
+    for suffix, (sgn, cut_x, h_head) in cut_limits.items():
+        b_edges = [
+            e for e in bm_body.edges
+            if e.is_boundary
+            and e.verts[0].co.z > 1.05
+            and sgn * e.verts[0].co.x > cut_x - 0.09
+        ]
+        if not b_edges:
+            continue
+        b_verts = list({v for e in b_edges for v in e.verts})
+        center_co = sum((v.co for v in b_verts), Vector((0.0, 0.0, 0.0))) / len(b_verts)
+        # Tuck cap slightly inward along forearm so the dark sleeve cuff reads as hollow around the glove
+        center_co.x -= sgn * 0.010
+        v_cap = bm_body.verts.new(center_co)
+        # Sample dark cuff UV from boundary loops
+        sample_uv = Vector((0.5, 0.5))
+        if uv_body is not None:
+            for e in b_edges:
+                if e.link_loops:
+                    sample_uv = e.link_loops[0][uv_body].uv.copy()
+                    break
+        for e in b_edges:
+            # Preserve consistent winding against existing adjacent face
+            lp = e.link_loops[0] if e.link_loops else None
+            if lp is not None:
+                v0, v1 = lp.vert, lp.link_loop_next.vert
+                try:
+                    nf = bm_body.faces.new((v1, v0, v_cap))
+                    if uv_body is not None:
+                        for nl in nf.loops:
+                            nl[uv_body].uv = sample_uv
+                except ValueError:
+                    pass
+
+    bmesh.ops.recalc_face_normals(bm_body, faces=bm_body.faces)
+    body_b_after = sum(1 for e in bm_body.edges if e.is_boundary)
+    bm_body.to_mesh(body.data)
+    bm_body.free()
+    body.data.update()
+
+    # Ensure newly added cuff cap vertices carry clean lowerarm weight
+    for suffix, (sgn, cut_x, _) in cut_limits.items():
+        la_vg = body.vertex_groups.get(f"lowerarm_{suffix}")
+        if la_vg is None:
+            continue
+        for v in body.data.vertices:
+            if v.co.z > 1.05 and sgn * v.co.x > cut_x - 0.06 and not v.groups:
+                la_vg.add([v.index], 1.0, "REPLACE")
+
+    # 2) Build Hero_Hands: watertight sculpted fingerless-glove palm + 5 articulated 3-phalanx fingers per hand
+    bm = bmesh.new()
+    uv_layer = bm.loops.layers.uv.new("UVMap")
+    vert_weights = []  # parallel list of dict[bone_name, float]
+
+    def add_v(co, wdict):
+        v = bm.verts.new(co)
+        v.index = len(vert_weights)
+        vert_weights.append(dict(wdict))
+        return v
+
+    def add_closed_loft(rings_data, u_range, v_vals, flip_winding=False):
+        """rings_data: list of (ring_verts, v_coord). Creates smooth closed watertight tube with end caps."""
+        ring_vs = []
+        for pts_w in rings_data:
+            rv = [add_v(co, wd) for (co, wd) in pts_w]
+            ring_vs.append(rv)
+        u0, u1 = u_range
+        n_ring = len(ring_vs[0])
+
+        for ri in range(len(ring_vs) - 1):
+            r0, r1 = ring_vs[ri], ring_vs[ri + 1]
+            v0, v1 = v_vals[ri], v_vals[ri + 1]
+            for j in range(n_ring):
+                jn = (j + 1) % n_ring
+                ua = u0 + (u1 - u0) * (j / n_ring)
+                ub = u0 + (u1 - u0) * ((j + 1) / n_ring)
+                verts_q = (r0[j], r0[jn], r1[jn], r1[j]) if not flip_winding else (r0[jn], r0[j], r1[j], r1[jn])
+                uvs_q = [(ua, v0), (ub, v0), (ub, v1), (ua, v1)] if not flip_winding else [(ub, v0), (ua, v0), (ua, v1), (ub, v1)]
+                f = bm.faces.new(verts_q)
+                f.smooth = True
+                for lp, uv in zip(f.loops, uvs_q):
+                    lp[uv_layer].uv = uv
+
+        # Watertight end caps using ring centroids
+        for end_idx, (rv, vc, rev) in enumerate([(ring_vs[0], v_vals[0], not flip_winding), (ring_vs[-1], v_vals[-1], flip_winding)]):
+            c_co = sum((v.co for v in rv), Vector((0.0, 0.0, 0.0))) / n_ring
+            # Average weights of ring for cap center
+            c_w = {}
+            for v in rv:
+                for bn, wt in vert_weights[v.index].items():
+                    c_w[bn] = c_w.get(bn, 0.0) + wt / n_ring
+            v_c = add_v(c_co, c_w)
+            u_mid = 0.5 * (u0 + u1)
+            for j in range(n_ring):
+                jn = (j + 1) % n_ring
+                tri = (rv[jn], rv[j], v_c) if rev else (rv[j], rv[jn], v_c)
+                f = bm.faces.new(tri)
+                f.smooth = True
+                for lp in f.loops:
+                    lp[uv_layer].uv = (u_mid, vc)
+
+    finger_specs = [
+        # (name, r_base_x, r_base_z, r_pip, r_dip, r_tip, glove_cut_t1)
+        ("index",  0.0086, 0.0090, 0.0074, 0.0064, 0.0048, 0.18),
+        ("middle", 0.0090, 0.0095, 0.0078, 0.0067, 0.0051, 0.18),
+        ("ring",   0.0084, 0.0089, 0.0073, 0.0063, 0.0047, 0.18),
+        ("pinky",  0.0072, 0.0076, 0.0062, 0.0054, 0.0041, 0.18),
+        ("thumb",  0.0128, 0.0124, 0.0102, 0.0088, 0.0068, 0.42),
+    ]
+
+    for suffix, sgn in (("r", -1.0), ("l", 1.0)):
+        hb = t_arm.data.bones[f"hand_{suffix}"]
+        h0 = hb.head_local.copy()
+        la_name = f"lowerarm_{suffix}"
+        h_name = f"hand_{suffix}"
+
+        # Measure actual refitted MCP knuckle coordinates on this hand
+        idx_h = t_arm.data.bones[f"index_01_{suffix}"].head_local
+        mid_h = t_arm.data.bones[f"middle_01_{suffix}"].head_local
+        rng_h = t_arm.data.bones[f"ring_01_{suffix}"].head_local
+        pnk_h = t_arm.data.bones[f"pinky_01_{suffix}"].head_local
+        thm_h = t_arm.data.bones[f"thumb_01_{suffix}"].head_local
+
+        palm_len = abs(mid_h.x - h0.x)
+        y_idx = idx_h.y - h0.y  # negative (-Y = thumb/index side)
+        y_pnk = pnk_h.y - h0.y  # positive (+Y = pinky side)
+        z_knk = mid_h.z - h0.z
+
+        # --- A) Sculpted anatomical palm + fingerless glove cuff (tapered cleanly to MCP knuckle arch!) ---
+        # Stations along sgn*(x - h0.x) from tucked wrist cuff (-0.024) to MCP knuckle bridge (palm_len - 0.002)
+        n_palm_sides = 16
+        palm_stations = [
+            # (x_off, y_min, y_max, z_bot, z_top, v_uv, w_lowerarm)
+            (-0.024, -0.020, +0.020, -0.015, +0.015, 0.04, 0.90),
+            (-0.010, -0.022, +0.021, -0.016, +0.016, 0.11, 0.60),
+            (+0.005, -0.024, +0.022, -0.016, +0.016, 0.20, 0.22),
+            (+0.022, y_idx * 0.86 - 0.005, y_pnk * 0.84 + 0.005, -0.018, +0.015, 0.42, 0.0),
+            (+0.044, y_idx * 1.00 - 0.006, y_pnk * 0.95 + 0.005, -0.016, +0.014, 0.68, 0.0),
+            (palm_len - 0.012, y_idx - 0.006, y_pnk + 0.006, z_knk - 0.012, z_knk + 0.011, 0.86, 0.0),
+            (palm_len - 0.004, y_idx - 0.005, y_pnk + 0.005, z_knk - 0.009, z_knk + 0.009, 0.94, 0.0),
+            (palm_len - 0.000, y_idx - 0.002, y_pnk + 0.002, z_knk - 0.005, z_knk + 0.005, 0.98, 0.0),
+        ]
+        palm_rings = []
+        palm_vs = []
+        for x_off, ymin, ymax, zbot, ztop, vc, w_la in palm_stations:
+            cy = 0.5 * (ymin + ymax)
+            ry = 0.5 * (ymax - ymin)
+            cz = 0.5 * (zbot + ztop)
+            rz = 0.5 * (ztop - zbot)
+            wdict = {h_name: 1.0 - w_la}
+            if w_la > 1e-3:
+                wdict[la_name] = w_la
+            ring = []
+            for k in range(n_palm_sides):
+                ang = (2.0 * math.pi * k) / n_palm_sides
+                ca, sa = math.cos(ang), math.sin(ang)
+                # Slightly squircle cross-section for crisp stylized hand planes + palm cupping
+                sy = math.copysign(abs(ca) ** 0.84, ca)
+                sz = math.copysign(abs(sa) ** 0.86, sa)
+                py = h0.y + cy + ry * sy
+                pz = h0.z + cz + rz * sz
+                # Anatomical knuckle arch curve: pinky MCP sits slightly further back than middle MCP
+                arch_x = x_off
+                if x_off > palm_len - 0.016:
+                    # Smoothly recess pinky/index corners so palm never overhangs knuckle skin
+                    edge_t = max(0.0, (py - mid_h.y) / max(1e-4, y_pnk - (mid_h.y - h0.y)))
+                    arch_x -= 0.006 * (edge_t ** 2)
+                # Muscular thenar pad bulge on thumb-palm side (mid-palm, -Y, -Z)
+                if 0.015 < x_off < 0.052 and ca < -0.2 and sa < -0.1:
+                    pz -= 0.0045 * (-ca) * (-sa)
+                    py -= 0.0025 * (-ca)
+                # Subtle dorsal knuckle ridges near knuckle line
+                if x_off > palm_len - 0.014 and sa > 0.35:
+                    for fk_h in (idx_h, mid_h, rng_h, pnk_h):
+                        dy = abs(py - fk_h.y)
+                        if dy < 0.007:
+                            pz += 0.0018 * (1.0 - dy / 0.007) * sa
+                px = h0.x + sgn * arch_x
+                ring.append((Vector((px, py, pz)), wdict))
+            palm_rings.append(ring)
+            palm_vs.append(vc)
+
+        add_closed_loft(palm_rings, u_range=(0.04, 0.46), v_vals=palm_vs, flip_winding=(sgn < 0))
+
+        # --- B) 5 Articulated 3-Phalanx Fingers (1:1 weighted to *_01, *_02, *_03) ---
+        n_f_sides = 12
+        for fname, rbx, rbz, rpip, rdip, rtip, glove_t1 in finger_specs:
+            b1_n = f"{fname}_01_{suffix}"
+            b2_n = f"{fname}_02_{suffix}"
+            b3_n = f"{fname}_03_{suffix}"
+            b1 = t_arm.data.bones[b1_n]
+            b2 = t_arm.data.bones[b2_n]
+            b3 = t_arm.data.bones[b3_n]
+
+            # Build 15 cross-section stations with 3 dense joint rings across MCP, PIP, DIP!
+            # Each tuple: (bone, t_along, rx, rz, v_uv, weight_dict)
+            if fname == "thumb":
+                stations = [
+                    (b1, -0.22, rbx * 1.18, rbz * 1.15, 0.02, {h_name: 0.72, b1_n: 0.28}),
+                    (b1,  0.00, rbx * 1.08, rbz * 1.05, 0.08, {h_name: 0.38, b1_n: 0.62}),
+                    (b1,  0.35, rbx * 0.98, rbz * 0.96, 0.18, {b1_n: 1.0}),
+                    (b1,  0.76, rpip * 1.06, rpip * 1.02, 0.30, {b1_n: 0.88, b2_n: 0.12}),
+                    (b1,  0.94, rpip * 1.08, rpip * 1.06, 0.36, {b1_n: 0.62, b2_n: 0.38}),
+                    (b2,  0.06, rpip * 1.05, rpip * 1.02, 0.42, {b1_n: 0.32, b2_n: 0.68}),
+                    (b2,  0.48, (rpip + rdip) * 0.49, (rpip + rdip) * 0.48, 0.54, {b2_n: 1.0}),
+                    (b2,  0.86, rdip * 1.04, rdip * 1.04, 0.65, {b2_n: 0.75, b3_n: 0.25}),
+                    (b2,  1.00, rdip * 1.07, rdip * 1.05, 0.70, {b2_n: 0.50, b3_n: 0.50}),
+                    (b3,  0.12, rdip * 1.00, rdip * 0.98, 0.75, {b2_n: 0.22, b3_n: 0.78}),
+                    (b3,  0.55, (rdip + rtip) * 0.50, (rdip + rtip) * 0.46, 0.85, {b3_n: 1.0}),
+                    (b3,  0.92, rtip * 0.92, rtip * 0.82, 0.94, {b3_n: 1.0}),
+                    (b3,  1.10, rtip * 0.46, rtip * 0.40, 0.99, {b3_n: 1.0}),
+                ]
+            else:
+                stations = [
+                    (b1, -0.24, rbx * 1.06, rbz * 1.04, 0.02, {h_name: 0.85, b1_n: 0.15}),
+                    (b1,  0.00, rbx * 1.04, rbz * 1.04, 0.08, {h_name: 0.48, b1_n: 0.52}),
+                    (b1,  0.22, rbx * 0.96, rbz * 0.95, 0.16, {b1_n: 0.95, h_name: 0.05}),
+                    (b1,  0.60, (rbx + rpip) * 0.47, (rbz + rpip) * 0.47, 0.28, {b1_n: 1.0}),
+                    (b1,  0.88, rpip * 1.04, rpip * 1.06, 0.35, {b1_n: 0.78, b2_n: 0.22}),
+                    (b1,  1.00, rpip * 1.07, rpip * 1.08, 0.39, {b1_n: 0.50, b2_n: 0.50}),
+                    (b2,  0.12, rpip * 1.00, rpip * 1.00, 0.43, {b1_n: 0.22, b2_n: 0.78}),
+                    (b2,  0.52, (rpip + rdip) * 0.48, (rpip + rdip) * 0.48, 0.55, {b2_n: 1.0}),
+                    (b2,  0.88, rdip * 1.03, rdip * 1.04, 0.65, {b2_n: 0.76, b3_n: 0.24}),
+                    (b2,  1.00, rdip * 1.06, rdip * 1.06, 0.69, {b2_n: 0.50, b3_n: 0.50}),
+                    (b3,  0.12, rdip * 0.98, rdip * 0.96, 0.73, {b2_n: 0.24, b3_n: 0.76}),
+                    (b3,  0.52, (rdip + rtip) * 0.50, (rdip + rtip) * 0.45, 0.84, {b3_n: 1.0}),
+                    (b3,  0.90, rtip * 0.90, rtip * 0.78, 0.93, {b3_n: 1.0}),
+                    (b3,  1.08, rtip * 0.44, rtip * 0.38, 0.98, {b3_n: 1.0}),
+                ]
+
+            f_rings = []
+            f_vs = []
+            for bone, t_al, rx, rz, vc, wdict in stations:
+                m = bone.matrix_local.to_3x3()
+                bx = m.col[0].normalized()  # width axis (hinge axis)
+                by = m.col[1].normalized()  # bone length axis
+                bz = m.col[2].normalized()  # palmar (+bz) / dorsal (-bz) axis
+                center = bone.head_local + by * (bone.length * t_al)
+                ring = []
+                for k in range(n_f_sides):
+                    ang = (2.0 * math.pi * k) / n_f_sides
+                    ca, sa = math.cos(ang), math.sin(ang)
+                    # Faceted stylized finger cross-section: flat dorsal nail plane (-bz) & fuller palmar pad (+bz)
+                    sx = math.copysign(abs(ca) ** 0.86, ca)
+                    sz = math.copysign(abs(sa) ** 0.86, sa)
+                    z_rad = rz * (1.06 if sa > 0 else 0.94)
+                    # Slight dorsal knuckle bump right at joints (v ~ 0.39 or 0.69)
+                    if (abs(vc - 0.39) < 0.03 or abs(vc - 0.69) < 0.03) and sa < -0.35:
+                        z_rad *= 1.10
+                    pt = center + bx * (rx * sx) + bz * (z_rad * sz)
+                    ring.append((pt, wdict))
+                f_rings.append(ring)
+                f_vs.append(vc)
+
+            # Determine winding consistency from bone basis det (right vs left mirror)
+            m0 = b1.matrix_local.to_3x3()
+            flip_f = (m0.col[0].cross(m0.col[2]).dot(m0.col[1]) > 0)
+            # Porcelain skin UV region on right half of texture (u in [0.54, 0.96])
+            add_closed_loft(f_rings, u_range=(0.54, 0.96), v_vals=f_vs, flip_winding=flip_f)
+
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    hands_b = sum(1 for e in bm.edges if e.is_boundary)
+    hands_mesh = bpy.data.meshes.new("Hero_Hands_Mesh")
+    bm.to_mesh(hands_mesh)
+    bm.free()
+
+    old_hands = bpy.data.objects.get("Hero_Hands")
+    if old_hands is not None:
+        bpy.data.objects.remove(old_hands, do_unlink=True)
+    hands_obj = bpy.data.objects.new("Hero_Hands", hands_mesh)
+    bpy.context.collection.objects.link(hands_obj)
+
+    # Smooth-by-angle bevel normals so knuckles read crisp & painterly
+    apply_smooth_with_bevel_normals(hands_obj, sharp_angle_deg=44.0)
+
+    # Assign crisp matte painted Base Color texture (compatible with glbhero.js & Blender viewport)
+    tex_img = _make_hero_hands_texture("Hero_Hands_BaseColor", size=256)
+    mat_name = "Hero_Hands_Mat"
+    old_mat = bpy.data.materials.get(mat_name)
+    if old_mat is not None:
+        bpy.data.materials.remove(old_mat)
+    mat = bpy.data.materials.new(mat_name)
+    mat.use_nodes = True
+    nt = mat.node_tree
+    nt.nodes.clear()
+    out_n = nt.nodes.new("ShaderNodeOutputMaterial")
+    bsdf = nt.nodes.new("ShaderNodeBsdfPrincipled")
+    tex_n = nt.nodes.new("ShaderNodeTexImage")
+    tex_n.image = tex_img
+    nt.links.new(tex_n.outputs["Color"], bsdf.inputs["Base Color"])
+    nt.links.new(bsdf.outputs["BSDF"], out_n.inputs["Surface"])
+    bsdf.inputs["Metallic"].default_value = 0.0
+    bsdf.inputs["Roughness"].default_value = 0.84
+    if "Specular IOR Level" in bsdf.inputs:
+        bsdf.inputs["Specular IOR Level"].default_value = 0.12
+    hands_obj.data.materials.append(mat)
+
+    # Create exact vertex groups and assign exact per-phalanx weights
+    vg_cache = {}
+    for vi, wdict in enumerate(vert_weights):
+        total = sum(wdict.values()) or 1.0
+        for bn, wt in wdict.items():
+            if wt <= 1e-4:
+                continue
+            vg = vg_cache.get(bn)
+            if vg is None:
+                vg = hands_obj.vertex_groups.new(name=bn)
+                vg_cache[bn] = vg
+            vg.add([vi], wt / total, "REPLACE")
+
+    hands_obj.parent = t_arm
+    mod = hands_obj.modifiers.new(name="Armature", type="ARMATURE")
+    mod.object = t_arm
+    hands_tris = sum(len(p.vertices) - 2 for p in hands_obj.data.polygons)
+    print(
+        f"  + Built articulated 5-finger Hero_Hands ({hands_tris:,} tris, boundary={hands_b}, "
+        f"Hero_Body cuff boundary={body_b_after}, bone groups={len(vg_cache)})"
+    )
+    return hands_obj
+
+
 def attach_ember_great_dao(t_arm, body, template, outline_mode="none"):
     """Build and snap the faceted Ember Eastern Great-Dao dead-center into hand_r palm."""
     blade_obj, core_obj = _build_ember_great_dao_mesh()
@@ -628,23 +1255,7 @@ def attach_ember_great_dao(t_arm, body, template, outline_mode="none"):
         sword_out = make_outline(blade_obj, "Hero_Sword_Outline", offset=off, dec_ratio=0.75)
         sword_objs.append(sword_out)
 
-    # Measure real right-hand palm center from Hero_Body vertices weighted to hand_r
-    vg_hr = body.vertex_groups.get("hand_r")
-    hr_pts = []
-    if vg_hr:
-        for v in body.data.vertices:
-            try:
-                if vg_hr.weight(v.index) > 0.45 and v.co.x < -0.22:
-                    hr_pts.append(v.co.copy())
-            except RuntimeError:
-                pass
-    if hr_pts:
-        palm = sum(hr_pts, Vector((0, 0, 0))) / len(hr_pts)
-    else:
-        hand_b = t_arm.data.bones["hand_r"]
-        palm = t_arm.matrix_world @ ((hand_b.head_local + hand_b.tail_local) * 0.5)
-
-    # Compute exact T-pose blade direction so M2M_Idle points cleanly outward-forward-up
+    # Compute exact curled fist grip tunnel & cutting-edge orientation directly from posed finger bones!
     before_tmp = set(bpy.data.objects)
     before_act_tmp = set(bpy.data.actions)
     idle_path = os.path.join(M2M_DIR, "idle-a.glb")
@@ -652,7 +1263,10 @@ def attach_ember_great_dao(t_arm, body, template, outline_mode="none"):
     tmp_objs = [o for o in bpy.data.objects if o not in before_tmp]
     tmp_acts = [a for a in bpy.data.actions if a not in before_act_tmp]
 
-    target_dir = Vector((-0.55, -0.55, -0.62)).normalized()
+    hand_b = t_arm.data.bones["hand_r"]
+    palm = t_arm.matrix_world @ ((hand_b.head_local + hand_b.tail_local) * 0.5)
+    rot_m = Matrix.Identity(3)
+
     idle = next((a for a in tmp_acts if a.name.startswith("M2M_Idle")), None)
     if idle is None and os.path.isfile(idle_path) and tmp_acts:
         idle = tmp_acts[0]
@@ -663,13 +1277,66 @@ def attach_ember_great_dao(t_arm, body, template, outline_mode="none"):
             t_arm.animation_data.action_slot = idle.slots[0]
         bpy.context.scene.frame_set(20)
         bpy.context.view_layer.update()
+
         pb_hr = t_arm.pose.bones["hand_r"]
-        m_pose = (t_arm.matrix_world @ pb_hr.matrix).to_3x3()
-        m_rest = (t_arm.matrix_world @ t_arm.data.bones["hand_r"].matrix_local).to_3x3()
-        delta_rot = m_pose @ m_rest.inverted()
-        desired_idle_world = Vector((-0.42, -0.80, +0.42)).normalized()
-        target_dir = (delta_rot.inverted() @ desired_idle_world).normalized()
-        palm += delta_rot.inverted() @ Vector((+0.008, -0.006, +0.002))
+        m_pose = t_arm.matrix_world @ pb_hr.matrix
+        m_rest = t_arm.matrix_world @ t_arm.data.bones["hand_r"].matrix_local
+        pose_to_rest = m_rest @ m_pose.inverted()
+
+        # Measure each curled finger's ring center in posed world space
+        def finger_curl_center(prefix):
+            b1 = t_arm.pose.bones.get(f"{prefix}_01_r")
+            b2 = t_arm.pose.bones.get(f"{prefix}_02_r")
+            b3 = t_arm.pose.bones.get(f"{prefix}_03_r")
+            if not (b1 and b2 and b3):
+                return None
+            pts = [
+                t_arm.matrix_world @ b1.head,
+                t_arm.matrix_world @ b1.tail,
+                t_arm.matrix_world @ b2.tail,
+                t_arm.matrix_world @ b3.tail,
+            ]
+            return sum(pts, Vector((0.0, 0.0, 0.0))) / len(pts)
+
+        c_idx = finger_curl_center("index")
+        c_mid = finger_curl_center("middle")
+        c_rng = finger_curl_center("ring")
+        c_pnk = finger_curl_center("pinky")
+        if all(p is not None for p in (c_idx, c_mid, c_rng, c_pnk)):
+            # Exact center of the curled 4-finger tunnel in posed space
+            grip_pose = (c_idx + c_mid + c_rng + c_pnk) * 0.25
+            # Natural grip axis pointing from pinky out through index/thumb side
+            tunnel_axis = (c_idx - c_pnk).normalized()
+            # Outward knuckle direction (cutting edge -Y faces forward along knuckles)
+            b_mid1 = t_arm.pose.bones["middle_01_r"]
+            knuckle_out = ((t_arm.matrix_world @ b_mid1.tail) - (t_arm.matrix_world @ b_mid1.head)).normalized()
+            # Slight natural martial-arts forward cant (~14 deg toward knuckles so blade projects cleanly)
+            sword_z_pose = (tunnel_axis + knuckle_out * 0.24).normalized()
+            # Blade cutting edge is local -Y, spine is local +Y -> point -Y along knuckle_out
+            edge_dir = (knuckle_out - sword_z_pose * knuckle_out.dot(sword_z_pose)).normalized()
+            sword_y_pose = -edge_dir
+            sword_x_pose = sword_y_pose.cross(sword_z_pose).normalized()
+            sword_y_pose = sword_z_pose.cross(sword_x_pose).normalized()
+            # Shift hilt slightly (-1.8cm along blade axis, -0.4cm deeper into palm) so guard clears index knuckle & grip is iron-tight
+            grip_pose = grip_pose - sword_z_pose * 0.018 - edge_dir * 0.004
+
+            # Transform exact posed grip center & 3-axis basis back into T-pose rest space
+            palm = pose_to_rest @ grip_pose
+            pr_rot = pose_to_rest.to_3x3()
+            sx = (pr_rot @ sword_x_pose).normalized()
+            sy = (pr_rot @ sword_y_pose).normalized()
+            sz = (pr_rot @ sword_z_pose).normalized()
+            rot_m = Matrix((
+                (sx.x, sy.x, sz.x),
+                (sx.y, sy.y, sz.y),
+                (sx.z, sy.z, sz.z),
+            ))
+        else:
+            delta_rot = m_pose.to_3x3() @ m_rest.to_3x3().inverted()
+            desired_idle_world = Vector((-0.42, -0.80, +0.42)).normalized()
+            target_dir = (delta_rot.inverted() @ desired_idle_world).normalized()
+            rot_m = Vector((0.0, 0.0, 1.0)).rotation_difference(target_dir).to_matrix()
+
         t_arm.animation_data.action = None
         for pb in t_arm.pose.bones:
             pb.matrix_basis.identity()
@@ -680,10 +1347,9 @@ def attach_ember_great_dao(t_arm, body, template, outline_mode="none"):
     for a in tmp_acts:
         bpy.data.actions.remove(a)
 
-    rot_q = Vector((0.0, 0.0, 1.0)).rotation_difference(target_dir)
     for so in sword_objs:
         for v in so.data.vertices:
-            v.co = rot_q @ v.co + palm
+            v.co = rot_m @ v.co + palm
         so.data.update()
         so.animation_data_clear()
         so.vertex_groups.clear()
@@ -692,7 +1358,7 @@ def attach_ember_great_dao(t_arm, body, template, outline_mode="none"):
         so.parent = t_arm
         mod = so.modifiers.new(name="Armature", type="ARMATURE")
         mod.object = t_arm
-    print("  + Attached Ember-Eastern faceted Great-Dao + EmberCore to hand_r palm!")
+    print("  + Attached Ember-Eastern faceted Great-Dao + EmberCore dead-center inside curled 5-finger fist!")
 
 
 def render_verification_preview(t_arm, out_png):
@@ -784,6 +1450,8 @@ def verify_export(path, profile, outline_mode="none", sword_style="ember-dao"):
     prefix = profile.get("mesh_prefix", "Boss")
     meshes = {n["name"]: n for n in data["nodes"] if "mesh" in n}
     required = [prefix + "_Body"]
+    if profile["id"] == "hero":
+        required.append("Hero_Hands")
     if outline_mode != "none":
         required.append(prefix + "_Outline")
     if profile.get("keep_sword"):
@@ -909,6 +1577,10 @@ def build_ember_eastern_character(
             for v in body_high.data.vertices:
                 v.co.y += y_shift
     body_high.data.update()
+    # Weld glTF UV-seam split vertices BEFORE Decimate so zero holes/T-junctions tear open on back/seams
+    weld_mesh_watertight(body_high, dist=1e-4)
+    if bid == "hero":
+        smooth_hero_back_shelf(body_high, iterations=8)
 
     # 3) Fit 66-bone armature to exact 3D wrist, elbow & spread-leg landmarks
     lh_wrist, rh_wrist = measure_hand_targets(body_high, cfg.get("wrist_band"))
@@ -947,6 +1619,8 @@ def build_ember_eastern_character(
     else:
         fit["arm_len"] = round(0.5 * ((lh_wrist - sh_l).length + (rh_wrist - sh_r).length), 4)
     refit_boss_armature(t_arm, source_fit, fit)
+    if bid == "hero":
+        refit_hero_hand_bones(t_arm, hand_scale=0.78, z_shoulder=fit["z_shoulder"])
     print(f"  + Refitted 66-bone armature (sh_x={fit['shoulder_x']:.3f}, sh_z={fit['z_shoulder']:.3f}, arm_len={fit['arm_len']:.3f}, 2stage={lh_elbow is not None})")
 
     # 4) Silhouette-preserving Decimate + Smooth-by-Angle + Tangent Normal Bake + 4-view Projection
@@ -987,6 +1661,8 @@ def build_ember_eastern_character(
 
     if bid == "hero":
         polish_hero_face_texture(body, tex_size=max(tex_size, 2048))
+        # Sculpt broad squared heroic shoulder line AFTER 4-view texture projection so bare shoulder skin stays 100% crisp
+        sculpt_hero_shoulder_line(body)
 
     configure_matte_painterly_material(body)
     bpy.data.objects.remove(body_high, do_unlink=True)
@@ -1080,6 +1756,83 @@ def build_ember_eastern_character(
                             tgt.add([v.index], 1.0, "REPLACE")
         print(f"  + Stripped arm-weight bleed from {cleaned} torso/waist verts")
 
+        # Also strip lower-body/torso weight bleed from outer forearms & hands so A-pose->T-pose bake unfolds straight
+        arm_keep_prefixes = ("clavicle_", "upperarm_", "lowerarm_", "hand_", "thumb_", "index_", "middle_", "ring_", "pinky_")
+        non_arm_vgs = [vg for vg in body.vertex_groups if not vg.name.startswith(arm_keep_prefixes)]
+        arm_segs = []
+        for sfx in ("l", "r"):
+            for bname in (f"lowerarm_{sfx}", f"hand_{sfx}"):
+                b = a_arm.data.bones.get(bname)
+                if b is not None:
+                    arm_segs.append((bname, b.head_local.copy(), b.tail_local.copy()))
+
+        def _pt_seg_d(p, a, b):
+            ab = b - a
+            t = max(0.0, min(1.0, (p - a).dot(ab) / max(1e-8, ab.length_squared)))
+            return (p - (a + ab * t)).length
+
+        arm_cleaned = 0
+        for v in body.data.vertices:
+            if abs(v.co.x) < max(0.24, cfg["torso_clean_x"] + 0.08):
+                continue
+            if v.co.z < arm_floor_z - 0.04:
+                continue
+            best_d = 999.0
+            best_bn = None
+            for bn, a, b in arm_segs:
+                d = _pt_seg_d(v.co, a, b)
+                if d < best_d:
+                    best_d = d
+                    best_bn = bn
+            if best_d < 0.085:
+                had_non = False
+                for vg in non_arm_vgs:
+                    try:
+                        if vg.weight(v.index) > 0.0:
+                            vg.remove([v.index])
+                            had_non = True
+                    except RuntimeError:
+                        pass
+                if had_non:
+                    arm_cleaned += 1
+                    if not v.groups and best_bn:
+                        vg_dst = body.vertex_groups.get(best_bn)
+                        if vg_dst:
+                            vg_dst.add([v.index], 1.0, "REPLACE")
+        print(f"  + Stripped leg/torso bleed from {arm_cleaned} forearm/hand verts")
+
+        # Keep inner trapezius & acromion shoulder plateau weighted to clavicle so arm drop never collapses heroic shoulders
+        if bid == "hero":
+            sh_z = fit["z_shoulder"]
+            sh_x = fit["shoulder_x"]
+            sh_fixed = 0
+            for v in body.data.vertices:
+                ax = abs(v.co.x)
+                if 0.080 <= ax <= sh_x + 0.012 and sh_z - 0.025 <= v.co.z <= sh_z + 0.095:
+                    sfx = "l" if v.co.x >= 0.0 else "r"
+                    ua_vg = body.vertex_groups.get(f"upperarm_{sfx}")
+                    cl_vg = body.vertex_groups.get(f"clavicle_{sfx}")
+                    if ua_vg is None or cl_vg is None:
+                        continue
+                    try:
+                        w_ua = ua_vg.weight(v.index)
+                    except RuntimeError:
+                        w_ua = 0.0
+                    if w_ua > 0.02:
+                        # Smooth cap on upperarm pull across the top shoulder plateau (0% near collar -> up to 45% at outer edge)
+                        t_out = max(0.0, min(1.0, (ax - 0.105) / max(1e-4, (sh_x + 0.012) - 0.105)))
+                        max_ua = 0.45 * (t_out * t_out)
+                        if w_ua > max_ua:
+                            delta = w_ua - max_ua
+                            ua_vg.add([v.index], max_ua, "REPLACE")
+                            try:
+                                w_cl = cl_vg.weight(v.index)
+                            except RuntimeError:
+                                w_cl = 0.0
+                            cl_vg.add([v.index], w_cl + delta, "REPLACE")
+                            sh_fixed += 1
+            print(f"  + Preserved squared shoulder plateau weights on {sh_fixed} acromion/trapezius verts")
+
     bpy.ops.object.select_all(action="DESELECT")
     body.select_set(True)
     bpy.context.view_layer.objects.active = body
@@ -1118,6 +1871,10 @@ def build_ember_eastern_character(
         mod = o.modifiers.new(name="Armature", type="ARMATURE")
         mod.object = t_arm
     bpy.data.objects.remove(a_arm, do_unlink=True)
+
+    # 7b) Replace Hunyuan3D's blobby fused hands with clean articulated 5-finger fingerless-glove hands
+    if bid == "hero":
+        replace_hero_hands_articulated(body, t_arm)
 
     # 8) Attach weapon (Hero only)
     if cfg.get("keep_sword"):
