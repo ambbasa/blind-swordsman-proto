@@ -134,10 +134,10 @@ function createArenaWorld(opts) {
     traceRoute();
     if (plan.ground === 'river') {
       // Rich East-Asian ink-wash river channel so bridges & jetties visibly span flowing water
-      const bankCol = stageId === 14 ? '#354b54' : '#4a453f';
-      const waterCol = stageId === 14 ? '#152c38' : '#242e32';
-      const deepCol = stageId === 14 ? '#0c1c26' : '#182126';
-      const rippleCol = stageId === 14 ? '#7eb8c4' : '#96a8a2';
+      const bankCol = stageId === 14 ? '#354b54' : '#434a4c';
+      const waterCol = stageId === 14 ? '#152c38' : '#1b2b33';
+      const deepCol = stageId === 14 ? '#0c1c26' : '#101d24';
+      const rippleCol = stageId === 14 ? '#7eb8c4' : '#8cb5b2';
       const width = 4.6;
       for (const [col, extra, opacity] of [
         [bankCol, 2.8, 0.32],
