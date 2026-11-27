@@ -111,6 +111,16 @@ def import_and_prepare_mesh(in_glb, key, target_h, target_tris, rot_z_deg=0.0):
         "min_y": min(ys), "max_y": max(ys), "d": max(ys) - min(ys),
         "min_z": min(zs), "max_z": max(zs), "h": max(zs) - min(zs),
     }
+
+    # Arm span: measure only the hand-to-shoulder band on the front half of the body, so
+    # antlers (above), tails/sleeves trailing behind and robe hems (below) don't push the
+    # arm bones outward past the real hands. 98th percentile ignores stray spike verts.
+    h = bbox["h"]
+    band = [v.co for v in body.data.vertices if 0.45 * h <= v.co.z - bbox["min_z"] <= 0.82 * h]
+    mid_y = sorted(c.y for c in band)[len(band) // 2] if band else 0.0
+    front_x = sorted(abs(c.x) for c in band if c.y <= mid_y)
+    bbox["arm_w"] = 2.0 * front_x[int(0.98 * (len(front_x) - 1))] if front_x else bbox["w"]
+    print(f"[{key}] Arm span {bbox['arm_w']:.2f}m (full bbox width {bbox['w']:.2f}m)")
     return body, bbox
 
 
@@ -137,11 +147,12 @@ def build_armature(key, archetype, bbox):
 
     H = bbox["h"]
     W = bbox["w"]
+    AW = bbox["arm_w"]  # torso/arm band width; W stays for wings & quadruped legs
     D = bbox["d"]
 
     if archetype in ("humanoid", "robe"):
-        sh_x = max(0.14 * H, min(0.24 * H, W * 0.24))
-        arm_x = max(sh_x + 0.18 * H, W * 0.44)
+        sh_x = max(0.14 * H, min(0.24 * H, AW * 0.24))
+        arm_x = max(sh_x + 0.18 * H, AW * 0.44)
         hip_x = sh_x * 0.48
         add_bone(eb, "root", (0, 0, 0), (0, 0, 0.12 * H), None, deform=False)
         add_bone(eb, "pelvis", (0, 0, 0.50 * H), (0, 0, 0.58 * H), "root")
@@ -159,8 +170,8 @@ def build_armature(key, archetype, bbox):
             add_bone(eb, f"foot_{tag}", (s * hip_x, 0, 0.05 * H), (s * hip_x, -0.09 * H, 0.01 * H), f"shin_{tag}")
 
     elif archetype == "float":
-        sh_x = max(0.13 * H, min(0.22 * H, W * 0.24))
-        arm_x = max(sh_x + 0.18 * H, W * 0.44)
+        sh_x = max(0.13 * H, min(0.22 * H, AW * 0.24))
+        arm_x = max(sh_x + 0.18 * H, AW * 0.44)
         add_bone(eb, "root", (0, 0, 0), (0, 0, 0.12 * H), None, deform=False)
         add_bone(eb, "pelvis", (0, 0, 0.50 * H), (0, 0, 0.58 * H), "root")
         add_bone(eb, "skirt_mid", (0, 0, 0.50 * H), (0, 0, 0.26 * H), "pelvis")
@@ -189,8 +200,8 @@ def build_armature(key, archetype, bbox):
             add_bone(eb, f"talon_{tag}", (s * 0.07 * H, -0.04 * H, 0.44 * H), (s * 0.08 * H, -0.08 * H, 0.24 * H), "body")
 
     elif archetype == "serpent":
-        sh_x = max(0.14 * H, min(0.24 * H, W * 0.24))
-        arm_x = max(sh_x + 0.18 * H, W * 0.44)
+        sh_x = max(0.14 * H, min(0.24 * H, AW * 0.24))
+        arm_x = max(sh_x + 0.18 * H, AW * 0.44)
         add_bone(eb, "root", (0, 0, 0), (0, 0, 0.12 * H), None, deform=False)
         add_bone(eb, "pelvis", (0, 0, 0.48 * H), (0, 0, 0.56 * H), "root")
         add_bone(eb, "tail_1", (0, 0, 0.48 * H), (0, 0.06 * H, 0.34 * H), "pelvis")
@@ -294,7 +305,9 @@ def set_pose_key(arm_obj, frame, rot_map, loc_map=None):
             pb.rotation_euler = Euler((math.radians(rx), math.radians(ry), math.radians(rz)), "XYZ")
             pb.keyframe_insert(data_path="rotation_euler", frame=frame)
         if pb.name in loc_map:
-            pb.location = Vector(loc_map[pb.name])
+            # loc_map offsets are authored in world/armature axes (z = up, -y = forward);
+            # pose-bone location is in the bone's own rest axes, so rotate into bone space.
+            pb.location = pb.bone.matrix_local.to_3x3().inverted() @ Vector(loc_map[pb.name])
             pb.keyframe_insert(data_path="location", frame=frame)
 
 
