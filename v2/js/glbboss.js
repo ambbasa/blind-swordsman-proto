@@ -1,17 +1,17 @@
 import * as THREE from 'three';
 import { applyForgedMetal, getMetalStudioEnv } from './modules/metalStudioEnv.js';
-import { makeRig, tickPose } from './glbpose.js?v=v171';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v171';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v171';
+import { makeRig, tickPose } from './glbpose.js?v=v172';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v172';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v172';
 
 const MODEL_URLS = {
-  boss:      new URL('../assets/models/boss.glb?v=v171', import.meta.url).href,
-  boss_act2: new URL('../assets/models/boss_act2.glb?v=v171', import.meta.url).href,
-  boss_act3: new URL('../assets/models/boss_act3.glb?v=v171', import.meta.url).href,
-  boss_act4: new URL('../assets/models/boss_act4.glb?v=v171', import.meta.url).href,
-  minion:    new URL('../assets/models/minion.glb?v=v171', import.meta.url).href,
-  heavy:     new URL('../assets/models/heavy.glb?v=v171', import.meta.url).href,
-  stone:     new URL('../assets/models/stone.glb?v=v171', import.meta.url).href
+  boss:      new URL('../assets/models/boss.glb?v=v172', import.meta.url).href,
+  boss_act2: new URL('../assets/models/boss_act2.glb?v=v172', import.meta.url).href,
+  boss_act3: new URL('../assets/models/boss_act3.glb?v=v172', import.meta.url).href,
+  boss_act4: new URL('../assets/models/boss_act4.glb?v=v172', import.meta.url).href,
+  minion:    new URL('../assets/models/minion.glb?v=v172', import.meta.url).href,
+  heavy:     new URL('../assets/models/heavy.glb?v=v172', import.meta.url).href,
+  stone:     new URL('../assets/models/stone.glb?v=v172', import.meta.url).href
 };
 function isBossSp(sp) { return sp === 'boss' || sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4'; }
 const BOSS_WEAPON_FX = {
@@ -133,18 +133,20 @@ export function makeBossGlb(height, species) {
           mat.emissiveIntensity = 0.08;
         }
         const rimPow = bossSp ? 0.44 : 0.32;
-        mat.customProgramCacheKey = function () { return bossSp ? 'boss-ember-hardrim-v163' : 'mob-ember-hardrim-v163'; };
+        mat.customProgramCacheKey = function () { return bossSp ? 'boss-ember-hardrim-v172' : 'mob-ember-hardrim-v172'; };
         mat.onBeforeCompile = function (shader) {
           shader.fragmentShader = shader.fragmentShader.replace(
             "#include <dithering_fragment>",
             "vec3 vn = normalize(vNormal);\n" +
             "vec3 vv = normalize(vViewPosition);\n" +
             "float ndl = dot(vn, normalize(vec3(-0.55, 0.65, 0.52)));\n" +
-            "float toonBand = smoothstep(-0.08, 0.08, ndl);\n" +
+            "float ndlFw = max(0.09, fwidth(ndl) * 1.45);\n" +
+            "float toonBand = smoothstep(-ndlFw, ndlFw, ndl);\n" +
             "gl_FragColor.rgb *= mix(vec3(0.72, 0.76, 0.86), vec3(1.03, 1.01, 0.98), toonBand);\n" +
             "float fres = 1.0 - clamp(abs(dot(vn, vv)), 0.0, 1.0);\n" +
             "float rimSide = smoothstep(-0.08, 0.38, dot(vn, normalize(vec3(-0.82, 0.45, 0.25))));\n" +
-            "float hardRim = smoothstep(0.60, 0.69, fres) * rimSide;\n" +
+            "float fresFw = max(0.07, fwidth(fres) * 1.80);\n" +
+            "float hardRim = smoothstep(0.64 - fresFw, 0.64 + fresFw, fres) * rimSide;\n" +
             "gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.86, 0.91, 0.96), hardRim * " + rimPow.toFixed(2) + ");\n" +
             "gl_FragColor.rgb = min(gl_FragColor.rgb, vec3(0.95));\n" +
             "#include <dithering_fragment>"

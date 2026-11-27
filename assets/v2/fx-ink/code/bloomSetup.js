@@ -13,6 +13,40 @@ import { EffectComposer } from './vendor/three-r170-addons/postprocessing/Effect
 import { RenderPass } from './vendor/three-r170-addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from './vendor/three-r170-addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from './vendor/three-r170-addons/postprocessing/OutputPass.js';
+import { ShaderPass } from './vendor/three-r170-addons/postprocessing/ShaderPass.js';
+
+const FXAA_SHADER = {
+  uniforms: {
+    tDiffuse: { value: null },
+    uInvRes: { value: new THREE.Vector2(1 / 1280, 1 / 720) },
+  },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: [
+    'uniform sampler2D tDiffuse;',
+    'uniform vec2 uInvRes;',
+    'varying vec2 vUv;',
+    'float luma(vec3 c){ return dot(c, vec3(0.299, 0.587, 0.114)); }',
+    'void main(){',
+    '  vec4 cM = texture2D(tDiffuse, vUv);',
+    '  vec3 rgbNW = texture2D(tDiffuse, vUv + vec2(-1.0, -1.0) * uInvRes).rgb;',
+    '  vec3 rgbNE = texture2D(tDiffuse, vUv + vec2( 1.0, -1.0) * uInvRes).rgb;',
+    '  vec3 rgbSW = texture2D(tDiffuse, vUv + vec2(-1.0,  1.0) * uInvRes).rgb;',
+    '  vec3 rgbSE = texture2D(tDiffuse, vUv + vec2( 1.0,  1.0) * uInvRes).rgb;',
+    '  float lNW = luma(rgbNW), lNE = luma(rgbNE), lSW = luma(rgbSW), lSE = luma(rgbSE), lM = luma(cM.rgb);',
+    '  float lMin = min(lM, min(min(lNW, lNE), min(lSW, lSE)));',
+    '  float lMax = max(lM, max(max(lNW, lNE), max(lSW, lSE)));',
+    '  if (lMax - lMin < max(0.0312, lMax * 0.0833)) { gl_FragColor = cM; return; }',
+    '  vec2 dir = vec2(-((lNW + lNE) - (lSW + lSE)), (lNW + lSW) - (lNE + lSE));',
+    '  float dirReduce = max((lNW + lNE + lSW + lSE) * 0.03125, 0.0078125);',
+    '  float rcpDirMin = 1.0 / (min(abs(dir.x), abs(dir.y)) + dirReduce);',
+    '  dir = clamp(dir * rcpDirMin, vec2(-8.0), vec2(8.0)) * uInvRes;',
+    '  vec3 rgbA = 0.5 * (texture2D(tDiffuse, vUv + dir * (1.0/3.0 - 0.5)).rgb + texture2D(tDiffuse, vUv + dir * (2.0/3.0 - 0.5)).rgb);',
+    '  vec3 rgbB = rgbA * 0.5 + 0.25 * (texture2D(tDiffuse, vUv + dir * -0.5).rgb + texture2D(tDiffuse, vUv + dir * 0.5).rgb);',
+    '  float lB = luma(rgbB);',
+    '  gl_FragColor = vec4((lB < lMin || lB > lMax) ? rgbA : rgbB, cM.a);',
+    '}'
+  ].join('\n'),
+};
 
 export const BLOOM_PRESETS = {
   //       bloom buffer = view * res ; MSAA samples on the HDR scene target (WebGL2; 0 = off. samples 4 cost x3 frame time in the SW-GL test,
@@ -26,10 +60,10 @@ export const BLOOM_PRESETS = {
 
 /** Builds the post chain. depth: true gives both composer targets a depthTexture (rt2 is a clone of rt1,
  *  so it gets its own) — a post pass must read it from its readBuffer, never a fixed target (see inkwash.js). */
-export function setupBloom(renderer, scene, camera, { quality = 'high', override = null, post = null, depth = false } = {}) {
+export function setupBloom(renderer, scene, camera, { quality = 'high', override = null, post = null, depth = false, fxaa = false } = {}) {
   const size = renderer.getSize(new THREE.Vector2()); let q = quality;
   const preset = (k) => (BLOOM_PRESETS[k] && override ? Object.assign({}, BLOOM_PRESETS[k], override) : BLOOM_PRESETS[k]); let P = preset(q);
-  let composer = null, bloom = null, rt = null, extra = [];
+  let composer = null, bloom = null, rt = null, extra = [], fxaaPass = null;
   function build() {
     dispose();
     if (!P && !post) return;
@@ -55,15 +89,27 @@ export function setupBloom(renderer, scene, camera, { quality = 'high', override
     extra = post ? post() : [];
     extra.forEach((p) => composer.addPass(p));
     composer.addPass(new OutputPass());   // linear HDR -> renderer.outputColorSpace (sRGB) with renderer.toneMapping (NoToneMapping in v2)
+    if (fxaa) {
+      fxaaPass = new ShaderPass(FXAA_SHADER);
+      fxaaPass.uniforms.uInvRes.value.set(1 / rw, 1 / rh);
+      composer.addPass(fxaaPass);
+    }
     composer.setSize(size.x, size.y);
   }
-  function dispose() { if (composer) { composer.passes.forEach((p) => p.dispose && p.dispose()); composer.dispose(); } composer = null; bloom = null; rt = null; extra = []; }
+  function dispose() { if (composer) { composer.passes.forEach((p) => p.dispose && p.dispose()); composer.dispose(); } composer = null; bloom = null; rt = null; extra = []; fxaaPass = null; }
   build();
   return {
     get quality() { return q; }, get composer() { return composer; }, get bloomPass() { return bloom; },
     render(dt) { extra.forEach((p) => p.tick && p.tick(dt)); if (composer) composer.render(dt); else renderer.render(scene, camera); },
     get post() { return extra; }, get hasDepth() { return !!(rt && rt.depthTexture); },
-    setSize(w, h) { size.set(w, h); if (composer) composer.setSize(w, h); },
+    setSize(w, h) {
+      size.set(w, h);
+      if (fxaaPass) {
+        const pr = renderer.getPixelRatio();
+        fxaaPass.uniforms.uInvRes.value.set(1 / Math.max(1, w * pr), 1 / Math.max(1, h * pr));
+      }
+      if (composer) composer.setSize(w, h);
+    },
     /* Quality change without rebuilding the chain: a rebuild would create new pass materials and
        therefore relink ~10 shader programs on the very frame the frame rate was already bad.
        The presets differ only in buffer resolution and bloom strength/radius, so resize + retune. */
