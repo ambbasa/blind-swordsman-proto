@@ -110,12 +110,12 @@ async function makeWorld() {
   camera.position.set(rt.CFG.camOff.x, rt.CFG.camOff.y, rt.CFG.camOff.z);
   camera.lookAt(0, rt.CFG.camLookY, 0);
 
-  const amb = new rt.THREE.AmbientLight(rt.palColor('rigAmbient'), 0.52);
+  const amb = new rt.THREE.AmbientLight(rt.palColor('rigAmbient'), 0.42);
   scene.add(amb);
-  const hemi = new rt.THREE.HemisphereLight(rt.palColor('rigHemiSky'), rt.palColor('rigHemiGround'), 0.58);
+  const hemi = new rt.THREE.HemisphereLight(rt.palColor('rigHemiSky'), rt.palColor('rigHemiGround'), 0.44);
   scene.add(hemi);
   /* v0.97 전투 3D 입체감 강화: 주광(달빛)·보조광·후면 림라이트를 로비 3D 톤에 맞춰 조율 */
-  const moon = new rt.THREE.DirectionalLight(rt.palColor('rigMoonlight'), 1.15);
+  const moon = new rt.THREE.DirectionalLight(rt.palColor('rigMoonlight'), 0.90);
   moon.position.set(-18, 28, 10);
   moon.castShadow = true;
   const initShadowSz = rt.IS_MOBILE ? (rt.fxQ === 'high' ? 1024 : 512) : (rt.fxQ === 'high' ? 2048 : 1024);
@@ -131,11 +131,11 @@ async function makeWorld() {
   scene.add(moon);
   scene.add(moon.target);
   /* 그림자 진 곳을 죽이지 않는 반대편 달빛(그림자 없음) — 먹 그림자가 검은 구멍이 되지 않게. */
-  const fill = new rt.THREE.DirectionalLight(rt.palColor('rigFill'), 0.38);
+  const fill = new rt.THREE.DirectionalLight(rt.palColor('rigFill'), 0.25);
   fill.position.set(14, 12, -16);
   scene.add(fill);
   /* v0.97 캐릭터·보스 윤곽을 어두운 수묵 바닥에서 또렷하게 분리하는 후면 림라이트 */
-  const rim = new rt.THREE.DirectionalLight(0xffebb8, 0.42);
+  const rim = new rt.THREE.DirectionalLight(0xffebb8, 0.22);
   rim.position.set(-10, 14, -18);
   scene.add(rim);
 
@@ -163,7 +163,6 @@ async function makeWorld() {
     world.bloom = rt.setupBloom(renderer, scene, camera, {
       quality: rt.fxQ,
       depth: true,
-      fxaa: !rt.PIXEL_LOOK,
       override: { strength: 0.18, threshold: 1.42, radius: 0.24 },
       post: function () {
         if (rt.PIXEL_LOOK) {

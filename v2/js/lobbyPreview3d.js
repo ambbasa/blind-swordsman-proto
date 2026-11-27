@@ -1,7 +1,7 @@
 /* v2/js/lobbyPreview3d.js — v0.85 로비·치장 화면 실시간 3D 주인공 미리보기 (M2M_Idle + 터치 회전 + 도포/검 강화 반영) */
 import * as THREE from 'three';
-import { preloadHeroGlb, makeHeroGlb, applyHeroGlbCloak, applyHeroGlbSwordTrail } from './glbhero.js?v=v173';
-import { preloadMonsterGlb, makeBossGlb } from './glbboss.js?v=v173';
+import { preloadHeroGlb, makeHeroGlb, applyHeroGlbCloak, applyHeroGlbSwordTrail } from './glbhero.js?v=v170';
+import { preloadMonsterGlb, makeBossGlb } from './glbboss.js?v=v170';
 
 let renderer = null;
 let scene = null;
@@ -36,8 +36,8 @@ export function startLobby3d(canvas, cloakProf, forgeLv) {
   active = true;
 
   if (!renderer) {
-    renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(2.5, Math.max(2, window.devicePixelRatio || 1)));
+    renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true, powerPreference: 'low-power' });
+    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(32, 1, 0.1, 30);
@@ -138,8 +138,8 @@ export function startCodex3d(canvas, species) {
   if (!cRenderer || cCanvas !== canvas) {
     if (cRenderer) { try { cRenderer.dispose(); } catch (_) {} }
     cCanvas = canvas;
-    cRenderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true, powerPreference: 'high-performance' });
-    cRenderer.setPixelRatio(Math.min(2.5, Math.max(2, window.devicePixelRatio || 1)));
+    cRenderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true, powerPreference: 'low-power' });
+    cRenderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
     cRenderer.outputColorSpace = THREE.SRGBColorSpace;
     cScene = new THREE.Scene();
     cCamera = new THREE.PerspectiveCamera(34, 1, 0.1, 30);

@@ -1,11 +1,11 @@
 /* v2/js/glbhero.js — v0.83 시안 B(하데스풍 주홍 먹선 검객) 3D GLB 로더·3연타 검술 콤보·회피·피격 상태 머신 */
 import * as THREE from 'three';
 import { applyForgedMetal } from './modules/metalStudioEnv.js';
-import { makeRig, tickPose } from './glbpose.js?v=v173';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v173';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v173';
+import { makeRig, tickPose } from './glbpose.js?v=v170';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v170';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v170';
 
-const URL_GLB = new URL('../assets/models/hero.glb?v=v173', import.meta.url).href;
+const URL_GLB = new URL('../assets/models/hero.glb?v=v170', import.meta.url).href;
 let pending = null;
 let source = null;
 let cloneSkinned = null;
@@ -35,7 +35,7 @@ export function preloadHeroGlb() {
       return gltf;
     });
   }).catch(function (e) {
-    console.warn('[심안] hero.glb?v=v173', e);
+    console.warn('[심안] hero.glb?v=v170', e);
     pending = null;
     return null;
   });
@@ -102,7 +102,7 @@ export function makeHeroGlb(height) {
           const phys = new THREE.MeshPhysicalMaterial({
             color: 0xffffff,
             map: mat.map || null,
-            normalMap: null,
+            normalMap: mat.normalMap || null,
             roughnessMap: mat.roughnessMap || null,
             roughness: 0.94,
             metalness: 0.0,
@@ -110,15 +110,13 @@ export function makeHeroGlb(height) {
             sheenRoughness: 0.92,
             sheenColor: new THREE.Color(0x88847c)
           });
+          if (mat.normalScale && phys.normalScale) phys.normalScale.copy(mat.normalScale);
           if (phys.map) {
-            phys.map.anisotropy = 4;
-            phys.map.minFilter = THREE.LinearMipmapLinearFilter;
-            phys.map.generateMipmaps = true;
             phys.emissiveMap = phys.map;
             phys.emissive = new THREE.Color(0xffffff);
             phys.emissiveIntensity = 0.14;
           }
-          phys.customProgramCacheKey = function () { return 'hero-ember-hardrim-v172'; };
+          phys.customProgramCacheKey = function () { return 'hero-ember-hardrim-v163'; };
           mat.dispose();
           targetMat = phys;
         } else {
@@ -165,15 +163,13 @@ export function makeHeroGlb(height) {
             "vec3 vv = normalize(vViewPosition);\n" +
             "vec3 keyDir = normalize(vec3(-0.55, 0.65, 0.52));\n" +
             "float ndl = dot(vn, keyDir);\n" +
-            "float ndlFw = max(0.09, fwidth(ndl) * 1.45);\n" +
-            "float toonBand = smoothstep(-ndlFw, ndlFw, ndl);\n" +
+            "float toonBand = smoothstep(-0.08, 0.08, ndl);\n" +
             "vec3 coolShadow = vec3(0.76, 0.80, 0.90);\n" +
             "vec3 litTint = vec3(1.04, 1.02, 0.99);\n" +
             "gl_FragColor.rgb *= mix(coolShadow, litTint, toonBand);\n" +
             "float fres = 1.0 - clamp(abs(dot(vn, vv)), 0.0, 1.0);\n" +
             "float rimSide = smoothstep(-0.10, 0.35, dot(vn, normalize(vec3(-0.82, 0.45, 0.25))));\n" +
-            "float fresFw = max(0.07, fwidth(fres) * 1.80);\n" +
-            "float hardRim = smoothstep(0.62 - fresFw, 0.62 + fresFw, fres) * rimSide;\n" +
+            "float hardRim = smoothstep(0.56, 0.65, fres) * rimSide;\n" +
             "gl_FragColor.rgb = mix(gl_FragColor.rgb, uToonRimCol, hardRim * uToonRimPow);\n" +
             "gl_FragColor.rgb = min(gl_FragColor.rgb, vec3(0.96));\n" +
             "#include <dithering_fragment>"
@@ -393,10 +389,10 @@ export function setHeroGlbTint(G, r, g, b) {
       /* v1.01 3d-cloth-material: 도포별 직물(무명/설산비단/진홍비단/금사비단) sheen 차별화 */
       if (m.isMeshPhysicalMaterial) {
         const cid = G.cloakId || 'ink';
-        if (cid === 'gilded_eclipse') { m.roughness = 0.42; m.sheen = 0.78; m.sheenRoughness = 0.26; m.sheenColor.setHex(0xd8b45c); }
-        else if (cid === 'crimson_guard') { m.roughness = 0.48; m.sheen = 0.68; m.sheenRoughness = 0.28; m.sheenColor.setHex(0xc86454); }
-        else if (cid === 'snow_sage') { m.roughness = 0.54; m.sheen = 0.62; m.sheenRoughness = 0.30; m.sheenColor.setHex(0x98d6ea); }
-        else { m.roughness = 0.86; m.sheen = 0.55; m.sheenRoughness = 0.56; m.sheenColor.setHex(0x827d72); }
+        if (cid === 'gilded_eclipse') { m.roughness = 0.90; m.sheen = 0.12; m.sheenRoughness = 0.85; m.sheenColor.setHex(0xd8b45c); }
+        else if (cid === 'crimson_guard') { m.roughness = 0.93; m.sheen = 0.08; m.sheenRoughness = 0.88; m.sheenColor.setHex(0xc86454); }
+        else if (cid === 'snow_sage') { m.roughness = 0.94; m.sheen = 0.08; m.sheenRoughness = 0.88; m.sheenColor.setHex(0x98d6ea); }
+        else { m.roughness = 0.96; m.sheen = 0.0; m.sheenRoughness = 0.92; m.sheenColor.setHex(0x827d72); }
       }
   }
 }

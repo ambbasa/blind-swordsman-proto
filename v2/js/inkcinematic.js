@@ -54,7 +54,7 @@ export function pulseImpactChroma(amount = 0.65) {
 }
 
 export function createCinematicPass(params) {
-  const P = Object.assign({ exposure: 1.24, vignette: 0.62, grain: 0.022, bleed: 0 }, params || {});
+  const P = Object.assign({ exposure: 1.04, vignette: 0.62, grain: 0.022, bleed: 0 }, params || {});
   const pass = new ShaderPass({
     uniforms: {
       tDiffuse: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uTime: { value: 0 },

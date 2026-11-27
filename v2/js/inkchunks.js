@@ -343,10 +343,10 @@ function createArenaWorld(opts) {
   writeJars();
 
   /* ---------- 영웅을 따라오는 등불(무대 위 조명) — 기존과 같은 색·세기. */
-  const heroLight = new THREE.PointLight(0xffb45c, 34, 22, 1.7);
+  const heroLight = new THREE.PointLight(0xffb45c, 10, 18, 1.8);
   heroLight.position.set(0, 3.6, 1.6);
   group.add(heroLight);
-  const rimLight = new THREE.PointLight(0x9fc0e0, 8, 32, 1.5);
+  const rimLight = new THREE.PointLight(0x9fc0e0, 2.5, 24, 1.6);
   rimLight.position.set(3.2, 5.4, -3.0);
   group.add(rimLight);
 

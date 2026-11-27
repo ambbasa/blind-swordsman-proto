@@ -10,16 +10,19 @@ ramp.needsUpdate = true;
 
 function loadModel(file) {
   if (!sources.has(file)) {
-    const url = new URL('../assets/models/props/' + file + '?v=v173', import.meta.url);
+    const url = new URL('../assets/models/props/' + file + '?v=v170', import.meta.url);
     const promise = loader.loadAsync(url.href).then(({ scene }) => {
       const materials = new Map();
       function inkMaterial(source) {
         if (!materials.has(source)) {
-          const mat = new THREE.MeshToonMaterial({
-            map: source.map, color: source.color, vertexColors: source.vertexColors,
-            gradientMap: ramp, transparent: source.transparent, opacity: source.opacity,
-            alphaTest: source.alphaTest, side: source.side, emissive: source.emissive,
-            emissiveMap: source.emissiveMap
+          const col = source.color ? source.color.clone().multiplyScalar(0.92) : new THREE.Color(0xebe8e0);
+          const mat = new THREE.MeshStandardMaterial({
+            map: source.map, color: col, vertexColors: source.vertexColors,
+            roughness: 0.98, metalness: 0.0, envMapIntensity: 0.0,
+            transparent: source.transparent, opacity: source.opacity,
+            alphaTest: source.alphaTest, side: source.side,
+            emissive: source.emissive, emissiveMap: source.emissiveMap,
+            emissiveIntensity: source.emissiveMap ? 0.5 : 0.0
           });
           materials.set(source, mat);
         }
