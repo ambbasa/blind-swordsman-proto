@@ -13,6 +13,7 @@ Pipeline per monster (visual parity with shipped `hero.glb` via `build_ember_eas
 """
 import argparse
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 
@@ -129,6 +130,8 @@ def main():
     p.add_argument("--rot-z-deg", type=float, default=0.0)
     p.add_argument("--preview", action="store_true", help="Render 3/4 Blender verification PNG")
     p.add_argument("--optimize", action="store_true", help="Run optimize_glb_mobile.py on exported GLB")
+    p.add_argument("--deploy", action="store_true", help="Copy built GLBs into v2/assets/models/monsters/ (and core boss/mob slots)")
+    p.add_argument("--deploy-only", action="store_true", help="Skip building and only deploy existing build/eastern_monsters/models/*.glb")
     p.add_argument("--hy3d-python", default=find_hy3d_python())
     p.add_argument("--blender", default="blender")
     args = p.parse_args()
@@ -144,8 +147,32 @@ def main():
     else:
         targets = list(MONSTERS)
 
+    CORE_SLOTS = {
+        "dokkaebi_boss": "boss.glb",
+        "gumiho_boss": "boss_act2.glb",
+        "jeoseung_boss": "boss_act3.glb",
+        "imugi_king_boss": "boss_act4.glb",
+        "baekgol_skeleton": "minion.glb",
+        "bulgasari_charger": "heavy.glb",
+        "jangseung_stone": "stone.glb",
+    }
     for key in targets:
-        build_one(key, args)
+        if not args.deploy_only:
+            build_one(key, args)
+        if (args.deploy or args.deploy_only) and not args.dry_run:
+            src = BUILD / "models" / f"{key}.glb"
+            if not src.is_file():
+                print(f"[SKIP DEPLOY] Missing built GLB: {src}")
+                continue
+            dst_dir = ROOT / "v2/assets/models/monsters"
+            dst_dir.mkdir(parents=True, exist_ok=True)
+            dst = dst_dir / f"{key}.glb"
+            shutil.copy2(src, dst)
+            print(f"[DEPLOYED] {src} -> {dst}")
+            if key in CORE_SLOTS:
+                core_dst = ROOT / "v2/assets/models" / CORE_SLOTS[key]
+                shutil.copy2(src, core_dst)
+                print(f"[DEPLOYED CORE] {src} -> {core_dst}")
 
 
 if __name__ == "__main__":

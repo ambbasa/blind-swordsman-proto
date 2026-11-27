@@ -1,19 +1,40 @@
 import * as THREE from 'three';
 import { applyForgedMetal, getMetalStudioEnv } from './modules/metalStudioEnv.js';
-import { makeRig, tickPose } from './glbpose.js?v=v171';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v171';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v171';
+import { makeRig, tickPose } from './glbpose.js?v=v175';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v175';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v175';
 
-const MODEL_URLS = {
-  boss:      new URL('../assets/models/boss.glb?v=v171', import.meta.url).href,
-  boss_act2: new URL('../assets/models/boss_act2.glb?v=v171', import.meta.url).href,
-  boss_act3: new URL('../assets/models/boss_act3.glb?v=v171', import.meta.url).href,
-  boss_act4: new URL('../assets/models/boss_act4.glb?v=v171', import.meta.url).href,
-  minion:    new URL('../assets/models/minion.glb?v=v171', import.meta.url).href,
-  heavy:     new URL('../assets/models/heavy.glb?v=v171', import.meta.url).href,
-  stone:     new URL('../assets/models/stone.glb?v=v171', import.meta.url).href
+const EASTERN_ALIAS = {
+  boss:      'dokkaebi_boss',
+  boss_act2: 'gumiho_boss',
+  boss_act3: 'jeoseung_boss',
+  boss_act4: 'imugi_king_boss',
+  minion:    'baekgol_skeleton',
+  heavy:     'bulgasari_charger',
+  stone:     'jangseung_stone'
 };
-function isBossSp(sp) { return sp === 'boss' || sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4'; }
+const EASTERN_KEYS = [
+  'baekgol_skeleton', 'jangseung_stone', 'gwibul_bomber', 'dokkaebi_boss', 'susal_ghost',
+  'bulgasari_charger', 'changgui_zombie', 'cheonyeo_ghost', 'dalgyalgwishin', 'mudang_wraith',
+  'gumiho_boss', 'jeoseung_boss', 'samjoko', 'imugi_king_boss', 'jangsanbeom'
+];
+const MODEL_URLS = {
+  boss:      new URL('../assets/models/boss.glb?v=v175', import.meta.url).href,
+  boss_act2: new URL('../assets/models/boss_act2.glb?v=v175', import.meta.url).href,
+  boss_act3: new URL('../assets/models/boss_act3.glb?v=v175', import.meta.url).href,
+  boss_act4: new URL('../assets/models/boss_act4.glb?v=v175', import.meta.url).href,
+  minion:    new URL('../assets/models/minion.glb?v=v175', import.meta.url).href,
+  heavy:     new URL('../assets/models/heavy.glb?v=v175', import.meta.url).href,
+  stone:     new URL('../assets/models/stone.glb?v=v175', import.meta.url).href
+};
+const EASTERN_URLS = {};
+for (let i = 0; i < EASTERN_KEYS.length; i++) {
+  const k = EASTERN_KEYS[i];
+  EASTERN_URLS[k] = new URL('../assets/models/monsters/' + k + '.glb?v=v175', import.meta.url).href;
+}
+function isBossSp(sp) {
+  return sp === 'boss' || sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4' || (typeof sp === 'string' && sp.endsWith('_boss'));
+}
 const BOSS_WEAPON_FX = {
   boss:      { em: 0x3a1614, col: 0xffd27a, tail: 0xd92b24, glint: 0xff5a3c },
   boss_act2: { em: 0x163448, col: 0x9cf0ff, tail: 0x2a78b8, glint: 0x62d6ff },
@@ -47,10 +68,16 @@ function ensureLoader() {
 }
 
 export function preloadMonsterGlb(species) {
-  if (!flagOn || !MODEL_URLS[species]) return null;
+  const easternKey = EASTERN_URLS[species] ? species : EASTERN_ALIAS[species];
+  const primaryUrl = easternKey ? EASTERN_URLS[easternKey] : MODEL_URLS[species];
+  const fallbackUrl = MODEL_URLS[species];
+  if (!flagOn || (!primaryUrl && !fallbackUrl)) return null;
   if (pendings[species]) return pendings[species];
   pendings[species] = ensureLoader().then(function (loader) {
-    return loader.loadAsync(MODEL_URLS[species]).then(function (gltf) {
+    return loader.loadAsync(primaryUrl).catch(function () {
+      if (fallbackUrl && fallbackUrl !== primaryUrl) return loader.loadAsync(fallbackUrl);
+      throw new Error('no fallback for ' + species);
+    }).then(function (gltf) {
       sources[species] = gltf;
       return gltf;
     });
@@ -173,7 +200,8 @@ export function makeBossGlb(height, species) {
     boundsCache[sp] = bInfo;
   }
   const fit = new THREE.Group();
-  const k = height / bInfo.sizeY;
+  const targetH = (sp === 'boss_act4' || sp === 'imugi_king_boss') ? height * 1.45 : height;
+  const k = targetH / bInfo.sizeY;
   scene.scale.setScalar(k);
   scene.position.set(-bInfo.cx * k, -bInfo.minY * k, -bInfo.cz * k);
   fit.add(scene);
