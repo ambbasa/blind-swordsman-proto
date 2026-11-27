@@ -19,8 +19,8 @@
 import * as THREE from 'three';
 import * as TEX from './inktex3d.js';
 import { SKIN_VERT } from './inkbody3d.js';
-import { INK3D } from './inkhero3d.js?v=v167';
-import { attachSlotModels } from './glbprops.js?v=v167';
+import { INK3D } from './inkhero3d.js?v=v168';
+import { attachSlotModels } from './glbprops.js?v=v168';
 import { LANDMARKS, STAGE_SCENERY, groundPoint } from './modules/stageScenery.js';
 import { actFromStageId, getActTheme3D, applyThemeToInkUniforms } from './modules/actTheme3d.js';
 import { mulberry } from './inkbake.js';

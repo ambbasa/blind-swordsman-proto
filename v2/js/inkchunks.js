@@ -132,12 +132,45 @@ function createArenaWorld(opts) {
     g.lineJoin = g.lineCap = 'round';
     // Overlapping translucent shoulders soften the boundary without a blur pass.
     traceRoute();
-    g.strokeStyle = plan.path;
-    const width = plan.ground === 'river' ? 5.4 : 6.8;
-    for (const [extra, opacity] of [[2.1, 0.09], [1.1, 0.12], [0, 0.24]]) {
-      g.globalAlpha = opacity;
-      g.lineWidth = (width + extra) * unit;
+    if (plan.ground === 'river') {
+      // Rich East-Asian ink-wash river channel so bridges & jetties visibly span flowing water
+      const bankCol = stageId === 14 ? '#354b54' : '#4a453f';
+      const waterCol = stageId === 14 ? '#152c38' : '#242e32';
+      const deepCol = stageId === 14 ? '#0c1c26' : '#182126';
+      const rippleCol = stageId === 14 ? '#7eb8c4' : '#96a8a2';
+      const width = 4.6;
+      for (const [col, extra, opacity] of [
+        [bankCol, 2.8, 0.32],
+        [bankCol, 1.4, 0.42],
+        [waterCol, 0.2, 0.82],
+        [deepCol, -1.2, 0.72]
+      ]) {
+        g.strokeStyle = col;
+        g.globalAlpha = opacity;
+        g.lineWidth = Math.max(0.8, width + extra) * unit;
+        g.stroke();
+      }
+      // Subtle pale flowing current streaks along the river spine
+      g.save();
+      g.strokeStyle = rippleCol;
+      g.globalAlpha = 0.28;
+      g.setLineDash([unit * 2.4, unit * 2.0]);
+      g.lineWidth = unit * 0.22;
       g.stroke();
+      g.setLineDash([unit * 1.4, unit * 3.1]);
+      g.lineDashOffset = unit * 1.5;
+      g.globalAlpha = 0.18;
+      g.lineWidth = unit * 0.95;
+      g.stroke();
+      g.restore();
+    } else {
+      g.strokeStyle = plan.path;
+      const width = 6.8;
+      for (const [extra, opacity] of [[2.1, 0.09], [1.1, 0.12], [0, 0.24]]) {
+        g.globalAlpha = opacity;
+        g.lineWidth = (width + extra) * unit;
+        g.stroke();
+      }
     }
     g.globalAlpha = 1;
     if (plan.ground === 'court') {

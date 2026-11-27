@@ -1,6 +1,6 @@
-import { createBossGimmickStep } from './bossGimmickStep.js?v=v167';
-import { createBossOverlay } from './bossOverlay.js?v=v167';
-import { createBossProjectiles } from './bossProjectiles.js?v=v167';
+import { createBossGimmickStep } from './bossGimmickStep.js?v=v168';
+import { createBossOverlay } from './bossOverlay.js?v=v168';
+import { createBossProjectiles } from './bossProjectiles.js?v=v168';
 /* v2/js/modules/bossEngine.js — 심안: 묵검 v1.26 보스 AI · 19종 패턴/기믹 엔진 */
 
 export function createBossEngine(rt) {
