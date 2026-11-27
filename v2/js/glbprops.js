@@ -10,7 +10,7 @@ ramp.needsUpdate = true;
 
 function loadModel(file) {
   if (!sources.has(file)) {
-    const url = new URL('../assets/models/props/' + file + '?v=v165', import.meta.url);
+    const url = new URL('../assets/models/props/' + file + '?v=v166', import.meta.url);
     const promise = loader.loadAsync(url.href).then(({ scene }) => {
       const materials = new Map();
       function inkMaterial(source) {
@@ -42,6 +42,10 @@ function loadModel(file) {
     sources.set(file, promise);
   }
   return sources.get(file);
+}
+
+export function loadPropModel(file) {
+  return loadModel(file);
 }
 
 export function attachSlotModels(group, slots) {

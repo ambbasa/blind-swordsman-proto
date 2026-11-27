@@ -1,6 +1,6 @@
 /* v2/js/modules/levelUpUi.js — v1.54 엠버 앤 블레이드식 레벨업 메달리온 · 빛기둥 · 전후비교 · 합성 · 보유슬롯 UI 모듈 */
 import { RUN_UPGRADES, EVO_RECIPES } from './upgrades.js';
-import { animateLevelCards, animateOrbFocus, animateCardPick } from './uiMotion.js?v=v165';
+import { animateLevelCards, animateOrbFocus, animateCardPick } from './uiMotion.js?v=v166';
 
 const MEDALLION_MAP = {
   dmg:     { img: 'med_sword',     accent: '#5ce8b8', glow: 'rgba(92,232,184,0.45)',  tag: '검술' },
@@ -27,7 +27,7 @@ export function medallionMeta(id) {
 }
 
 export function medallionUrl(id) {
-  return 'assets/medallions/' + medallionMeta(id).img + '.webp?v=v165';
+  return 'assets/medallions/' + medallionMeta(id).img + '.webp?v=v166';
 }
 
 function highlightNumbers(str) {

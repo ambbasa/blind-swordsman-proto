@@ -1,5 +1,5 @@
 // Layout coordinates are metres, in camera-right / away-from-camera axes.
-// Only the 20 authored GLB scenery models from design/scenery-concepts/ are placed.
+// Only the 41 authored GLB scenery models from design/scenery-concepts/ are placed.
 export const LANDMARKS = {
   marketAwning: { name: '그을린 포목전 좌판', proxy: 'market', height: 3.4, model: 'marketAwning.glb' },
   brokenGate: { name: '기울어진 홍예 성문', proxy: 'door', height: 6, model: 'brokenGate.glb' },
@@ -20,42 +20,64 @@ export const LANDMARKS = {
   pine_tree: { proxy: 'tree', height: 4.5, model: 'pine_tree.glb' },
   rock_cluster: { proxy: 'rubble', height: 1.3, model: 'rock_cluster.glb' },
   lantern: { proxy: 'lamp', height: 2.2, model: 'lantern.glb' },
-  shrine: { proxy: 'shrine', height: 3.6, model: 'shrine.glb' }
+  shrine: { proxy: 'shrine', height: 3.6, model: 'shrine.glb' },
+  /* v1.66 추가 21종 GLB 지형지물 (슬롯 복원 9종 + 분위기 보강 10종 + 기믹 2종) */
+  ruinedWall: { name: '무너진 성벽', proxy: 'wall', height: 3.5, model: 'ruinedWall.glb' },
+  deadTree: { name: '고사목', proxy: 'deadTree', height: 4.8, model: 'deadTree.glb' },
+  basaltSpire: { name: '현무암 첨탑', proxy: 'spire', height: 5.2, model: 'basaltSpire.glb' },
+  bambooGrove: { name: '대나무 숲', proxy: 'grove', height: 5.8, model: 'bambooGrove.glb' },
+  boneRibs: { name: '거대 뼈 아치', proxy: 'ribs', height: 2.8, model: 'boneRibs.glb' },
+  charredHouse: { name: '불탄 기와집', proxy: 'roof', height: 4.5, model: 'charredHouse.glb' },
+  brokenStall: { name: '부서진 장터 좌판', proxy: 'market', height: 2.8, model: 'brokenStall.glb' },
+  woodenBridge: { name: '낡은 목교', proxy: 'bridge', height: 2.5, model: 'woodenBridge.glb' },
+  corridorGate: { name: '회랑 대문', proxy: 'door', height: 5.5, model: 'corridorGate.glb' },
+  warBanner: { name: '찢어진 군기', proxy: 'lamp', height: 3.6, model: 'warBanner.glb' },
+  ironBrazier: { name: '무쇠 화로', proxy: 'lamp', height: 1.6, model: 'ironBrazier.glb' },
+  bronzeCenser: { name: '청동 향로', proxy: 'lamp', height: 1.8, model: 'bronzeCenser.glb' },
+  mossySteps: { name: '이끼 낀 돌계단', proxy: 'rubble', height: 1.2, model: 'mossySteps.glb' },
+  moonStele: { name: '달빛 비석', proxy: 'spire', height: 3.2, model: 'moonStele.glb' },
+  snowPillar: { name: '눈 덮인 석주', proxy: 'lamp', height: 2.6, model: 'snowPillar.glb' },
+  dockPilings: { name: '나루터 말뚝', proxy: 'rubble', height: 2.0, model: 'dockPilings.glb' },
+  mapleTree: { name: '단풍나무', proxy: 'tree', height: 4.8, model: 'mapleTree.glb' },
+  fernCluster: { name: '고사리 군락', proxy: 'rubble', height: 0.9, model: 'fernCluster.glb' },
+  skyLantern: { name: '풍등', proxy: 'lamp', height: 0.9, model: 'skyLantern.glb' },
+  interactiveBelfry: { name: '범종각', proxy: 'shrine', height: 4.2, model: 'interactiveBelfry.glb' },
+  interactiveBloodstone: { name: '혈석 결정', proxy: 'altarStone', height: 2.8, model: 'interactiveBloodstone.glb' }
 };
 
 export const STAGE_SCENERY = {
   1: { name: '잿빛 장터', edge: '#32302e', mid: '#766757', path: '#987552', ground: 'street',
-    route: [[-12,-7],[-5,-3],[3,3],[10,9]], slots: [["marketAwning",-7,7]] },
+    route: [[-12,-7],[-5,-3],[3,3],[10,9]], slots: [["marketAwning",-7,7],["charredHouse",6,12],["brokenStall",-12,1],["ironBrazier",11,2],["skyLantern",8,-8]] },
   2: { name: '무너진 성문', edge: '#2c3438', mid: '#677070', path: '#897f6d', ground: 'stone',
-    route: [[-3,-16],[0,-6],[0,5],[2,15]], slots: [["brokenGate",2,10],["rock_cluster",9,-6]] },
+    route: [[-3,-16],[0,-6],[0,5],[2,15]], slots: [["brokenGate",2,10],["ruinedWall",-7,12],["ruinedWall",10,6],["warBanner",-10,2],["rock_cluster",9,-6]] },
   3: { name: '대나무 골', edge: '#20372f', mid: '#526952', path: '#9c986b', ground: 'trail',
-    route: [[-12,-9],[5,-5],[-4,4],[6,14]], slots: [["bambooShrine",-6,10],["rock_cluster",-9,-7]] },
+    route: [[-12,-9],[5,-5],[-4,4],[6,14]], slots: [["bambooShrine",-6,10],["bambooGrove",-10,3],["bambooGrove",8,8],["mapleTree",11,0],["fernCluster",-9,-7]] },
   4: { name: '붉은 달', edge: '#352834', mid: '#735154', path: '#ad7563', ground: 'court',
-    route: [[-8,-12],[0,-5],[2,4],[-4,13]], slots: [["moonPavilion",5,11]] },
+    route: [[-8,-12],[0,-5],[2,4],[-4,13]], slots: [["moonPavilion",5,11],["ruinedWall",-8,10],["deadTree",-12,1],["moonStele",10,2],["skyLantern",8,-8]] },
   5: { name: '안개 석탑', edge: '#2c4040', mid: '#637779', path: '#91a6a0', ground: 'stone',
-    route: [[-10,-14],[-2,-6],[-5,3],[-3,15]], slots: [["mistPagoda",-4,10],["rock_cluster",-12,3],["pine_tree",10,10]] },
+    route: [[-10,-14],[-2,-6],[-5,3],[-3,15]], slots: [["mistPagoda",-4,10],["rock_cluster",-12,3],["pine_tree",10,10],["bronzeCenser",7,4],["mossySteps",9,-6]] },
   6: { name: '설산 폐사찰', edge: '#414958', mid: '#839297', path: '#b9c3c0', ground: 'trail',
-    route: [[10,-15],[3,-6],[5,2],[-6,13]], slots: [["snowHall",-6,11],["pine_tree",10,9],["rock_cluster",-11,2]] },
+    route: [[10,-15],[3,-6],[5,2],[-6,13]], slots: [["snowHall",-6,11],["pine_tree",10,9],["rock_cluster",-11,2],["deadTree",8,1],["snowPillar",-8,-7]] },
   7: { name: '고목 골', edge: '#353329', mid: '#676748', path: '#88734f', ground: 'trail',
-    route: [[9,-12],[-5,-5],[4,4],[-7,13]], slots: [["rootArch",6,8]] },
+    route: [[9,-12],[-5,-5],[4,4],[-7,13]], slots: [["rootArch",6,8],["deadTree",-8,9],["mapleTree",11,0],["mossySteps",-10,0],["bambooGrove",-12,-7],["fernCluster",9,-7]] },
   8: { name: '무명 산문', edge: '#302c3c', mid: '#645d70', path: '#9e8668', ground: 'street',
-    route: [[2,-16],[2,-6],[0,4],[0,16]], slots: [["bellGate",0,11],["shrine",-9,11],["lantern",9,7]] },
+    route: [[2,-16],[2,-6],[0,4],[0,16]], slots: [["bellGate",0,11],["shrine",-9,11],["lantern",9,7],["bronzeCenser",-8,2],["ruinedWall",12,0]] },
   9: { name: '혈석 제단', edge: '#35262c', mid: '#714749', path: '#a96759', ground: 'court',
-    route: [[9,-14],[6,-5],[-3,2],[-5,13]], slots: [["bloodAltar",-4,10],["rock_cluster",11,-2]] },
+    route: [[9,-14],[6,-5],[-3,2],[-5,13]], slots: [["bloodAltar",-4,10],["basaltSpire",-11,4],["basaltSpire",9,7],["rock_cluster",11,-2],["ironBrazier",-9,-6]] },
   10: { name: '뼈의 강', edge: '#353538', mid: '#736d63', path: '#ab9b81', ground: 'river',
-    route: [[-16,5],[-7,0],[2,3],[15,-6]], slots: [["ribBridge",-6,8],["rock_cluster",-10,-8]] },
+    route: [[-16,5],[-7,0],[2,3],[15,-6]], slots: [["ribBridge",-6,8],["boneRibs",9,5],["woodenBridge",-10,0],["deadTree",10,-3],["dockPilings",-10,-8]] },
   11: { name: '혈월 성채', edge: '#372d32', mid: '#725457', path: '#a16b59', ground: 'stone',
-    route: [[9,-14],[4,-5],[4,4],[7,14]], slots: [["siegeTower",7,10]] },
+    route: [[9,-14],[4,-5],[4,4],[7,14]], slots: [["siegeTower",7,10],["ruinedWall",-3,13],["ruinedWall",-11,6],["warBanner",10,0],["ironBrazier",-9,-6]] },
   12: { name: '나락의 심연', edge: '#252830', mid: '#4b4a5b', path: '#8e6978', ground: 'court',
-    route: [[-12,-12],[-6,-4],[1,3],[8,13]], slots: [["riftSpire",-6,9],["rock_cluster",10,1]] },
+    route: [[-12,-12],[-6,-4],[1,3],[8,13]], slots: [["riftSpire",-6,9],["basaltSpire",8,11],["boneRibs",-11,1],["rock_cluster",10,1],["moonStele",8,-8]] },
   13: { name: '무간의 회랑', edge: '#40272c', mid: '#795050', path: '#aa7569', ground: 'street',
-    route: [[0,-16],[0,-6],[0,6],[0,16]], slots: [["corridorPillar",-7,7],["corridorPillar",7,7]] },
+    route: [[0,-16],[0,-6],[0,6],[0,16]], slots: [["corridorPillar",-7,7],["corridorPillar",7,7],["ruinedWall",-9,-1],["ruinedWall",9,-1],["corridorGate",0,15]] },
   14: { name: '망각의 나루', edge: '#293741', mid: '#546b73', path: '#96a8a6', ground: 'river',
-    route: [[-13,-10],[-4,-4],[5,1],[11,14]], slots: [["ferryJetty",7,8],["lantern",10,0],["rock_cluster",8,-8]] },
+    route: [[-13,-10],[-4,-4],[5,1],[11,14]], slots: [["ferryJetty",7,8],["deadTree",-9,9],["boneRibs",-11,1],["lantern",10,0],["dockPilings",8,-8]] },
   15: { name: '검은 누각', edge: '#302933', mid: '#644d62', path: '#948395', ground: 'stone',
-    route: [[-11,-13],[-4,-6],[-3,5],[-6,15]], slots: [["blackPavilion",-6,11],["lantern",8,3]] },
+    route: [[-11,-13],[-4,-6],[-3,5],[-6,15]], slots: [["blackPavilion",-6,11],["charredHouse",6,13],["ruinedWall",-12,3],["lantern",8,3],["warBanner",10,-6]] },
   16: { name: '심안의 끝', edge: '#233136', mid: '#536665', path: '#97ada1', ground: 'court',
-    route: [[0,-15],[-3,-7],[0,4],[0,15]], slots: [["sealMonolith",0,10]] }
+    route: [[0,-15],[-3,-7],[0,4],[0,15]], slots: [["sealMonolith",0,10],["basaltSpire",-9,8],["basaltSpire",9,8],["bronzeCenser",-9,0],["moonStele",9,0]] }
 };
 
 export function groundPoint(side, depth) {

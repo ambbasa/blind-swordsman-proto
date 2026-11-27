@@ -9,6 +9,7 @@
  */
 import * as THREE from 'three';
 import { WF, paint as paintCard } from '../cardstock.js';
+import { loadPropModel } from '../glbprops.js?v=v166';
 import {
   buildArchedBridge3D,
   buildCarvedLantern3D,
@@ -542,6 +543,19 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
   const bsRingGeo = k === 'blood' ? new THREE.TorusGeometry(0.76, 0.032, 6, 24) : null;
   const bsStoneMat = k === 'blood' ? makePbr(0x2c2426, 0.90, 0.08) : null;
   if (k === 'blood') { track(bsBaseGeo, null); track(bsStepGeo, null); track(bsMainGeo, null); track(bsSideGeo, null); track(bsRingGeo, null); }
+  let disposed = false;
+  function attachInteractiveGlb(parent, fallback, file, targetHeight) {
+    loadPropModel(file).then((asset) => {
+      if (!asset || disposed) return;
+      const holder = new THREE.Group();
+      holder.scale.setScalar(targetHeight / asset.height);
+      const model = asset.scene.clone();
+      model.position.sub(new THREE.Vector3(asset.center.x, asset.base, asset.center.z));
+      holder.add(model);
+      parent.add(holder);
+      fallback.visible = false;
+    });
+  }
   function createBloodstone3D(x, z, r = 2.6) {
     const g = new THREE.Group(); g.position.set(x, 0, z);
     const cryMat = new THREE.MeshStandardMaterial({ color: 0x52161c, emissive: 0xa82026, emissiveIntensity: 0.52, roughness: 0.42, metalness: 0.20 });
@@ -550,16 +564,19 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     track(pGeo, pMat); track(null, cryMat); track(null, ringMat);
     shaderMats.push(pMat);
     const pool = new THREE.Mesh(pGeo, pMat); pool.position.y = 0.045; pool.renderOrder = 1; g.add(pool);
-    const b1 = new THREE.Mesh(bsBaseGeo, bsStoneMat); b1.position.y = 0.13; g.add(b1);
-    const b2 = new THREE.Mesh(bsStepGeo, bsStoneMat); b2.position.y = 0.35; g.add(b2);
-    const mainC = new THREE.Mesh(bsMainGeo, cryMat); mainC.position.y = 1.28; g.add(mainC);
+    const fallback = new THREE.Group();
+    const b1 = new THREE.Mesh(bsBaseGeo, bsStoneMat); b1.position.y = 0.13; fallback.add(b1);
+    const b2 = new THREE.Mesh(bsStepGeo, bsStoneMat); b2.position.y = 0.35; fallback.add(b2);
+    const mainC = new THREE.Mesh(bsMainGeo, cryMat); mainC.position.y = 1.28; fallback.add(mainC);
     for (let i = 0; i < 3; i++) {
       const a = (i / 3) * Math.PI * 2 + 0.4;
       const sc = new THREE.Mesh(bsSideGeo, cryMat);
       sc.position.set(Math.cos(a) * 0.34, 0.85, Math.sin(a) * 0.34);
       sc.rotation.set(Math.sin(a) * 0.32, a, -Math.cos(a) * 0.32);
-      g.add(sc);
+      fallback.add(sc);
     }
+    g.add(fallback);
+    attachInteractiveGlb(g, fallback, 'interactiveBloodstone.glb', 2.8);
     const orbRing = new THREE.Mesh(bsRingGeo, ringMat); orbRing.position.y = 1.25; orbRing.rotation.x = Math.PI * 0.38; g.add(orbRing);
     spinNodes.push(orbRing);
     g.userData = { cryMat, ringMat, pool, orbRing, active: true };
@@ -567,7 +584,7 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
     return g;
   }
 
-  /* 8장: 조선식 단청 종각 + LatheGeometry 청동 범종 */
+  /* 8장: 조선식 단청 종각 + LatheGeometry 청동 범종 (v1.66 interactiveBelfry.glb 적용) */
   const bfBaseGeo = k === 'bell' ? new THREE.BoxGeometry(2.35, 0.28, 2.35) : null;
   const bfPostGeo = k === 'bell' ? new THREE.CylinderGeometry(0.085, 0.105, 2.55, 7) : null;
   const bfBeamGeo = k === 'bell' ? new THREE.BoxGeometry(2.15, 0.16, 0.18) : null;
@@ -580,16 +597,19 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
   if (k === 'bell') { track(bfBaseGeo, null); track(bfPostGeo, null); track(bfBeamGeo, null); track(bfRoofGeo, null); track(bfBellGeo, null); }
   function createBelfry3D(x, z, rotY = 0) {
     const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rotY;
-    const base = new THREE.Mesh(bfBaseGeo, bfStoneMat); base.position.y = 0.14; g.add(base);
+    const fallback = new THREE.Group();
+    const base = new THREE.Mesh(bfBaseGeo, bfStoneMat); base.position.y = 0.14; fallback.add(base);
     [[-0.86, -0.86], [0.86, -0.86], [-0.86, 0.86], [0.86, 0.86]].forEach(([px, pz]) => {
-      const pt = new THREE.Mesh(bfPostGeo, bfWoodMat); pt.position.set(px, 1.48, pz); g.add(pt);
+      const pt = new THREE.Mesh(bfPostGeo, bfWoodMat); pt.position.set(px, 1.48, pz); fallback.add(pt);
     });
-    const bm = new THREE.Mesh(bfBeamGeo, bfWoodMat); bm.position.y = 2.66; g.add(bm);
-    const roof = new THREE.Mesh(bfRoofGeo, bfTileMat); roof.position.y = 3.16; roof.rotation.y = Math.PI / 4; g.add(roof);
+    const bm = new THREE.Mesh(bfBeamGeo, bfWoodMat); bm.position.y = 2.66; fallback.add(bm);
+    const roof = new THREE.Mesh(bfRoofGeo, bfTileMat); roof.position.y = 3.16; roof.rotation.y = Math.PI / 4; fallback.add(roof);
     const pivot = new THREE.Group(); pivot.position.y = 2.62;
     const bell = new THREE.Mesh(bfBellGeo, bfBronzeMat); bell.position.y = -0.95; pivot.add(bell);
     pivot.userData = { swing: 0.06, phase: rng() * 6.28 };
-    g.add(pivot); bellPivots.push(pivot);
+    fallback.add(pivot); bellPivots.push(pivot);
+    g.add(fallback);
+    attachInteractiveGlb(g, fallback, 'interactiveBelfry.glb', 4.2);
     g.userData = { pivot, nextAmb: 1.5 + rng() * 3.0 };
     group.add(g);
     return g;
@@ -896,6 +916,7 @@ export function createInkTerrain3D(scene, kind, opts = {}) {
       }
     },
     dispose() {
+      disposed = true;
       scene.remove(group);
       for (let i = 0; i < activeWaves.length; i++) {
         activeWaves[i].dMat.dispose(); activeWaves[i].tMat1.dispose(); activeWaves[i].tMat2.dispose();
