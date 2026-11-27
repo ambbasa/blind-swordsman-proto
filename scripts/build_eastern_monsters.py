@@ -108,7 +108,8 @@ def build_one(key, args):
     run(blender_cmd, blender=True)
 
     if args.optimize:
-        run([sys.executable, ROOT / "scripts/blender/optimize_glb_mobile.py", out_glb], blender=False)
+        opt_py = args.hy3d_python if Path(args.hy3d_python).is_file() else sys.executable
+        run([opt_py, ROOT / "scripts/blender/optimize_glb_mobile.py", out_glb], blender=False)
 
 
 def main():
