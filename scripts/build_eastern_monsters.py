@@ -33,7 +33,7 @@ MONSTERS = {
     "gwibul_bomber":     ("humanoid",  1.40,  7500),
     "dokkaebi_boss":     ("humanoid",  2.65, 11000),
     "susal_ghost":       ("humanoid",  1.90,  8000),
-    "bulgasari_charger": ("humanoid",  2.05,  9000),
+    "bulgasari_charger": ("quadruped", 1.55,  9500),
     # --- 2) Floating ghost / long robe (4) ---
     "changgui_zombie":   ("float",     1.85,  7800),
     "cheonyeo_ghost":    ("float",     1.80,  7800),

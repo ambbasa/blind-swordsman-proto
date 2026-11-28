@@ -1783,9 +1783,10 @@ h1, h2, h3, #timer, #titleName, #bossCardName, #resultTitle { font-family: var(-
 .lobby-res { display: flex; gap: 6px; align-items: center; }
 .lobby-utils { display: flex; gap: 5px; align-items: center; }
 .util-btn {
-  padding: 5px 9px; border-radius: 8px; font-size: 11.5px; font-weight: 600;
+  padding: 6px 11px; border-radius: 8px; font-size: 12px; font-weight: 600;
   background: rgba(24, 20, 18, 0.88); border: 1px solid rgba(217, 185, 126, 0.34);
-  color: #e6dac4; cursor: pointer; min-height: 32px;
+  color: #e6dac4; cursor: pointer; min-height: 44px; min-width: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 .util-btn:active { background: rgba(64, 46, 22, 0.92); }
 .lobby-a11y-pop {
@@ -1889,26 +1890,26 @@ h1, h2, h3, #timer, #titleName, #bossCardName, #resultTitle { font-family: var(-
 .chap-arrow:disabled { opacity: 0.32; cursor: default; }
 .chap-arrow:active:not(:disabled) { background: rgba(58, 42, 20, 0.95); }
 .chap-center {
-  flex: 1 1 auto; min-width: 0; padding: 7px 10px; border-radius: 10px;
+  flex: 1 1 auto; min-width: 0; min-height: 52px; padding: 6px 8px; border-radius: 10px;
   background: linear-gradient(180deg, rgba(28, 22, 18, 0.94), rgba(16, 13, 11, 0.96));
   border: 1px solid rgba(236, 198, 122, 0.52);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.48);
   color: #fff5e0; text-align: center; cursor: pointer;
-  display: flex; flex-direction: column; justify-content: center; gap: 2px;
+  display: flex; flex-direction: column; justify-content: center; gap: 3px;
 }
 .chap-title-row {
-  display: flex; justify-content: center; align-items: center; gap: 6px;
+  display: flex; justify-content: center; align-items: center; gap: 5px; min-width: 0;
 }
 .chap-title-row strong {
-  font-size: 15px; color: #fff6e4; letter-spacing: 0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 14px; line-height: 1.2; color: #fff6e4; letter-spacing: 0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .chap-mode-tag {
-  font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 999px;
   background: rgba(168, 38, 28, 0.36); border: 1px solid rgba(240, 140, 112, 0.55); color: #ffd4c4;
   flex-shrink: 0;
 }
 .chap-sub-row {
-  font-size: 11px; color: #d8caa8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 11px; line-height: 1.2; color: #d8caa8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 /* 아이콘 + 라벨 4탭 고정 바 */
@@ -2750,11 +2751,43 @@ h1, h2, h3, #timer, #titleName, #bossCardName, #resultTitle { font-family: var(-
   gap: 8px;
 }
 #hud #hudBtns button {
-  width: 36px;
-  height: 36px;
-  background: rgba(8, 14, 18, 0.74);
-  border: 1px solid rgba(140, 210, 210, 0.35);
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  background: rgba(8, 14, 18, 0.78);
+  border: 1px solid rgba(140, 210, 210, 0.38);
 }
+
+/* === v1.76 막 서사 나레이션 & 16장 엔딩 수묵 카드 === */
+.stage-story {
+  margin: 8px 0 4px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: rgba(12, 10, 14, 0.76);
+  border-left: 2.5px solid rgba(232, 198, 134, 0.72);
+  color: #efe3cc;
+  font-size: 12.5px;
+  line-height: 1.55;
+  text-align: left;
+}
+.stage-story p { margin: 0 0 4px; }
+.stage-story p:last-child { margin-bottom: 0; color: #f6d58b; }
+.stage-story[hidden] { display: none; }
+
+.result-ending {
+  margin: 6px 0 10px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(32, 20, 48, 0.88), rgba(14, 12, 22, 0.94));
+  border: 1px solid rgba(242, 206, 128, 0.55);
+  color: #f4ead6;
+  text-align: left;
+}
+.result-ending h3 { margin: 0 0 6px; font-size: 15px; color: #ffe299; letter-spacing: 0.04em; }
+.result-ending p { margin: 0 0 6px; font-size: 12px; line-height: 1.55; color: #e2d8c8; }
+.result-ending .ending-summary { font-size: 11.5px; color: #8af0d8; margin: 0; font-weight: 600; }
+.result-ending[hidden] { display: none; }
 
 /* === v1.38 베이지 종이 박스 토스트/가이드 퇴출 -> 엠버 앤 블레이드식 다크 먹선 알림 === */
 #toast, #guide {
@@ -2770,7 +2803,7 @@ h1, h2, h3, #timer, #titleName, #bossCardName, #resultTitle { font-family: var(-
 }
 
 /* === v1.38 hidden 속성 보장 (결과 화면 다시하기 중복 버튼 수정) === */
-#btnResultRetry[hidden], #btnResultDrill[hidden], .btn[hidden] {
+#btnResultRetry[hidden], #btnResultDrill[hidden], #btnResultCodex[hidden], .btn[hidden] {
   display: none;
 }
 }

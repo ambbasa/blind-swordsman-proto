@@ -7,13 +7,21 @@ import { PAT_CODE } from './bossCatalog.js';
 
 export const CODEX_SPECIES = [
   ['hero', '심안'],
-  ['minion', '잡귀'],
-  ['heavy', '중장'],
-  ['stone', '석상'],
-  ['boss', '1막 보스'],
-  ['boss_act2', '2막 묵승'],
-  ['boss_act3', '3막 무장'],
-  ['boss_act4', '4막 검귀']
+  ['baekgol_skeleton', '백골 무사'],
+  ['jangseung_stone', '장승 석인'],
+  ['gwibul_bomber', '귀불'],
+  ['bulgasari_charger', '불가사리'],
+  ['changgui_zombie', '창귀'],
+  ['cheonyeo_ghost', '처녀귀신'],
+  ['samjoko', '삼족오'],
+  ['dalgyalgwishin', '달걀귀신'],
+  ['mudang_wraith', '무당 원혼'],
+  ['susal_ghost', '수살귀'],
+  ['jangsanbeom', '장산범'],
+  ['dokkaebi_boss', '1막 도깨비'],
+  ['gumiho_boss', '2막 구미호'],
+  ['jeoseung_boss', '3막 저승사자'],
+  ['imugi_king_boss', '4막 이무기']
 ];
 
 export const CODEX_ANIM_KO = {

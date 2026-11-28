@@ -8,7 +8,7 @@ import {
   stepDrill,
   handleDrillInput,
   drawDrillCanvas
-} from './trainingDrills.js?v=v175';
+} from './trainingDrills.js?v=v176';
 
 export const TRAIN_SHAPES = Object.freeze(['hline', 'vline', 'vee', 'bolt', 'circle', 'square', 'tri', 'spiral', 'star', 'tap']);
 

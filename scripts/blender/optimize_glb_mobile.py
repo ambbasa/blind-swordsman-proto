@@ -87,7 +87,16 @@ def optimize_glb(path):
         anim["channels"] = kept_channels
         anim["samplers"] = new_samplers
 
-    # 2) Convert embedded images to WebP (quality=82)
+    # 2) Convert embedded images to WebP (lossless for normal maps, quality=82 for albedo)
+    normal_img_indices = set()
+    textures = g.get("textures", [])
+    for m in g.get("materials", []):
+        nt = m.get("normalTexture")
+        if isinstance(nt, dict) and "index" in nt:
+            ti = nt["index"]
+            if 0 <= ti < len(textures) and "source" in textures[ti]:
+                normal_img_indices.add(textures[ti]["source"])
+
     webp_used = False
     img_blobs = {}
     for idx, img in enumerate(g.get("images", [])):
@@ -104,7 +113,10 @@ def optimize_glb(path):
             if max(im.size) > 1024:
                 im.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
             out_io = io.BytesIO()
-            im.save(out_io, format="WEBP", quality=82, method=5)
+            if idx in normal_img_indices:
+                im.save(out_io, format="WEBP", lossless=True, method=5)
+            else:
+                im.save(out_io, format="WEBP", quality=82, method=5)
             wb = out_io.getvalue()
             if len(wb) < len(raw):
                 img_blobs[bv_idx] = wb

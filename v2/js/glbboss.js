@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { applyForgedMetal, getMetalStudioEnv } from './modules/metalStudioEnv.js';
-import { makeRig, tickPose } from './glbpose.js?v=v175';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v175';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v175';
+import { makeRig, tickPose } from './glbpose.js?v=v176';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v176';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v176';
 
 const EASTERN_ALIAS = {
   boss:      'dokkaebi_boss',
@@ -19,18 +19,18 @@ const EASTERN_KEYS = [
   'gumiho_boss', 'jeoseung_boss', 'samjoko', 'imugi_king_boss', 'jangsanbeom'
 ];
 const MODEL_URLS = {
-  boss:      new URL('../assets/models/boss.glb?v=v175', import.meta.url).href,
-  boss_act2: new URL('../assets/models/boss_act2.glb?v=v175', import.meta.url).href,
-  boss_act3: new URL('../assets/models/boss_act3.glb?v=v175', import.meta.url).href,
-  boss_act4: new URL('../assets/models/boss_act4.glb?v=v175', import.meta.url).href,
-  minion:    new URL('../assets/models/minion.glb?v=v175', import.meta.url).href,
-  heavy:     new URL('../assets/models/heavy.glb?v=v175', import.meta.url).href,
-  stone:     new URL('../assets/models/stone.glb?v=v175', import.meta.url).href
+  boss:      new URL('../assets/models/boss.glb?v=v176', import.meta.url).href,
+  boss_act2: new URL('../assets/models/boss_act2.glb?v=v176', import.meta.url).href,
+  boss_act3: new URL('../assets/models/boss_act3.glb?v=v176', import.meta.url).href,
+  boss_act4: new URL('../assets/models/boss_act4.glb?v=v176', import.meta.url).href,
+  minion:    new URL('../assets/models/minion.glb?v=v176', import.meta.url).href,
+  heavy:     new URL('../assets/models/heavy.glb?v=v176', import.meta.url).href,
+  stone:     new URL('../assets/models/stone.glb?v=v176', import.meta.url).href
 };
 const EASTERN_URLS = {};
 for (let i = 0; i < EASTERN_KEYS.length; i++) {
   const k = EASTERN_KEYS[i];
-  EASTERN_URLS[k] = new URL('../assets/models/monsters/' + k + '.glb?v=v175', import.meta.url).href;
+  EASTERN_URLS[k] = new URL('../assets/models/monsters/' + k + '.glb?v=v176', import.meta.url).href;
 }
 function isBossSp(sp) {
   return sp === 'boss' || sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4' || (typeof sp === 'string' && sp.endsWith('_boss'));
@@ -145,33 +145,39 @@ export function makeBossGlb(height, species) {
           if (!mat.envMap && r) applyForgedMetal(mat, r, { roughness: bossSp ? 0.22 : 0.30, envMapIntensity: 0.94 });
         };
       } else {
-        /* v1.63 엠버 앤 블레이드식 무선 + 2단 하드 툰 색면 + 절제된 백은 그래픽 림 (주인공보다 약하게 유지) */
+        /* v1.63+v1.72 엠버 앤 블레이드식 무선 + 2단 하드 툰 색면 + fwidth AA + 절제된 백은 그래픽 림 */
         const bossSp = isBossSp(sp);
         mat.roughness = 0.95;
         mat.metalness = 0.0;
+        mat.normalMap = null;
         mat.roughnessMap = null;
         mat.metalnessMap = null;
         mat.envMap = null;
         mat.envMapIntensity = 0.0;
         if (mat.color) mat.color.setHex(0xffffff);
         if (mat.map) {
+          mat.map.anisotropy = 4;
+          mat.map.minFilter = THREE.LinearMipmapLinearFilter;
+          mat.map.magFilter = THREE.LinearFilter;
           mat.emissiveMap = mat.map;
           mat.emissive = new THREE.Color(0xfff6ea);
           mat.emissiveIntensity = 0.03;
         }
         const rimPow = bossSp ? 0.22 : 0.12;
-        mat.customProgramCacheKey = function () { return bossSp ? 'boss-ember-hardrim-v163' : 'mob-ember-hardrim-v163'; };
+        mat.customProgramCacheKey = function () { return bossSp ? 'boss-ember-hardrim-v176aa' : 'mob-ember-hardrim-v176aa'; };
         mat.onBeforeCompile = function (shader) {
           shader.fragmentShader = shader.fragmentShader.replace(
             "#include <dithering_fragment>",
             "vec3 vn = normalize(vNormal);\n" +
             "vec3 vv = normalize(vViewPosition);\n" +
             "float ndl = dot(vn, normalize(vec3(-0.55, 0.65, 0.52)));\n" +
-            "float toonBand = smoothstep(-0.08, 0.08, ndl);\n" +
+            "float ndlFw = max(0.09, fwidth(ndl) * 1.45);\n" +
+            "float toonBand = smoothstep(-ndlFw, ndlFw, ndl);\n" +
             "gl_FragColor.rgb *= mix(vec3(0.74, 0.77, 0.85), vec3(0.98, 0.97, 0.95), toonBand);\n" +
             "float fres = 1.0 - clamp(abs(dot(vn, vv)), 0.0, 1.0);\n" +
             "float rimSide = smoothstep(-0.08, 0.38, dot(vn, normalize(vec3(-0.82, 0.45, 0.25))));\n" +
-            "float hardRim = smoothstep(0.60, 0.69, fres) * rimSide;\n" +
+            "float fresFw = max(0.07, fwidth(fres) * 1.80);\n" +
+            "float hardRim = smoothstep(0.64 - fresFw, 0.64 + fresFw, fres) * rimSide;\n" +
             "gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.86, 0.91, 0.96), hardRim * " + rimPow.toFixed(2) + ");\n" +
             "gl_FragColor.rgb = min(gl_FragColor.rgb, vec3(0.95));\n" +
             "#include <dithering_fragment>"

@@ -113,6 +113,12 @@ export function purchaseStatUpgrade(saveObj, stat, cfg = {}) {
   return { ok: true, key: def.key, lv: saveObj[def.key], cost, coins: saveObj.coins };
 }
 
+/** v1.76: 막별 스테이지 기본 엽전 배율 (3막 ×1.35, 4막 ×1.75로 후반 파밍 피로 완화) */
+export function actCoinMul(actNo) {
+  const a = Math.max(1, Math.min(4, Number(actNo || 1) | 0));
+  return a === 4 ? 1.75 : (a === 3 ? 1.35 : (a === 2 ? 1.15 : 1.0));
+}
+
 export function getIdleNotice(cfg = {}) {
   const maxHours = Number(cfg.idleMaxHours ?? 6);
   return '자리를 비운 동안 최대 ' + maxHours + '시간까지 엽전이 쌓입니다.';

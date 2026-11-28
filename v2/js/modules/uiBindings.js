@@ -1,6 +1,6 @@
 /* v2/js/modules/uiBindings.js — 심안: 묵검 v1.26 DOM 이벤트 가드·UI 바인딩 */
 
-import { createDrillState, getDrillDef } from './trainingDrills.js?v=v175';
+import { createDrillState, getDrillDef } from './trainingDrills.js?v=v176';
 
 export function createUiBindings(rt) {
   const $ = rt.$;
@@ -87,7 +87,15 @@ function bindUi() {
     }
   });
   if ($('btnCodex')) $('btnCodex').addEventListener('click', function () { rt.renderCodex(); rt.showOv('ov-codex'); });
-  if ($('btnCodexClose')) $('btnCodexClose').addEventListener('click', function () { rt.hideOvs(); rt.showOv('ov-title'); });
+  if ($('btnCodexClose')) $('btnCodexClose').addEventListener('click', function () {
+    rt.hideOvs();
+    if (rt.S && (rt.S.won || rt.S.lost)) rt.showOv('ov-result');
+    else rt.showOv('ov-title');
+  });
+  if ($('btnResultCodex')) $('btnResultCodex').addEventListener('click', function () {
+    rt.renderCodex('pat');
+    rt.showOv('ov-codex');
+  });
   if ($('btnTrainClose')) $('btnTrainClose').addEventListener('click', function () { rt.closeTrain(); });
   if ($('btnTrainTut')) $('btnTrainTut').addEventListener('click', function () { rt.closeTrain(); rt.startRun({ stage: 1, replay: true }); });
   $('btnShopClose').addEventListener('click', function () {

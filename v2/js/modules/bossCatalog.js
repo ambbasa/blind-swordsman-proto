@@ -26,7 +26,33 @@ export const PAT_CODE = Object.freeze([
   { slot: 19, id: 'sweep', name: '전방 횡파', desc: '전방 120도를 넓게 쓸어내는 강타와 파동', guides: ['전방 부채꼴 예고가 뜨면 보스 등 뒤로 일섬하세요.', '2국면부터는 파동이 뻗어 나오니 사선으로 벗어나세요.'] }
 ]);
 
+export const PAT_SHORT_HINT = Object.freeze({
+  charge: '돌진 — 붉은 선 밖으로 일섬!',
+  kiai: '기모으기 — 금빛 칸 맞춰 탭!',
+  slam: '내려찍기 — 붉은 원 밖으로!',
+  volley: '부적 탄막 — 금빛 부적 탭 반사!',
+  chant: '영창 — 뜬 무늬 순서대로!',
+  clones: '분신 — 방울 우는 진짜를 베라!',
+  veil: '은신 — 방울 소리 쪽으로 일섬!',
+  shrink: '결계 조임 — 부적 기둥 파괴!',
+  seal: '봉인 — 한붓별(★)로 닫아라!',
+  clash: '합 겨루기 — 뜬 무늬 즉시 긋기!',
+  mimic: '흉내 — 내 궤적과 직각 회피!',
+  shuffle: '뒤섞기 — 금빛 테두리 때 고정!',
+  donut: '도넛 결계 — 청록 안전지대 일섬!',
+  soak: '결계 기둥 — 빛기둥 중앙 흡수!',
+  rhythm: '삼연격 — 옥빛 링 맞춰 3연 탭!',
+  tether: '혈사슬 — 외곽으로 일섬 탈출!',
+  gaze: '붉은 시선 — 보스 등 뒤로!',
+  pizza: '부채꼴 — 청록 안전 칸 이동!',
+  sweep: '전방 횡파 — 보스 등 뒤로!'
+});
+
 export function getPatternMeta(id) {
   for (let i = 0; i < PAT_CODE.length; i++) if (PAT_CODE[i].id === id) return PAT_CODE[i];
   return null;
+}
+
+export function getPatternHint(id) {
+  return PAT_SHORT_HINT[id] || '';
 }

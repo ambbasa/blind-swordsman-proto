@@ -1,5 +1,5 @@
-import { preloadBossGlb, bossGlbReady, makeBossGlb, hookBossGlb, tickBossGlb, triggerMonsterDeathGlb, setBossPhaseGlb, applyMonsterActThemeGlb, triggerBossIntroRoarGlb, disposeMonsterGlb } from './glbboss.js?v=v175';
-import { hd2dEnabled, preloadHd2dAll, makeHd2dMonster, tickHd2d, triggerHd2dPose, setHd2dOpacity, setHd2dTint } from './hd2dSprite.js?v=v175';
+import { preloadBossGlb, bossGlbReady, makeBossGlb, hookBossGlb, tickBossGlb, triggerMonsterDeathGlb, setBossPhaseGlb, applyMonsterActThemeGlb, triggerBossIntroRoarGlb, disposeMonsterGlb } from './glbboss.js?v=v176';
+import { hd2dEnabled, preloadHd2dAll, makeHd2dMonster, tickHd2d, triggerHd2dPose, setHd2dOpacity, setHd2dTint } from './hd2dSprite.js?v=v176';
 /* v2/js/inkmonsters3d.js — v0.47 몬스터·보스 전종 **3D 관절 뼈대 + 수묵 툰 셰이더 + 동양 수묵 텍스처**.
 
    v0.45에서 주인공만 3D 관절 뼈대(inkhero3d.js)로 세웠다. v0.46은 원귀(조선 좀비)·거한(장정)·
@@ -26,8 +26,20 @@ import { hd2dEnabled, preloadHd2dAll, makeHd2dMonster, tickHd2d, triggerHd2dPose
      원귀 = walk | frozen | hit | attack | burning | poisoned,  보스 = 'boss:<상태>'.
 */
 import * as THREE from 'three';
-import { INK3D } from './inkhero3d.js?v=v175';
+import { INK3D } from './inkhero3d.js?v=v176';
 import { SPECS } from './inkmodels3d.js';
+import { ACT_MONSTER_ROSTER } from './modules/stages.js';
+
+function resolveEasternGlbSpecies(species, opt) {
+  const act = Math.max(1, Math.min(4, ((opt && opt.act) | 0) || 1));
+  const roster = ACT_MONSTER_ROSTER[act] || ACT_MONSTER_ROSTER[1];
+  if (species === 'boss') {
+    return roster.boss || (act >= 2 && act <= 4 ? ('boss_act' + act) : 'boss');
+  }
+  const mobType = (opt && opt.mobType) || (species === 'stone' ? 'stone' : (species === 'heavy' ? 'brute' : 'imp'));
+  if (roster[mobType]) return roster[mobType];
+  return species;
+}
 import { bakeBody, makeBones, clothStep, uprightBone } from './inkbody3d.js';
 import * as TEX from './inktex3d.js';
 
@@ -275,7 +287,7 @@ export function build(species, opt) {
       group.userData.poseSource = 'hd2d_' + species;
     }
   }
-  const glbSpecies = (species === 'boss' && opt.act >= 2 && opt.act <= 4) ? ('boss_act' + (opt.act | 0)) : species;
+  const glbSpecies = resolveEasternGlbSpecies(species, opt);
   const glbReady = H.hd2d ? null : bossGlbReady(glbSpecies);
   if (glbReady) {
     glbReady.then(function () {

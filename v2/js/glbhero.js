@@ -1,11 +1,11 @@
 /* v2/js/glbhero.js — v0.83 시안 B(하데스풍 주홍 먹선 검객) 3D GLB 로더·3연타 검술 콤보·회피·피격 상태 머신 */
 import * as THREE from 'three';
 import { applyForgedMetal } from './modules/metalStudioEnv.js';
-import { makeRig, tickPose } from './glbpose.js?v=v175';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v175';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v175';
+import { makeRig, tickPose } from './glbpose.js?v=v176';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v176';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v176';
 
-const URL_GLB = new URL('../assets/models/hero.glb?v=v175', import.meta.url).href;
+const URL_GLB = new URL('../assets/models/hero.glb?v=v176', import.meta.url).href;
 let pending = null;
 let source = null;
 let cloneSkinned = null;
@@ -35,7 +35,7 @@ export function preloadHeroGlb() {
       return gltf;
     });
   }).catch(function (e) {
-    console.warn('[심안] hero.glb?v=v175', e);
+    console.warn('[심안] hero.glb?v=v176', e);
     pending = null;
     return null;
   });
@@ -102,7 +102,7 @@ export function makeHeroGlb(height) {
           const phys = new THREE.MeshPhysicalMaterial({
             color: 0xffffff,
             map: mat.map || null,
-            normalMap: mat.normalMap || null,
+            normalMap: null,
             roughnessMap: mat.roughnessMap || null,
             roughness: 0.94,
             metalness: 0.0,
@@ -110,27 +110,33 @@ export function makeHeroGlb(height) {
             sheenRoughness: 0.92,
             sheenColor: new THREE.Color(0x88847c)
           });
-          if (mat.normalScale && phys.normalScale) phys.normalScale.copy(mat.normalScale);
           if (phys.map) {
+            phys.map.anisotropy = 4;
+            phys.map.minFilter = THREE.LinearMipmapLinearFilter;
+            phys.map.magFilter = THREE.LinearFilter;
             phys.emissiveMap = phys.map;
             phys.emissive = new THREE.Color(0xffffff);
             phys.emissiveIntensity = 0.14;
           }
-          phys.customProgramCacheKey = function () { return 'hero-ember-hardrim-v163'; };
+          phys.customProgramCacheKey = function () { return 'hero-ember-hardrim-v176aa'; };
           mat.dispose();
           targetMat = phys;
         } else {
           targetMat.roughness = 0.94;
           targetMat.metalness = 0.0;
+          targetMat.normalMap = null;
           targetMat.roughnessMap = null;
           targetMat.metalnessMap = null;
           if (targetMat.color) targetMat.color.setHex(0xffffff);
           if (targetMat.map) {
+            targetMat.map.anisotropy = 4;
+            targetMat.map.minFilter = THREE.LinearMipmapLinearFilter;
+            targetMat.map.magFilter = THREE.LinearFilter;
             targetMat.emissiveMap = targetMat.map;
             targetMat.emissive = new THREE.Color(0xfff6ea);
             targetMat.emissiveIntensity = 0.14;
           }
-          targetMat.customProgramCacheKey = function () { return 'hero-head-ember-hardrim-v163'; };
+          targetMat.customProgramCacheKey = function () { return 'hero-head-ember-hardrim-v176aa'; };
         }
         mat = targetMat;
         /* v1.63 엠버 앤 블레이드식 무선 + 2단 하드 툰 색면 + 순백 그래픽 하드 림라이트 */
@@ -163,13 +169,15 @@ export function makeHeroGlb(height) {
             "vec3 vv = normalize(vViewPosition);\n" +
             "vec3 keyDir = normalize(vec3(-0.55, 0.65, 0.52));\n" +
             "float ndl = dot(vn, keyDir);\n" +
-            "float toonBand = smoothstep(-0.08, 0.08, ndl);\n" +
+            "float ndlFw = max(0.09, fwidth(ndl) * 1.45);\n" +
+            "float toonBand = smoothstep(-ndlFw, ndlFw, ndl);\n" +
             "vec3 coolShadow = vec3(0.76, 0.80, 0.90);\n" +
             "vec3 litTint = vec3(1.04, 1.02, 0.99);\n" +
             "gl_FragColor.rgb *= mix(coolShadow, litTint, toonBand);\n" +
             "float fres = 1.0 - clamp(abs(dot(vn, vv)), 0.0, 1.0);\n" +
             "float rimSide = smoothstep(-0.10, 0.35, dot(vn, normalize(vec3(-0.82, 0.45, 0.25))));\n" +
-            "float hardRim = smoothstep(0.56, 0.65, fres) * rimSide;\n" +
+            "float fresFw = max(0.07, fwidth(fres) * 1.80);\n" +
+            "float hardRim = smoothstep(0.62 - fresFw, 0.62 + fresFw, fres) * rimSide;\n" +
             "gl_FragColor.rgb = mix(gl_FragColor.rgb, uToonRimCol, hardRim * uToonRimPow);\n" +
             "gl_FragColor.rgb = min(gl_FragColor.rgb, vec3(0.96));\n" +
             "#include <dithering_fragment>"

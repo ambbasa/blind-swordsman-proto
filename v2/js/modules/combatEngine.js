@@ -1,5 +1,5 @@
 import { RUN_UPGRADES } from './upgrades.js';
-import { createLevelUpUi } from './levelUpUi.js?v=v175';
+import { createLevelUpUi } from './levelUpUi.js?v=v176';
 /* v2/js/modules/combatEngine.js — 심안: 묵검 v1.26 전투 코어(일섬·패링·피해·상태이상·강화적용) */
 
 export function createCombatEngine(rt) {
@@ -1272,8 +1272,9 @@ function dropType() {
   return 'bell';
 }
 function grantKill(mul) {
-  /* v0.30 §7.2: 엽전에도 모드 배율(수련 ×0.7 · 고수 ×1.4). v0.32 §6.1: 4장 붉은 달빛에는 두 배. */
-  const c = Math.round(rt.CFG.coinPerKill * (mul || 1) * rt.coinMult() * rt.modeCoin() * rt.terrainCoinMul());
+  /* v0.30 §7.2: 모드 배율 · v0.32 §6.1: 지형 배율 · v1.76: 막별 엽전 배율(3막 ×1.35, 4막 ×1.75) */
+  const actMul = rt.actCoinMul ? rt.actCoinMul(rt.actOf((rt.S && rt.S.stageNo) || 1)) : 1;
+  const c = Math.round(rt.CFG.coinPerKill * (mul || 1) * actMul * rt.coinMult() * rt.modeCoin() * rt.terrainCoinMul());
   rt.save.coins += c; rt.persist();
 }
 /* Screen point (inside #app) of a HUD element, for pickups flying to it. */

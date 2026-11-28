@@ -12,12 +12,115 @@ export const ACT_NAMES = Object.freeze({
   4: '무간의 심연'
 });
 
-/* v0.49: 심안 원 안쪽은 따뜻한 한지 수묵화를 유지하면서 원 바깥쪽은 깊은 조선 먹안개로 잠기게 대비 강화. */
+/* v1.76: 4막 도입·전환 3줄 수묵 서사 나레이션 */
+export const ACT_NARRATIVE = Object.freeze({
+  1: Object.freeze([
+    '불탄 도성의 잿더미 아래, 눈을 잃은 검객이 검을 든다.',
+    '방울 소리를 따라 어둠을 베어내면, 저잣거리의 원혼들이 길을 연다.',
+    '폐허의 끝에 도사린 도깨비 대장을 베어 첫 번째 밤을 끝내라.'
+  ]),
+  2: Object.freeze([
+    '도성을 벗어난 발걸음이 안개 낀 설산 사찰로 향한다.',
+    '꺼지지 않은 향불 너머, 창귀와 원혼을 부리는 아홉 꼬리의 웃음이 울린다.',
+    '안개를 가르고 산문을 지키는 구미호의 환혹을 끊어내라.'
+  ]),
+  3: Object.freeze([
+    '붉은 달이 뼈의 강 위로 내려앉으며 나락의 문이 열렸다.',
+    '산 자와 죽은 자의 경계에서 무당의 방울과 쇠사슬이 칼날을 부른다.',
+    '붉은 명부를 쥔 저승사자와 마주해 검은 달의 저주를 끊어라.'
+  ]),
+  4: Object.freeze([
+    '나락 너머 무간의 심연, 하늘을 삼킨 옥빛 비늘이 꿈틀거린다.',
+    '수살귀와 장산범이 지키는 마지막 나루 끝에 천년의 원념이 잠들어 있다.',
+    '눈을 감아도 보이는 마지막 일섬으로 이무기 용왕을 봉인하라.'
+  ])
+});
+
+/* v1.76: 4대 보스 등장 · 한붓별(★) 봉인 대사 */
+export const BOSS_QUOTES = Object.freeze({
+  1: Object.freeze({
+    title: '도깨비 대장',
+    enter: '「하하! 눈먼 놈이 쇠방망이를 받겠다고? 뼈째 빻아주마!」',
+    seal: '「크윽… 눈먼 칼날에 내 뿔이 꺾이다니…」'
+  }),
+  2: Object.freeze({
+    title: '구미호',
+    enter: '「어머, 어둠 속에서도 내 꼬리가 보이니? 달콤한 꿈에 잠겨보렴.」',
+    seal: '「아아… 천 년의 환술이 단 한 획에 흩어지는구나…」'
+  }),
+  3: Object.freeze({
+    title: '저승사자',
+    enter: '「명부에 적힌 이름은 지워지지 않는다. 네 숨을 거두러 왔다.」',
+    seal: '「명부가… 갈라졌다. 살아남은 검이여, 심연으로 가라.」'
+  }),
+  4: Object.freeze({
+    title: '이무기 용왕',
+    enter: '「천 년을 기다린 승천이다! 필멸의 검으로 용의 비늘을 가를 수 있느냐!」',
+    seal: '「옥빛 비늘이… 무너진다… 마침내, 긴 밤이 끝나는구나…」'
+  })
+});
+
+/* v1.76: 신규 동양 몬스터 15종 막별 생태계 분리 매핑 (전 15종 실전 배치) */
+export const ACT_MONSTER_ROSTER = Object.freeze({
+  1: Object.freeze({
+    imp: 'baekgol_skeleton',
+    brute: 'bulgasari_charger',
+    charger: 'bulgasari_charger',
+    thrower: 'gwibul_bomber',
+    bomber: 'gwibul_bomber',
+    stone: 'jangseung_stone',
+    elite: 'jangseung_stone',
+    boss: 'dokkaebi_boss'
+  }),
+  2: Object.freeze({
+    imp: 'changgui_zombie',
+    brute: 'jangsanbeom',
+    charger: 'samjoko',
+    thrower: 'cheonyeo_ghost',
+    bomber: 'gwibul_bomber',
+    stone: 'jangseung_stone',
+    elite: 'cheonyeo_ghost',
+    boss: 'gumiho_boss'
+  }),
+  3: Object.freeze({
+    imp: 'dalgyalgwishin',
+    brute: 'bulgasari_charger',
+    charger: 'bulgasari_charger',
+    thrower: 'mudang_wraith',
+    bomber: 'gwibul_bomber',
+    stone: 'jangseung_stone',
+    elite: 'mudang_wraith',
+    boss: 'jeoseung_boss'
+  }),
+  4: Object.freeze({
+    imp: 'susal_ghost',
+    brute: 'jangsanbeom',
+    charger: 'samjoko',
+    thrower: 'mudang_wraith',
+    bomber: 'gwibul_bomber',
+    stone: 'jangseung_stone',
+    elite: 'jangsanbeom',
+    boss: 'imugi_king_boss'
+  })
+});
+
+export function actMonsterPreloadKeys(actNo) {
+  const r = ACT_MONSTER_ROSTER[actNo] || ACT_MONSTER_ROSTER[1];
+  const seen = {};
+  const out = [];
+  Object.keys(r).forEach(function (k) {
+    const v = r[k];
+    if (v && !seen[v]) { seen[v] = 1; out.push(v); }
+  });
+  return out;
+}
+
+/* v0.49+v1.76: 심안 원 안쪽 한지 수묵화 + 4막 심연 남보라·옥빛 극적 대비 강화 */
 export const HANJI_TONE = Object.freeze({
   1: { mix: 0.70, paper: 0xdcc9a4, fog: [32, 26, 20], dens: 0.0095, light: 1.45 },
   2: { mix: 0.66, paper: 0xcfd2c8, fog: [24, 34, 36], dens: 0.0130, light: 1.35 },
   3: { mix: 0.62, paper: 0xd6b49a, fog: [42, 16, 14], dens: 0.0115, light: 1.40 },
-  4: { mix: 0.58, paper: 0xc9b8de, fog: [24, 16, 40], dens: 0.0125, light: 1.38 }
+  4: { mix: 0.44, paper: 0x8f7ec2, fog: [16, 10, 32], dens: 0.0145, light: 1.32 }
 });
 
 export function actOf(n) {
@@ -251,7 +354,7 @@ export const STAGES = [
       { t: 81, n: 52, mix: { imp: 0.18, brute: 0.24, charger: 0.22, bomber: 0.2, thrower: 0.16 }, r: [9.5, 13.5], elite: 1 }
     ],
     spawn: { ms: 460, max: 58, earlyMax: 15, earlyMinMs: 860 },
-    boss: { telegraph: 0.8, charge: 25, adds: 0, hazard: 5, patterns: ['shuffle', 'sweep', 'rhythm', 'tether', 'pizza'], phase2: ['chant', 'slam', 'kiai'], phase3: ['clones', 'veil', 'mimic'], seal: true },
+    boss: { telegraph: 0.88, charge: 25, adds: 0, hazard: 5, patterns: ['shuffle', 'sweep', 'rhythm', 'tether', 'pizza'], phase2: ['chant', 'slam', 'kiai'], phase3: ['clones', 'veil', 'mimic'], seal: true },
     starCombo: 58, star3: { kind: 'pattern', counter: 'shuffleLock', need: 2, text: '무늬 뒤섞기 고정 2회' }, bossVisual: { var: 2, scale: 1.15 }, bossName: '나락의 주인', bossLine: '검은 달이 떨어지는 자리를 지키는 것',
     atmo: { clear: 0x2a0709, fogCol: [40, 8, 12], fog: 0.028, moon: 26.0, amb: 8.4, hemiI: 7.2, fill: 5.4, hemi: 0xc08a80, ground: 0x2a0b10, moonCol: 0xff7a5c, tint: 'linear-gradient(180deg, rgba(150,16,26,0.20) 0%, rgba(44,2,8,0.24) 100%)' }
   },
@@ -270,7 +373,7 @@ id: 13, act: 4, name: '무간의 회랑', sub: '끝없는 핏빛 안개 회랑',
       { t: 83, n: 52, mix: { imp: 0.2, brute: 0.25, charger: 0.2, thrower: 0.2, bomber: 0.15 }, r: [9.5, 14], elite: 1 }
     ],
     spawn: { ms: 460, max: 58, earlyMax: 15, earlyMinMs: 840 },
-    boss: { telegraph: 0.86, charge: 24, adds: 0, hazard: 5, patterns: ['shrink', 'donut', 'pizza', 'gaze'], phase2: ['rhythm', 'tether', 'slam'], seal: true },
+    boss: { telegraph: 0.89, charge: 24, adds: 0, hazard: 5, patterns: ['shrink', 'donut', 'pizza', 'gaze'], phase2: ['rhythm', 'tether', 'slam'], seal: true },
     starCombo: 54, star3: { kind: 'combo', n: 54 }, bossVisual: { var: 3, scale: 1.08 }, bossName: '무간의 수문장', bossLine: '핏빛 안개 속에서 칼을 가는 자',
     atmo: { clear: 0x100b1a, fogCol: [24, 16, 40], fog: 0.032, moon: 18.0, amb: 6.2, hemiI: 6.0, fill: 4.4, hemi: 0x9b84c8, ground: 0x140e20, moonCol: 0xdcc7ff, tint: 'linear-gradient(180deg, rgba(110,72,185,0.22) 0%, rgba(20,10,36,0.32) 100%)' }
   },
@@ -289,8 +392,8 @@ id: 13, act: 4, name: '무간의 회랑', sub: '끝없는 핏빛 안개 회랑',
       { t: 86, n: 54, mix: { imp: 0.2, brute: 0.2, thrower: 0.25, charger: 0.2, bomber: 0.15 }, r: [9.5, 14], elite: 1 }
     ],
     spawn: { ms: 450, max: 60, earlyMax: 15, earlyMinMs: 820 },
-    boss: { telegraph: 0.84, charge: 24, adds: 0, hazard: 5, patterns: ['veil', 'gaze', 'donut', 'volley'], phase2: ['rhythm', 'tether', 'clones'], seal: true },
-    starCombo: 56, star3: { kind: 'combo', n: 56 }, bossVisual: { var: 1, scale: 1.09 }, bossName: '망각의 사공', bossLine: '이름을 잊은 자만 건널 수 있다',
+    boss: { telegraph: 0.88, charge: 24, adds: 0, hazard: 5, patterns: ['veil', 'gaze', 'donut', 'volley'], phase2: ['rhythm', 'tether', 'clones'], seal: true },
+    starCombo: 56, star3: { kind: 'goal', text: '나루터 어둠 45초 생존' }, subgoal: { id: 'dark', t: 45, label: '나루터 어둠 45초 생존' }, bossVisual: { var: 1, scale: 1.09 }, bossName: '망각의 사공', bossLine: '이름을 잊은 자만 건널 수 있다',
     atmo: { clear: 0x0e0c18, fogCol: [20, 18, 38], fog: 0.034, moon: 18.0, amb: 6.0, hemiI: 6.0, fill: 4.4, hemi: 0x8f86c8, ground: 0x120f1e, moonCol: 0xd4c6ff, tint: 'linear-gradient(180deg, rgba(96,76,175,0.22) 0%, rgba(16,12,32,0.34) 100%)' }
   },
   {
@@ -308,8 +411,8 @@ id: 13, act: 4, name: '무간의 회랑', sub: '끝없는 핏빛 안개 회랑',
       { t: 87, n: 56, mix: { imp: 0.18, brute: 0.22, charger: 0.22, thrower: 0.2, bomber: 0.18 }, r: [9.5, 14.5], elite: 1 }
     ],
     spawn: { ms: 440, max: 62, earlyMax: 16, earlyMinMs: 800 },
-    boss: { telegraph: 0.82, charge: 25, adds: 0, hazard: 5, patterns: ['clash', 'sweep', 'pizza', 'soak'], phase2: ['mimic', 'rhythm', 'tether'], seal: true },
-    starCombo: 60, star3: { kind: 'combo', n: 60 }, bossVisual: { var: 2, scale: 1.1 }, bossName: '칠흑의 장수', bossLine: '성벽 위 모든 화살이 너를 향한다',
+    boss: { telegraph: 0.88, charge: 25, adds: 0, hazard: 5, patterns: ['clash', 'sweep', 'pizza', 'soak'], phase2: ['mimic', 'rhythm', 'tether'], seal: true },
+    starCombo: 60, star3: { kind: 'pattern', counter: 'clashWin', need: 2, text: '합 겨루기 2회 성공' }, subgoal: { id: 'hunt', n: 3, t: 90, label: '누각 정예 3기 격파' }, bossVisual: { var: 2, scale: 1.1 }, bossName: '칠흑의 장수', bossLine: '성벽 위 모든 화살이 너를 향한다',
     atmo: { clear: 0x130b1c, fogCol: [28, 14, 42], fog: 0.032, moon: 19.0, amb: 6.2, hemiI: 6.2, fill: 4.5, hemi: 0xa684d4, ground: 0x160d22, moonCol: 0xe2ccff, tint: 'linear-gradient(180deg, rgba(125,74,195,0.22) 0%, rgba(22,10,38,0.34) 100%)' }
   },
   {
@@ -327,8 +430,8 @@ id: 13, act: 4, name: '무간의 회랑', sub: '끝없는 핏빛 안개 회랑',
       { t: 90, n: 58, mix: { imp: 0.16, brute: 0.22, charger: 0.22, thrower: 0.2, bomber: 0.2 }, r: [9.5, 14.5], elite: 1 }
     ],
     spawn: { ms: 420, max: 64, earlyMax: 16, earlyMinMs: 780 },
-    boss: { telegraph: 0.78, charge: 26, adds: 0, hazard: 6, patterns: ['donut', 'pizza', 'gaze', 'volley'], phase2: ['rhythm', 'tether', 'clash', 'slam'], phase3: ['shuffle', 'mimic', 'soak', 'veil'], seal: true },
-    starCombo: 64, star3: { kind: 'combo', n: 64 }, bossVisual: { var: 3, scale: 1.14 }, bossName: '심안의 그림자', bossLine: '눈을 감아도 피할 수 없는 마지막 검',
+    boss: { telegraph: 0.88, charge: 26, adds: 0, hazard: 6, patterns: ['donut', 'pizza', 'gaze', 'volley'], phase2: ['rhythm', 'tether', 'clash', 'slam'], phase3: ['shuffle', 'mimic', 'soak', 'veil'], seal: true },
+    starCombo: 64, star3: { kind: 'combo', n: 64 }, bossVisual: { var: 3, scale: 1.14 }, bossName: '이무기 용왕', bossLine: '천 년의 원념이 깃든 심연의 끝',
     atmo: { clear: 0x0d0816, fogCol: [22, 12, 38], fog: 0.036, moon: 20.0, amb: 6.4, hemiI: 6.2, fill: 4.6, hemi: 0xb292e6, ground: 0x120a1f, moonCol: 0xead8ff, tint: 'linear-gradient(180deg, rgba(135,84,215,0.25) 0%, rgba(16,8,30,0.38) 100%)' }
   }
 ];
@@ -361,9 +464,12 @@ export function applyHanjiToneToStages(ColorCtor, stages = STAGES) {
     a.hemi = hc.clone().offsetHSL(0, -0.04, 0.06).getHex();
     a.ground = hp.clone().offsetHSL(0.01, -0.02, -0.16).getHex();
     a.moonCol = hp.clone().offsetHSL(0.02, 0.16, 0.18).getHex();
-    a.tint = actOf(st.id) === 3
-      ? 'linear-gradient(180deg, rgba(150,60,34,0.10) 0%, rgba(60,18,12,0.10) 100%)'
-      : 'linear-gradient(180deg, rgba(198,168,116,0.10) 0%, rgba(120,96,62,0.08) 100%)';
+    const actNo = actOf(st.id);
+    a.tint = actNo === 4
+      ? 'linear-gradient(180deg, rgba(84,48,168,0.22) 0%, rgba(12,6,28,0.28) 100%)'
+      : actNo === 3
+        ? 'linear-gradient(180deg, rgba(150,60,34,0.10) 0%, rgba(60,18,12,0.10) 100%)'
+        : 'linear-gradient(180deg, rgba(198,168,116,0.10) 0%, rgba(120,96,62,0.08) 100%)';
   });
   return stages;
 }

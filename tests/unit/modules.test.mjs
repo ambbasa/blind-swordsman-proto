@@ -483,8 +483,8 @@ import { CODEX_SPECIES, CODEX_ANIM_KO } from '../../v2/js/modules/codexView.js';
   const cm = claimCodexMilestoneReward(rs, '2026-11-24', CODEX_MILESTONES[0].pct, 100);
   assert.ok(cm && cm.pct === CODEX_MILESTONES[0].pct);
 
-  // codexView.js metadata integrity
-  assert.equal(CODEX_SPECIES.length, 8);
+  // codexView.js metadata integrity (v1.76: hero + 15 Eastern monsters = 16)
+  assert.equal(CODEX_SPECIES.length, 16);
   assert.equal(CODEX_ANIM_KO.stagger, '자세 붕괴');
   console.log('v1.21 MODULES (stageTerrain, retention, codexView) PASSED');
 }
@@ -753,4 +753,39 @@ import { createBossOverlay } from '../../v2/js/modules/bossOverlay.js';
   );
   assert.equal(typeof bo.drawBossPat, 'function');
   console.log('v1.62 REFACTORED MODULES (dashController, bossGimmickStep, bossOverlay) PASSED');
+}
+
+/* --- v1.76 15종 막별 몬스터 생태계 · 4막 서사/보스 대사 · 19패턴 즉각 힌트 · 3·4막 경제 · 0.88s 예고 하한선 검증 --- */
+import { ACT_NARRATIVE, BOSS_QUOTES, ACT_MONSTER_ROSTER, actMonsterPreloadKeys } from '../../v2/js/modules/stages.js';
+import { getPatternHint } from '../../v2/js/modules/bossCatalog.js';
+import { actCoinMul } from '../../v2/js/modules/economy.js';
+
+{
+  // 1) All 15 Eastern monsters are placed across Acts 1~4
+  const deployedSet = new Set();
+  for (let a = 1; a <= 4; a++) {
+    assert.ok(Array.isArray(ACT_NARRATIVE[a]) && ACT_NARRATIVE[a].length === 3, `Act ${a} has 3-line narrative`);
+    assert.ok(BOSS_QUOTES[a] && BOSS_QUOTES[a].enter && BOSS_QUOTES[a].seal, `Act ${a} has boss enter/seal quotes`);
+    actMonsterPreloadKeys(a).forEach((k) => deployedSet.add(k));
+  }
+  assert.equal(deployedSet.size, 15, 'All 15 Eastern monsters are assigned across Acts 1-4');
+
+  // 2) Every pattern in PAT_CODE has a short first-encounter hint
+  PAT_CODE.forEach((p) => {
+    const h = getPatternHint(p.id);
+    assert.ok(h && h.length >= 6, `Pattern ${p.id} has short action hint`);
+  });
+
+  // 3) Mobile fair telegraph floor >= 0.88s across all 16 stages + Act 4 subgoals
+  STAGES.forEach((st) => {
+    assert.ok(st.boss && st.boss.telegraph >= 0.88, `Stage ${st.id} telegraph >= 0.88s (got ${st.boss && st.boss.telegraph})`);
+  });
+  assert.ok(stageOf(14).subgoal && stageOf(14).subgoal.id === 'dark', 'Stage 14 has dark survival subgoal');
+  assert.ok(stageOf(15).subgoal && stageOf(15).subgoal.id === 'hunt', 'Stage 15 has elite hunt subgoal');
+
+  // 4) Act 3 & Act 4 coin multipliers
+  assert.equal(actCoinMul(1), 1.0);
+  assert.equal(actCoinMul(3), 1.35);
+  assert.equal(actCoinMul(4), 1.75);
+  console.log('v1.76 ECOSYSTEM, NARRATIVE, HINTS, ECONOMY & FAIRNESS PASSED');
 }

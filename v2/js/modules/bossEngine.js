@@ -1,6 +1,6 @@
-import { createBossGimmickStep } from './bossGimmickStep.js?v=v175';
-import { createBossOverlay } from './bossOverlay.js?v=v175';
-import { createBossProjectiles } from './bossProjectiles.js?v=v175';
+import { createBossGimmickStep } from './bossGimmickStep.js?v=v176';
+import { createBossOverlay } from './bossOverlay.js?v=v176';
+import { createBossProjectiles } from './bossProjectiles.js?v=v176';
 /* v2/js/modules/bossEngine.js — 심안: 묵검 v1.26 보스 AI · 19종 패턴/기믹 엔진 */
 
 export function createBossEngine(rt) {
@@ -264,17 +264,20 @@ function bossVisualOf(st) {
   return { var: rt.clamp(v.var != null ? v.var : 3, 0, 3), scale: rt.clamp(v.scale != null ? v.scale : 1, 0.9, 1.15) };
 }
 let bossCardT = null;
-function showBossCard(st) {
+function showBossCard(st, customLine) {
   const el = $('bossCard');
   if (!el || !st) return;
   const nm = $('bossCardName'), ln = $('bossCardLine');
-  if (nm) nm.textContent = st.bossName || '귀물';
-  if (ln) ln.textContent = st.bossLine || '';
+  const act = rt.actOf(st.id || 1);
+  const bq = rt.BOSS_QUOTES && rt.BOSS_QUOTES[act];
+  const isActFinale = (st.id % 4) === 0;
+  if (nm) nm.textContent = (isActFinale && bq && bq.title) ? bq.title : (st.bossName || '귀물');
+  if (ln) ln.textContent = customLine || ((isActFinale && bq && bq.enter) ? bq.enter : (st.bossLine || ''));
   el.hidden = false; el.classList.add('show');
   if (bossCardT) clearTimeout(bossCardT);
-  const ms = rt.qa.noDelay ? 200 : 1200;
+  const ms = rt.qa.noDelay ? 200 : ((isActFinale || customLine) ? 1850 : 1200);
   bossCardT = setTimeout(function () { el.classList.remove('show'); el.hidden = true; bossCardT = null; }, ms);
-  rt.telemetry.event('boss_card', { stage: rt.S && rt.S.stageNo, name: st.bossName || '' });
+  rt.telemetry.event('boss_card', { stage: rt.S && rt.S.stageNo, name: (nm && nm.textContent) || '' });
 }
 /* §9.3 도감 9칸(패턴) + 막 전용 3칸 — v0.49: v2/js/modules/bossCatalog.js 로 분리(오탈자 교정 포함). */
 /* 도감 기록: 보스 처치(상·하 공략 포함)와 패턴 받아치기 */
@@ -538,6 +541,12 @@ function startBossPattern(z, id) {
   if (first && rt.S) {
     rt.addSlow(rt.CFG.firstPatSlow || 0.5, rt.CFG.firstPatSlowDur || 0.6);
     rt.S.firstPatIcon = { id: id, c: rt.PAT_CUE[id] || 'red', t: 1.6 };
+    const hint = rt.getPatternHint ? rt.getPatternHint(id) : '';
+    if (hint) {
+      rt.showGuide('<b>' + hint + '</b>', 2.2);
+      const shortAct = hint.indexOf('—') >= 0 ? hint.split('—')[1].trim() : hint;
+      if (rt.showJudge) rt.showJudge(shortAct);
+    }
     rt.telemetry.event('first_moment', { kind: 'pattern', id: id, stage: rt.S.stageNo });
   }
   rt.telemetry.event('boss_pattern', { p: id, stage: rt.S && rt.S.stageNo, start: true, first: first });
@@ -1517,6 +1526,10 @@ function sealStroke() {
   if (rt.audio) { rt.audio.explode(); rt.audio.bell(0, 'bolt'); }
   rt.inkFx.ring(6, rt.FX_COLORS.gold, 0.8);
   rt.showJudge('봉인!');
+  if (rt.S && rt.S.stage && rt.BOSS_QUOTES) {
+    const bq = rt.BOSS_QUOTES[rt.actOf(rt.S.stage.id || 1)];
+    if (bq && bq.seal) showBossCard(rt.S.stage, bq.seal);
+  }
   return true;
 }
 /** A stroke while the boss chants: right shape advances, wrong shape is spent. */

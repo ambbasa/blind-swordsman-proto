@@ -57,6 +57,11 @@ HEAD_LOCK_KEYS = {
     "jeoseung_boss",
 }
 
+# Non-humanoid / multi-tail silhouettes suffer self-occlusion artifacts under 4-view planar projection;
+# preserve clean Hunyuan3D native UV textures on these unless --force-project is passed.
+SKIP_4VIEW_ARCHETYPES = {"quadruped", "avian", "serpent"}
+SKIP_4VIEW_KEYS = {"gumiho_boss"}
+
 
 def parse_args():
     argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
@@ -74,6 +79,7 @@ def parse_args():
     p.add_argument("--pigment-clean", type=float, default=0.35)
     p.add_argument("--no-normal-bake", action="store_true")
     p.add_argument("--no-project", action="store_true")
+    p.add_argument("--force-project", action="store_true", help="Force 4-view projection even on non-humanoid/multi-tail models")
     p.add_argument("--rot-z-deg", type=float, default=0.0, help="Extra Z rotation if Hunyuan3D faces another axis")
     p.add_argument("--preview-out", default="", help="Optional preview render PNG path")
     return p.parse_args(argv)
@@ -158,6 +164,20 @@ def import_and_prepare_mesh(args):
         v.co.z = (v.co.z - min_z) * sc
     body.data.update()
 
+    # Weld unwelded glTF UV-seam vertices BEFORE Decimate so UV boundaries never tear open into holes
+    bm = bmesh.new()
+    bm.from_mesh(body.data)
+    b_before = sum(1 for e in bm.edges if e.is_boundary)
+    v_before = len(bm.verts)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    b_after = sum(1 for e in bm.edges if e.is_boundary)
+    v_after = len(bm.verts)
+    bm.to_mesh(body.data)
+    bm.free()
+    body.data.update()
+    print(f"[{args.key}] Welded glTF seams before decimate: verts {v_before:,}->{v_after:,}, boundary {b_before:,}->{b_after:,}")
+
     # Keep a high-poly duplicate before Decimate for tangent-space normal map baking
     orig_tris = sum(len(p.vertices) - 2 for p in body.data.polygons)
     high_obj = None
@@ -193,14 +213,31 @@ def import_and_prepare_mesh(args):
     else:
         _fallback_smooth_bevel(body, sharp_angle_deg=args.sharp_angle)
 
-    # 2) Optional 4-view orthographic re-projection + Base Color pigment plane cleanup
-    if args.mv_dir and not args.no_project and project_4view_onto_mesh is not None and os.path.isdir(args.mv_dir):
+    # 2) Optional 4-view orthographic re-projection (A-pose arm occlusion safe) + Base Color pigment cleanup
+    can_project = (
+        args.mv_dir
+        and not args.no_project
+        and project_4view_onto_mesh is not None
+        and os.path.isdir(args.mv_dir)
+    )
+    skip_complex = (
+        not args.force_project
+        and (args.archetype in SKIP_4VIEW_ARCHETYPES or args.key in SKIP_4VIEW_KEYS)
+    )
+    if can_project and not skip_complex:
         if len(body.data.uv_layers) > 0 and len(body.data.materials) > 0:
             try:
-                project_4view_onto_mesh(body, args.mv_dir, tex_size=args.tex_size)
-                print(f"  + Projected 4-view orthographic art from {args.mv_dir}")
+                project_4view_onto_mesh(
+                    body,
+                    args.mv_dir,
+                    tex_size=args.tex_size,
+                    skip_side_arms=True,
+                )
+                print(f"  + Projected 4-view orthographic art from {args.mv_dir} (skip_side_arms=True)")
             except Exception as exc:
                 print(f"  [WARN] 4-view projection skipped ({exc}); keeping Hunyuan3D texture")
+    elif can_project and skip_complex:
+        print(f"  + Keeping native Hunyuan3D texture for {args.key} ({args.archetype}; pass --force-project to override)")
     if args.pigment_clean > 0.0 and clean_pigment_planes is not None:
         try:
             clean_pigment_planes(body, strength=args.pigment_clean, sigma_color=0.11)
@@ -382,6 +419,11 @@ def _try_welded_bone_heat(body, arm_obj):
     bm.free()
     proxy.data.update()
 
+    # Scale proxy + armature 10x during ARMATURE_AUTO so Blender's Bone Heat solver never fails on metric scale
+    proxy.scale = (10.0, 10.0, 10.0)
+    arm_obj.scale = (10.0, 10.0, 10.0)
+    bpy.context.view_layer.update()
+
     bpy.ops.object.select_all(action="DESELECT")
     proxy.select_set(True)
     arm_obj.select_set(True)
@@ -393,6 +435,11 @@ def _try_welded_bone_heat(body, arm_obj):
         heat_ok = weighted > 0.5 * max(1, len(proxy.data.vertices))
     except Exception:
         heat_ok = False
+
+    arm_obj.scale = (1.0, 1.0, 1.0)
+    proxy.parent = None
+    proxy.matrix_world.identity()
+    bpy.context.view_layer.update()
 
     if heat_ok:
         # Ensure original body has armature parent + matching vertex groups, then transfer
@@ -687,7 +734,120 @@ def create_archetype_animations(arm_obj, key, archetype, H):
             (18, {"spine_mid": (0, 82, 0)}, {"spine_mid": (0, 0, -0.42 * H)}),
         ])
 
+    # Reset timeline to frame 1 & clear residual Die pose so .blend / preview / export start standing upright
+    bpy.context.scene.frame_set(1)
+    for pb in arm_obj.pose.bones:
+        pb.rotation_euler = (0.0, 0.0, 0.0)
+        pb.location = (0.0, 0.0, 0.0)
     bpy.ops.object.mode_set(mode="OBJECT")
+    bpy.context.view_layer.update()
+
+
+# Secondary spring-damper chains baked into Idle/Walk/Attack/Hit (mirrors Blender Spring Bones addon in CLI builds)
+SPRING_CHAINS = {
+    "float":     [("skirt_mid", 0.34, 0.72, 0.42), ("skirt_hem", 0.24, 0.68, 0.58)],
+    "robe":      [("tail_mid",  0.30, 0.70, 0.50), ("tail_l",    0.26, 0.68, 0.55), ("tail_r", 0.26, 0.68, 0.55)],
+    "serpent":   [("tail_1",    0.36, 0.74, 0.35), ("tail_2",    0.28, 0.70, 0.48), ("tail_3", 0.22, 0.66, 0.60)],
+    "quadruped": [("tail_1",    0.34, 0.72, 0.45), ("tail_2",    0.24, 0.68, 0.62)],
+    "avian":     [("tail_1",    0.34, 0.72, 0.45), ("tail_2",    0.24, 0.68, 0.62)],
+}
+
+
+def apply_spring_bone_physics(arm_obj, archetype, key):
+    """Simulate damped spring follow-through on trailing tails/skirts and bake into each NLA action."""
+    chains = SPRING_CHAINS.get(archetype, [])
+    active_chains = [(bn, k, d, amp) for bn, k, d, amp in chains if bn in arm_obj.pose.bones]
+    if not active_chains or not arm_obj.animation_data:
+        return
+
+    scene = bpy.context.scene
+    bpy.context.view_layer.objects.active = arm_obj
+    bpy.ops.object.mode_set(mode="POSE")
+
+    baked_clips = 0
+    for track in arm_obj.animation_data.nla_tracks:
+        if track.name == "Die" or not track.strips:
+            continue
+        action = track.strips[0].action
+        f_start = int(round(action.frame_range[0]))
+        f_end = int(round(action.frame_range[1]))
+        n_frames = f_end - f_start + 1
+        if n_frames < 4:
+            continue
+
+        # Temporarily evaluate only this action so parent bone world velocities are isolated
+        prev_mutes = [(t, t.mute) for t in arm_obj.animation_data.nla_tracks]
+        for t, _ in prev_mutes:
+            t.mute = True
+        arm_obj.animation_data.action = action
+
+        # Record parent world positions and authored base local rotations per frame
+        parent_pos = {bn: [] for bn, _, _, _ in active_chains}
+        base_rot = {bn: [] for bn, _, _, _ in active_chains}
+        for f in range(f_start, f_end + 1):
+            scene.frame_set(f)
+            bpy.context.view_layer.update()
+            for bn, _, _, _ in active_chains:
+                pb = arm_obj.pose.bones[bn]
+                pb.rotation_mode = "XYZ"
+                par = pb.parent
+                p_world = arm_obj.matrix_world @ (par.matrix @ Vector((0, 0, 0)) if par else pb.head)
+                parent_pos[bn].append(p_world.copy())
+                base_rot[bn].append(Vector((pb.rotation_euler.x, pb.rotation_euler.y, pb.rotation_euler.z)))
+
+        # Run 2 full cycles of damped spring-damper so looping clips (Idle/Walk) settle seamlessly
+        max_rad = math.radians(16.0)
+        spring_offsets = {bn: [Vector((0.0, 0.0, 0.0)) for _ in range(n_frames)] for bn, _, _, _ in active_chains}
+        for bn, stiffness, damping, coupling in active_chains:
+            pos_list = parent_pos[bn]
+            off = Vector((0.0, 0.0, 0.0))
+            vel = Vector((0.0, 0.0, 0.0))
+            for cycle in range(2):
+                for i in range(n_frames):
+                    p_prev = pos_list[(i - 1) % n_frames]
+                    p_cur = pos_list[i]
+                    p_next = pos_list[(i + 1) % n_frames]
+                    # Linear acceleration of parent root drives pitch (X) and yaw/sway (Z) follow-through
+                    p_acc = (p_next - 2.0 * p_cur + p_prev)
+                    # Gentle secondary inertial drive from parent vertical/horizontal motion
+                    drive = Vector((
+                        -p_acc.z * 6.5 - p_acc.y * 5.0,
+                        0.0,
+                        p_acc.x * 6.5,
+                    )) * coupling
+                    force = -stiffness * off + drive
+                    vel = (vel + force) * damping
+                    off = off + vel
+                    off.x = max(-max_rad, min(max_rad, off.x))
+                    off.y = max(-max_rad * 0.5, min(max_rad * 0.5, off.y))
+                    off.z = max(-max_rad, min(max_rad, off.z))
+                    if cycle == 1:
+                        spring_offsets[bn][i] = off.copy()
+
+        # Bake spring offsets cleanly onto every 2nd frame (plus start/end) to keep GLB keyframes compact
+        sample_idx = sorted(set(list(range(0, n_frames, 2)) + [n_frames - 1]))
+        for i in sample_idx:
+            f = f_start + i
+            scene.frame_set(f)
+            for bn, _, _, _ in active_chains:
+                pb = arm_obj.pose.bones[bn]
+                pb.rotation_mode = "XYZ"
+                r = base_rot[bn][i] + spring_offsets[bn][i]
+                pb.rotation_euler = Euler((r.x, r.y, r.z), "XYZ")
+                pb.keyframe_insert(data_path="rotation_euler", frame=f)
+
+        arm_obj.animation_data.action = None
+        for t, was_m in prev_mutes:
+            t.mute = was_m
+        baked_clips += 1
+
+    scene.frame_set(1)
+    for pb in arm_obj.pose.bones:
+        pb.rotation_euler = (0.0, 0.0, 0.0)
+        pb.location = (0.0, 0.0, 0.0)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    bpy.context.view_layer.update()
+    print(f"  + Baked Spring Bone follow-through physics ({len(active_chains)} bones across {baked_clips} clips)")
 
 
 def verify_export(body, arm_obj, key):
@@ -709,57 +869,95 @@ def verify_export(body, arm_obj, key):
 
 
 def render_preview(body, arm_obj, bbox, preview_path):
-    """Render a clean 3/4 neutral studio preview PNG for visual inspection."""
+    """Render a clean, denoised 3/4 studio check matching hero_preview.png (Idle stance + 3-point sun + white rim)."""
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"
     scene.cycles.device = "CPU"
-    scene.cycles.samples = 16
-    scene.cycles.use_denoising = False
-    scene.render.resolution_x = 768
-    scene.render.resolution_y = 768
+    scene.cycles.samples = 32
+    scene.cycles.use_denoising = True
+    scene.render.resolution_x = 960
+    scene.render.resolution_y = 960
     scene.render.image_settings.file_format = "PNG"
+    try:
+        scene.view_settings.view_transform = "AgX"
+    except Exception:
+        pass
 
-    if not scene.world:
-        scene.world = bpy.data.worlds.new("PreviewWorld")
-    scene.world.use_nodes = True
-    bg = scene.world.node_tree.nodes.get("Background")
+    prev_world = scene.world
+    world = bpy.data.worlds.new("_PreviewWorld")
+    world.use_nodes = True
+    bg = world.node_tree.nodes.get("Background")
     if bg:
-        bg.inputs[0].default_value = (0.08, 0.08, 0.10, 1.0)
-        bg.inputs[1].default_value = 0.7
+        bg.inputs["Color"].default_value = (0.11, 0.115, 0.145, 1.0)
+        bg.inputs["Strength"].default_value = 1.10
+    scene.world = world
+
+    def add_sun(name, energy, rot_deg, color=(1, 1, 1), angle_deg=18.0):
+        ld = bpy.data.lights.new(name, type="SUN")
+        ld.energy = energy
+        ld.color = color
+        ld.angle = math.radians(angle_deg)
+        lo = bpy.data.objects.new(name, ld)
+        lo.rotation_euler = tuple(math.radians(a) for a in rot_deg)
+        bpy.context.collection.objects.link(lo)
+        return lo
+
+    lights = [
+        add_sun("_KeySun", 1.8, (22, 0, -24), (1.0, 0.98, 0.96), 24.0),
+        add_sun("_FillSun", 0.9, (12, 0, 38), (0.86, 0.90, 1.0), 40.0),
+        add_sun("_RimSun", 4.5, (14, 0, 132), (0.96, 0.99, 1.0), 6.0),
+    ]
 
     H = bbox["h"]
-    dist = max(2.2, max(H, bbox["w"]) * 2.15)
-    cam_data = bpy.data.cameras.new("PreviewCam")
-    cam_obj = bpy.data.objects.new("PreviewCam", cam_data)
+    span = max(H, bbox["w"], bbox["d"])
+    dist = max(2.2, span * 1.72)
+    cam_data = bpy.data.cameras.new("_PreviewCam")
+    cam_data.lens = 55
+    cam_obj = bpy.data.objects.new("_PreviewCam", cam_data)
     bpy.context.collection.objects.link(cam_obj)
-    cam_obj.location = Vector((dist * 0.42, -dist * 0.92, H * 0.56))
-    direction = Vector((0.0, 0.0, H * 0.50)) - cam_obj.location
-    cam_obj.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
+    target = Vector((0.0, 0.0, H * 0.51))
+    cam_pos = Vector((-dist * 0.48, -dist * 0.86, H * 0.58))
+    cam_obj.location = cam_pos
+    cam_obj.rotation_euler = (target - cam_pos).to_track_quat("-Z", "Y").to_euler()
     scene.camera = cam_obj
 
-    key_data = bpy.data.lights.new("KeyLight", type="AREA")
-    key_data.energy = 180.0 * (H / 1.85) ** 2
-    key_data.size = 2.0
-    key_obj = bpy.data.objects.new("KeyLight", key_data)
-    bpy.context.collection.objects.link(key_obj)
-    key_obj.location = Vector((dist * 0.6, -dist * 0.7, H * 1.35))
-    key_obj.rotation_euler = (Vector((0, 0, H * 0.5)) - key_obj.location).to_track_quat("-Z", "Y").to_euler()
-
-    rim_data = bpy.data.lights.new("RimLight", type="AREA")
-    rim_data.energy = 260.0 * (H / 1.85) ** 2
-    rim_data.size = 1.6
-    rim_obj = bpy.data.objects.new("RimLight", rim_data)
-    bpy.context.collection.objects.link(rim_obj)
-    rim_obj.location = Vector((-dist * 0.65, dist * 0.55, H * 1.15))
-    rim_obj.rotation_euler = (Vector((0, 0, H * 0.55)) - rim_obj.location).to_track_quat("-Z", "Y").to_euler()
+    # Isolate standing Idle pose (frame 10) so Die/Walk/Attack NLA tracks never flatten the preview
+    anim = arm_obj.animation_data
+    prev_action = anim.action if anim else None
+    prev_mutes = []
+    if anim:
+        prev_mutes = [(tr, tr.mute) for tr in anim.nla_tracks]
+        idle_track = next((tr for tr in anim.nla_tracks if tr.name == "Idle"), None)
+        for tr, _ in prev_mutes:
+            tr.mute = True
+        if idle_track and idle_track.strips:
+            anim.action = idle_track.strips[0].action
+            scene.frame_set(10)
+        else:
+            anim.action = None
+            scene.frame_set(1)
+        bpy.context.view_layer.update()
 
     os.makedirs(os.path.dirname(os.path.abspath(preview_path)), exist_ok=True)
     scene.render.filepath = os.path.abspath(preview_path)
     bpy.ops.render.render(write_still=True)
-    print(f"  + Rendered preview: {preview_path}")
+    print(f"  + Rendered 3/4 Idle preview (hero parity): {preview_path}")
 
-    for tmp in (cam_obj, key_obj, rim_obj):
-        bpy.data.objects.remove(tmp, do_unlink=True)
+    # Restore NLA tracks, timeline frame 1, and clean rest pose before saving .blend / exporting GLB
+    if anim:
+        anim.action = prev_action
+        for tr, was_muted in prev_mutes:
+            tr.mute = was_muted
+    scene.frame_set(1)
+    for pb in arm_obj.pose.bones:
+        pb.matrix_basis.identity()
+    bpy.context.view_layer.update()
+
+    for lo in lights:
+        bpy.data.objects.remove(lo, do_unlink=True)
+    bpy.data.objects.remove(cam_obj, do_unlink=True)
+    scene.world = prev_world
+    bpy.data.worlds.remove(world, do_unlink=True)
 
 
 def main():
@@ -769,10 +967,15 @@ def main():
     arm_obj = build_armature(args.key, args.archetype, bbox)
     skin_mesh_to_armature(body, arm_obj, args.key, args.archetype, bbox)
     create_archetype_animations(arm_obj, args.key, args.archetype, bbox["h"])
+    apply_spring_bone_physics(arm_obj, args.archetype, args.key)
     verify_export(body, arm_obj, args.key)
 
     if args.preview_out:
         render_preview(body, arm_obj, bbox, args.preview_out)
+
+    # Guarantee upright frame 1 before saving editable .blend and exporting GLB
+    bpy.context.scene.frame_set(1)
+    bpy.context.view_layer.update()
 
     # Pack textures & save editable .blend so user can fine-tune bones/weights/keyframes in Blender UI
     if args.out_blend:

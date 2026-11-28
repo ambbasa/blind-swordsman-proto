@@ -1,4 +1,4 @@
-import { animateResultOverlay } from './uiMotion.js?v=v175';
+import { animateResultOverlay } from './uiMotion.js?v=v176';
 /* v2/js/modules/runLoop.js — 심안: 묵검 v1.26 전투 스텝·군중 분리·카메라·런 종료 엔진 */
 
 export function createRunLoop(rt) {
@@ -40,7 +40,11 @@ function endRun(win, msg) {
     }
     rt.renderStageSelect(st.id);
   }
-  if (!rt.S.noScore) rt.save.bestScore = Math.max(rt.save.bestScore || 0, score);
+  if (!rt.S.noScore) {
+    rt.save.bestScore = Math.max(rt.save.bestScore || 0, score);
+    rt.save.totalKills = (rt.save.totalKills || 0) + (rt.S.kills || 0);
+    rt.save.bestCombo = Math.max(rt.save.bestCombo || 0, rt.S.comboMax || 0);
+  }
   /* v0.30 §7.3: 같은 장 연승/연패. 이기면 0으로 돌아간다. */
   const streakBefore = rt.S.streak || 0;
   rt.S.streakAfter = rt.S.noScore ? streakBefore : rt.bumpStreak(st.id, !!win);
@@ -104,6 +108,22 @@ function endRun(win, msg) {
     starsEl.textContent = '패배 · 다시 일어서라';
   }
   $('resultBody').textContent = win ? (msg || '') : (msg || '') + ' 다시 한 번.';
+  const endEl = $('resultEnding');
+  if (endEl) {
+    if (win && st.id === rt.STAGES.length && !rt.S.challenge) {
+      let sumStars = 0;
+      const stMap = rt.save.stars || {};
+      for (let i = 1; i <= rt.STAGES.length; i++) sumStars += (stMap[i] || 0);
+      endEl.innerHTML =
+        '<h3>심안 완성 — 긴 밤이 걷히다</h3>' +
+        '<p>마지막 한붓별이 이무기 용왕의 비늘을 닫자, 무간의 심연을 덮고 있던 먹안개가 서서히 걷혔다. 눈을 감고도 세상을 베어낸 검객은 조용히 칼집을 닫고 새벽빛 속으로 걸어 나갔다.</p>' +
+        '<p class="ending-summary">누적 처치 ' + (rt.save.totalKills || rt.S.kills || 0).toLocaleString() + '기 · 최고 콤보 ' + (rt.save.bestCombo || rt.S.comboMax || 0) + ' · 총 별 ★ ' + sumStars + '/' + (rt.STAGES.length * 3) + '</p>';
+      endEl.hidden = false;
+    } else {
+      endEl.innerHTML = '';
+      endEl.hidden = true;
+    }
+  }
   const hpPct = Math.round((rt.S.hp / Math.max(1, rt.maxHp())) * 100);
   $('resultStats').innerHTML = [
     ['기예 점수', (rt.S.styleScore || 0).toLocaleString() + ' (' + (rt.styleGradeOf ? rt.styleGradeOf(rt.S.styleScore || 0).label : '병') + ')'],
@@ -171,7 +191,20 @@ function endRun(win, msg) {
     }
   }
   const drillSub = $('btnResultDrill');
-  if (drillSub) drillSub.hidden = !(!win && rt.S.boss);
+  const codexSub = $('btnResultCodex');
+  const lastPatId = rt.S && (rt.S.lastBossGimmick || (rt.S.boss && rt.S.boss.pat));
+  const lastPatMeta = (lastPatId && rt.getPatternMeta) ? rt.getPatternMeta(lastPatId) : null;
+  if (drillSub) {
+    drillSub.hidden = !(!win && rt.S.boss);
+    if (!drillSub.hidden) {
+      drillSub.textContent = (lastPatMeta && ['donut', 'soak', 'rhythm', 'tether', 'gaze', 'pizza'].indexOf(lastPatId) >= 0)
+        ? (lastPatMeta.name + ' 수련') : '기믹 수련';
+    }
+  }
+  if (codexSub) {
+    codexSub.hidden = !(!win && rt.S.boss);
+    if (!codexSub.hidden) codexSub.textContent = lastPatMeta ? (lastPatMeta.name + ' 도감') : '패턴 도감';
+  }
   const retrySub = $('btnResultRetry');
   if (win && nextSt) {
     $('btnResultGo').textContent = '다음 장 — ' + nextSt.name;

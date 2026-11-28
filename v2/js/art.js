@@ -11,9 +11,9 @@ import { buildFigure, tickFigure, kick as rigKick, slashPose as rigSlash, setOpa
   setAuraColor as rigAuraColor, setOrder as rigOrder, setCamera as rigSetCamera, ready as rigReady,
   debugPose as rigDebugPose, actsOf as rigActsOf } from './inkchars3d.js';
 /* v0.45: 주인공만 3D 관절 뼈대 + 수묵 툰 셰이더 캐릭터(inkhero3d.js)로 교체한다. */
-import * as HERO3D from './inkhero3d.js?v=v175';
+import * as HERO3D from './inkhero3d.js?v=v176';
 /* v0.46: 원귀·거한·돌덩이·보스도 주인공과 같은 3D 관절 뼈대(단일 SkinnedMesh)로 세운다. */
-import * as MON3D from './inkmonsters3d.js?v=v175';
+import * as MON3D from './inkmonsters3d.js?v=v176';
 let QA_HERO2D = false;
 try { QA_HERO2D = new URLSearchParams(location.search).has('hero2d'); } catch (e) {}
 let QA_MON2D = false;
@@ -656,10 +656,10 @@ export async function buildArt(THREE) {
       }
     }
     if (kind === 'zombie' && !QA_MON2D) {
-      /* v0.46: 좀비 종류별 3D 뼈대 — 마리당 몸통 1콜 + 먹선 1콜. 실패하면 아래 2D 포즈 카드로. */
+      /* v0.46+v1.76: 좀비 종류별·막별 3D 뼈대 (신규 15종 동양 몬스터 생태계 연동) */
       try {
         const sp = shape === 'stone' ? 'stone' : (shape === 'brute' ? 'heavy' : 'minion');
-        const g = MON3D.build(sp, {});
+        const g = MON3D.build(sp, { act: (opt && opt.act) || 1, mobType: (opt && opt.mobType) || shape });
         if (g) {
           /* 2D 리그와 같은 키(원귀 2.4m · 거한 3.0m · 돌덩이 2.6m) — 판정 반경·심안 링 비율 유지. */
           addShadow(g, sp === 'heavy' ? 1.7 : (sp === 'stone' ? 1.6 : 1.35));

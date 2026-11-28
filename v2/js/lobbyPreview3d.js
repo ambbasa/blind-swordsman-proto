@@ -1,7 +1,7 @@
 /* v2/js/lobbyPreview3d.js — v0.85 로비·치장 화면 실시간 3D 주인공 미리보기 (M2M_Idle + 터치 회전 + 도포/검 강화 반영) */
 import * as THREE from 'three';
-import { preloadHeroGlb, makeHeroGlb, applyHeroGlbCloak, applyHeroGlbSwordTrail } from './glbhero.js?v=v175';
-import { preloadMonsterGlb, makeBossGlb } from './glbboss.js?v=v175';
+import { preloadHeroGlb, makeHeroGlb, applyHeroGlbCloak, applyHeroGlbSwordTrail } from './glbhero.js?v=v176';
+import { preloadMonsterGlb, makeBossGlb } from './glbboss.js?v=v176';
 
 let renderer = null;
 let scene = null;
@@ -182,7 +182,9 @@ export function startCodex3d(canvas, species) {
       });
       cRoot = null; cModel = null;
     }
-    cModel = sp === 'hero' ? makeHeroGlb(2.2) : makeBossGlb(/^boss/.test(sp) ? 2.35 : 2.15, sp);
+    const isBossM = /^boss|_boss$/.test(sp);
+    const codexH = sp === 'imugi_king_boss' ? 1.85 : (isBossM ? 2.35 : 2.15);
+    cModel = sp === 'hero' ? makeHeroGlb(2.2) : makeBossGlb(codexH, sp);
     if (!cModel) return false;
     cRoot = cModel.fit || cModel.root;
     cAnimIdx = 0;

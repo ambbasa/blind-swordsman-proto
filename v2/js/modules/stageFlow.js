@@ -39,7 +39,11 @@ function startReadyRun(opts) {
   if (!rt.qa.skipWarm && !rt.shadersWarmed()) warmShaders();
   const _curAct = rt.actOf(stageNo);
   rt.hudCtrl.syncActTheme(_curAct);
-  rt.preloadMonsterGlb(_curAct >= 2 && _curAct <= 4 ? ('boss_act' + _curAct) : 'boss');
+  if (rt.actMonsterPreloadKeys) {
+    rt.actMonsterPreloadKeys(_curAct).forEach(function (mk) { rt.preloadMonsterGlb(mk); });
+  } else {
+    rt.preloadMonsterGlb(_curAct >= 2 && _curAct <= 4 ? ('boss_act' + _curAct) : 'boss');
+  }
   rt.S = rt.createRunState({
     opts,
     stageNo,
@@ -1067,7 +1071,8 @@ function spawnZombie(opts) {
     frozen: 0, burn: 0, burnTick: 0, poison: 0, poisonT: 0, poisonTick: 0, stun: 0,
     marked: false, shape: null, isBoss: false, elite: type === 'elite'
   };
-  e.obj = rt.addEntityVisual('zombie', type);
+  const curAct = rt.actOf((rt.S && rt.S.stageNo) || 1);
+  e.obj = rt.addEntityVisual('zombie', type, { act: curAct, mobType: type });
   rt.placeGroup(e.obj, e.x, e.z);
   /* v0.31 §3.2 강적 깨는 법: 장정=갑옷 1겹 · 돌덩이=금 2단계 · 정예=봉인 순서 3개. */
   if (type === 'brute') { e.armor = rt.CFG.bruteArmor || 1; e.armored = true; e.shapeOv = null; }
@@ -1243,12 +1248,12 @@ function refreshTitleHelp() {
   const chTitle = $('lobbyChapterTitle');
   const chSub = $('lobbyChapterSub');
   const chMode = $('lobbyModeTag');
-  if (chTitle) chTitle.textContent = '제 ' + st.id + ' 장 · ' + st.name;
+  if (chTitle) chTitle.textContent = '제' + st.id + '장 · ' + st.name;
   if (chMode) chMode.textContent = rt.curMode().name;
   if (chSub) {
     const stars = (rt.save.stars || {})[st.id] || 0;
     const recPw = rt.stageRecommendedPower(st.id);
-    chSub.textContent = '★'.repeat(stars) + '☆'.repeat(Math.max(0, 3 - stars)) + ' · 제' + rt.actOf(st.id) + '막 · 권장 전투력 ' + recPw + ' · 변경 ▾';
+    chSub.textContent = '★'.repeat(stars) + '☆'.repeat(Math.max(0, 3 - stars)) + ' · 제' + rt.actOf(st.id) + '막 · 권장 ' + recPw + ' ▾';
   }
   if ($('btnStagePrev')) $('btnStagePrev').disabled = sel <= 1;
   if ($('btnStageNext')) $('btnStageNext').disabled = sel >= maxU;
@@ -1333,6 +1338,17 @@ function fillStageIntro(st) {
   $('stageKicker').textContent = '제 ' + st.id + ' 장 · ' + rt.curMode().name;
   $('stageName').textContent = st.name;
   $('stageSub').textContent = st.sub;
+  const storyEl = $('stageStory');
+  if (storyEl) {
+    const lines = (st.id % 4 === 1 && rt.ACT_NARRATIVE) ? rt.ACT_NARRATIVE[rt.actOf(st.id)] : null;
+    if (lines && lines.length) {
+      storyEl.innerHTML = lines.map(function (ln) { return '<p>' + ln + '</p>'; }).join('');
+      storyEl.hidden = false;
+    } else {
+      storyEl.innerHTML = '';
+      storyEl.hidden = true;
+    }
+  }
   $('stageGoal').textContent = st.goal;
   const T = st.terrain;
   const hasT = !!(T && T.kind !== 'none');
@@ -1363,7 +1379,9 @@ function beginStage(n, opts) {
   fillStageIntro(st);
   rt.showOv('ov-stage');
   const hasGim = !!((st.terrain && st.terrain.kind !== 'none') || (st.subgoal && st.subgoal.id));
-  const ps = rt.pendingStage = { no: st.id, opts, until: rt.now() + (rt.qa.noDelay ? 0 : (hasGim ? 3800 : 2600)), at: rt.now(), ready: false };
+  const hasStory = !!(st.id % 4 === 1 && rt.ACT_NARRATIVE && rt.ACT_NARRATIVE[rt.actOf(st.id)]);
+  const introMs = hasStory ? 4400 : (hasGim ? 3800 : 2600);
+  const ps = rt.pendingStage = { no: st.id, opts, until: rt.now() + (rt.qa.noDelay ? 0 : introMs), at: rt.now(), ready: false };
   // Give the intro card a paint before opening the audio device. Only start
   // the beat clock in startRun, even when the player skips the card early.
   const audioReady = new Promise(resolve => {
