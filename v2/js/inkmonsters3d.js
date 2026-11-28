@@ -1,5 +1,5 @@
-import { preloadBossGlb, bossGlbReady, makeBossGlb, hookBossGlb, tickBossGlb, triggerMonsterDeathGlb, setBossPhaseGlb, applyMonsterActThemeGlb, triggerBossIntroRoarGlb, disposeMonsterGlb } from './glbboss.js?v=v176';
-import { hd2dEnabled, preloadHd2dAll, makeHd2dMonster, tickHd2d, triggerHd2dPose, setHd2dOpacity, setHd2dTint } from './hd2dSprite.js?v=v176';
+import { preloadBossGlb, bossGlbReady, makeBossGlb, hookBossGlb, tickBossGlb, triggerMonsterDeathGlb, setBossPhaseGlb, applyMonsterActThemeGlb, triggerBossIntroRoarGlb, disposeMonsterGlb } from './glbboss.js?v=v177';
+import { hd2dEnabled, preloadHd2dAll, makeHd2dMonster, tickHd2d, triggerHd2dPose, setHd2dOpacity, setHd2dTint } from './hd2dSprite.js?v=v177';
 /* v2/js/inkmonsters3d.js — v0.47 몬스터·보스 전종 **3D 관절 뼈대 + 수묵 툰 셰이더 + 동양 수묵 텍스처**.
 
    v0.45에서 주인공만 3D 관절 뼈대(inkhero3d.js)로 세웠다. v0.46은 원귀(조선 좀비)·거한(장정)·
@@ -26,7 +26,7 @@ import { hd2dEnabled, preloadHd2dAll, makeHd2dMonster, tickHd2d, triggerHd2dPose
      원귀 = walk | frozen | hit | attack | burning | poisoned,  보스 = 'boss:<상태>'.
 */
 import * as THREE from 'three';
-import { INK3D } from './inkhero3d.js?v=v176';
+import { INK3D } from './inkhero3d.js?v=v177';
 import { SPECS } from './inkmodels3d.js';
 import { ACT_MONSTER_ROSTER } from './modules/stages.js';
 
