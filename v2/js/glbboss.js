@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { applyForgedMetal, getMetalStudioEnv } from './modules/metalStudioEnv.js';
-import { makeRig, tickPose } from './glbpose.js?v=v177';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v177';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v177';
+import { makeRig, tickPose } from './glbpose.js?v=v178';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v178';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v178';
 
 const EASTERN_ALIAS = {
   boss:      'dokkaebi_boss',
@@ -19,18 +19,18 @@ const EASTERN_KEYS = [
   'gumiho_boss', 'jeoseung_boss', 'samjoko', 'imugi_king_boss', 'jangsanbeom'
 ];
 const MODEL_URLS = {
-  boss:      new URL('../assets/models/boss.glb?v=v177', import.meta.url).href,
-  boss_act2: new URL('../assets/models/boss_act2.glb?v=v177', import.meta.url).href,
-  boss_act3: new URL('../assets/models/boss_act3.glb?v=v177', import.meta.url).href,
-  boss_act4: new URL('../assets/models/boss_act4.glb?v=v177', import.meta.url).href,
-  minion:    new URL('../assets/models/minion.glb?v=v177', import.meta.url).href,
-  heavy:     new URL('../assets/models/heavy.glb?v=v177', import.meta.url).href,
-  stone:     new URL('../assets/models/stone.glb?v=v177', import.meta.url).href
+  boss:      new URL('../assets/models/boss.glb?v=v178', import.meta.url).href,
+  boss_act2: new URL('../assets/models/boss_act2.glb?v=v178', import.meta.url).href,
+  boss_act3: new URL('../assets/models/boss_act3.glb?v=v178', import.meta.url).href,
+  boss_act4: new URL('../assets/models/boss_act4.glb?v=v178', import.meta.url).href,
+  minion:    new URL('../assets/models/minion.glb?v=v178', import.meta.url).href,
+  heavy:     new URL('../assets/models/heavy.glb?v=v178', import.meta.url).href,
+  stone:     new URL('../assets/models/stone.glb?v=v178', import.meta.url).href
 };
 const EASTERN_URLS = {};
 for (let i = 0; i < EASTERN_KEYS.length; i++) {
   const k = EASTERN_KEYS[i];
-  EASTERN_URLS[k] = new URL('../assets/models/monsters/' + k + '.glb?v=v177', import.meta.url).href;
+  EASTERN_URLS[k] = new URL('../assets/models/monsters/' + k + '.glb?v=v178', import.meta.url).href;
 }
 function isBossSp(sp) {
   return sp === 'boss' || sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4' || (typeof sp === 'string' && sp.endsWith('_boss'));
@@ -190,7 +190,7 @@ export function makeBossGlb(height, species) {
       }
       o.material = mat;
       if (!body) body = o;
-      o.castShadow = !!bossSp;
+      o.castShadow = isBossSp(sp);
       bodyMeshes.push(o);
     }
   });
