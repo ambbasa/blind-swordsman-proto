@@ -789,3 +789,25 @@ import { actCoinMul } from '../../v2/js/modules/economy.js';
   assert.equal(actCoinMul(4), 1.75);
   console.log('v1.76 ECOSYSTEM, NARRATIVE, HINTS, ECONOMY & FAIRNESS PASSED');
 }
+
+/* --- v1.80 피드백 보고서 기반 회귀 테스트 (별 상자, 1장 임무, 참(O) 우선 인식) --- */
+
+{
+  // 1) STAR_CHESTS uses numeric `stars` and claimStarChestReward + badge work end-to-end
+  assert.ok(STAR_CHESTS.every((c) => Number.isFinite(c.stars) && c.stars > 0), 'STAR_CHESTS defines numeric stars');
+  const mockSave = { coins: 0, ink: 0, stars: { 1: 2, 2: 2 }, starChests: {}, daily: { date: '2026-11-28', prog: {}, claimed: {} }, att: { days: 0, last: '2026-11-28' } };
+  assert.equal(hasClaimableRetentionOf(mockSave, '2026-11-28'), true, 'star chest badge lights up at 4 stars');
+  const claimed = claimStarChestReward(mockSave, '2026-11-28', 1, 4);
+  assert.ok(claimed && claimed.coins === 300 && claimed.ink === 6, 'claimStarChestReward awards 300 coins & 6 ink');
+  assert.equal(mockSave.coins, 300);
+  assert.equal(mockSave.starChests['1:4'], 1);
+
+  // 2) Stage 1 slot3 missions never assign impossible cleaveKill and evalRunMissions supports `kills`
+  for (let seed = 0; seed < 40; seed++) {
+    const m1 = rollRunMissions(STAGES[0], seed);
+    assert.ok(m1.every((x) => x.id !== 'cleaveKill'), `Stage 1 seed=${seed} must not assign cleaveKill`);
+  }
+  const evKills = evalRunMissions([{ id: 'kills', label: '귀물 15기 처치', target: 15 }], { kills: 15 }, 10);
+  assert.equal(evKills.doneCount, 1, 'evalRunMissions evaluates kills mission');
+  console.log('v1.80 FEEDBACK FIXES (STAR_CHESTS, STAGE1_MISSIONS, KILLS_EVAL) PASSED');
+}

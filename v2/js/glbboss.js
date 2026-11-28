@@ -224,13 +224,7 @@ export function makeBossGlb(height, species) {
 
   const mixer = new THREE.AnimationMixer(scene);
   const actions = mapGlbActions(mixer, gltf.animations, sp);
-  /* Randomize initial idle/walk phase per instance so monster packs breathe & walk organically, never in robotic unison */
-  const phaseSeed = Math.random();
-  if (actions.idle) {
-    actions.idle.play();
-    const idur = actions.idle.getClip().duration || 1.6;
-    actions.idle.time = phaseSeed * idur;
-  }
+  if (actions.idle) actions.idle.play();
   let handR = null;
   scene.traverse(function (o) { if (o.isBone && o.name === 'hand_r') handR = o; });
   const isBossModel = isBossSp(sp);
@@ -290,18 +284,13 @@ function playOnly(G, name, fade, from, timeScale) {
   to.fadeIn(fade);
   to.play();
   if (from) to.time = from;
-  else if (name === 'walk' && G.cur === 'idle') {
-    const wdur = to.getClip().duration || 0.9;
-    to.time = (G._walkSeed != null ? G._walkSeed : (G._walkSeed = Math.random())) * wdur;
-  }
   G.cur = name;
   return true;
 }
 
 function once(G, name, from, timeScale, maxLock) {
   const ts = timeScale || 1;
-  const fade = name === 'hit' ? 0.08 : (name === 'attack' || name === 'slam' ? 0.11 : 0.18);
-  if (!playOnly(G, name, fade, from, ts)) return;
+  if (!playOnly(G, name, name === 'hit' || name === 'attack' ? 0.05 : 0.14, from, ts)) return;
   const dur = (G.actions[name].getClip().duration - (from || 0)) / ts - 0.08;
   G.lockT = Math.max(0.14, maxLock != null ? Math.min(maxLock, dur) : dur);
 }
@@ -342,7 +331,7 @@ export function tickBossGlb(G, H, dt) {
   G.lockT = (G.lockT || 0) - dt;
   if (G.cur !== 'death' && G.lockT <= 0) {
     const want = (H.base === 'walk' || H.burst === 'charge') ? 'walk' : 'idle';
-    if (want !== G.cur) playOnly(G, want, (G.cur === 'attack' || G.cur === 'slam' || G.cur === 'hit') ? 0.22 : 0.28);
+    if (want !== G.cur) playOnly(G, want, 0.16);
   }
   if (G.actions.walk && H.actions.walk) G.actions.walk.setEffectiveTimeScale(H.actions.walk.getEffectiveTimeScale());
   G.mixer.update(dt);

@@ -158,8 +158,10 @@ function doParry(rec) {
   const kt = rt.kiaiTap();
   if (kt) { r.parry = kt; return r; }
   if ((rt.S.parryCd || 0) > 0) {
-    if (rt.S.parryCd <= 0.14) rt.S.parryBufT = 0.16;
-    r.parry = { hits: 0, cooling: true, buffered: rt.S.parryCd <= 0.14 };
+    const buf = rt.S.parryCd <= 0.14;
+    if (buf) rt.S.parryBufT = 0.16;
+    rt.showJudge(buf ? '패링 예약' : '재정비');
+    r.parry = { hits: 0, cooling: true, buffered: buf };
     return r;
   }
   /* v0.31 §3.5 정확한 패링: 적의 공격이 닿기 0.2초 안의 탭 — 피해 2배·참 +10·0.2초 느린 화면. */
@@ -1212,7 +1214,9 @@ function killZombie(z, rec) {
         boss: !!z.isBoss
       });
       rt.S.styleScore = (rt.S.styleScore || 0) + kPts;
-      if (rt.spawnFloater && kPts >= 180) rt.spawnFloater(z.x, z.z + 0.35, '+' + kPts, 'score');
+      const mCnt = (rec && rec._multiN) || 1;
+      const scoreTag = mCnt >= 2 ? ('+' + kPts + ' ×' + mCnt + '관통') : ('+' + kPts);
+      if (rt.spawnFloater && kPts >= 180) rt.spawnFloater(z.x, z.z + 0.35, scoreTag, 'score');
     }
   }
   if (rt.S && rt.S.spirits) rt.S.spirits.forEach(function (s) { if (s.target === z) s.target = null; });
@@ -1234,7 +1238,8 @@ function killZombie(z, rec) {
   if (!z.isBoss && rt.S && rt.S.terrain && rt.S.terrain.kind === 'fog' && (rt.S.terrain.ringMul || 1) > 1.06) rt.tcount('fogWide');
   /* The boss pays its own coin value; its xp does not matter, the run ends on its death. */
   grantKill(z.isBoss ? (rt.CFG.bossCoin || 20) : kd.coin);
-  gainXp(rt.CFG.xpPerKill * kd.xp * (rt.CFG.xpScale || 1));
+  const st1XpMul = (rt.S && rt.S.stageNo === 1) ? 1.5 : 1.0;
+  gainXp(rt.CFG.xpPerKill * kd.xp * (rt.CFG.xpScale || 1) * st1XpMul);
   /* 혼백구 100% + 20% 추가 드롭, 정예는 부적 상자 */
   rt.spawnItem({ type: 'xp', x: z.x, z: z.z });
   if (Math.random() < 0.2) rt.spawnItem({ type: dropType(), x: z.x + (Math.random() - 0.5) * 0.7, z: z.z + (Math.random() - 0.5) * 0.7 });

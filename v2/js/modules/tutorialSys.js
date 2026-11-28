@@ -145,26 +145,30 @@ function startTutorial(force) {
 }
 function endTutorial(reason) {
   if (!rt.S || !rt.S.tutorial) return false;
+  const didFirst = !!rt.S.tutorial.first;
   rt.S.tutorial = null;
   rt.S.tutSlow = 1;
   rt.hideGuide();
   const b = $('btnSkip');
   if (b) b.hidden = true;
-  rt.save.tutorialDone = 1;
-  rt.persist();
-  rt.telemetry.event('tutorial', { done: reason || 'end' });
+  if (reason === 'skip' || didFirst || (rt.save.runs || 0) >= 3) {
+    rt.save.tutorialDone = 1;
+    rt.persist();
+  }
+  rt.telemetry.event('tutorial', { done: reason || 'end', first: didFirst });
   return true;
 }
-/** 튜토리얼·첫 등장 연출은 게임 시간이 아니라 실제 시간으로 센다(느린 화면에 안 밀리게). */
+/** 튜토리얼 시간은 최대 0.05s로 클램프해 저프레임 환경에서도 유령 획 안내가 증발하지 않게 보호한다. */
 function stepTutorial(real) {
   if (!rt.S) return;
+  const stepDt = Math.min(0.05, Math.max(0, real || 0));
   if (rt.S.slowMulT > 0) {
-    rt.S.slowMulT -= real;
+    rt.S.slowMulT -= stepDt;
     if (rt.S.slowMulT <= 0) { rt.S.slowMulT = 0; rt.S.slowMul = 1; }
   }
   const T = rt.S.tutorial;
   if (!T || !T.on) { rt.S.tutSlow = 1; return; }
-  T.t += real;
+  T.t += stepDt;
   tickTutorial();
 }
 /** 단계 문턱(5초 제자리 탭·10초 종료)을 한 곳에 모은다 — QA에서는 advanceTutorial로 결정론적으로 돌린다. */

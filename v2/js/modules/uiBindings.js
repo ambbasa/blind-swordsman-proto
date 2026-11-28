@@ -131,9 +131,18 @@ function bindUi() {
   });
   /* v0.30 §7.2 모드 선택 · §8.1 수련 다시 보기 · §11 접근성 · 튜토리얼 건너뛰기 */
   $('judgeFlash').addEventListener('animationend', function () { this.hidden = true; });
-  if ($('btnA11y')) $('btnA11y').addEventListener('click', function () {
+  if ($('btnA11y')) $('btnA11y').addEventListener('click', function (e) {
+    if (e && e.stopPropagation) e.stopPropagation();
     const r = $('titleA11y');
     if (r) r.hidden = !r.hidden;
+  });
+  document.addEventListener('click', function (e) {
+    const r = $('titleA11y');
+    if (!r || r.hidden) return;
+    if (!r.contains(e.target) && e.target !== $('btnA11y')) r.hidden = true;
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && $('titleA11y') && !$('titleA11y').hidden) $('titleA11y').hidden = true;
   });
   if ($('btnStagePrev')) $('btnStagePrev').addEventListener('click', function () {
     const cur = rt.clamp((rt.titleSel != null ? rt.titleSel : (rt.save.stage || 1)) | 0, 1, rt.STAGES.length);

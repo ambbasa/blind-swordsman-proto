@@ -107,9 +107,9 @@ export const ATTENDANCE_REWARDS = [
 
 /* 막별 별(★) 누적 보상 상자 (각 막 4개 스테이지 = 최대 12★) */
 export const STAR_CHESTS = [
-  { need: 4,  coins: 300, ink: 6  },
-  { need: 8,  coins: 550, ink: 12 },
-  { need: 12, coins: 900, ink: 20 }
+  { stars: 4,  coins: 300, ink: 6  },
+  { stars: 8,  coins: 550, ink: 12 },
+  { stars: 12, coins: 900, ink: 20 }
 ];
 
 /* 도감 달성도(%) 마일스톤 보상 */

@@ -58,8 +58,13 @@ export function rollRunMissions(stage, seed) {
   if (shapes.indexOf('vee') >= 0) slot3Pool.push({ id: 'shapeKill_vee', shape: 'vee', label: 'V 도약 찍기 3기 처치', target: 3 });
   if (shapes.indexOf('bolt') >= 0) slot3Pool.push({ id: 'shapeKill_bolt', shape: 'bolt', label: 'Z 뇌전 연쇄 3기 처치', target: 3 });
   if (shapes.indexOf('vline') >= 0) slot3Pool.push({ id: 'shapeKill_vline', shape: 'vline', label: 'ㅣ 직선 관통 3기 처치', target: 3 });
-  if (id >= 2) slot3Pool.push({ id: 'parry', label: '칼집 패링 2회 성공', target: 2 });
-  slot3Pool.push({ id: 'cleaveKill', label: '참(O)으로 3기 이상 처치', target: 3 });
+  if (id >= 2) {
+    slot3Pool.push({ id: 'parry', label: '칼집 패링 2회 성공', target: 2 });
+    slot3Pool.push({ id: 'cleaveKill', label: '참(O)으로 3기 이상 처치', target: 3 });
+  } else {
+    slot3Pool.push({ id: 'kills', label: '귀물 15기 처치', target: 15 });
+    slot3Pool.push({ id: 'parry', label: '칼집 패링 1회 성공', target: 1 });
+  }
   const m3 = slot3Pool[Math.floor(r / 7) % slot3Pool.length];
 
   return [
@@ -93,6 +98,9 @@ export function evalRunMissions(missions, S, maxHpVal) {
       done = cur >= m.target;
     } else if (m.id === 'cleaveKill') {
       cur = S.cleaveKills || 0;
+      done = cur >= m.target;
+    } else if (m.id === 'kills') {
+      cur = S.kills || 0;
       done = cur >= m.target;
     } else if (m.shape) {
       cur = (S.shapeKills && S.shapeKills[m.shape]) || 0;

@@ -121,6 +121,7 @@ function persist(touch) {
 }
 
 function showOv(id) {
+  if ($('titleA11y')) $('titleA11y').hidden = true;
   ['ov-title', 'ov-stages', 'ov-shop', 'ov-cosmetic', 'ov-daily', 'ov-result', 'ov-idle', 'ov-level', 'ov-stage', 'ov-pause', 'ov-codex', 'ov-train'].forEach(function (k) {
     const el = $(k); if (el) el.classList.toggle('show', k === id);
   });
@@ -141,6 +142,7 @@ function showOv(id) {
   }
 }
 function hideOvs() {
+  if ($('titleA11y')) $('titleA11y').hidden = true;
   try { rt.stopCodex3d(); } catch (_) {}
   ['ov-title', 'ov-stages', 'ov-shop', 'ov-cosmetic', 'ov-daily', 'ov-result', 'ov-idle', 'ov-level', 'ov-stage', 'ov-pause', 'ov-codex', 'ov-train'].forEach(function (k) { if ($(k)) $(k).classList.remove('show'); });
   rt.hudCtrl.syncOverlayVisibility(false);
@@ -199,7 +201,7 @@ function fillHp() {
 /* v0.31 §5.5 판 안 경험치 곡선: 7 + 4(lv-1) + 0.6(lv-1)^2 — 첫 3레벨은 빠르고 8레벨 이후는 느리다. */
 function xpNeed(lv) {
   const n = Math.max(1, lv | 0) - 1;
-  return Math.round(7 + 4 * n + 0.6 * n * n);
+  return Math.round(4 + 4 * n + 0.6 * n * n);
 }
 function setHudText(el, value) {
   const text = String(value);
@@ -258,8 +260,10 @@ function renderHud() {
   if (mh) {
     if (!rt.S.tutorial?.on && rt.S.missions && rt.S.missions.length === 3 && rt.evalRunMissions) {
       const mev = rt.evalRunMissions(rt.S.missions, rt.S, maxHp());
-      const nextTodo = mev.items.find(function (x) { return !x.done; });
-      const mTxt = mev.doneCount >= 3 ? '임무 3/3 완료' : ('임무 ' + mev.doneCount + '/3 · ' + (nextTodo ? nextTodo.label : ''));
+      const isMaintain = function (x) { return x && (x.id === 'maxHits' || x.id === 'minHpPct'); };
+      const nextTodo = mev.items.find(function (x) { return !x.done && !isMaintain(x); }) || mev.items.find(function (x) { return !x.done; });
+      const todoTag = nextTodo ? (nextTodo.label + (isMaintain(nextTodo) ? ' (유지 실패)' : (' ' + nextTodo.prog))) : '';
+      const mTxt = mev.doneCount >= 3 ? '임무 3/3 완료' : ('임무 ' + mev.doneCount + '/3 · ' + todoTag);
       mh.hidden = false;
       mh.classList.toggle('done', mev.doneCount >= 3);
       setHudText(mh, mTxt);
@@ -350,16 +354,13 @@ function renderCharge() {
   w.classList.toggle('full', full);
   $('chargeFill').style.width = Math.min(100, (c / max) * 100) + '%';
   if (t) setHudText(t, full ? '참 준비 (O)' : '참 ' + Math.floor(c));
-  /* 게이지가 처음 꽉 찬 순간, 무엇을 그려야 하는지 한 번 알려 준다. */
+  /* 게이지가 꽉 찬 순간, 매 판 최소 1회 O 유령 획과 안내를 함께 띄운다. */
   if (full && rt.S && rt.S.playing && !rt.S.chargeReadyHint) {
     rt.S.chargeReadyHint = true;
+    rt.S.chargeGuide = Math.max(rt.S.chargeGuide || 0, 2.2);
     showGuide('참 준비 — <b>O</b>를 그려 참을 터뜨리세요', 3.6);
     if (rt.audio && rt.audio.gong) rt.audio.gong();
-  }
-  /* §8.2 참 게이지 100을 처음 보는 순간: 화면 가운데에 O 유도 획을 한 번 보여 준다. */
-  if (full && rt.S && rt.S.playing && rt.markSeen('charge')) {
-    rt.S.chargeGuide = 2.2;
-    rt.telemetry.event('first_moment', { kind: 'charge', stage: rt.S.stageNo });
+    if (rt.markSeen('charge')) rt.telemetry.event('first_moment', { kind: 'charge', stage: rt.S.stageNo });
   }
 }
 

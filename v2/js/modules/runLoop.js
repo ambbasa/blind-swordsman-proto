@@ -238,7 +238,7 @@ function separateCrowd(dt) {
     for (let j = i + 1; j < n; j++) {
       const b = list[j];
       const dx = a.x - b.x, dz = a.z - b.z;
-      const min = (a.r + b.r) * 0.92;
+      const min = (a.r + b.r) * 1.12;
       const d2 = dx * dx + dz * dz;
       if (d2 >= min * min) continue;
       const d = Math.sqrt(d2) || 0.001;
@@ -500,7 +500,7 @@ function step(dt) {
       const st = z.isBoss ? ('boss:' + bossSt)
         : (frozen ? 'frozen'
           : (z.flinchT > 0 ? 'hit'
-            : ((z.windT || 0) > 0 || (z.castT || 0) > 0 || (z.dashPhase || 0) > 0 || (z.atkTele || 0) > 0 ? 'attack'
+            : ((z.windT || 0) > 0 || (z.dashPhase || 0) > 0 || (z.atkTele || 0) > 0 ? 'attack'
               : (z.burn > 0 ? 'burning' : (z.poison > 0 ? 'poisoned' : 'walk')))));
       const locked = clubAttack && (clubImpact || z.atkTele > 0);
       let vx = locked ? Math.cos(z.clubAim) : rt.S.hero.x - z.x;
@@ -520,7 +520,7 @@ function step(dt) {
       if (z.obj.userData.rig || z.obj.userData.m3d) rt.art.tintChar(z.obj, fk, fk, fk * 0.95);
       else z.obj.userData.sprite.material.color.setRGB(fk, fk, fk * 0.95);
     }
-    if (rt.art.setTelegraph && !z.isBoss) rt.art.setTelegraph(z.obj, !frozen && (clubAttack ? z.atkTele > 0 : d < (rt.CFG.telegraphRange || 3.2) || (z.windT || 0) > 0 || (z.castT || 0) > 0 || (z.dashPhase || 0) > 0));
+    if (rt.art.setTelegraph && !z.isBoss) rt.art.setTelegraph(z.obj, !frozen && (clubAttack ? z.atkTele > 0 : d < (rt.CFG.telegraphRange || 3.2) || z.windT > 0 || z.dashPhase > 0));
     const inContact = d < z.r + 0.55;
     const clubConnects = clubImpact && d < z.r + 1.55 &&
       (d <= 0.01 || Math.cos(z.clubAim) * (rt.S.hero.x - z.x) + Math.sin(z.clubAim) * (rt.S.hero.z - z.z) >= d * 0.5);
@@ -543,7 +543,19 @@ function step(dt) {
         if (rt.three && rt.three.heroSpr) rt.placeGroup(rt.three.heroSpr, rt.S.hero.x, rt.S.hero.z);
         if (rt.audio && rt.audio.drum) rt.audio.drum();
         rt.renderHud();
-        if (rt.S.hp <= 0) { endRun(false, clubAttack ? '장정의 몽둥이에 맞았습니다. 예고가 끝나기 전에 일섬으로 벗어나세요.' : '귀물에게 닿았습니다.'); return; }
+        if (rt.S.hp <= 0) {
+          const deathMsg = clubAttack
+            ? '장정의 몽둥이에 맞았습니다. 예고가 끝나기 전에 일섬으로 벗어나세요.'
+            : (z.isBoss
+              ? '보스와 부딪혔습니다. 돌진·휘두르기 예고 때 일섬으로 빠져나가세요.'
+              : (z.type === 'runner'
+                ? '질주 귀물에게 닿았습니다. 빠르게 다가올 때 제자리 탭 패링으로 받아치세요.'
+                : (z.type === 'brute'
+                  ? '장정에게 닿았습니다. 갑옷을 깬 뒤 일섬으로 거리를 벌리세요.'
+                  : '원귀에게 닿았습니다. 몸이 닿기 전에 가로 일섬이나 제자리 탭 패링으로 밀어내세요.')));
+          endRun(false, deathMsg);
+          return;
+        }
       }
       /* 일섬은 몸을 뚫고 지나간다 — 돌진 중에는 밀어내지 않는다(안 그러면 적을 앞으로 밀고 간다). */
       if (inContact && !rt.S.dash) {

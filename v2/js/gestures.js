@@ -559,11 +559,14 @@
     }
     var TH = 0.38;
     var MARGIN = 0.05;
+    var preferCircle = !!opts.preferCircle && !opts.totem;
     if (allowBolt && (scores.bolt || 0) >= 0.55 && (scores.bolt || 0) >= bestS - 0.02) {
       best = 'bolt'; bestS = scores.bolt;
-    } else if ((scores.square || 0) >= 0.38 && (scores.square || 0) + 0.03 >= (scores.circle || 0) && (scores.square || 0) >= (scores.vee || 0)) {
+    } else if (preferCircle && (scores.circle || 0) >= 0.32 && (scores.circle || 0) + 0.08 >= (scores.vee || 0) && (scores.circle || 0) >= (scores.vline || 0) && (scores.circle || 0) >= (scores.hline || 0)) {
+      best = 'circle'; bestS = scores.circle;
+    } else if ((scores.square || 0) >= 0.42 && (scores.square || 0) >= (scores.circle || 0) + 0.10 && (scores.square || 0) >= (scores.vee || 0)) {
       best = 'square'; bestS = scores.square;
-    } else if ((scores.circle || 0) >= 0.36 && (scores.circle || 0) + 0.08 >= (scores.vee || 0) && (scores.circle || 0) >= (scores.vline || 0) && (scores.circle || 0) >= (scores.hline || 0) && (scores.circle || 0) + 0.04 >= (scores.square || 0)) {
+    } else if ((scores.circle || 0) >= 0.34 && (scores.circle || 0) + 0.08 >= (scores.vee || 0) && (scores.circle || 0) >= (scores.vline || 0) && (scores.circle || 0) >= (scores.hline || 0) && (scores.circle || 0) + 0.10 >= (scores.square || 0)) {
       best = 'circle'; bestS = scores.circle;
     }
     var stable = best === 'circle' || best === 'square';

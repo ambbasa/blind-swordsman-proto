@@ -215,7 +215,10 @@ function ambiguousHint(rec) {
 /* 방향 무시 자동 추격기: V·⚡ */
 const AUTO_TARGET = { vee: 1, bolt: 1 };
 function readStroke(pts) {
-  const rec = rt.G.recognize(pts, { allowBolt: true, seal: !!(rt.S && rt.S.boss && rt.S.boss.state === "seal"), totem: !!(rt.S && rt.S.boss && rt.S.boss.alive && rt.bossMinions().length) });
+  const hasTotem = !!(rt.S && rt.S.boss && rt.S.boss.alive && rt.bossMinions().length);
+  const chargeFull = !!(rt.S && (rt.S.charge || 0) >= (rt.CFG.cleaveCharge || 100));
+  const noSquarePool = !!(rt.S && rt.S.pool && rt.S.pool.indexOf('square') < 0);
+  const rec = rt.G.recognize(pts, { allowBolt: true, seal: !!(rt.S && rt.S.boss && rt.S.boss.state === "seal"), totem: hasTotem, preferCircle: !hasTotem && (chargeFull || noSquarePool) });
   let res = resolveStrokeType(rec, pts);
   /* v0.97 모바일 한손 엄지 빠른 플릭 보정: 짧지만 곧은 스와이프(26px 이상, 직진도 0.80+)는 가로/세로선으로 구제 */
   if (!res.type && rt.IS_MOBILE && pts && pts.length >= 2 && rt.G && rt.G.pathLen && rt.G.straightness) {
@@ -261,7 +264,10 @@ function finishStroke(pts, opts) {
   if (!totemStroke && rt.veilStroke(pts)) { rec.veil = true; return rec; }
   if (!res.type) {
     rt.inkFade = 0.16;
-    rt.toast(rec.reason === 'short' ? '조금 더 길게 그어 보세요' : rt.failHint());
+    const diag = (rec.reason === 'short')
+      ? '조금 더 길게 그어 보세요'
+      : (rec.readMessage || rt.failHint());
+    rt.toast(diag);
     setTimeout(clearInk, rt.qa.noDelay ? 80 : 160);
     return rec;
   }
@@ -282,7 +288,8 @@ function finishStroke(pts, opts) {
     return m && m.alive && (m.orbitSlot != null || m.zoneTag) && (m.shape === rec.type || rt.spiritShape(m) === rec.type);
   });
   if (!rt.S.sandbox && !activeAnchorStroke && rt.S.pool && rt.S.pool.indexOf(rec.type) < 0 && rt.TOTEM_SHAPES.indexOf(rec.type) < 0) {
-    rt.toast('지금은 ' + rt.S.pool.map(sh => rt.SHAPE_MARK[sh] || sh).join(' · ') + ' 무늬를 그리세요');
+    const gotName = (rt.G && rt.G.NAMES && rt.G.NAMES[rec.type]) ? (rt.G.NAMES[rec.type] + '(' + (rt.SHAPE_MARK[rec.type] || '') + ')으로 읽혔어요 · ') : '';
+    rt.toast(gotName + '지금은 ' + rt.S.pool.map(sh => rt.SHAPE_MARK[sh] || sh).join(' · ') + ' 무늬를 그리세요');
     rt.inkFade = 0.16;
     setTimeout(clearInk, rt.qa.noDelay ? 80 : 160);
     return rec;
