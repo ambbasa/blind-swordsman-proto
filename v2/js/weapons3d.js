@@ -286,10 +286,10 @@ function buildBaekgolGlaive() {
 
   const core = makeMesh('bg_core', function () {
     return extrude2D([
-      [0.010, 1.24], [0.030, 1.24], [0.056, 1.56],
-      [0.064, 1.78], [0.024, 1.98], [0.008, 1.92],
-      [0.036, 1.72], [0.028, 1.50]
-    ], 0.034, null);
+      [0.004, 1.24], [0.042, 1.24], [0.072, 1.56],
+      [0.082, 1.78], [0.032, 2.02], [0.002, 1.94],
+      [0.042, 1.72], [0.030, 1.48]
+    ], 0.046, null);
   }, emberMat, 'Weapon_Glaive_Core');
   g.add(core);
 
@@ -783,7 +783,7 @@ const _vX = new THREE.Vector3();
 const _vY = new THREE.Vector3();
 const _vZ = new THREE.Vector3();
 
-function mountOnMonsterHand(handBone, weaponGrp, targetH, fitScale, desiredDirW, desiredEdgeW, palmOffsetY, worldHoverOff) {
+function mountOnMonsterHand(handBone, weaponGrp, targetH, fitScale, desiredDirW, desiredEdgeW, palmOffsetY, worldHoverOff, scaleMul, modelOffset) {
   handBone.getWorldQuaternion(_qHandW);
   _qHandInv.copy(_qHandW).invert();
 
@@ -796,11 +796,15 @@ function mountOnMonsterHand(handBone, weaponGrp, targetH, fitScale, desiredDirW,
   _qDesW.setFromRotationMatrix(_mBasis);
 
   weaponGrp.quaternion.copy(_qHandInv).multiply(_qDesW);
-  const s = targetH / (2.4 * Math.max(1e-4, fitScale));
+  const s = (targetH * (scaleMul != null ? scaleMul : 1.0)) / (2.4 * Math.max(1e-4, fitScale));
   weaponGrp.scale.setScalar(s);
 
   /* 손목 본 원점에서 손바닥 중심(+Y 로컬) 쪽으로 살짝 이동해 손가락이 자루를 쥐도록 배치 */
   weaponGrp.position.set(0, palmOffsetY != null ? palmOffsetY : 0.065, 0);
+  if (modelOffset) {
+    const mLoc = modelOffset.clone().applyQuaternion(_qHandInv);
+    weaponGrp.position.add(mLoc);
+  }
   if (worldHoverOff) {
     const loc = worldHoverOff.clone().multiplyScalar(1 / Math.max(1e-4, fitScale)).applyQuaternion(_qHandInv);
     weaponGrp.position.add(loc);
@@ -824,10 +828,11 @@ const MONSTER_WEAPON_SPECS = {
     { hand: 'hand_r', build: buildSusalSpear, dirW: [0.06, 0.12, 0.99], edgeW: [0.0, 0.99, -0.12], palmY: 0.06 }
   ],
   jeoseung_boss: [
-    { hand: 'hand_r', build: buildJeoseungScythe, dirW: [0.16, 0.56, 0.81], edgeW: [-0.65, -0.58, 0.48], palmY: 0.07 }
+    { hand: 'hand_r', build: buildJeoseungScythe, dirW: [0.16, 0.50, 0.85], edgeW: [-0.65, -0.58, 0.48], palmY: 0.07, scaleMul: 0.88 }
   ],
   imugi_king_boss: [
-    { hand: 'hand_l', build: buildImugiTrident, dirW: [-0.14, 0.52, 0.84], edgeW: [0.0, -0.84, 0.52], palmY: 0.10 }
+    /* imugi_king_boss는 모델 본(hand_l=-1.344)보다 실제 용 발톱 메시(-1.066, 2.165, +0.341)가 안쪽·전방에 위치 -> modelOff로 손아귀 정중앙 밀착! */
+    { hand: 'hand_l', build: buildImugiTrident, dirW: [-0.08, 0.16, 0.98], edgeW: [0.0, 0.98, -0.16], palmY: 0.0, scaleMul: 0.66, modelOff: [0.28, -0.02, 0.34] }
   ],
   mudang_wraith: [
     { hand: 'hand_r', build: buildMudangFan, dirW: [0.22, 0.36, 0.90], edgeW: [-0.90, 0.16, 0.38], palmY: 0.06 },
@@ -869,7 +874,8 @@ export function attachMonsterWeapon3D(scene, species, targetH, fitScale) {
     const dirW = new THREE.Vector3(sp.dirW[0], sp.dirW[1], sp.dirW[2]);
     const edgeW = new THREE.Vector3(sp.edgeW[0], sp.edgeW[1], sp.edgeW[2]);
     const hoverW = sp.hoverW ? new THREE.Vector3(sp.hoverW[0], sp.hoverW[1], sp.hoverW[2]) : null;
-    mountOnMonsterHand(bone, built.group, targetH, fitScale, dirW, edgeW, sp.palmY, hoverW);
+    const modelOff = sp.modelOff ? new THREE.Vector3(sp.modelOff[0], sp.modelOff[1], sp.modelOff[2]) : null;
+    mountOnMonsterHand(bone, built.group, targetH, fitScale, dirW, edgeW, sp.palmY, hoverW, sp.scaleMul, modelOff);
 
     for (let j = 0; j < built.meshes.length; j++) weaponMeshes.push(built.meshes[j]);
     if (built.anim) animList.push(built.anim);
