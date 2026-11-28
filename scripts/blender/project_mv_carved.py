@@ -148,7 +148,7 @@ def _sample_bilinear(rgba, fx, fy):
     return out
 
 
-def project_4view_onto_mesh(mesh_obj, mv_dir, tex_size=1024, skip_side_arms=False):
+def project_4view_onto_mesh(mesh_obj, mv_dir, tex_size=1024, skip_side_arms=False, no_arm_mask=False):
     """Project crisp front/back/left/right.png onto mesh_obj's existing Base Color texture."""
     mv_dir = Path(mv_dir)
     mat, base_img = _find_base_color_image(mesh_obj)
@@ -211,7 +211,7 @@ def project_4view_onto_mesh(mesh_obj, mv_dir, tex_size=1024, skip_side_arms=Fals
         alpha = samp[..., 3:4]
         # Only trust pixels well inside the opaque silhouette (alpha > 0.75) and facing the camera
         valid = (alpha > 0.75).astype(np.float32)
-        if vname in ("left", "right"):
+        if vname in ("left", "right") and not no_arm_mask:
             if skip_side_arms:
                 # For 45-deg A-pose characters whose side turnarounds have arms hanging down over torso/hips,
                 # restrict side projection to head/neck (uz > 0.80) and lower legs/boots (uz < 0.42) only.

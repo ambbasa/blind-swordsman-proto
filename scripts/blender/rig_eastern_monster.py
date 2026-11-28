@@ -238,6 +238,105 @@ def import_and_prepare_mesh(args):
                 print(f"  [WARN] 4-view projection skipped ({exc}); keeping Hunyuan3D texture")
     elif can_project and skip_complex:
         print(f"  + Keeping native Hunyuan3D texture for {args.key} ({args.archetype}; pass --force-project to override)")
+
+    # For white-fur jangsanbeom: keep crisp native Hunyuan3D face/mane/body, project side/back stripes onto the
+    # rear tail (never front.png!) and lift dark/black underbelly, inner-leg & tail-underside shadows to clean ivory fur.
+    if args.key == "jangsanbeom" and len(body.data.uv_layers) > 0 and len(body.data.materials) > 0:
+        try:
+            from project_mv_carved import _bake_geom_map, _find_base_color_image, _load_view_rgba, _sample_bilinear
+            import numpy as np
+            from pathlib import Path
+            _, base_img = _find_base_color_image(body)
+            if base_img is not None:
+                sz = base_img.size[0]
+                pos = _bake_geom_map(body, "POS", size=sz)
+                nrm = _bake_geom_map(body, "NRM", size=sz)
+                buf = np.empty(sz * sz * 4, dtype=np.float32)
+                base_img.pixels.foreach_get(buf)
+                rgba = buf.reshape((sz, sz, 4))
+                rgb = rgba[..., :3]
+                valid_uv = np.linalg.norm(nrm, axis=-1) > 0.1
+
+                pts = np.array([body.matrix_world @ v.co for v in body.data.vertices], dtype=np.float32)
+                xmin, ymin, zmin = pts.min(axis=0)
+                xmax, ymax, zmax = pts.max(axis=0)
+                dx = max(1e-4, float(xmax - xmin))
+                dy = max(1e-4, float(ymax - ymin))
+                dz = max(1e-4, float(zmax - zmin))
+
+                # 1) Project crisp white/black tiger stripes from left.png + right.png + back.png onto ONLY the tail zone
+                #    (rear 30% of Y length, never front.png so the cyan forehead rune NEVER stamps onto the tail!)
+                if args.mv_dir and os.path.isdir(args.mv_dir):
+                    mv_p = Path(args.mv_dir)
+                    ux_back = (xmax - pos[..., 0]) / dx
+                    ux_right = (ymax - pos[..., 1]) / dy
+                    ux_left = (pos[..., 1] - ymin) / dy
+                    uz = (pos[..., 2] - zmin) / dz
+                    # Tail mask: rear portion (y > ymin + 0.68*dy) OR high tail rising behind back (y > ymin + 0.52*dy & z > zmin + 0.62*dz)
+                    tail_y = np.clip((pos[..., 1] - (ymin + 0.64 * dy)) / (0.10 * dy), 0.0, 1.0)
+                    tail_hi = np.clip((pos[..., 1] - (ymin + 0.48 * dy)) / (0.08 * dy), 0.0, 1.0) * np.clip((pos[..., 2] - (zmin + 0.58 * dz)) / (0.08 * dz), 0.0, 1.0)
+                    tail_mask = np.maximum(tail_y, tail_hi) * valid_uv.astype(np.float32)
+
+                    acc_rgb = np.zeros((sz, sz, 3), dtype=np.float32)
+                    acc_w = np.zeros((sz, sz, 1), dtype=np.float32)
+                    for vname, u_coord, ndot in (
+                        ("left",  ux_left,  np.maximum(0.0,  nrm[..., 0])),
+                        ("right", ux_right, np.maximum(0.0, -nrm[..., 0])),
+                        ("back",  ux_back,  np.maximum(0.0,  nrm[..., 1])),
+                    ):
+                        vp = mv_p / f"{vname}.png"
+                        if not vp.is_file():
+                            continue
+                        v_rgba, (ix0, ix1, iy0, iy1) = _load_view_rgba(vp)
+                        fx = ix0 + u_coord * (ix1 - ix0)
+                        fy = iy0 + uz * (iy1 - iy0)
+                        samp = _sample_bilinear(v_rgba, fx, fy)
+                        # Use looser alpha (>0.35) on thin tail so the entire tail tube gets clean striped paint
+                        v_ok = (samp[..., 3:4] > 0.35).astype(np.float32)
+                        w = (np.maximum(ndot, 0.15)[..., None] ** 2.0) * v_ok * samp[..., 3:4]
+                        acc_rgb += samp[..., :3] * w
+                        acc_w += w
+                    proj_tail = acc_rgb / np.maximum(acc_w, 1e-6)
+                    proj_ok = (acc_w > 0.02).astype(np.float32)
+                    # Blend projected stripes onto tail; on occluded front-of-tail pixels that missed side views,
+                    # sample pale ivory fur if Hunyuan3D painted them black!
+                    t_blend = tail_mask[..., None] * proj_ok
+                    rgb = rgb * (1.0 - t_blend) + proj_tail * t_blend
+                    tail_lum = 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
+                    tail_dark_miss = tail_mask[..., None] * (1.0 - proj_ok) * np.clip((0.30 - tail_lum) / 0.22, 0.0, 1.0)[..., None]
+                    tail_ivory = np.array([0.82, 0.81, 0.78], dtype=np.float32)
+                    rgb = rgb * (1.0 - tail_dark_miss * 0.92) + tail_ivory * (tail_dark_miss * 0.92)
+                    # Neutralize any stray cyan/blue artifact on the tail tube (from Hunyuan3D hallucinating the chest rune)
+                    tail_cyan = tail_mask * np.clip(((rgb[..., 2] - rgb[..., 0]) - 0.10) / 0.12, 0.0, 1.0)
+                    tl = (0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2])[..., None]
+                    rgb = rgb * (1.0 - tail_cyan[..., None]) + np.repeat(tl, 3, axis=-1) * tail_cyan[..., None]
+
+                # 2) Downward-facing belly / chest-under / inner-leg / tail-underside faces (nrm.z < -0.10)
+                #    where Hunyuan3D painted pitch-black occluded shadow -> lift to warm pale ivory-white tiger belly fur
+                lum = 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
+                under_w = np.clip((-nrm[..., 2] - 0.08) / 0.32, 0.0, 1.0)
+                dark_under = np.clip((0.38 - lum) / 0.26, 0.0, 1.0)
+                lift_under = (under_w * dark_under * valid_uv.astype(np.float32))[..., None]
+                belly_fur = np.array([0.82, 0.81, 0.79], dtype=np.float32)
+                rgb = rgb * (1.0 - lift_under * 0.92) + belly_fur * (lift_under * 0.92)
+
+                # 3) Inner thighs / inner hind legs & lower belly flanks (low z < 0.58 * H, dark shadow < 0.26)
+                inward_x = (pos[..., 0] * nrm[..., 0]) < -0.01
+                inner_leg = valid_uv & (pos[..., 2] < zmin + 0.58 * dz) & (np.abs(pos[..., 0]) < 0.32 * dx) & inward_x
+                lum2 = 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
+                dark_leg = np.clip((0.30 - lum2) / 0.20, 0.0, 1.0) * inner_leg.astype(np.float32)
+                inner_fur = np.array([0.76, 0.75, 0.76], dtype=np.float32)
+                rgb = rgb * (1.0 - dark_leg[..., None] * 0.90) + inner_fur * (dark_leg[..., None] * 0.90)
+
+                rgba[..., :3] = np.clip(rgb, 0.0, 1.0)
+                base_img.pixels.foreach_set(rgba.ravel())
+                base_img.pack()
+                print(
+                    f"  + Restored striped tail & lifted dark underbelly/inner-leg fur on jangsanbeom "
+                    f"(under={(lift_under > 0.2).mean()*100:.1f}%, inner_leg={(dark_leg > 0.2).mean()*100:.1f}%)"
+                )
+        except Exception as exc:
+            print(f"  [WARN] jangsanbeom tail/underside polish skipped ({exc})")
     if args.pigment_clean > 0.0 and clean_pigment_planes is not None:
         try:
             clean_pigment_planes(body, strength=args.pigment_clean, sigma_color=0.11)

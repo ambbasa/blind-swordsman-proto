@@ -1,4 +1,4 @@
-import { animateResultOverlay } from './uiMotion.js?v=v179';
+import { animateResultOverlay } from './uiMotion.js?v=v180';
 /* v2/js/modules/runLoop.js — 심안: 묵검 v1.26 전투 스텝·군중 분리·카메라·런 종료 엔진 */
 
 export function createRunLoop(rt) {
@@ -500,7 +500,7 @@ function step(dt) {
       const st = z.isBoss ? ('boss:' + bossSt)
         : (frozen ? 'frozen'
           : (z.flinchT > 0 ? 'hit'
-            : ((z.windT || 0) > 0 || (z.dashPhase || 0) > 0 || (z.atkTele || 0) > 0 ? 'attack'
+            : ((z.windT || 0) > 0 || (z.castT || 0) > 0 || (z.dashPhase || 0) > 0 || (z.atkTele || 0) > 0 ? 'attack'
               : (z.burn > 0 ? 'burning' : (z.poison > 0 ? 'poisoned' : 'walk')))));
       const locked = clubAttack && (clubImpact || z.atkTele > 0);
       let vx = locked ? Math.cos(z.clubAim) : rt.S.hero.x - z.x;
@@ -520,7 +520,7 @@ function step(dt) {
       if (z.obj.userData.rig || z.obj.userData.m3d) rt.art.tintChar(z.obj, fk, fk, fk * 0.95);
       else z.obj.userData.sprite.material.color.setRGB(fk, fk, fk * 0.95);
     }
-    if (rt.art.setTelegraph && !z.isBoss) rt.art.setTelegraph(z.obj, !frozen && (clubAttack ? z.atkTele > 0 : d < (rt.CFG.telegraphRange || 3.2) || z.windT > 0 || z.dashPhase > 0));
+    if (rt.art.setTelegraph && !z.isBoss) rt.art.setTelegraph(z.obj, !frozen && (clubAttack ? z.atkTele > 0 : d < (rt.CFG.telegraphRange || 3.2) || (z.windT || 0) > 0 || (z.castT || 0) > 0 || (z.dashPhase || 0) > 0));
     const inContact = d < z.r + 0.55;
     const clubConnects = clubImpact && d < z.r + 1.55 &&
       (d <= 0.01 || Math.cos(z.clubAim) * (rt.S.hero.x - z.x) + Math.sin(z.clubAim) * (rt.S.hero.z - z.z) >= d * 0.5);

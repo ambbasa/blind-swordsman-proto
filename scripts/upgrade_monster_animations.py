@@ -39,6 +39,128 @@ ARCHETYPES = {
     "jangsanbeom":       "quadruped",
 }
 
+RANGED_MONSTERS = frozenset({
+    "gwibul_bomber",
+    "cheonyeo_ghost",
+    "mudang_wraith",
+    "gumiho_boss",
+    "samjoko",
+    "imugi_king_boss",
+})
+
+SECONDARY_LAG_BONES = frozenset({
+    "head", "tail_1", "tail_2", "tail_3",
+    "skirt_mid", "skirt_hem", "skirt_f", "skirt_b", "skirt_l", "skirt_r",
+    "wing_out_l", "wing_out_r", "forearm_l", "forearm_r",
+})
+
+
+def _catmull_rom_vec(p0, p1, p2, p3, u):
+    """Uniform Catmull-Rom cubic spline (C1 smooth, zero linear sawtooth corners)."""
+    u2 = u * u
+    u3 = u2 * u
+    return 0.5 * (
+        (2.0 * p1)
+        + (-p0 + p2) * u
+        + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * u2
+        + (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * u3
+    )
+
+
+def _eval_track_smooth(times, vals, t_query, is_loop):
+    """Evaluate a 3D vector track smoothly at time t_query using periodic/clamped Catmull-Rom splines."""
+    n = len(times)
+    if n == 1:
+        return vals[0]
+    dur = float(times[-1] - times[0])
+    if dur <= 1e-6:
+        return vals[0]
+    if is_loop:
+        tq = ((t_query - times[0]) % dur) + times[0]
+    else:
+        tq = max(float(times[0]), min(float(times[-1]), t_query))
+
+    # Find segment i such that times[i] <= tq <= times[i+1]
+    i = 0
+    for k in range(n - 1):
+        if tq <= times[k + 1] or k == n - 2:
+            i = k
+            break
+    dt = max(1e-6, float(times[i + 1] - times[i]))
+    u = max(0.0, min(1.0, (tq - float(times[i])) / dt))
+
+    if is_loop and n >= 3:
+        # Note: loop clips repeat key[0] at key[-1], so unique cycle length is n - 1
+        m = n - 1
+        p0 = vals[(i - 1) % m]
+        p1 = vals[i % m]
+        p2 = vals[(i + 1) % m]
+        p3 = vals[(i + 2) % m]
+        return _catmull_rom_vec(p0, p1, p2, p3, u)
+
+    # Non-loop: smooth Hermite ease (zero overshoot on Hit/Die/Attack)
+    # Compute clamped finite-difference slopes (Fritsch-Carlson style damping)
+    def slope(idx):
+        if idx <= 0:
+            return np.zeros(3, dtype=np.float64)
+        if idx >= n - 1:
+            return np.zeros(3, dtype=np.float64)
+        d0 = (vals[idx] - vals[idx - 1]) / max(1e-6, float(times[idx] - times[idx - 1]))
+        d1 = (vals[idx + 1] - vals[idx]) / max(1e-6, float(times[idx + 1] - times[idx]))
+        # Damp slope where sign reverses so peaks stay crisp and never wobble
+        same = (d0 * d1) > 0.0
+        avg = 0.5 * (d0 + d1)
+        return np.where(same, avg, 0.0)
+
+    m0 = slope(i) * dt
+    m1 = slope(i + 1) * dt
+    u2 = u * u
+    u3 = u2 * u
+    h00 = 2.0 * u3 - 3.0 * u2 + 1.0
+    h10 = u3 - 2.0 * u2 + u
+    h01 = -2.0 * u3 + 3.0 * u2
+    h11 = u3 - u2
+    return h00 * vals[i] + h10 * m0 + h01 * vals[i + 1] + h11 * m1
+
+
+def resample_smooth_clip(frames, clip_name, fps=30):
+    """Resample sparse keyframe list into buttery-smooth 30fps cubic splines with secondary follow-through."""
+    is_loop = clip_name in ("Idle", "Walk")
+    dur = float(frames[-1][0] - frames[0][0])
+    if dur <= 1e-4 or len(frames) < 2:
+        return frames
+
+    n_steps = max(14, min(48, int(round(dur * fps))))
+    sample_ts = np.linspace(float(frames[0][0]), float(frames[-1][0]), n_steps + 1)
+    src_ts = np.array([f[0] for f in frames], dtype=np.float64)
+
+    rot_bones = sorted({b for _, rm, _ in frames for b in rm.keys()})
+    loc_bones = sorted({b for _, _, lm in frames for b in lm.keys()})
+
+    rot_tracks = {
+        b: np.array([rm.get(b, (0.0, 0.0, 0.0)) for _, rm, _ in frames], dtype=np.float64)
+        for b in rot_bones
+    }
+    loc_tracks = {
+        b: np.array([lm.get(b, (0.0, 0.0, 0.0)) for _, _, lm in frames], dtype=np.float64)
+        for b in loc_bones
+    }
+
+    dense = []
+    for t in sample_ts:
+        rm = {}
+        for b in rot_bones:
+            # Subtle 38ms follow-through drag on head, tails, skirts, wings & forearms for organic motion
+            lag = 0.038 if (b in SECONDARY_LAG_BONES and clip_name in ("Idle", "Walk", "Attack")) else 0.0
+            v = _eval_track_smooth(src_ts, rot_tracks[b], float(t) - lag, is_loop)
+            rm[b] = (float(v[0]), float(v[1]), float(v[2]))
+        lm = {}
+        for b in loc_bones:
+            v = _eval_track_smooth(src_ts, loc_tracks[b], float(t), is_loop)
+            lm[b] = (float(v[0]), float(v[1]), float(v[2]))
+        dense.append((float(t), rm, lm))
+    return dense
+
 CORE_SLOTS = {
     "dokkaebi_boss":     "boss.glb",
     "gumiho_boss":       "boss_act2.glb",
@@ -258,6 +380,42 @@ def get_clips(key, archetype, H):
                    {"pelvis": (0, -0.015 * H, 0)}),
         ]
 
+        # Dedicated Ranged Cast animation for ranged humanoid/robe monsters (gwibul_bomber, gumiho_boss)
+        if key in RANGED_MONSTERS:
+            attack = [
+                (0.00, {"pelvis": (2, 0, 0), "chest": (3, 0, 0), "head": (-2, 0, 0),
+                        "thigh_l": (-8, 0, 0), "shin_l": (16, 0, 0), "thigh_r": (-8, 0, 0), "shin_r": (16, 0, 0),
+                        "upperarm_l": (4, 0, -6), "forearm_l": (-26, 0, 0), "upperarm_r": (4, 0, 6), "forearm_r": (-26, 0, 0), **t_i1},
+                       {"pelvis": (0, -0.015 * H, 0)}),
+                # Gather energy: lean chest back slightly, pull both palms inward to chest/orb focus
+                (0.22, {"pelvis": (-6, 0, 0), "spine": (-6, 0, 0), "chest": (-12, 0, 0), "head": (6, 0, 0),
+                        "thigh_l": (-16 * st, 0, 0), "shin_l": (32 * kn, 0, 0), "thigh_r": (-16 * st, 0, 0), "shin_r": (32 * kn, 0, 0),
+                        "upperarm_l": (-56, 26, -18), "forearm_l": (-76, 0, 0),
+                        "upperarm_r": (-56, -26, 18), "forearm_r": (-76, 0, 0), **t_a1},
+                       {"pelvis": (0, -0.04 * H * st, -0.05 * H)}),
+                # Peak charge hold (readable attack tell right before projectile release)
+                (0.38, {"pelvis": (-8, 0, 0), "spine": (-8, 0, 0), "chest": (-16, 0, 0), "head": (8, 0, 0),
+                        "thigh_l": (-18 * st, 0, 0), "shin_l": (36 * kn, 0, 0), "thigh_r": (-18 * st, 0, 0), "shin_r": (36 * kn, 0, 0),
+                        "upperarm_l": (-68, 30, -24), "forearm_l": (-84, 0, 0),
+                        "upperarm_r": (-68, -30, 24), "forearm_r": (-84, 0, 0), **t_a1},
+                       {"pelvis": (0, -0.05 * H * st, -0.06 * H)}),
+                # Release! Snap both palms & sleeves cleanly forward launching elemental orb
+                (0.54, {"pelvis": (10, 0, 0), "spine": (10, 0, 0), "chest": (18, 0, 0), "head": (-10, 0, 0),
+                        "thigh_l": (-22 * st, 0, 0), "shin_l": (28 * kn, 0, 0), "thigh_r": (14 * st, 0, 0), "shin_r": (16 * kn, 0, 0),
+                        "upperarm_l": (-88, -8, -10), "forearm_l": (-12, 0, 0),
+                        "upperarm_r": (-88, 8, 10), "forearm_r": (-12, 0, 0), **t_a2},
+                       {"pelvis": (0, -0.02 * H * st, 0.08 * H)}),
+                # Graceful follow-through & settle
+                (0.74, {"pelvis": (6, 0, 0), "spine": (4, 0, 0), "chest": (8, 0, 0), "head": (-5, 0, 0),
+                        "upperarm_l": (-54, -4, -14), "forearm_l": (-26, 0, 0),
+                        "upperarm_r": (-54, 4, 14), "forearm_r": (-26, 0, 0), **t_a2},
+                       {"pelvis": (0, -0.015 * H * st, 0.03 * H)}),
+                (0.96, {"pelvis": (2, 0, 0), "chest": (3, 0, 0), "head": (-2, 0, 0),
+                        "thigh_l": (-8, 0, 0), "shin_l": (16, 0, 0), "thigh_r": (-8, 0, 0), "shin_r": (16, 0, 0),
+                        "upperarm_l": (4, 0, -6), "forearm_l": (-26, 0, 0), "upperarm_r": (4, 0, 6), "forearm_r": (-26, 0, 0), **t_i1},
+                       {"pelvis": (0, -0.015 * H, 0)}),
+            ]
+
         # 4-keyframe crisp Hit stagger
         hit = [
             (0.00, {"pelvis": (2, 0, 0), "chest": (2, 0, 0), "head": (0, 0, 0),
@@ -345,19 +503,38 @@ def get_clips(key, archetype, H):
                     "upperarm_l": (-30, 0, -10), "forearm_l": (-28, 0, 0), "upperarm_r": (-24, 0, 10), "forearm_r": (-32, 0, 0)},
                    {"pelvis": (0, 0.05 * H, 0)}),
         ]
-        attack = [
-            (0.00, {"chest": (4, 0, 0), "upperarm_l": (-12, 0, -10), "forearm_l": (-34, 0, 0), "upperarm_r": (-12, 0, 10), "forearm_r": (-34, 0, 0)}, {"pelvis": (0, 0.04 * H, 0)}),
-            (0.22, {"pelvis": (-12, 0, 0), "chest": (-16, 0, 0), "head": (-10, 0, 0), "skirt_mid": (-14, 0, 0),
-                    "upperarm_l": (-92, 0, -30), "forearm_l": (-52, 0, 0), "upperarm_r": (-92, 0, 30), "forearm_r": (-52, 0, 0)},
-                   {"pelvis": (0, 0.14 * H, -0.05 * H)}),
-            (0.46, {"pelvis": (18, 0, 0), "chest": (22, 0, 0), "head": (-14, 0, 0), "skirt_mid": (26, 0, 0), "skirt_hem": (30, 0, 0),
-                    "upperarm_l": (-46, 18, -6), "forearm_l": (-18, 0, 0), "upperarm_r": (-46, -18, 6), "forearm_r": (-18, 0, 0)},
-                   {"pelvis": (0, 0.02 * H, 0.11 * H)}),
-            (0.68, {"pelvis": (12, 0, 0), "chest": (14, 0, 0), "skirt_mid": (16, 0, 0),
-                    "upperarm_l": (-20, 8, -10), "forearm_l": (-28, 0, 0), "upperarm_r": (-20, -8, 10), "forearm_r": (-28, 0, 0)},
-                   {"pelvis": (0, 0.03 * H, 0.06 * H)}),
-            (0.92, {"chest": (4, 0, 0), "upperarm_l": (-12, 0, -10), "forearm_l": (-34, 0, 0), "upperarm_r": (-12, 0, 10), "forearm_r": (-34, 0, 0)}, {"pelvis": (0, 0.04 * H, 0)}),
-        ]
+        if key in RANGED_MONSTERS:
+            # Eerie floating Ranged Cast (cheonyeo_ghost, mudang_wraith): rise & spread sleeves wide -> twin-palm spirit launch
+            attack = [
+                (0.00, {"chest": (4, 0, 0), "upperarm_l": (-12, 0, -10), "forearm_l": (-34, 0, 0), "upperarm_r": (-12, 0, 10), "forearm_r": (-34, 0, 0)}, {"pelvis": (0, 0.04 * H, 0)}),
+                (0.24, {"pelvis": (-10, 0, 0), "chest": (-14, 0, 0), "head": (-8, 0, 0), "skirt_mid": (-16, 0, 0), "skirt_hem": (-22, 0, 0),
+                        "upperarm_l": (-74, 24, -38), "forearm_l": (-68, 0, 0), "upperarm_r": (-74, -24, 38), "forearm_r": (-68, 0, 0)},
+                       {"pelvis": (0, 0.16 * H, -0.06 * H)}),
+                (0.40, {"pelvis": (-12, 0, 0), "chest": (-18, 0, 0), "head": (-10, 0, 0), "skirt_mid": (-18, 0, 0), "skirt_hem": (-24, 0, 0),
+                        "upperarm_l": (-84, 28, -42), "forearm_l": (-74, 0, 0), "upperarm_r": (-84, -28, 42), "forearm_r": (-74, 0, 0)},
+                       {"pelvis": (0, 0.18 * H, -0.07 * H)}),
+                (0.56, {"pelvis": (14, 0, 0), "chest": (18, 0, 0), "head": (-12, 0, 0), "skirt_mid": (24, 0, 0), "skirt_hem": (30, 0, 0),
+                        "upperarm_l": (-92, -12, -8), "forearm_l": (-10, 0, 0), "upperarm_r": (-92, 12, 8), "forearm_r": (-10, 0, 0)},
+                       {"pelvis": (0, 0.06 * H, 0.09 * H)}),
+                (0.76, {"pelvis": (8, 0, 0), "chest": (10, 0, 0), "skirt_mid": (14, 0, 0), "skirt_hem": (18, 0, 0),
+                        "upperarm_l": (-48, -6, -14), "forearm_l": (-26, 0, 0), "upperarm_r": (-48, 6, 14), "forearm_r": (-26, 0, 0)},
+                       {"pelvis": (0, 0.05 * H, 0.04 * H)}),
+                (0.96, {"chest": (4, 0, 0), "upperarm_l": (-12, 0, -10), "forearm_l": (-34, 0, 0), "upperarm_r": (-12, 0, 10), "forearm_r": (-34, 0, 0)}, {"pelvis": (0, 0.04 * H, 0)}),
+            ]
+        else:
+            attack = [
+                (0.00, {"chest": (4, 0, 0), "upperarm_l": (-12, 0, -10), "forearm_l": (-34, 0, 0), "upperarm_r": (-12, 0, 10), "forearm_r": (-34, 0, 0)}, {"pelvis": (0, 0.04 * H, 0)}),
+                (0.22, {"pelvis": (-12, 0, 0), "chest": (-16, 0, 0), "head": (-10, 0, 0), "skirt_mid": (-14, 0, 0),
+                        "upperarm_l": (-92, 0, -30), "forearm_l": (-52, 0, 0), "upperarm_r": (-92, 0, 30), "forearm_r": (-52, 0, 0)},
+                       {"pelvis": (0, 0.14 * H, -0.05 * H)}),
+                (0.46, {"pelvis": (18, 0, 0), "chest": (22, 0, 0), "head": (-14, 0, 0), "skirt_mid": (26, 0, 0), "skirt_hem": (30, 0, 0),
+                        "upperarm_l": (-46, 18, -6), "forearm_l": (-18, 0, 0), "upperarm_r": (-46, -18, 6), "forearm_r": (-18, 0, 0)},
+                       {"pelvis": (0, 0.02 * H, 0.11 * H)}),
+                (0.68, {"pelvis": (12, 0, 0), "chest": (14, 0, 0), "skirt_mid": (16, 0, 0),
+                        "upperarm_l": (-20, 8, -10), "forearm_l": (-28, 0, 0), "upperarm_r": (-20, -8, 10), "forearm_r": (-28, 0, 0)},
+                       {"pelvis": (0, 0.03 * H, 0.06 * H)}),
+                (0.92, {"chest": (4, 0, 0), "upperarm_l": (-12, 0, -10), "forearm_l": (-34, 0, 0), "upperarm_r": (-12, 0, 10), "forearm_r": (-34, 0, 0)}, {"pelvis": (0, 0.04 * H, 0)}),
+            ]
         hit = [
             (0.00, {"chest": (4, 0, 0), "head": (0, 0, 0)}, {"pelvis": (0, 0.04 * H, 0)}),
             (0.12, {"pelvis": (-10, 8, 0), "chest": (-18, 8, 0), "head": (-14, 0, 6), "skirt_mid": (-16, 0, 0),
@@ -504,11 +681,16 @@ def get_clips(key, archetype, H):
         (0.32, {"body": (14, 0, 0), "wing_in_l": (0, 0, -44), "wing_out_l": (0, 0, -32), "wing_in_r": (0, 0, 44), "wing_out_r": (0, 0, 32)}, {"body": (0, 0.14 * H, 0)}),
         (0.64, {"body": (14, 0, 0), "wing_in_l": (0, 0, 28), "wing_out_l": (0, 0, 20), "wing_in_r": (0, 0, -28), "wing_out_r": (0, 0, -20)}, {"body": (0, 0.04 * H, 0)}),
     ]
+    # avian (Samjoko — solar feather ranged cast + hovering wing beat!)
     attack = [
-        (0.00, {"body": (0, 0, 0), "talon_l": (0, 0, 0), "talon_r": (0, 0, 0)}, {"body": (0, 0.06 * H, 0)}),
-        (0.24, {"body": (-22, 0, 0), "wing_in_l": (0, 0, 40), "wing_in_r": (0, 0, -40), "talon_l": (-36, 0, 0), "talon_r": (-36, 0, 0)}, {"body": (0, 0.18 * H, -0.05 * H)}),
-        (0.48, {"body": (30, 0, 0), "wing_in_l": (0, 0, -32), "wing_in_r": (0, 0, 32), "talon_l": (28, 0, 0), "talon_r": (28, 0, 0)}, {"body": (0, -0.02 * H, 0.12 * H)}),
-        (0.80, {"body": (0, 0, 0), "talon_l": (0, 0, 0), "talon_r": (0, 0, 0)}, {"body": (0, 0.06 * H, 0)}),
+        (0.00, {"body": (0, 0, 0), "wing_in_l": (0, 0, 16), "wing_out_l": (0, 0, 10), "wing_in_r": (0, 0, -16), "wing_out_r": (0, 0, -10), "talon_l": (0, 0, 0), "talon_r": (0, 0, 0)}, {"body": (0, 0.06 * H, 0)}),
+        # Flare wings high & arch chest back to gather blazing sun feathers
+        (0.24, {"body": (-24, 0, 0), "head": (12, 0, 0), "wing_in_l": (-16, 0, 48), "wing_out_l": (-10, 0, 32), "wing_in_r": (-16, 0, -48), "wing_out_r": (-10, 0, -32), "talon_l": (-30, 0, 0), "talon_r": (-30, 0, 0)}, {"body": (0, 0.20 * H, -0.06 * H)}),
+        (0.38, {"body": (-28, 0, 0), "head": (14, 0, 0), "wing_in_l": (-22, 0, 54), "wing_out_l": (-14, 0, 38), "wing_in_r": (-22, 0, -54), "wing_out_r": (-14, 0, -38), "talon_l": (-36, 0, 0), "talon_r": (-36, 0, 0)}, {"body": (0, 0.22 * H, -0.07 * H)}),
+        # Explosive forward wing-snap launching golden solar feather projectiles!
+        (0.54, {"body": (26, 0, 0), "head": (-14, 0, 0), "wing_in_l": (28, 0, -38), "wing_out_l": (18, 0, -28), "wing_in_r": (28, 0, 38), "wing_out_r": (18, 0, 28), "talon_l": (22, 0, 0), "talon_r": (22, 0, 0)}, {"body": (0, 0.04 * H, 0.12 * H)}),
+        (0.74, {"body": (10, 0, 0), "wing_in_l": (8, 0, -14), "wing_out_l": (4, 0, -8), "wing_in_r": (8, 0, 14), "wing_out_r": (4, 0, 8)}, {"body": (0, 0.08 * H, 0.04 * H)}),
+        (0.92, {"body": (0, 0, 0), "wing_in_l": (0, 0, 16), "wing_out_l": (0, 0, 10), "wing_in_r": (0, 0, -16), "wing_out_r": (0, 0, -10), "talon_l": (0, 0, 0), "talon_r": (0, 0, 0)}, {"body": (0, 0.06 * H, 0)}),
     ]
     hit = [
         (0.00, {"body": (0, 0, 0)}, {"body": (0, 0.06 * H, 0)}),
@@ -597,7 +779,8 @@ def rebuild_glb_animations(glb_path, key, archetype):
 
     clips = get_clips(key, archetype, H)
     new_anims = []
-    for clip_name, frames in clips.items():
+    for clip_name, raw_frames in clips.items():
+        frames = resample_smooth_clip(raw_frames, clip_name, fps=30)
         times = np.array([f[0] for f in frames], dtype=np.float32)
         t_acc = append_accessor(times, 5126, "SCALAR", compute_minmax=True)
 

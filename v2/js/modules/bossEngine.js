@@ -1,6 +1,7 @@
-import { createBossGimmickStep } from './bossGimmickStep.js?v=v179';
-import { createBossOverlay } from './bossOverlay.js?v=v179';
-import { createBossProjectiles } from './bossProjectiles.js?v=v179';
+import { createBossGimmickStep } from './bossGimmickStep.js?v=v180';
+import { createBossOverlay } from './bossOverlay.js?v=v180';
+import { createBossProjectiles } from './bossProjectiles.js?v=v180';
+import { ACT_MONSTER_ROSTER } from './stages.js';
 /* v2/js/modules/bossEngine.js — 심안: 묵검 v1.26 보스 AI · 19종 패턴/기믹 엔진 */
 
 export function createBossEngine(rt) {
@@ -123,9 +124,33 @@ function stepBoss(z, dt) {
   }
   return false;
 }
-/* ---------- v0.23 후반 장 변주 적 ----------
-   charger: 몸을 낮추고 곧장 달려든다. thrower: 거리를 두고 부적을 던진다.
-   bomber: 붙으면 부풀어 터진다. 셋 다 몸빛(테두리)으로 미리 구분된다. */
+/* Resolve species-specific elemental projectile style for ranged mobs & act bosses */
+const SPECIES_SHOT_STYLE = {
+  gwibul_bomber:   'fire',
+  cheonyeo_ghost:  'soul',
+  mudang_wraith:   'talisman',
+  samjoko:         'sunfeather',
+  gumiho_boss:     'foxorb',
+  imugi_king_boss: 'jadebreath',
+  jeoseung_boss:   'talisman',
+  dokkaebi_boss:   'fire'
+};
+function rangedStyleFor(z) {
+  const act = (rt.S && rt.S.stage && rt.actOf) ? rt.actOf(rt.S.stage.id) : 1;
+  const roster = ACT_MONSTER_ROSTER[act] || ACT_MONSTER_ROSTER[1];
+  let sp = (z && z.species) || (z && z.obj && z.obj.userData && z.obj.userData.m3d && z.obj.userData.m3d.glb && z.obj.userData.m3d.glb.species) || '';
+  if (!sp && roster && z) {
+    sp = z.isBoss ? roster.boss : (roster[z.type] || '');
+  }
+  if (SPECIES_SHOT_STYLE[sp]) return SPECIES_SHOT_STYLE[sp];
+  if (z && z.isBoss) return act === 2 ? 'foxorb' : (act === 4 ? 'jadebreath' : (act === 3 ? 'talisman' : 'fire'));
+  return act === 1 ? 'fire' : (act === 2 ? 'soul' : 'talisman');
+}
+
+/* ---------- v0.23 후반 장 변주 적 + 원거리 캐스팅/투사체 분화 ----------
+   charger: 돌진형 (삼족오는 중장거리에서 태양 깃털탄 발사 후 급강하).
+   thrower: 거리를 유지하며 캐스팅 모션(0.46s) 후 종족별 원거리 투사체 발사(귀불·처녀귀신·무당령).
+   bomber: 근접 시 자폭(귀불). */
 function stepEnemySpecial(z, dt, d, frozen, zsp) {
   if (!rt.S || z.isBoss || frozen) return false;
   const kd = rt.CFG.zombieTypes[z.type];
@@ -135,6 +160,25 @@ function stepEnemySpecial(z, dt, d, frozen, zsp) {
   const ux = (rt.S.hero.x - z.x) / (d || 1), uz = (rt.S.hero.z - z.z) / (d || 1);
   if (kd.dashSpeed) {
     z.dashCd = (z.dashCd || 0) - dt;
+    /* Samjoko (Act 2 & 4 aerial charger): launches blazing solar-feather projectiles at mid-long range before swooping! */
+    const isSamjoko = rangedStyleFor(z) === 'sunfeather';
+    if (isSamjoko) {
+      z.featherCd = (z.featherCd != null ? z.featherCd : 1.4) - dt;
+      if ((z.castT || 0) > 0) {
+        z.castT -= dt;
+        if (z.castT <= 0) {
+          z.castT = 0;
+          spawnShot({ x: z.x + ux * 0.45, z: z.z + uz * 0.45 }, { style: 'sunfeather', speed: 8.6, y: 1.25 });
+        }
+        return true;
+      }
+      if (z.featherCd <= 0 && (z.windT || 0) <= 0 && (z.dashPhase || 0) <= 0 && d > 4.2 && d < 10.5) {
+        z.featherCd = 3.2;
+        z.castT = 0.42;
+        if (rt.three && rt.three.lights) rt.three.lights.burst(z.x, 1.35, z.z, { color: 0xffb830, intensity: 3.0, duration: 0.35, distance: 6 });
+        return true;
+      }
+    }
     if ((z.dashPhase || 0) > 0) {
       z.dashPhase -= dt;
       z.x += ux * kd.dashSpeed * dt;
@@ -157,14 +201,28 @@ function stepEnemySpecial(z, dt, d, frozen, zsp) {
     return true;
   }
   if (kd.throwRange) {
-    z.throwCd = (z.throwCd || 0) - dt;
-    if (z.throwCd <= 0 && d < kd.throwRange && d > 2.0) {
-      z.throwCd = kd.throwCd || 2.9;
-      spawnShot(z);
+    /* Readable 0.46s Ranged Cast windup -> triggers smooth Ranged Cast animation & launches species elemental projectile! */
+    if ((z.castT || 0) > 0) {
+      z.castT -= dt;
+      if (z.castT <= 0) {
+        z.castT = 0;
+        const st = rangedStyleFor(z);
+        spawnShot({ x: z.x + ux * 0.50, z: z.z + uz * 0.50 }, { style: st, speed: kd.shotSpeed || 7.2, y: 1.05 });
+      }
       return true;
     }
-    if (d > (kd.hold || 4.6)) { z.x += ux * sp * dt; z.z += uz * sp * dt; }
-    else if (d < (kd.hold || 4.6) * 0.72) { z.x -= ux * sp * 0.8 * dt; z.z -= uz * sp * 0.8 * dt; }
+    z.throwCd = (z.throwCd != null ? z.throwCd : 1.1) - dt;
+    if (z.throwCd <= 0 && d < kd.throwRange && d > 1.8) {
+      z.throwCd = kd.throwCd || 2.9;
+      z.castT = 0.46;
+      const st = rangedStyleFor(z);
+      const glow = st === 'fire' ? 0xff6a24 : (st === 'soul' ? 0x56d8ff : 0xd94878);
+      if (rt.three && rt.three.lights) rt.three.lights.burst(z.x, 1.15, z.z, { color: glow, intensity: 3.2, duration: 0.40, distance: 6 });
+      return true;
+    }
+    const hold = kd.hold || 5.0;
+    if (d > hold) { z.x += ux * sp * dt; z.z += uz * sp * dt; }
+    else if (d < hold * 0.72) { z.x -= ux * sp * 0.85 * dt; z.z -= uz * sp * 0.85 * dt; }
     return true;
   }
   if (kd.blastR) {
@@ -1361,14 +1419,14 @@ function dashAtBoss(z, type) {
   rt.startSeg();
   return rec;
 }
-/* 부적 탄막: 부채꼴. 금빛 부적은 탭으로 되받아 보스를 벤다. */
+/* 부적/원소 탄막: 부채꼴. 금빛 탄환은 탭으로 되받아 보스를 벤다. */
 function spawnBossShot(z, a, gold) {
-  const sh = spawnShot({ x: z.x, z: z.z });
-  if (!sh) return null;
   const sp = bossPat().volley.speed;
-  sh.vx = Math.cos(a) * sp; sh.vz = Math.sin(a) * sp;
-  /* v0.52: 커스텀 살부적 2D 에셋(boss-talisman.webp)이 선명히 보이도록 구형 3D 기본 메쉬를 축소/숨김 */
-  if (sh.mesh) sh.mesh.visible = false;
+  const st = gold ? 'gold' : rangedStyleFor(z);
+  const sh = spawnShot({ x: z.x + Math.cos(a) * 0.7, z: z.z + Math.sin(a) * 0.7 }, {
+    style: st, gold: !!gold, vx: Math.cos(a) * sp, vz: Math.sin(a) * sp, y: 1.15
+  });
+  if (!sh) return null;
   if (gold) sh.gold = true;
   return sh;
 }
