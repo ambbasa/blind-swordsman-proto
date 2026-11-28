@@ -1,9 +1,8 @@
 import * as THREE from 'three';
 import { applyForgedMetal, getMetalStudioEnv } from './modules/metalStudioEnv.js';
-import { makeRig, tickPose } from './glbpose.js?v=v182';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v182';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v182';
-import { attachMonsterWeapon3D, tickWeaponFx3D } from './weapons3d.js?v=v182';
+import { makeRig, tickPose } from './glbpose.js?v=v181';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v181';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v181';
 
 const EASTERN_ALIAS = {
   boss:      'dokkaebi_boss',
@@ -20,18 +19,18 @@ const EASTERN_KEYS = [
   'gumiho_boss', 'jeoseung_boss', 'samjoko', 'imugi_king_boss', 'jangsanbeom'
 ];
 const MODEL_URLS = {
-  boss:      new URL('../assets/models/boss.glb?v=v182', import.meta.url).href,
-  boss_act2: new URL('../assets/models/boss_act2.glb?v=v182', import.meta.url).href,
-  boss_act3: new URL('../assets/models/boss_act3.glb?v=v182', import.meta.url).href,
-  boss_act4: new URL('../assets/models/boss_act4.glb?v=v182', import.meta.url).href,
-  minion:    new URL('../assets/models/minion.glb?v=v182', import.meta.url).href,
-  heavy:     new URL('../assets/models/heavy.glb?v=v182', import.meta.url).href,
-  stone:     new URL('../assets/models/stone.glb?v=v182', import.meta.url).href
+  boss:      new URL('../assets/models/boss.glb?v=v181', import.meta.url).href,
+  boss_act2: new URL('../assets/models/boss_act2.glb?v=v181', import.meta.url).href,
+  boss_act3: new URL('../assets/models/boss_act3.glb?v=v181', import.meta.url).href,
+  boss_act4: new URL('../assets/models/boss_act4.glb?v=v181', import.meta.url).href,
+  minion:    new URL('../assets/models/minion.glb?v=v181', import.meta.url).href,
+  heavy:     new URL('../assets/models/heavy.glb?v=v181', import.meta.url).href,
+  stone:     new URL('../assets/models/stone.glb?v=v181', import.meta.url).href
 };
 const EASTERN_URLS = {};
 for (let i = 0; i < EASTERN_KEYS.length; i++) {
   const k = EASTERN_KEYS[i];
-  EASTERN_URLS[k] = new URL('../assets/models/monsters/' + k + '.glb?v=v182', import.meta.url).href;
+  EASTERN_URLS[k] = new URL('../assets/models/monsters/' + k + '.glb?v=v181', import.meta.url).href;
 }
 function isBossSp(sp) {
   return sp === 'boss' || sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4' || (typeof sp === 'string' && sp.endsWith('_boss'));
@@ -47,6 +46,22 @@ const BOSS_WEAPON_FX = {
   imugi_king_boss: { em: 0x10343a, col: 0x8ef5e8, tail: 0x2498a8, glint: 0x58e4d8 }
 };
 const _impactWp = new THREE.Vector3();
+const _inkOutlineCache = {};
+function getInkOutlineMat(thickness) {
+  const key = thickness.toFixed(4);
+  if (_inkOutlineCache[key]) return _inkOutlineCache[key];
+  const m = new THREE.MeshBasicMaterial({ color: 0x060608, side: THREE.BackSide });
+  m.userData._sharedOutlineMat = true;
+  m.customProgramCacheKey = function () { return 'hades-ink-outline-' + key; };
+  m.onBeforeCompile = function (shader) {
+    shader.vertexShader = shader.vertexShader.replace(
+      '#include <begin_vertex>',
+      '#include <begin_vertex>\ntransformed += normalize(objectNormal) * ' + key + ';'
+    );
+  };
+  _inkOutlineCache[key] = m;
+  return m;
+}
 const sources = {};
 const boundsCache = {};
 const pendings = {};
@@ -150,44 +165,68 @@ export function makeBossGlb(height, species) {
           if (!mat.envMap && r) applyForgedMetal(mat, r, { roughness: bossSp ? 0.22 : 0.30, envMapIntensity: 0.94 });
         };
       } else {
-        /* v1.63+v1.72 엠버 앤 블레이드식 무선 + 2단 하드 툰 색면 + fwidth AA + 절제된 백은 그래픽 림 */
+        /* v1.81 하데스/수묵 코믹 잉크 셀 셰이더: 순수 언릿 3단 칼명암 + 사선 먹선 해칭 + 림 + Inverted-Hull 먹선 외곽선 */
         const bossSp = isBossSp(sp);
-        mat.roughness = 0.95;
-        mat.metalness = 0.0;
-        mat.normalMap = null;
-        mat.roughnessMap = null;
-        mat.metalnessMap = null;
-        mat.envMap = null;
-        mat.envMapIntensity = 0.0;
-        if (mat.color) mat.color.setHex(0xffffff);
-        if (mat.map) {
-          mat.map.anisotropy = 4;
-          mat.map.minFilter = THREE.LinearMipmapLinearFilter;
-          mat.map.magFilter = THREE.LinearFilter;
-          mat.emissiveMap = mat.map;
-          mat.emissive = new THREE.Color(0xfff6ea);
-          mat.emissiveIntensity = 0.03;
+        const texMap = srcMat && srcMat.map ? srcMat.map : null;
+        if (texMap) {
+          texMap.anisotropy = 4;
+          texMap.minFilter = THREE.LinearMipmapLinearFilter;
+          texMap.magFilter = THREE.LinearFilter;
         }
-        const rimPow = bossSp ? 0.22 : 0.12;
-        mat.customProgramCacheKey = function () { return bossSp ? 'boss-ember-hardrim-v176aa' : 'mob-ember-hardrim-v176aa'; };
-        mat.onBeforeCompile = function (shader) {
-          shader.fragmentShader = shader.fragmentShader.replace(
-            "#include <dithering_fragment>",
-            "vec3 vn = normalize(vNormal);\n" +
-            "vec3 vv = normalize(vViewPosition);\n" +
-            "float ndl = dot(vn, normalize(vec3(-0.55, 0.65, 0.52)));\n" +
-            "float ndlFw = max(0.09, fwidth(ndl) * 1.45);\n" +
-            "float toonBand = smoothstep(-ndlFw, ndlFw, ndl);\n" +
-            "gl_FragColor.rgb *= mix(vec3(0.74, 0.77, 0.85), vec3(0.98, 0.97, 0.95), toonBand);\n" +
-            "float fres = 1.0 - clamp(abs(dot(vn, vv)), 0.0, 1.0);\n" +
-            "float rimSide = smoothstep(-0.08, 0.38, dot(vn, normalize(vec3(-0.82, 0.45, 0.25))));\n" +
-            "float fresFw = max(0.07, fwidth(fres) * 1.80);\n" +
-            "float hardRim = smoothstep(0.64 - fresFw, 0.64 + fresFw, fres) * rimSide;\n" +
-            "gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(0.86, 0.91, 0.96), hardRim * " + rimPow.toFixed(2) + ");\n" +
-            "gl_FragColor.rgb = min(gl_FragColor.rgb, vec3(0.95));\n" +
-            "#include <dithering_fragment>"
-          );
+        if (mat && mat.dispose) mat.dispose();
+        const inkMat = new THREE.MeshBasicMaterial({ map: texMap, color: 0xffffff });
+        const rimPow = bossSp ? 0.72 : 0.58;
+        inkMat.customProgramCacheKey = function () { return bossSp ? 'boss-hades-ink-v181' : 'mob-hades-ink-v181'; };
+        inkMat.onBeforeCompile = function (shader) {
+          shader.vertexShader = shader.vertexShader
+            .replace('#include <common>', '#include <common>\nvarying vec3 vCelNormal;\nvarying vec3 vCelViewPos;')
+            .replace('#include <project_vertex>',
+              '#include <project_vertex>\n' +
+              'vec3 _cn = objectNormal;\n' +
+              '#ifdef USE_SKINNING\n' +
+              '  mat4 _cbm = mat4(0.0);\n' +
+              '  _cbm += skinWeight.x * getBoneMatrix(skinIndex.x);\n' +
+              '  _cbm += skinWeight.y * getBoneMatrix(skinIndex.y);\n' +
+              '  _cbm += skinWeight.z * getBoneMatrix(skinIndex.z);\n' +
+              '  _cbm += skinWeight.w * getBoneMatrix(skinIndex.w);\n' +
+              '  _cn = mat3(_cbm) * _cn;\n' +
+              '#endif\n' +
+              'vCelNormal = normalize(normalMatrix * _cn);\n' +
+              'vCelViewPos = -mvPosition.xyz;'
+            );
+          shader.fragmentShader = shader.fragmentShader
+            .replace('#include <common>', '#include <common>\nvarying vec3 vCelNormal;\nvarying vec3 vCelViewPos;')
+            .replace('#include <dithering_fragment>',
+              'vec3 _n = normalize(vCelNormal);\n' +
+              'vec3 _v = normalize(vCelViewPos);\n' +
+              'vec3 _l = normalize(vec3(0.58, 0.70, 0.48));\n' +
+              'float _ndl = dot(_n, _l);\n' +
+              'vec3 _col = gl_FragColor.rgb;\n' +
+              'float _rawLum = dot(_col, vec3(0.299, 0.587, 0.114));\n' +
+              '_col = pow(max(_col, vec3(0.001)), vec3(0.86));\n' +
+              'float _lum = dot(_col, vec3(0.299, 0.587, 0.114));\n' +
+              'float _satMask = smoothstep(0.08, 0.20, _rawLum);\n' +
+              '_col = mix(vec3(_lum), _col, mix(1.0, 1.38, _satMask));\n' +
+              'float _qMask = smoothstep(0.12, 0.24, _rawLum);\n' +
+              '_col = mix(_col, floor(_col * 7.0 + 0.5) / 7.0, _qMask * 0.72);\n' +
+              'float _fw = max(0.016, fwidth(_ndl));\n' +
+              'float _deepInk = smoothstep(-0.18 - _fw, -0.18 + _fw, _ndl);\n' +
+              'float _midLit  = smoothstep(0.18 - _fw, 0.18 + _fw, _ndl);\n' +
+              'float _hiLit   = smoothstep(0.72 - _fw, 0.72 + _fw, _ndl);\n' +
+              'float _hatch = smoothstep(0.25, 0.45, fract((gl_FragCoord.x + gl_FragCoord.y) * 0.52));\n' +
+              'vec3 _midShadow = mix(vec3(0.11, 0.12, 0.17), _col * vec3(0.54, 0.56, 0.70), _hatch);\n' +
+              'vec3 _out = mix(vec3(0.05, 0.055, 0.08), _midShadow, _deepInk);\n' +
+              '_out = mix(_out, _col * vec3(1.06, 1.04, 0.98), _midLit);\n' +
+              '_out = mix(_out, _col * vec3(1.22, 1.19, 1.10), _hiLit * 0.65);\n' +
+              'float _nv = clamp(abs(dot(_n, _v)), 0.0, 1.0);\n' +
+              'float _rim = smoothstep(0.66, 0.70, 1.0 - _nv) * smoothstep(-0.10, 0.30, dot(_n, normalize(vec3(-0.80, 0.50, 0.30))));\n' +
+              '_out = mix(_out, vec3(1.0, 0.95, 0.86), _rim * ' + rimPow.toFixed(2) + ');\n' +
+              'gl_FragColor.rgb = min(_out, vec3(0.98));\n' +
+              '#include <dithering_fragment>'
+            );
         };
+        mat = inkMat;
+        o.userData._needsInkOutline = true;
       }
       o.material = mat;
       if (!body) body = o;
@@ -195,6 +234,29 @@ export function makeBossGlb(height, species) {
       bodyMeshes.push(o);
     }
   });
+  /* v1.81 실제 Inverted-Hull 먹선 외곽선 메시 추가 (원본 지오메트리·스켈레톤 공유, 메모리 추가 0) */
+  const _hullThick = isBossSp(sp) ? 0.021 : 0.018;
+  const _hullMat = getInkOutlineMat(_hullThick);
+  for (let i = 0; i < bodyMeshes.length; i++) {
+    const bm = bodyMeshes[i];
+    if (!bm || !bm.userData || !bm.userData._needsInkOutline || !bm.parent) continue;
+    let hull;
+    if (bm.isSkinnedMesh) {
+      hull = new THREE.SkinnedMesh(bm.geometry, _hullMat);
+      hull.bind(bm.skeleton, bm.bindMatrix);
+    } else {
+      hull = new THREE.Mesh(bm.geometry, _hullMat);
+    }
+    hull.name = bm.name + '_InkOutline';
+    hull.frustumCulled = false;
+    hull.userData.sharedGeom = true;
+    hull.userData._sharedOutlineMat = true;
+    hull.position.copy(bm.position);
+    hull.quaternion.copy(bm.quaternion);
+    hull.scale.copy(bm.scale);
+    bm.parent.add(hull);
+    outlineMeshes.push(hull);
+  }
   let bInfo = boundsCache[sp];
   if (!bInfo) {
     scene.updateMatrixWorld(true);
@@ -223,62 +285,34 @@ export function makeBossGlb(height, species) {
   const rig = externalAnim ? null : makeRig(scene);
   if (rig) rig.species = sp;
 
-  /* v1.81 2D 일러스트 고증 9종 몬스터 전용 3D 무기·영물 장착 (휴지 포즈 기준 정확 정렬) */
-  const weaponFx = attachMonsterWeapon3D(scene, sp, targetH, k);
-
   const mixer = new THREE.AnimationMixer(scene);
   const actions = mapGlbActions(mixer, gltf.animations, sp);
-  /* Randomize initial idle/walk phase per instance so monster packs breathe & walk organically, never in robotic unison */
-  const phaseSeed = Math.random();
-  if (actions.idle) {
-    actions.idle.play();
-    const idur = actions.idle.getClip().duration || 1.6;
-    actions.idle.time = phaseSeed * idur;
-  }
+  if (actions.idle) actions.idle.play();
   let handR = null;
   scene.traverse(function (o) { if (o.isBone && o.name === 'hand_r') handR = o; });
   const isBossModel = isBossSp(sp);
-  const isUnarmedBoss = (sp === 'boss_act2' || sp === 'gumiho_boss');
+  const isUnarmedBoss = (sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4');
   const wfx = BOSS_WEAPON_FX[sp] || BOSS_WEAPON_FX.boss;
-  let trail = null;
-  if (weaponFx && weaponFx.primaryTrail) {
-    const pt = weaponFx.primaryTrail;
-    trail = createWeaponTrail(holder, pt.anchor, {
-      baseLocal: pt.baseLocal,
-      tipLocal: pt.tipLocal,
-      color: pt.col,
-      tailColor: pt.tail,
-      glintColor: pt.glint,
-      glintScale: pt.scale
-    });
-  } else if (handR && (isBossModel || sp === 'heavy')) {
-    trail = createWeaponTrail(holder, handR, {
-      baseLocal: new THREE.Vector3(0, isUnarmedBoss ? 0.02 : (isBossModel ? 0.55 : 0.30), 0),
-      tipLocal: new THREE.Vector3(0, isUnarmedBoss ? 0.28 : (isBossModel ? 1.65 : 1.20), 0),
-      color: isBossModel ? wfx.col : 0xe8d5b8,
-      tailColor: isBossModel ? wfx.tail : 0x7c5840,
-      glintColor: isBossModel ? wfx.glint : 0xffc864,
-      glintScale: isUnarmedBoss ? 0.72 : (isBossModel ? 1.45 : 1.05)
-    });
-  }
-
-  const allWeaponMeshes = bodyMeshes.filter(function (m) { return /weapon/i.test(m.name); });
-  if (weaponFx && weaponFx.weaponMeshes) {
-    for (let wi = 0; wi < weaponFx.weaponMeshes.length; wi++) allWeaponMeshes.push(weaponFx.weaponMeshes[wi]);
-  }
+  const trail = (handR && (isBossModel || sp === 'heavy')) ? createWeaponTrail(holder, handR, {
+    baseLocal: new THREE.Vector3(0, isUnarmedBoss ? 0.02 : (isBossModel ? 0.55 : 0.30), 0),
+    tipLocal: new THREE.Vector3(0, isUnarmedBoss ? 0.28 : (isBossModel ? 1.65 : 1.20), 0),
+    color: isBossModel ? wfx.col : 0xe8d5b8,
+    tailColor: isBossModel ? wfx.tail : 0x7c5840,
+    glintColor: isBossModel ? wfx.glint : 0xffc864,
+    glintScale: isUnarmedBoss ? 0.72 : (isBossModel ? 1.45 : 1.05)
+  }) : null;
 
   return {
     species: sp,
     root: holder,
     trail: trail,
-    weaponFx: weaponFx,
     impactFired: false,
     atkElapsed: 0,
     phase: 1,
     phaseT: 0,
-    weaponMeshes: allWeaponMeshes, body: body, outline: outline, bodyMeshes: bodyMeshes, outlineMeshes: outlineMeshes,
+    weaponMeshes: bodyMeshes.filter(function (m) { return /weapon/i.test(m.name); }), body: body, outline: outline, bodyMeshes: bodyMeshes, outlineMeshes: outlineMeshes,
     mixer: mixer, actions: actions, rig: rig, cur: 'idle', lockT: 0, prevBurst: null, atkAlt: 0,
-    mats: bodyMeshes.concat(outlineMeshes).concat(weaponFx ? weaponFx.weaponMeshes : []).map(function (m) { return m.material; }),
+    mats: bodyMeshes.concat(outlineMeshes).map(function (m) { return m.material; }),
     tris: Math.round(tris), ktx2: false,
     bbox: [+bInfo.sizeX.toFixed(3), +bInfo.sizeY.toFixed(3), +bInfo.sizeZ.toFixed(3)], fitScale: +k.toFixed(3)
   };
@@ -313,18 +347,13 @@ function playOnly(G, name, fade, from, timeScale) {
   to.fadeIn(fade);
   to.play();
   if (from) to.time = from;
-  else if (name === 'walk' && G.cur === 'idle') {
-    const wdur = to.getClip().duration || 0.9;
-    to.time = (G._walkSeed != null ? G._walkSeed : (G._walkSeed = Math.random())) * wdur;
-  }
   G.cur = name;
   return true;
 }
 
 function once(G, name, from, timeScale, maxLock) {
   const ts = timeScale || 1;
-  const fade = name === 'hit' ? 0.08 : (name === 'attack' || name === 'slam' ? 0.11 : 0.18);
-  if (!playOnly(G, name, fade, from, ts)) return;
+  if (!playOnly(G, name, name === 'hit' || name === 'attack' ? 0.05 : 0.14, from, ts)) return;
   const dur = (G.actions[name].getClip().duration - (from || 0)) / ts - 0.08;
   G.lockT = Math.max(0.14, maxLock != null ? Math.min(maxLock, dur) : dur);
 }
@@ -365,7 +394,7 @@ export function tickBossGlb(G, H, dt) {
   G.lockT = (G.lockT || 0) - dt;
   if (G.cur !== 'death' && G.lockT <= 0) {
     const want = (H.base === 'walk' || H.burst === 'charge') ? 'walk' : 'idle';
-    if (want !== G.cur) playOnly(G, want, (G.cur === 'attack' || G.cur === 'slam' || G.cur === 'hit') ? 0.22 : 0.28);
+    if (want !== G.cur) playOnly(G, want, 0.16);
   }
   if (G.actions.walk && H.actions.walk) G.actions.walk.setEffectiveTimeScale(H.actions.walk.getEffectiveTimeScale());
   G.mixer.update(dt);
@@ -393,7 +422,6 @@ export function tickBossGlb(G, H, dt) {
       }
     });
   }
-  if (G.weaponFx) tickWeaponFx3D(G.weaponFx, dt);
   if (G.trail) {
     const swinging = G.lockT > 0.04 && (G.cur === 'attack' || G.cur === 'slam');
     updateWeaponTrail(G.trail, dt, swinging);
@@ -462,23 +490,12 @@ export function disposeMonsterGlb(G) {
     G.mixer.stopAllAction();
     G.mixer.uncacheRoot(G.root);
   }
-  if (G.weaponMeshes) {
-    for (let i = 0; i < G.weaponMeshes.length; i++) {
-      const m = G.weaponMeshes[i];
-      if (m) {
-        m.onBeforeRender = null;
-        if (m.material && m.material.dispose) m.material.dispose();
-      }
-    }
-    G.weaponMeshes.length = 0;
-  }
-  G.weaponFx = null;
   if (G.bodyMeshes) {
     for (let i = 0; i < G.bodyMeshes.length; i++) {
       const m = G.bodyMeshes[i];
       if (m) {
         m.onBeforeRender = null;
-        if (m.material && m.material.dispose) m.material.dispose();
+        if (m.material && !(m.material.userData && m.material.userData._sharedOutlineMat) && m.material.dispose) m.material.dispose();
       }
     }
     G.bodyMeshes.length = 0;

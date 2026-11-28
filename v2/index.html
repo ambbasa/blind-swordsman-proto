@@ -6,14 +6,14 @@
   <meta name="theme-color" content="#0b0a0d">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <link rel="manifest" href="manifest.webmanifest?v=v182">
+  <link rel="manifest" href="manifest.webmanifest?v=v181">
   <meta name="format-detection" content="telephone=no">
   <title>심안</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='4' y='4' width='56' height='56' rx='8' fill='%23a82018' stroke='%23f0d5a4' stroke-width='3'/%3E%3Cpath d='M36 16C26 18 20 27 22 37C24 45 31 50 40 49C32 47 28 41 28 33C28 25 32 19 36 16Z' fill='%23fff3dc'/%3E%3Cpath d='M18 46L44 17L47 19L23 48L18 46Z' fill='%23fff3dc'/%3E%3C/svg%3E">
 <link rel="apple-touch-icon" href="assets/icon-192.png">
   <meta name="description" content="심안 — 눈을 감으면 보이는 검. 조선 수묵 다크 판타지 제스처 액션. 먹안개 안쪽 혼령의 종 모양을 그려 일섬으로 돌진하세요.">
   <meta name="apple-mobile-web-app-title" content="심안">
-  <link rel="stylesheet" href="css/siman.css?v=v182">
+  <link rel="stylesheet" href="css/siman.css?v=v181">
 </head>
 <body>
   <div id="app">
@@ -108,7 +108,7 @@
             <span class="mote m1"></span><span class="mote m2"></span><span class="mote m3"></span>
             <span class="mote m4"></span><span class="mote m5"></span><span class="mote m6"></span>
           </div>
-          <img id="lobbyHeroImg" class="lobby-hero-img" src="assets/hero/lobby_hero_latest.webp?v=v182" alt="심안 검객" decoding="async" draggable="false">
+          <img id="lobbyHeroImg" class="lobby-hero-img" src="assets/hero/lobby_hero_latest.webp?v=v181" alt="심안 검객" decoding="async" draggable="false">
           <canvas id="lobby3dCanvas" style="position:absolute;inset:0;width:100%;height:100%;z-index:4;pointer-events:auto;touch-action:none" hidden></canvas>
           <button type="button" id="btnLobby3d" hidden class="lobby-3d-btn">3D 보기</button>
           <div class="lobby-hero-mist"></div>
@@ -361,7 +361,7 @@
   <script src="js/gestures.js"></script>
   <script type="importmap">{"imports":{"three":"./vendor/three.module.min.js"}}</script>
   <script>if(location.search.includes('debug=1')){const b=document.createElement('pre');b.id='dbgErr';b.style.cssText='position:fixed;top:4px;left:4px;z-index:99999;max-width:95vw;max-height:45vh;overflow:auto;background:rgba(120,0,0,.92);color:#fff;font:11px/1.35 monospace;padding:6px;white-space:pre-wrap;pointer-events:auto';const log=m=>{if(!b.parentNode)document.body.appendChild(b);b.textContent+=m+'\n';};addEventListener('error',e=>log('ERR: '+e.message+' @ '+(e.filename||'')+':'+e.lineno+':'+e.colno));addEventListener('unhandledrejection',e=>log('REJ: '+(e.reason&&e.reason.stack||e.reason)));}</script>
-  <script>if('serviceWorker' in navigator){addEventListener('load',function(){navigator.serviceWorker.register('./sw.js?v=v182').catch(function(){});});}</script>
-  <script type="module" src="js/game.js?v=v182"></script>
+  <script>if('serviceWorker' in navigator){addEventListener('load',function(){navigator.serviceWorker.register('./sw.js?v=v181').catch(function(){});});}</script>
+  <script type="module" src="js/game.js?v=v181"></script>
 </body>
 </html>

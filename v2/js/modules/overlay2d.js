@@ -1,4 +1,4 @@
-import { createDashController } from './dashController.js?v=v182';
+import { createDashController } from './dashController.js?v=v181';
 /* v2/js/modules/overlay2d.js — 심안: 묵검 v1.26 2D 오버레이·혼령 마크·지형 표시 렌더러 */
 
 export function createOverlay2d(rt) {

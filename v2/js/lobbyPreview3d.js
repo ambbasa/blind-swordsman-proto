@@ -1,8 +1,7 @@
 /* v2/js/lobbyPreview3d.js — v0.85 로비·치장 화면 실시간 3D 주인공 미리보기 (M2M_Idle + 터치 회전 + 도포/검 강화 반영) */
 import * as THREE from 'three';
-import { preloadHeroGlb, makeHeroGlb, applyHeroGlbCloak, applyHeroGlbSwordTrail } from './glbhero.js?v=v182';
-import { preloadMonsterGlb, makeBossGlb } from './glbboss.js?v=v182';
-import { tickWeaponFx3D } from './weapons3d.js?v=v182';
+import { preloadHeroGlb, makeHeroGlb, applyHeroGlbCloak, applyHeroGlbSwordTrail } from './glbhero.js?v=v181';
+import { preloadMonsterGlb, makeBossGlb } from './glbboss.js?v=v181';
 
 let renderer = null;
 let scene = null;
@@ -213,7 +212,7 @@ export function startCodex3d(canvas, species) {
         if (o.isMesh) {
           if (o.geometry && !(o.userData && o.userData.sharedGeom)) o.geometry.dispose();
           const ms = Array.isArray(o.material) ? o.material : [o.material];
-          ms.forEach(function (m) { if (m && m.dispose) m.dispose(); });
+          ms.forEach(function (m) { if (m && !(m.userData && m.userData._sharedOutlineMat) && m.dispose) m.dispose(); });
         }
       });
       cRoot = null; cModel = null;
@@ -235,7 +234,6 @@ export function startCodex3d(canvas, species) {
         if (!cDrag) cYaw += dt * 0.42;
         if (cRoot) cRoot.rotation.y = cYaw;
         if (cModel && cModel.mixer) cModel.mixer.update(dt);
-        if (cModel && cModel.weaponFx) tickWeaponFx3D(cModel.weaponFx, dt);
         cRenderer.render(cScene, cCamera);
         cRaf = requestAnimationFrame(loopC);
       };

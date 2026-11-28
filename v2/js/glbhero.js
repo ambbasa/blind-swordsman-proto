@@ -1,17 +1,16 @@
 /* v2/js/glbhero.js — v0.83 시안 B(하데스풍 주홍 먹선 검객) 3D GLB 로더·3연타 검술 콤보·회피·피격 상태 머신 */
 import * as THREE from 'three';
 import { applyForgedMetal } from './modules/metalStudioEnv.js';
-import { makeRig, tickPose } from './glbpose.js?v=v182';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v182';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v182';
-import { attachHeroGreatDao3D } from './weapons3d.js?v=v182';
+import { makeRig, tickPose } from './glbpose.js?v=v181';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v181';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v181';
 
-const URL_GLB = new URL('../assets/models/hero.glb?v=v182', import.meta.url).href;
+const URL_GLB = new URL('../assets/models/hero.glb?v=v181', import.meta.url).href;
 let pending = null;
 let source = null;
 let cloneSkinned = null;
 let enabled = true;
-let showOutline = false;
+let showOutline = true;
 try {
   const q = new URLSearchParams(location.search);
   if (q.get('hero') === 'proc' || q.get('hero') === '0') enabled = false;
@@ -36,7 +35,7 @@ export function preloadHeroGlb() {
       return gltf;
     });
   }).catch(function (e) {
-    console.warn('[심안] hero.glb?v=v182', e);
+    console.warn('[심안] hero.glb?v=v181', e);
     pending = null;
     return null;
   });
@@ -119,7 +118,7 @@ export function makeHeroGlb(height) {
             phys.emissive = new THREE.Color(0xffffff);
             phys.emissiveIntensity = 0.14;
           }
-          phys.customProgramCacheKey = function () { return 'hero-ember-hardrim-v176aa'; };
+          phys.customProgramCacheKey = function () { return 'hero-hades-ink-v181'; };
           mat.dispose();
           targetMat = phys;
         } else {
@@ -137,7 +136,7 @@ export function makeHeroGlb(height) {
             targetMat.emissive = new THREE.Color(0xfff6ea);
             targetMat.emissiveIntensity = 0.14;
           }
-          targetMat.customProgramCacheKey = function () { return 'hero-head-ember-hardrim-v176aa'; };
+          targetMat.customProgramCacheKey = function () { return 'hero-head-hades-ink-v181'; };
         }
         mat = targetMat;
         /* v1.63 엠버 앤 블레이드식 무선 + 2단 하드 툰 색면 + 순백 그래픽 하드 림라이트 */
@@ -168,19 +167,22 @@ export function makeHeroGlb(height) {
             "#include <dithering_fragment>",
             "vec3 vn = normalize(vNormal);\n" +
             "vec3 vv = normalize(vViewPosition);\n" +
-            "vec3 keyDir = normalize(vec3(-0.55, 0.65, 0.52));\n" +
+            "vec3 keyDir = normalize(vec3(0.55, 0.70, 0.50));\n" +
             "float ndl = dot(vn, keyDir);\n" +
-            "float ndlFw = max(0.09, fwidth(ndl) * 1.45);\n" +
-            "float toonBand = smoothstep(-ndlFw, ndlFw, ndl);\n" +
-            "vec3 coolShadow = vec3(0.76, 0.80, 0.90);\n" +
-            "vec3 litTint = vec3(1.04, 1.02, 0.99);\n" +
-            "gl_FragColor.rgb *= mix(coolShadow, litTint, toonBand);\n" +
+            "float ndlFw = max(0.02, fwidth(ndl) * 1.2);\n" +
+            "float deepInk = smoothstep(-0.22 - ndlFw, -0.22 + ndlFw, ndl);\n" +
+            "float midLit  = smoothstep(0.14 - ndlFw, 0.14 + ndlFw, ndl);\n" +
+            "float hatch = smoothstep(0.25, 0.45, fract((gl_FragCoord.x + gl_FragCoord.y) * 0.52));\n" +
+            "vec3 midSh = mix(vec3(0.28, 0.30, 0.38), vec3(0.68, 0.71, 0.84), hatch);\n" +
+            "vec3 celShade = mix(vec3(0.32, 0.34, 0.44), midSh, deepInk);\n" +
+            "celShade = mix(celShade, vec3(1.12, 1.09, 1.04), midLit);\n" +
+            "gl_FragColor.rgb *= celShade;\n" +
             "float fres = 1.0 - clamp(abs(dot(vn, vv)), 0.0, 1.0);\n" +
-            "float rimSide = smoothstep(-0.10, 0.35, dot(vn, normalize(vec3(-0.82, 0.45, 0.25))));\n" +
-            "float fresFw = max(0.07, fwidth(fres) * 1.80);\n" +
+            "float rimSide = smoothstep(-0.10, 0.35, dot(vn, normalize(vec3(-0.80, 0.50, 0.30))));\n" +
+            "float fresFw = max(0.04, fwidth(fres) * 1.50);\n" +
             "float hardRim = smoothstep(0.62 - fresFw, 0.62 + fresFw, fres) * rimSide;\n" +
             "gl_FragColor.rgb = mix(gl_FragColor.rgb, uToonRimCol, hardRim * uToonRimPow);\n" +
-            "gl_FragColor.rgb = min(gl_FragColor.rgb, vec3(0.96));\n" +
+            "gl_FragColor.rgb = min(gl_FragColor.rgb, vec3(0.98));\n" +
             "#include <dithering_fragment>"
           );
         };
@@ -213,9 +215,6 @@ export function makeHeroGlb(height) {
   const rig = externalAnim ? null : makeRig(scene);
   if (rig) rig.species = 'hero';
 
-  /* v1.81 2D 일러스트 고증 비취 대도 장착 (기존 얇은 검 메시 숨김 + 정확한 칼날 축 궤적 연동) */
-  const heroDao = attachHeroGreatDao3D(scene, swordMeshes, allMeshes);
-
   const mixer = new THREE.AnimationMixer(scene);
   const actions = mapGlbActions(mixer, source.animations, 'hero');
   if (actions.idle) {
@@ -225,13 +224,12 @@ export function makeHeroGlb(height) {
 
   let handR = null;
   scene.traverse(function (o) { if (o.isBone && o.name === 'hand_r') handR = o; });
-  const trailAnchor = heroDao ? heroDao.group : handR;
-  const trail = trailAnchor ? createWeaponTrail(fit, trailAnchor, {
-    baseLocal: heroDao ? heroDao.baseLocal : new THREE.Vector3(0, 0.12, 0.0),
-    tipLocal: heroDao ? heroDao.tipLocal : new THREE.Vector3(0, 1.05, 0.0),
+  const trail = handR ? createWeaponTrail(fit, handR, {
+    baseLocal: new THREE.Vector3(0, 0.12, 0.0),
+    tipLocal: new THREE.Vector3(0, 1.05, 0.0),
     color: 0xf4f8ff,
     tailColor: 0x5be8c4,
-    glintScale: 1.05
+    glintScale: 0.95
   }) : null;
 
   return {
