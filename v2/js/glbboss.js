@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { applyForgedMetal, getMetalStudioEnv } from './modules/metalStudioEnv.js';
-import { makeRig, tickPose } from './glbpose.js?v=v181';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v181';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v181';
+import { makeRig, tickPose } from './glbpose.js?v=v182';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v182';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v182';
 
 const EASTERN_ALIAS = {
   boss:      'dokkaebi_boss',
@@ -19,18 +19,18 @@ const EASTERN_KEYS = [
   'gumiho_boss', 'jeoseung_boss', 'samjoko', 'imugi_king_boss', 'jangsanbeom'
 ];
 const MODEL_URLS = {
-  boss:      new URL('../assets/models/boss.glb?v=v181', import.meta.url).href,
-  boss_act2: new URL('../assets/models/boss_act2.glb?v=v181', import.meta.url).href,
-  boss_act3: new URL('../assets/models/boss_act3.glb?v=v181', import.meta.url).href,
-  boss_act4: new URL('../assets/models/boss_act4.glb?v=v181', import.meta.url).href,
-  minion:    new URL('../assets/models/minion.glb?v=v181', import.meta.url).href,
-  heavy:     new URL('../assets/models/heavy.glb?v=v181', import.meta.url).href,
-  stone:     new URL('../assets/models/stone.glb?v=v181', import.meta.url).href
+  boss:      new URL('../assets/models/boss.glb?v=v182', import.meta.url).href,
+  boss_act2: new URL('../assets/models/boss_act2.glb?v=v182', import.meta.url).href,
+  boss_act3: new URL('../assets/models/boss_act3.glb?v=v182', import.meta.url).href,
+  boss_act4: new URL('../assets/models/boss_act4.glb?v=v182', import.meta.url).href,
+  minion:    new URL('../assets/models/minion.glb?v=v182', import.meta.url).href,
+  heavy:     new URL('../assets/models/heavy.glb?v=v182', import.meta.url).href,
+  stone:     new URL('../assets/models/stone.glb?v=v182', import.meta.url).href
 };
 const EASTERN_URLS = {};
 for (let i = 0; i < EASTERN_KEYS.length; i++) {
   const k = EASTERN_KEYS[i];
-  EASTERN_URLS[k] = new URL('../assets/models/monsters/' + k + '.glb?v=v181', import.meta.url).href;
+  EASTERN_URLS[k] = new URL('../assets/models/monsters/' + k + '.glb?v=v182', import.meta.url).href;
 }
 function isBossSp(sp) {
   return sp === 'boss' || sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4' || (typeof sp === 'string' && sp.endsWith('_boss'));
@@ -149,7 +149,7 @@ export function makeBossGlb(height, species) {
       outlineMeshes.push(o);
     } else {
       const srcMat = Array.isArray(o.material) ? o.material[0] : o.material;
-      const mat = srcMat ? srcMat.clone() : new THREE.MeshStandardMaterial({ color: 0xffffff });
+      let mat = srcMat ? srcMat.clone() : new THREE.MeshStandardMaterial({ color: 0xffffff });
       const isWeapon = /weapon/i.test(o.name);
       if (isWeapon) {
         /* v1.04 3d-metal-material: 1~4막 보스 전용 무기·중장 철퇴 진성 도체 강철 PBR + PMREM HDR 스튜디오 반사 */
