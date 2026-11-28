@@ -32,7 +32,8 @@ export const CODEX_ANIM_KO = {
   cast: '기공 시전',
   hit: '피격',
   stagger: '자세 붕괴',
-  slash: '일섬'
+  slash: '일섬',
+  death: '사망'
 };
 
 export function renderCodexView(opts) {

@@ -1,7 +1,7 @@
 /* v2/js/lobbyPreview3d.js — v0.85 로비·치장 화면 실시간 3D 주인공 미리보기 (M2M_Idle + 터치 회전 + 도포/검 강화 반영) */
 import * as THREE from 'three';
-import { preloadHeroGlb, makeHeroGlb, applyHeroGlbCloak, applyHeroGlbSwordTrail } from './glbhero.js?v=v178';
-import { preloadMonsterGlb, makeBossGlb } from './glbboss.js?v=v178';
+import { preloadHeroGlb, makeHeroGlb, applyHeroGlbCloak, applyHeroGlbSwordTrail } from './glbhero.js?v=v179';
+import { preloadMonsterGlb, makeBossGlb } from './glbboss.js?v=v179';
 
 let renderer = null;
 let scene = null;
@@ -117,16 +117,51 @@ export function stopCodex3d() {
   if (cRaf) { cancelAnimationFrame(cRaf); cRaf = 0; }
 }
 
-export function playCodexAnim3d() {
+export function playCodexAnim3d(forceKey) {
   if (!cModel || !cModel.actions) return '';
-  const keys = Object.keys(cModel.actions).filter(function (k) { return cModel.actions[k] && k !== 'death'; });
-  if (!keys.length) return '';
-  cAnimIdx = (cAnimIdx + 1) % keys.length;
-  const pick = keys[cAnimIdx];
-  keys.forEach(function (k) {
+  const order = ['idle', 'walk', 'attack', 'slam', 'cast', 'slash', 'hit', 'stagger', 'death'];
+  const seen = new Set();
+  const keys = [];
+  for (let i = 0; i < order.length; i++) {
+    const k = order[i];
     const a = cModel.actions[k];
-    if (k === pick) { a.reset(); a.setLoop(THREE.LoopRepeat, Infinity); a.fadeIn(0.18).play(); }
-    else a.fadeOut(0.18);
+    if (!a) continue;
+    const clip = a.getClip ? a.getClip() : a;
+    if (seen.has(clip)) continue;
+    seen.add(clip);
+    keys.push(k);
+  }
+  if (!keys.length) return '';
+  let pick = '';
+  if (forceKey && keys.indexOf(forceKey) >= 0) {
+    cAnimIdx = keys.indexOf(forceKey);
+    pick = forceKey;
+  } else {
+    cAnimIdx = (cAnimIdx + 1) % keys.length;
+    pick = keys[cAnimIdx];
+  }
+  const pickedAction = cModel.actions[pick];
+  const allSeen = new Set();
+  Object.keys(cModel.actions).forEach(function (k) {
+    const a = cModel.actions[k];
+    if (!a || allSeen.has(a)) return;
+    allSeen.add(a);
+    if (a === pickedAction) {
+      a.reset();
+      a.enabled = true;
+      a.setEffectiveTimeScale(1);
+      a.setEffectiveWeight(1);
+      if (pick === 'death') {
+        a.setLoop(THREE.LoopOnce, 1);
+        a.clampWhenFinished = true;
+      } else {
+        a.setLoop(THREE.LoopRepeat, Infinity);
+        a.clampWhenFinished = false;
+      }
+      a.fadeIn(0.16).play();
+    } else {
+      a.fadeOut(0.16);
+    }
   });
   return pick;
 }
