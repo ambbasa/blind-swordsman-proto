@@ -1,11 +1,12 @@
 /* v2/js/glbhero.js — v0.83 시안 B(하데스풍 주홍 먹선 검객) 3D GLB 로더·3연타 검술 콤보·회피·피격 상태 머신 */
 import * as THREE from 'three';
 import { applyForgedMetal } from './modules/metalStudioEnv.js';
-import { makeRig, tickPose } from './glbpose.js?v=v180';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v180';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v180';
+import { makeRig, tickPose } from './glbpose.js?v=v181';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v181';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail } from './weaponTrail.js?v=v181';
+import { attachHeroGreatDao3D } from './weapons3d.js?v=v181';
 
-const URL_GLB = new URL('../assets/models/hero.glb?v=v180', import.meta.url).href;
+const URL_GLB = new URL('../assets/models/hero.glb?v=v181', import.meta.url).href;
 let pending = null;
 let source = null;
 let cloneSkinned = null;
@@ -35,7 +36,7 @@ export function preloadHeroGlb() {
       return gltf;
     });
   }).catch(function (e) {
-    console.warn('[심안] hero.glb?v=v180', e);
+    console.warn('[심안] hero.glb?v=v181', e);
     pending = null;
     return null;
   });
@@ -212,6 +213,9 @@ export function makeHeroGlb(height) {
   const rig = externalAnim ? null : makeRig(scene);
   if (rig) rig.species = 'hero';
 
+  /* v1.81 2D 일러스트 고증 비취 대도 장착 (기존 얇은 검 메시 숨김 + 정확한 칼날 축 궤적 연동) */
+  const heroDao = attachHeroGreatDao3D(scene, swordMeshes, allMeshes);
+
   const mixer = new THREE.AnimationMixer(scene);
   const actions = mapGlbActions(mixer, source.animations, 'hero');
   if (actions.idle) {
@@ -221,12 +225,13 @@ export function makeHeroGlb(height) {
 
   let handR = null;
   scene.traverse(function (o) { if (o.isBone && o.name === 'hand_r') handR = o; });
-  const trail = handR ? createWeaponTrail(fit, handR, {
-    baseLocal: new THREE.Vector3(0, 0.12, 0.0),
-    tipLocal: new THREE.Vector3(0, 1.05, 0.0),
+  const trailAnchor = heroDao ? heroDao.group : handR;
+  const trail = trailAnchor ? createWeaponTrail(fit, trailAnchor, {
+    baseLocal: heroDao ? heroDao.baseLocal : new THREE.Vector3(0, 0.12, 0.0),
+    tipLocal: heroDao ? heroDao.tipLocal : new THREE.Vector3(0, 1.05, 0.0),
     color: 0xf4f8ff,
     tailColor: 0x5be8c4,
-    glintScale: 0.95
+    glintScale: 1.05
   }) : null;
 
   return {

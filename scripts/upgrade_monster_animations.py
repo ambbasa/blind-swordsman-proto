@@ -339,78 +339,243 @@ def get_clips(key, archetype, H):
                    {"pelvis": (0, -0.025 * H, 0)}),
         ]
 
-        # 7-keyframe kinetic-chain Attack (Anticipation crouch -> Hip lead -> Whip slash -> Follow-through -> Recover)
-        attack = [
-            (0.00, {"pelvis": (2, 0, 0), "chest": (3, 0, 0), "head": (-2, 0, 0),
-                    "thigh_l": (-8, 0, 0), "shin_l": (16, 0, 0), "thigh_r": (-8, 0, 0), "shin_r": (16, 0, 0),
-                    "upperarm_l": (4, 0, -6), "forearm_l": (-26, 0, 0), "upperarm_r": (4, 0, 6), "forearm_r": (-26, 0, 0), **t_i1},
-                   {"pelvis": (0, -0.015 * H, 0)}),
-            # Anticipation: crouch + coil right shoulder BACK (+ry) + raise right arm overhead
-            (0.18, {"pelvis": (8, 16, -4), "spine": (-4, 10, 0), "chest": (-10, 22, -6), "head": (6, -26, 0),
-                    "thigh_l": (-22 * st, 0, 0), "shin_l": (44 * kn, 0, 0), "foot_l": (-18 * st, 0, 0),
-                    "thigh_r": (-18 * st, 0, 0), "shin_r": (40 * kn, 0, 0), "foot_r": (-16 * st, 0, 0),
-                    "upperarm_r": (-128, 18, 28), "forearm_r": (-64, 0, 0),
-                    "upperarm_l": (-34, -14, -18), "forearm_l": (-54, 0, 0), **t_a1},
-                   {"pelvis": (0, -0.085 * H * st, -0.04 * H)}),
-            # Peak tension hold (readable wind-up telegraph)
-            (0.30, {"pelvis": (10, 20, -5), "spine": (-5, 12, 0), "chest": (-12, 26, -7), "head": (8, -32, 0),
-                    "thigh_l": (-26 * st, 0, 0), "shin_l": (50 * kn, 0, 0), "foot_l": (-20 * st, 0, 0),
-                    "thigh_r": (-16 * st, 0, 0), "shin_r": (38 * kn, 0, 0), "foot_r": (-16 * st, 0, 0),
-                    "upperarm_r": (-142, 22, 32), "forearm_r": (-70, 0, 0),
-                    "upperarm_l": (-40, -18, -22), "forearm_l": (-60, 0, 0), **t_a1},
-                   {"pelvis": (0, -0.095 * H * st, -0.05 * H)}),
-            # Whip strike impact! Hips lunge forward, right shoulder whips FORWARD (-ry), arm extends forward-down
-            (0.46, {"pelvis": (14, -18, 5), "spine": (8, -12, 0), "chest": (22, -26, 6), "head": (-14, 24, 0),
-                    "thigh_l": (-38 * st, 0, 0), "shin_l": (46 * kn, 0, 0), "foot_l": (-8 * st, 0, 0),
-                    "thigh_r": (26 * st, 0, 0),  "shin_r": (20 * kn, 0, 0), "foot_r": (16 * st, 0, 0),
-                    "upperarm_r": (-74, -18, -16), "forearm_r": (-14, 0, 0),
-                    "upperarm_l": (36, 18, -22), "forearm_l": (-34, 0, 0), **t_a2},
-                   {"pelvis": (0, -0.075 * H * st, 0.11 * H)}),
-            # Follow-through settle (arm sweeps low-forward across)
-            (0.64, {"pelvis": (10, -22, 4), "spine": (6, -10, 0), "chest": (16, -22, 4), "head": (-10, 20, 0),
-                    "thigh_l": (-30 * st, 0, 0), "shin_l": (38 * kn, 0, 0), "foot_l": (-8 * st, 0, 0),
-                    "thigh_r": (20 * st, 0, 0),  "shin_r": (18 * kn, 0, 0), "foot_r": (12 * st, 0, 0),
-                    "upperarm_r": (-32, -24, -22), "forearm_r": (-32, 0, 0),
-                    "upperarm_l": (28, 12, -16), "forearm_l": (-32, 0, 0), **t_a2},
-                   {"pelvis": (0, -0.060 * H * st, 0.08 * H)}),
-            # Recovery back to stance
-            (0.92, {"pelvis": (2, 0, 0), "chest": (3, 0, 0), "head": (-2, 0, 0),
-                    "thigh_l": (-8, 0, 0), "shin_l": (16, 0, 0), "thigh_r": (-8, 0, 0), "shin_r": (16, 0, 0),
-                    "upperarm_l": (4, 0, -6), "forearm_l": (-26, 0, 0), "upperarm_r": (4, 0, 6), "forearm_r": (-26, 0, 0), **t_i1},
-                   {"pelvis": (0, -0.015 * H, 0)}),
-        ]
-
-        # Dedicated Ranged Cast animation for ranged humanoid/robe monsters (gwibul_bomber, gumiho_boss)
-        if key in RANGED_MONSTERS:
+        # 7-keyframe weapon-tailored Attack clips per species!
+        if key == "dokkaebi_boss":
+            # Massive Spiked Iron Kanabo (hand_r): towering overhead hoist -> thunderous ground-crater slam!
+            attack = [
+                (0.00, {"pelvis": (2, 0, 0), "chest": (3, 0, 0), "head": (-2, 0, 0),
+                        "thigh_l": (-8, 0, 0), "shin_l": (16, 0, 0), "thigh_r": (-8, 0, 0), "shin_r": (16, 0, 0),
+                        "upperarm_l": (4, 0, -8), "forearm_l": (-26, 0, 0), "upperarm_r": (4, 0, 8), "forearm_r": (-26, 0, 0)},
+                       {"pelvis": (0, -0.015 * H, 0)}),
+                # Deep crouch + hoist kanabo straight overhead
+                (0.22, {"pelvis": (8, 14, -4), "spine": (-8, 8, 0), "chest": (-16, 16, -6), "head": (10, -18, 0),
+                        "thigh_l": (-24, 0, 0), "shin_l": (48, 0, 0), "foot_l": (-18, 0, 0),
+                        "thigh_r": (-20, 0, 0), "shin_r": (42, 0, 0), "foot_r": (-16, 0, 0),
+                        "upperarm_r": (-152, 14, 22), "forearm_r": (-44, 0, 0),
+                        "upperarm_l": (-46, -16, -24), "forearm_l": (-56, 0, 0)},
+                       {"pelvis": (0, -0.095 * H, -0.05 * H)}),
+                # Peak overhead loom (unmistakable heavy boss windup)
+                (0.36, {"pelvis": (10, 18, -5), "spine": (-10, 10, 0), "chest": (-18, 20, -6), "head": (12, -22, 0),
+                        "thigh_l": (-26, 0, 0), "shin_l": (52, 0, 0), "foot_l": (-20, 0, 0),
+                        "thigh_r": (-18, 0, 0), "shin_r": (40, 0, 0), "foot_r": (-16, 0, 0),
+                        "upperarm_r": (-166, 16, 20), "forearm_r": (-48, 0, 0),
+                        "upperarm_l": (-52, -20, -28), "forearm_l": (-62, 0, 0)},
+                       {"pelvis": (0, -0.105 * H, -0.06 * H)}),
+                # DEVASTATING OVERHEAD KANABO SLAM!
+                (0.52, {"pelvis": (20, -16, 4), "spine": (14, -10, 0), "chest": (28, -18, 5), "head": (-16, 18, 0),
+                        "thigh_l": (-40, 0, 0), "shin_l": (52, 0, 0), "foot_l": (-10, 0, 0),
+                        "thigh_r": (24, 0, 0),  "shin_r": (22, 0, 0), "foot_r": (16, 0, 0),
+                        "upperarm_r": (-18, -16, -10), "forearm_r": (-12, 0, 0),
+                        "upperarm_l": (36, 18, -26), "forearm_l": (-34, 0, 0)},
+                       {"pelvis": (0, -0.115 * H, 0.12 * H)}),
+                # Crater impact hold (feels like heavy iron!)
+                (0.68, {"pelvis": (18, -18, 3), "spine": (12, -8, 0), "chest": (24, -16, 4), "head": (-12, 16, 0),
+                        "thigh_l": (-36, 0, 0), "shin_l": (48, 0, 0), "foot_l": (-10, 0, 0),
+                        "thigh_r": (20, 0, 0),  "shin_r": (20, 0, 0), "foot_r": (12, 0, 0),
+                        "upperarm_r": (-8, -18, -12), "forearm_r": (-16, 0, 0),
+                        "upperarm_l": (30, 12, -20), "forearm_l": (-32, 0, 0)},
+                       {"pelvis": (0, -0.105 * H, 0.10 * H)}),
+                (0.98, {"pelvis": (2, 0, 0), "chest": (3, 0, 0), "head": (-2, 0, 0),
+                        "thigh_l": (-8, 0, 0), "shin_l": (16, 0, 0), "thigh_r": (-8, 0, 0), "shin_r": (16, 0, 0),
+                        "upperarm_l": (4, 0, -8), "forearm_l": (-26, 0, 0), "upperarm_r": (4, 0, 8), "forearm_r": (-26, 0, 0)},
+                       {"pelvis": (0, -0.015 * H, 0)}),
+            ]
+        elif key == "baekgol_skeleton":
+            # Black Pole-Glaive (hand_r): draw wide back-right -> sweeping horizontal-diagonal polearm cleave!
+            attack = [
+                (0.00, {"pelvis": (2, 0, 0), "chest": (3, 0, 0), "head": (-2, 0, 0),
+                        "thigh_l": (-8, 0, 0), "shin_l": (16, 0, 0), "thigh_r": (-8, 0, 0), "shin_r": (16, 0, 0),
+                        "upperarm_l": (4, 0, -6), "forearm_l": (-26, 0, 0), "upperarm_r": (4, 0, 6), "forearm_r": (-26, 0, 0)},
+                       {"pelvis": (0, -0.015 * H, 0)}),
+                (0.20, {"pelvis": (10, 22, -4), "spine": (2, 16, 0), "chest": (-4, 28, -5), "head": (4, -34, 0),
+                        "thigh_l": (-22, 0, 0), "shin_l": (44, 0, 0), "thigh_r": (-16, 0, 0), "shin_r": (36, 0, 0),
+                        "upperarm_r": (-58, 40, 44), "forearm_r": (-44, 0, 0),
+                        "upperarm_l": (-36, -18, -16), "forearm_l": (-52, 0, 0)},
+                       {"pelvis": (0, -0.075 * H, -0.04 * H)}),
+                (0.32, {"pelvis": (12, 26, -5), "spine": (2, 18, 0), "chest": (-6, 32, -6), "head": (6, -38, 0),
+                        "thigh_l": (-24, 0, 0), "shin_l": (48, 0, 0), "thigh_r": (-16, 0, 0), "shin_r": (38, 0, 0),
+                        "upperarm_r": (-64, 46, 48), "forearm_r": (-48, 0, 0),
+                        "upperarm_l": (-40, -22, -18), "forearm_l": (-56, 0, 0)},
+                       {"pelvis": (0, -0.085 * H, -0.05 * H)}),
+                # Wide sweeping pole-glaive slash across front!
+                (0.48, {"pelvis": (14, -24, 5), "spine": (8, -16, 0), "chest": (18, -32, 6), "head": (-12, 32, 0),
+                        "thigh_l": (-38, 0, 0), "shin_l": (46, 0, 0), "thigh_r": (26, 0, 0), "shin_r": (20, 0, 0),
+                        "upperarm_r": (-76, -46, -30), "forearm_r": (-14, 0, 0),
+                        "upperarm_l": (32, 22, -24), "forearm_l": (-32, 0, 0)},
+                       {"pelvis": (0, -0.070 * H, 0.12 * H)}),
+                (0.66, {"pelvis": (10, -26, 4), "spine": (6, -12, 0), "chest": (12, -26, 4), "head": (-8, 26, 0),
+                        "thigh_l": (-30, 0, 0), "shin_l": (38, 0, 0), "thigh_r": (20, 0, 0), "shin_r": (18, 0, 0),
+                        "upperarm_r": (-44, -48, -34), "forearm_r": (-26, 0, 0),
+                        "upperarm_l": (26, 16, -18), "forearm_l": (-30, 0, 0)},
+                       {"pelvis": (0, -0.055 * H, 0.08 * H)}),
+                (0.94, {"pelvis": (2, 0, 0), "chest": (3, 0, 0), "head": (-2, 0, 0),
+                        "thigh_l": (-8, 0, 0), "shin_l": (16, 0, 0), "thigh_r": (-8, 0, 0), "shin_r": (16, 0, 0),
+                        "upperarm_l": (4, 0, -6), "forearm_l": (-26, 0, 0), "upperarm_r": (4, 0, 6), "forearm_r": (-26, 0, 0)},
+                       {"pelvis": (0, -0.015 * H, 0)}),
+            ]
+        elif key == "susal_ghost":
+            # Jade Spirit Spear (hand_r): coil spear low behind waist -> razor-sharp linear lunge thrust!
+            attack = [
+                (0.00, {"pelvis": (2, 0, 0), "chest": (3, 0, 0), "head": (-2, 0, 0),
+                        "thigh_l": (-8, 0, 0), "shin_l": (16, 0, 0), "thigh_r": (-8, 0, 0), "shin_r": (16, 0, 0),
+                        "upperarm_l": (4, 0, -6), "forearm_l": (-26, 0, 0), "upperarm_r": (4, 0, 6), "forearm_r": (-26, 0, 0)},
+                       {"pelvis": (0, -0.015 * H, 0)}),
+                # Coil right arm straight back along hip preparing spear thrust
+                (0.20, {"pelvis": (12, 24, -4), "spine": (4, 14, 0), "chest": (6, 26, -4), "head": (-6, -34, 0),
+                        "thigh_l": (-26, 0, 0), "shin_l": (52, 0, 0), "thigh_r": (14, 0, 0), "shin_r": (36, 0, 0),
+                        "upperarm_r": (34, 18, 16), "forearm_r": (-66, 0, 0),
+                        "upperarm_l": (-56, -12, -14), "forearm_l": (-32, 0, 0)},
+                       {"pelvis": (0, -0.095 * H, -0.07 * H)}),
+                (0.32, {"pelvis": (14, 28, -4), "spine": (4, 16, 0), "chest": (8, 30, -4), "head": (-8, -38, 0),
+                        "thigh_l": (-28, 0, 0), "shin_l": (56, 0, 0), "thigh_r": (16, 0, 0), "shin_r": (38, 0, 0),
+                        "upperarm_r": (42, 22, 18), "forearm_r": (-74, 0, 0),
+                        "upperarm_l": (-62, -14, -14), "forearm_l": (-28, 0, 0)},
+                       {"pelvis": (0, -0.105 * H, -0.08 * H)}),
+                # Explosive forward linear spear stab!
+                (0.46, {"pelvis": (16, -16, 2), "spine": (12, -10, 0), "chest": (20, -18, 2), "head": (-16, 22, 0),
+                        "thigh_l": (-44, 0, 0), "shin_l": (52, 0, 0), "thigh_r": (32, 0, 0), "shin_r": (16, 0, 0),
+                        "upperarm_r": (-88, -10, -4), "forearm_r": (-4, 0, 0),
+                        "upperarm_l": (36, 18, -22), "forearm_l": (-36, 0, 0)},
+                       {"pelvis": (0, -0.090 * H, 0.16 * H)}),
+                # Brief thrust extension hold
+                (0.60, {"pelvis": (14, -14, 2), "spine": (10, -8, 0), "chest": (16, -14, 2), "head": (-12, 18, 0),
+                        "thigh_l": (-38, 0, 0), "shin_l": (46, 0, 0), "thigh_r": (26, 0, 0), "shin_r": (16, 0, 0),
+                        "upperarm_r": (-82, -8, -4), "forearm_r": (-8, 0, 0),
+                        "upperarm_l": (28, 12, -18), "forearm_l": (-34, 0, 0)},
+                       {"pelvis": (0, -0.075 * H, 0.12 * H)}),
+                (0.90, {"pelvis": (2, 0, 0), "chest": (3, 0, 0), "head": (-2, 0, 0),
+                        "thigh_l": (-8, 0, 0), "shin_l": (16, 0, 0), "thigh_r": (-8, 0, 0), "shin_r": (16, 0, 0),
+                        "upperarm_l": (4, 0, -6), "forearm_l": (-26, 0, 0), "upperarm_r": (4, 0, 6), "forearm_r": (-26, 0, 0)},
+                       {"pelvis": (0, -0.015 * H, 0)}),
+            ]
+        elif key == "jeoseung_boss":
+            # Huge Crescent Grim-Reaper Scythe (hand_r): draw wide far back-right -> sweeping 180-deg harvest reap!
+            attack = [
+                (0.00, {"pelvis": (2, 0, 0), "chest": (3, 0, 0), "head": (-2, 0, 0),
+                        "thigh_l": (-8, 0, 0), "shin_l": (16, 0, 0), "thigh_r": (-8, 0, 0), "shin_r": (16, 0, 0),
+                        "upperarm_l": (4, 0, -6), "forearm_l": (-26, 0, 0), "upperarm_r": (4, 0, 6), "forearm_r": (-26, 0, 0)},
+                       {"pelvis": (0, -0.015 * H, 0)}),
+                (0.22, {"pelvis": (4, 24, -4), "spine": (-4, 16, 0), "chest": (-8, 30, -6), "head": (6, -34, 0),
+                        "thigh_l": (-16 * st, 0, 0), "shin_l": (32 * kn, 0, 0), "thigh_r": (-12 * st, 0, 0), "shin_r": (26 * kn, 0, 0),
+                        "upperarm_r": (-76, 48, 44), "forearm_r": (-34, 0, 0),
+                        "upperarm_l": (-34, -18, -22), "forearm_l": (-46, 0, 0)},
+                       {"pelvis": (0, -0.045 * H, -0.06 * H)}),
+                (0.38, {"pelvis": (6, 30, -5), "spine": (-6, 20, 0), "chest": (-10, 36, -6), "head": (8, -40, 0),
+                        "thigh_l": (-18 * st, 0, 0), "shin_l": (36 * kn, 0, 0), "thigh_r": (-12 * st, 0, 0), "shin_r": (28 * kn, 0, 0),
+                        "upperarm_r": (-84, 54, 48), "forearm_r": (-36, 0, 0),
+                        "upperarm_l": (-42, -22, -26), "forearm_l": (-52, 0, 0)},
+                       {"pelvis": (0, -0.055 * H, -0.07 * H)}),
+                # Sweeping Grim-Reaper 180-deg crescent scythe harvest cleave!
+                (0.54, {"pelvis": (14, -26, 5), "spine": (8, -18, 0), "chest": (18, -36, 6), "head": (-12, 34, 0),
+                        "thigh_l": (-28 * st, 0, 0), "shin_l": (36 * kn, 0, 0), "thigh_r": (18 * st, 0, 0), "shin_r": (16 * kn, 0, 0),
+                        "upperarm_r": (-64, -56, -34), "forearm_r": (-18, 0, 0),
+                        "upperarm_l": (30, 20, -24), "forearm_l": (-28, 0, 0)},
+                       {"pelvis": (0, -0.040 * H, 0.11 * H)}),
+                (0.74, {"pelvis": (10, -28, 4), "spine": (6, -14, 0), "chest": (12, -28, 4), "head": (-8, 28, 0),
+                        "upperarm_r": (-38, -54, -36), "forearm_r": (-26, 0, 0),
+                        "upperarm_l": (24, 14, -18), "forearm_l": (-28, 0, 0)},
+                       {"pelvis": (0, -0.030 * H, 0.06 * H)}),
+                (1.00, {"pelvis": (2, 0, 0), "chest": (3, 0, 0), "head": (-2, 0, 0),
+                        "thigh_l": (-8, 0, 0), "shin_l": (16, 0, 0), "thigh_r": (-8, 0, 0), "shin_r": (16, 0, 0),
+                        "upperarm_l": (4, 0, -6), "forearm_l": (-26, 0, 0), "upperarm_r": (4, 0, 6), "forearm_r": (-26, 0, 0)},
+                       {"pelvis": (0, -0.015 * H, 0)}),
+            ]
+        elif key == "gwibul_bomber":
+            # Left-Hand Glowing Fire Talisman (hand_l): lift talisman high in front -> snap forward fireball cast!
+            attack = [
+                (0.00, {"pelvis": (2, 0, 0), "chest": (3, 0, 0), "head": (-2, 0, 0),
+                        "thigh_l": (-8, 0, 0), "shin_l": (16, 0, 0), "thigh_r": (-8, 0, 0), "shin_r": (16, 0, 0),
+                        "upperarm_l": (4, 0, -6), "forearm_l": (-26, 0, 0), "upperarm_r": (4, 0, 6), "forearm_r": (-26, 0, 0)},
+                       {"pelvis": (0, -0.015 * H, 0)}),
+                (0.22, {"pelvis": (-4, -14, 2), "spine": (-6, -8, 0), "chest": (-10, -16, 3), "head": (6, 18, 0),
+                        "thigh_l": (-16, 0, 0), "shin_l": (32, 0, 0), "thigh_r": (-16, 0, 0), "shin_r": (32, 0, 0),
+                        "upperarm_l": (-102, -16, -20), "forearm_l": (-58, 0, 0),
+                        "upperarm_r": (16, 12, 16), "forearm_r": (-44, 0, 0)},
+                       {"pelvis": (0, -0.040 * H, -0.05 * H)}),
+                (0.38, {"pelvis": (-6, -18, 3), "spine": (-8, -10, 0), "chest": (-14, -20, 4), "head": (8, 22, 0),
+                        "thigh_l": (-18, 0, 0), "shin_l": (36, 0, 0), "thigh_r": (-18, 0, 0), "shin_r": (36, 0, 0),
+                        "upperarm_l": (-114, -20, -24), "forearm_l": (-66, 0, 0),
+                        "upperarm_r": (20, 14, 20), "forearm_r": (-48, 0, 0)},
+                       {"pelvis": (0, -0.050 * H, -0.06 * H)}),
+                # Snap left talisman hand straight forward launching blazing ember orb!
+                (0.54, {"pelvis": (12, 16, -3), "spine": (10, 10, 0), "chest": (18, 18, -3), "head": (-10, -18, 0),
+                        "thigh_l": (16, 0, 0), "shin_l": (18, 0, 0), "thigh_r": (-24, 0, 0), "shin_r": (30, 0, 0),
+                        "upperarm_l": (-92, 14, -6), "forearm_l": (-8, 0, 0),
+                        "upperarm_r": (30, -14, 22), "forearm_r": (-34, 0, 0)},
+                       {"pelvis": (0, -0.025 * H, 0.09 * H)}),
+                (0.74, {"pelvis": (6, 10, -2), "spine": (4, 6, 0), "chest": (8, 10, -2), "head": (-5, -10, 0),
+                        "upperarm_l": (-58, 8, -10), "forearm_l": (-22, 0, 0),
+                        "upperarm_r": (16, -6, 14), "forearm_r": (-28, 0, 0)},
+                       {"pelvis": (0, -0.020 * H, 0.04 * H)}),
+                (0.94, {"pelvis": (2, 0, 0), "chest": (3, 0, 0), "head": (-2, 0, 0),
+                        "thigh_l": (-8, 0, 0), "shin_l": (16, 0, 0), "thigh_r": (-8, 0, 0), "shin_r": (16, 0, 0),
+                        "upperarm_l": (4, 0, -6), "forearm_l": (-26, 0, 0), "upperarm_r": (4, 0, 6), "forearm_r": (-26, 0, 0)},
+                       {"pelvis": (0, -0.015 * H, 0)}),
+            ]
+        elif key == "gumiho_boss":
+            # Right-Hand Mystic Foxfire Orb (hand_r): graceful orb spiral raise -> sweeping foxfire barrage!
             attack = [
                 (0.00, {"pelvis": (2, 0, 0), "chest": (3, 0, 0), "head": (-2, 0, 0),
                         "thigh_l": (-8, 0, 0), "shin_l": (16, 0, 0), "thigh_r": (-8, 0, 0), "shin_r": (16, 0, 0),
                         "upperarm_l": (4, 0, -6), "forearm_l": (-26, 0, 0), "upperarm_r": (4, 0, 6), "forearm_r": (-26, 0, 0), **t_i1},
                        {"pelvis": (0, -0.015 * H, 0)}),
-                # Gather energy: lean chest back slightly, pull both palms inward to chest/orb focus
-                (0.22, {"pelvis": (-6, 0, 0), "spine": (-6, 0, 0), "chest": (-12, 0, 0), "head": (6, 0, 0),
+                (0.22, {"pelvis": (-4, 14, -3), "spine": (-6, 10, 0), "chest": (-12, 18, -4), "head": (6, -20, 0),
+                        "thigh_l": (-14 * st, 0, 0), "shin_l": (28 * kn, 0, 0), "thigh_r": (-14 * st, 0, 0), "shin_r": (28 * kn, 0, 0),
+                        "upperarm_r": (-110, 22, 26), "forearm_r": (-44, 0, 0),
+                        "upperarm_l": (-48, 22, -16), "forearm_l": (-68, 0, 0), **t_a1},
+                       {"pelvis": (0, -0.035 * H * st, -0.05 * H)}),
+                (0.38, {"pelvis": (-6, 18, -4), "spine": (-8, 12, 0), "chest": (-16, 22, -5), "head": (8, -24, 0),
                         "thigh_l": (-16 * st, 0, 0), "shin_l": (32 * kn, 0, 0), "thigh_r": (-16 * st, 0, 0), "shin_r": (32 * kn, 0, 0),
-                        "upperarm_l": (-56, 26, -18), "forearm_l": (-76, 0, 0),
-                        "upperarm_r": (-56, -26, 18), "forearm_r": (-76, 0, 0), **t_a1},
-                       {"pelvis": (0, -0.04 * H * st, -0.05 * H)}),
-                # Peak charge hold (readable attack tell right before projectile release)
-                (0.38, {"pelvis": (-8, 0, 0), "spine": (-8, 0, 0), "chest": (-16, 0, 0), "head": (8, 0, 0),
-                        "thigh_l": (-18 * st, 0, 0), "shin_l": (36 * kn, 0, 0), "thigh_r": (-18 * st, 0, 0), "shin_r": (36 * kn, 0, 0),
-                        "upperarm_l": (-68, 30, -24), "forearm_l": (-84, 0, 0),
-                        "upperarm_r": (-68, -30, 24), "forearm_r": (-84, 0, 0), **t_a1},
-                       {"pelvis": (0, -0.05 * H * st, -0.06 * H)}),
-                # Release! Snap both palms & sleeves cleanly forward launching elemental orb
-                (0.54, {"pelvis": (10, 0, 0), "spine": (10, 0, 0), "chest": (18, 0, 0), "head": (-10, 0, 0),
+                        "upperarm_r": (-124, 26, 30), "forearm_r": (-50, 0, 0),
+                        "upperarm_l": (-56, 28, -18), "forearm_l": (-74, 0, 0), **t_a1},
+                       {"pelvis": (0, -0.045 * H * st, -0.06 * H)}),
+                # Graceful foxfire orb weave forward release!
+                (0.56, {"pelvis": (10, -16, 3), "spine": (8, -12, 0), "chest": (16, -24, 4), "head": (-10, 22, 0),
                         "thigh_l": (-22 * st, 0, 0), "shin_l": (28 * kn, 0, 0), "thigh_r": (14 * st, 0, 0), "shin_r": (16 * kn, 0, 0),
-                        "upperarm_l": (-88, -8, -10), "forearm_l": (-12, 0, 0),
-                        "upperarm_r": (-88, 8, 10), "forearm_r": (-12, 0, 0), **t_a2},
-                       {"pelvis": (0, -0.02 * H * st, 0.08 * H)}),
-                # Graceful follow-through & settle
-                (0.74, {"pelvis": (6, 0, 0), "spine": (4, 0, 0), "chest": (8, 0, 0), "head": (-5, 0, 0),
-                        "upperarm_l": (-54, -4, -14), "forearm_l": (-26, 0, 0),
-                        "upperarm_r": (-54, 4, 14), "forearm_r": (-26, 0, 0), **t_a2},
+                        "upperarm_r": (-88, -22, -8), "forearm_r": (-8, 0, 0),
+                        "upperarm_l": (-64, -14, -22), "forearm_l": (-18, 0, 0), **t_a2},
+                       {"pelvis": (0, -0.020 * H * st, 0.08 * H)}),
+                (0.76, {"pelvis": (6, -12, 2), "spine": (4, -8, 0), "chest": (8, -14, 2), "head": (-5, 14, 0),
+                        "upperarm_r": (-58, -14, 12), "forearm_r": (-24, 0, 0),
+                        "upperarm_l": (-38, -8, -16), "forearm_l": (-28, 0, 0), **t_a2},
                        {"pelvis": (0, -0.015 * H * st, 0.03 * H)}),
-                (0.96, {"pelvis": (2, 0, 0), "chest": (3, 0, 0), "head": (-2, 0, 0),
+                (0.98, {"pelvis": (2, 0, 0), "chest": (3, 0, 0), "head": (-2, 0, 0),
+                        "thigh_l": (-8, 0, 0), "shin_l": (16, 0, 0), "thigh_r": (-8, 0, 0), "shin_r": (16, 0, 0),
+                        "upperarm_l": (4, 0, -6), "forearm_l": (-26, 0, 0), "upperarm_r": (4, 0, 6), "forearm_r": (-26, 0, 0), **t_i1},
+                       {"pelvis": (0, -0.015 * H, 0)}),
+            ]
+        else:
+            # Default melee humanoid (jangseung_stone heavy unarmed smash)
+            attack = [
+                (0.00, {"pelvis": (2, 0, 0), "chest": (3, 0, 0), "head": (-2, 0, 0),
+                        "thigh_l": (-8, 0, 0), "shin_l": (16, 0, 0), "thigh_r": (-8, 0, 0), "shin_r": (16, 0, 0),
+                        "upperarm_l": (4, 0, -6), "forearm_l": (-26, 0, 0), "upperarm_r": (4, 0, 6), "forearm_r": (-26, 0, 0), **t_i1},
+                       {"pelvis": (0, -0.015 * H, 0)}),
+                (0.18, {"pelvis": (8, 16, -4), "spine": (-4, 10, 0), "chest": (-10, 22, -6), "head": (6, -26, 0),
+                        "thigh_l": (-22 * st, 0, 0), "shin_l": (44 * kn, 0, 0), "foot_l": (-18 * st, 0, 0),
+                        "thigh_r": (-18 * st, 0, 0), "shin_r": (40 * kn, 0, 0), "foot_r": (-16 * st, 0, 0),
+                        "upperarm_r": (-128, 18, 28), "forearm_r": (-64, 0, 0),
+                        "upperarm_l": (-34, -14, -18), "forearm_l": (-54, 0, 0), **t_a1},
+                       {"pelvis": (0, -0.085 * H * st, -0.04 * H)}),
+                (0.30, {"pelvis": (10, 20, -5), "spine": (-5, 12, 0), "chest": (-12, 26, -7), "head": (8, -32, 0),
+                        "thigh_l": (-26 * st, 0, 0), "shin_l": (50 * kn, 0, 0), "foot_l": (-20 * st, 0, 0),
+                        "thigh_r": (-16 * st, 0, 0), "shin_r": (38 * kn, 0, 0), "foot_r": (-16 * st, 0, 0),
+                        "upperarm_r": (-142, 22, 32), "forearm_r": (-70, 0, 0),
+                        "upperarm_l": (-40, -18, -22), "forearm_l": (-60, 0, 0), **t_a1},
+                       {"pelvis": (0, -0.095 * H * st, -0.05 * H)}),
+                (0.46, {"pelvis": (14, -18, 5), "spine": (8, -12, 0), "chest": (22, -26, 6), "head": (-14, 24, 0),
+                        "thigh_l": (-38 * st, 0, 0), "shin_l": (46 * kn, 0, 0), "foot_l": (-8 * st, 0, 0),
+                        "thigh_r": (26 * st, 0, 0),  "shin_r": (20 * kn, 0, 0), "foot_r": (16 * st, 0, 0),
+                        "upperarm_r": (-74, -18, -16), "forearm_r": (-14, 0, 0),
+                        "upperarm_l": (36, 18, -22), "forearm_l": (-34, 0, 0), **t_a2},
+                       {"pelvis": (0, -0.075 * H * st, 0.11 * H)}),
+                (0.64, {"pelvis": (10, -22, 4), "spine": (6, -10, 0), "chest": (16, -22, 4), "head": (-10, 20, 0),
+                        "thigh_l": (-30 * st, 0, 0), "shin_l": (38 * kn, 0, 0), "foot_l": (-8 * st, 0, 0),
+                        "thigh_r": (20 * st, 0, 0),  "shin_r": (18 * kn, 0, 0), "foot_r": (12 * st, 0, 0),
+                        "upperarm_r": (-32, -24, -22), "forearm_r": (-32, 0, 0),
+                        "upperarm_l": (28, 12, -16), "forearm_l": (-32, 0, 0), **t_a2},
+                       {"pelvis": (0, -0.060 * H * st, 0.08 * H)}),
+                (0.92, {"pelvis": (2, 0, 0), "chest": (3, 0, 0), "head": (-2, 0, 0),
                         "thigh_l": (-8, 0, 0), "shin_l": (16, 0, 0), "thigh_r": (-8, 0, 0), "shin_r": (16, 0, 0),
                         "upperarm_l": (4, 0, -6), "forearm_l": (-26, 0, 0), "upperarm_r": (4, 0, 6), "forearm_r": (-26, 0, 0), **t_i1},
                        {"pelvis": (0, -0.015 * H, 0)}),
@@ -503,21 +668,50 @@ def get_clips(key, archetype, H):
                     "upperarm_l": (-30, 0, -10), "forearm_l": (-28, 0, 0), "upperarm_r": (-24, 0, 10), "forearm_r": (-32, 0, 0)},
                    {"pelvis": (0, 0.05 * H, 0)}),
         ]
-        if key in RANGED_MONSTERS:
-            # Eerie floating Ranged Cast (cheonyeo_ghost, mudang_wraith): rise & spread sleeves wide -> twin-palm spirit launch
+        if key == "mudang_wraith":
+            # Dual-wield Shaman Ritual: shake left bronze bell (hand_l) while sweeping right golden fan (hand_r)!
             attack = [
                 (0.00, {"chest": (4, 0, 0), "upperarm_l": (-12, 0, -10), "forearm_l": (-34, 0, 0), "upperarm_r": (-12, 0, 10), "forearm_r": (-34, 0, 0)}, {"pelvis": (0, 0.04 * H, 0)}),
-                (0.24, {"pelvis": (-10, 0, 0), "chest": (-14, 0, 0), "head": (-8, 0, 0), "skirt_mid": (-16, 0, 0), "skirt_hem": (-22, 0, 0),
-                        "upperarm_l": (-74, 24, -38), "forearm_l": (-68, 0, 0), "upperarm_r": (-74, -24, 38), "forearm_r": (-68, 0, 0)},
-                       {"pelvis": (0, 0.16 * H, -0.06 * H)}),
-                (0.40, {"pelvis": (-12, 0, 0), "chest": (-18, 0, 0), "head": (-10, 0, 0), "skirt_mid": (-18, 0, 0), "skirt_hem": (-24, 0, 0),
-                        "upperarm_l": (-84, 28, -42), "forearm_l": (-74, 0, 0), "upperarm_r": (-84, -28, 42), "forearm_r": (-74, 0, 0)},
-                       {"pelvis": (0, 0.18 * H, -0.07 * H)}),
-                (0.56, {"pelvis": (14, 0, 0), "chest": (18, 0, 0), "head": (-12, 0, 0), "skirt_mid": (24, 0, 0), "skirt_hem": (30, 0, 0),
-                        "upperarm_l": (-92, -12, -8), "forearm_l": (-10, 0, 0), "upperarm_r": (-92, 12, 8), "forearm_r": (-10, 0, 0)},
+                # Raise bronze bell high + cock golden fan wide back-right
+                (0.18, {"pelvis": (-6, 16, -2), "chest": (-10, 22, -4), "head": (-4, -18, 0), "skirt_mid": (-12, 0, 4), "skirt_hem": (-18, 0, 6),
+                        "upperarm_l": (-112, -8, -24), "forearm_l": (-56, 0, 0),
+                        "upperarm_r": (-64, 34, 34), "forearm_r": (-44, 0, 0)},
+                       {"pelvis": (0, 0.14 * H, -0.05 * H)}),
+                # Ritual bell-shake chime peak!
+                (0.34, {"pelvis": (-8, 22, -3), "chest": (-14, 28, -5), "head": (-6, -24, 0), "skirt_mid": (-16, 0, -4), "skirt_hem": (-22, 0, -6),
+                        "upperarm_l": (-124, -12, -28), "forearm_l": (-22, 0, 0),
+                        "upperarm_r": (-76, 42, 40), "forearm_r": (-48, 0, 0)},
+                       {"pelvis": (0, 0.18 * H, -0.06 * H)}),
+                # Wide Golden Fan Sweep forward releasing shaman talismans!
+                (0.54, {"pelvis": (14, -22, 4), "chest": (18, -32, 5), "head": (-10, 26, 0), "skirt_mid": (24, 0, 6), "skirt_hem": (30, 0, 8),
+                        "upperarm_l": (-92, -16, -34), "forearm_l": (-66, 0, 0),
+                        "upperarm_r": (-86, -42, -24), "forearm_r": (-12, 0, 0)},
                        {"pelvis": (0, 0.06 * H, 0.09 * H)}),
-                (0.76, {"pelvis": (8, 0, 0), "chest": (10, 0, 0), "skirt_mid": (14, 0, 0), "skirt_hem": (18, 0, 0),
-                        "upperarm_l": (-48, -6, -14), "forearm_l": (-26, 0, 0), "upperarm_r": (-48, 6, 14), "forearm_r": (-26, 0, 0)},
+                (0.76, {"pelvis": (8, -14, 2), "chest": (10, -18, 2), "skirt_mid": (14, 0, 3), "skirt_hem": (18, 0, 4),
+                        "upperarm_l": (-56, -8, -22), "forearm_l": (-42, 0, 0),
+                        "upperarm_r": (-48, -24, -14), "forearm_r": (-26, 0, 0)},
+                       {"pelvis": (0, 0.05 * H, 0.04 * H)}),
+                (0.98, {"chest": (4, 0, 0), "upperarm_l": (-12, 0, -10), "forearm_l": (-34, 0, 0), "upperarm_r": (-12, 0, 10), "forearm_r": (-34, 0, 0)}, {"pelvis": (0, 0.04 * H, 0)}),
+            ]
+        elif key == "cheonyeo_ghost":
+            # Left-Hand Floating Spirit Flame (hand_l): eerie rise holding glowing wisp high -> forward palm launch!
+            attack = [
+                (0.00, {"chest": (4, 0, 0), "upperarm_l": (-12, 0, -10), "forearm_l": (-34, 0, 0), "upperarm_r": (-12, 0, 10), "forearm_r": (-34, 0, 0)}, {"pelvis": (0, 0.04 * H, 0)}),
+                (0.24, {"pelvis": (-10, -14, 3), "chest": (-14, -18, 4), "head": (-8, 16, -6), "skirt_mid": (-16, 0, 0), "skirt_hem": (-22, 0, 0),
+                        "upperarm_l": (-108, -16, -26), "forearm_l": (-44, 0, 0),
+                        "upperarm_r": (-16, 12, 22), "forearm_r": (-46, 0, 0)},
+                       {"pelvis": (0, 0.16 * H, -0.06 * H)}),
+                (0.40, {"pelvis": (-12, -18, 4), "chest": (-18, -22, 5), "head": (-10, 20, -8), "skirt_mid": (-18, 0, 0), "skirt_hem": (-24, 0, 0),
+                        "upperarm_l": (-122, -20, -30), "forearm_l": (-50, 0, 0),
+                        "upperarm_r": (-12, 16, 26), "forearm_r": (-52, 0, 0)},
+                       {"pelvis": (0, 0.19 * H, -0.07 * H)}),
+                (0.56, {"pelvis": (14, 18, -3), "chest": (18, 22, -4), "head": (-12, -18, 4), "skirt_mid": (24, 0, 0), "skirt_hem": (30, 0, 0),
+                        "upperarm_l": (-90, 16, -8), "forearm_l": (-6, 0, 0),
+                        "upperarm_r": (18, -12, 20), "forearm_r": (-32, 0, 0)},
+                       {"pelvis": (0, 0.06 * H, 0.09 * H)}),
+                (0.76, {"pelvis": (8, 10, -2), "chest": (10, 12, -2), "skirt_mid": (14, 0, 0), "skirt_hem": (18, 0, 0),
+                        "upperarm_l": (-52, 8, -12), "forearm_l": (-22, 0, 0),
+                        "upperarm_r": (6, -6, 14), "forearm_r": (-30, 0, 0)},
                        {"pelvis": (0, 0.05 * H, 0.04 * H)}),
                 (0.96, {"chest": (4, 0, 0), "upperarm_l": (-12, 0, -10), "forearm_l": (-34, 0, 0), "upperarm_r": (-12, 0, 10), "forearm_r": (-34, 0, 0)}, {"pelvis": (0, 0.04 * H, 0)}),
             ]
@@ -644,17 +838,30 @@ def get_clips(key, archetype, H):
                     "upperarm_l": (-16, 0, -10), "forearm_l": (-28, 0, 0), "upperarm_r": (-8, 0, 10), "forearm_r": (-24, 0, 0)},
                    {"pelvis": (0, 0, 0)}),
         ]
+        # Left-Hand Jade Dragon Trident (hand_l): coil serpent spine & hoist trident skyward -> thunderous forward thrust & breath!
         attack = [
-            (0.00, {"spine": (0, 0, 0), "chest": (0, 0, 0), "upperarm_r": (-10, 0, 10), "forearm_r": (-28, 0, 0)}, {"pelvis": (0, 0, 0)}),
-            (0.28, {"pelvis": (-10, -14, 0), "spine": (-14, -14, 0), "chest": (-12, -16, 0), "head": (10, 20, 0),
-                    "upperarm_r": (-102, -20, 28), "forearm_r": (-64, 0, 0), "upperarm_l": (-38, 12, -22), "forearm_l": (-46, 0, 0)},
-                   {"pelvis": (0, 0.05 * H, -0.06 * H)}),
-            (0.50, {"pelvis": (14, 14, 0), "spine": (20, 14, 0), "chest": (18, 16, 0), "head": (-14, -16, 0),
-                    "upperarm_r": (-34, 28, -14), "forearm_r": (-16, 0, 0), "upperarm_l": (24, -16, -18), "forearm_l": (-28, 0, 0)},
-                   {"pelvis": (0, -0.03 * H, 0.12 * H)}),
-            (0.72, {"pelvis": (8, 12, 0), "spine": (12, 10, 0), "chest": (10, 10, 0), "upperarm_r": (10, 20, -16), "forearm_r": (-30, 0, 0)},
+            (0.00, {"spine": (0, 0, 0), "chest": (0, 0, 0),
+                    "upperarm_l": (-10, 0, -10), "forearm_l": (-28, 0, 0),
+                    "upperarm_r": (-10, 0, 10), "forearm_r": (-28, 0, 0)}, {"pelvis": (0, 0, 0)}),
+            (0.24, {"pelvis": (-10, -16, 0), "spine": (-14, -14, 0), "chest": (-14, -18, 0), "head": (10, 20, 0),
+                    "upperarm_l": (-128, -20, -28), "forearm_l": (-46, 0, 0),
+                    "upperarm_r": (-36, 14, 24), "forearm_r": (-48, 0, 0)},
+                   {"pelvis": (0, 0.06 * H, -0.06 * H)}),
+            (0.40, {"pelvis": (-12, -20, 0), "spine": (-16, -18, 0), "chest": (-16, -22, 0), "head": (12, 24, 0),
+                    "upperarm_l": (-142, -24, -32), "forearm_l": (-50, 0, 0),
+                    "upperarm_r": (-42, 18, 28), "forearm_r": (-54, 0, 0)},
+                   {"pelvis": (0, 0.08 * H, -0.07 * H)}),
+            (0.58, {"pelvis": (14, 18, 0), "spine": (22, 16, 0), "chest": (20, 22, 0), "head": (-14, -20, 0),
+                    "upperarm_l": (-84, 24, 10), "forearm_l": (-10, 0, 0),
+                    "upperarm_r": (24, -18, 22), "forearm_r": (-28, 0, 0)},
+                   {"pelvis": (0, -0.03 * H, 0.14 * H)}),
+            (0.78, {"pelvis": (8, 12, 0), "spine": (12, 10, 0), "chest": (10, 12, 0),
+                    "upperarm_l": (-46, 16, 6), "forearm_l": (-22, 0, 0),
+                    "upperarm_r": (10, -10, 16), "forearm_r": (-28, 0, 0)},
                    {"pelvis": (0, -0.02 * H, 0.06 * H)}),
-            (0.98, {"spine": (0, 0, 0), "chest": (0, 0, 0), "upperarm_r": (-10, 0, 10), "forearm_r": (-28, 0, 0)}, {"pelvis": (0, 0, 0)}),
+            (1.02, {"spine": (0, 0, 0), "chest": (0, 0, 0),
+                    "upperarm_l": (-10, 0, -10), "forearm_l": (-28, 0, 0),
+                    "upperarm_r": (-10, 0, 10), "forearm_r": (-28, 0, 0)}, {"pelvis": (0, 0, 0)}),
         ]
         hit = [
             (0.00, {"chest": (0, 0, 0), "head": (0, 0, 0)}, {"pelvis": (0, 0, 0)}),
@@ -750,6 +957,33 @@ def rebuild_glb_animations(glb_path, key, archetype):
             if ty > 0.2:
                 H = ty * 2.0
                 break
+
+    # Reclaim prior tail-only animation accessors/bufferViews so repeated rebakes never bloat GLB size
+    old_anim_accs = set()
+    for a in gltf.get("animations", []):
+        for s in a.get("samplers", []):
+            if "input" in s:
+                old_anim_accs.add(s["input"])
+            if "output" in s:
+                old_anim_accs.add(s["output"])
+    if old_anim_accs:
+        min_acc = min(old_anim_accs)
+        non_anim_accs = set(range(len(gltf["accessors"]))) - old_anim_accs
+        if not non_anim_accs or min_acc > max(non_anim_accs):
+            old_bvs = {gltf["accessors"][i]["bufferView"] for i in old_anim_accs if "bufferView" in gltf["accessors"][i]}
+            if old_bvs:
+                min_bv = min(old_bvs)
+                non_anim_bvs = set(range(len(gltf["bufferViews"]))) - old_bvs
+                if not non_anim_bvs or min_bv > max(non_anim_bvs):
+                    min_off = min(gltf["bufferViews"][b].get("byteOffset", 0) for b in old_bvs)
+                    max_keep_end = max(
+                        (gltf["bufferViews"][b].get("byteOffset", 0) + gltf["bufferViews"][b].get("byteLength", 0))
+                        for b in non_anim_bvs
+                    ) if non_anim_bvs else 0
+                    if min_off >= max_keep_end:
+                        gltf["accessors"] = gltf["accessors"][:min_acc]
+                        gltf["bufferViews"] = gltf["bufferViews"][:min_bv]
+                        bin_data = bin_data[:min_off]
 
     # Append new animation accessors to bufferViews / accessors (keeping all mesh/skin/image bufferViews intact!)
     def append_accessor(arr, comp_type, acc_type, compute_minmax=False):

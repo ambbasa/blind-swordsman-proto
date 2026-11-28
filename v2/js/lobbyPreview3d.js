@@ -1,7 +1,8 @@
 /* v2/js/lobbyPreview3d.js — v0.85 로비·치장 화면 실시간 3D 주인공 미리보기 (M2M_Idle + 터치 회전 + 도포/검 강화 반영) */
 import * as THREE from 'three';
-import { preloadHeroGlb, makeHeroGlb, applyHeroGlbCloak, applyHeroGlbSwordTrail } from './glbhero.js?v=v180';
-import { preloadMonsterGlb, makeBossGlb } from './glbboss.js?v=v180';
+import { preloadHeroGlb, makeHeroGlb, applyHeroGlbCloak, applyHeroGlbSwordTrail } from './glbhero.js?v=v181';
+import { preloadMonsterGlb, makeBossGlb } from './glbboss.js?v=v181';
+import { tickWeaponFx3D } from './weapons3d.js?v=v181';
 
 let renderer = null;
 let scene = null;
@@ -234,6 +235,7 @@ export function startCodex3d(canvas, species) {
         if (!cDrag) cYaw += dt * 0.42;
         if (cRoot) cRoot.rotation.y = cYaw;
         if (cModel && cModel.mixer) cModel.mixer.update(dt);
+        if (cModel && cModel.weaponFx) tickWeaponFx3D(cModel.weaponFx, dt);
         cRenderer.render(cScene, cCamera);
         cRaf = requestAnimationFrame(loopC);
       };

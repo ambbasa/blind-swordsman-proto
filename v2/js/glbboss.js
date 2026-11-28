@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { applyForgedMetal, getMetalStudioEnv } from './modules/metalStudioEnv.js';
-import { makeRig, tickPose } from './glbpose.js?v=v180';
-import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v180';
-import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v180';
+import { makeRig, tickPose } from './glbpose.js?v=v181';
+import { isExternalAnimGlb, mapGlbActions } from './glbAnimMap.js?v=v181';
+import { createWeaponTrail, setTrailStyle, flashWeaponGlint, updateWeaponTrail, disposeWeaponTrail } from './weaponTrail.js?v=v181';
+import { attachMonsterWeapon3D, tickWeaponFx3D } from './weapons3d.js?v=v181';
 
 const EASTERN_ALIAS = {
   boss:      'dokkaebi_boss',
@@ -19,18 +20,18 @@ const EASTERN_KEYS = [
   'gumiho_boss', 'jeoseung_boss', 'samjoko', 'imugi_king_boss', 'jangsanbeom'
 ];
 const MODEL_URLS = {
-  boss:      new URL('../assets/models/boss.glb?v=v180', import.meta.url).href,
-  boss_act2: new URL('../assets/models/boss_act2.glb?v=v180', import.meta.url).href,
-  boss_act3: new URL('../assets/models/boss_act3.glb?v=v180', import.meta.url).href,
-  boss_act4: new URL('../assets/models/boss_act4.glb?v=v180', import.meta.url).href,
-  minion:    new URL('../assets/models/minion.glb?v=v180', import.meta.url).href,
-  heavy:     new URL('../assets/models/heavy.glb?v=v180', import.meta.url).href,
-  stone:     new URL('../assets/models/stone.glb?v=v180', import.meta.url).href
+  boss:      new URL('../assets/models/boss.glb?v=v181', import.meta.url).href,
+  boss_act2: new URL('../assets/models/boss_act2.glb?v=v181', import.meta.url).href,
+  boss_act3: new URL('../assets/models/boss_act3.glb?v=v181', import.meta.url).href,
+  boss_act4: new URL('../assets/models/boss_act4.glb?v=v181', import.meta.url).href,
+  minion:    new URL('../assets/models/minion.glb?v=v181', import.meta.url).href,
+  heavy:     new URL('../assets/models/heavy.glb?v=v181', import.meta.url).href,
+  stone:     new URL('../assets/models/stone.glb?v=v181', import.meta.url).href
 };
 const EASTERN_URLS = {};
 for (let i = 0; i < EASTERN_KEYS.length; i++) {
   const k = EASTERN_KEYS[i];
-  EASTERN_URLS[k] = new URL('../assets/models/monsters/' + k + '.glb?v=v180', import.meta.url).href;
+  EASTERN_URLS[k] = new URL('../assets/models/monsters/' + k + '.glb?v=v181', import.meta.url).href;
 }
 function isBossSp(sp) {
   return sp === 'boss' || sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4' || (typeof sp === 'string' && sp.endsWith('_boss'));
@@ -222,34 +223,62 @@ export function makeBossGlb(height, species) {
   const rig = externalAnim ? null : makeRig(scene);
   if (rig) rig.species = sp;
 
+  /* v1.81 2D 일러스트 고증 9종 몬스터 전용 3D 무기·영물 장착 (휴지 포즈 기준 정확 정렬) */
+  const weaponFx = attachMonsterWeapon3D(scene, sp, targetH, k);
+
   const mixer = new THREE.AnimationMixer(scene);
   const actions = mapGlbActions(mixer, gltf.animations, sp);
-  if (actions.idle) actions.idle.play();
+  /* Randomize initial idle/walk phase per instance so monster packs breathe & walk organically, never in robotic unison */
+  const phaseSeed = Math.random();
+  if (actions.idle) {
+    actions.idle.play();
+    const idur = actions.idle.getClip().duration || 1.6;
+    actions.idle.time = phaseSeed * idur;
+  }
   let handR = null;
   scene.traverse(function (o) { if (o.isBone && o.name === 'hand_r') handR = o; });
   const isBossModel = isBossSp(sp);
-  const isUnarmedBoss = (sp === 'boss_act2' || sp === 'boss_act3' || sp === 'boss_act4');
+  const isUnarmedBoss = (sp === 'boss_act2' || sp === 'gumiho_boss');
   const wfx = BOSS_WEAPON_FX[sp] || BOSS_WEAPON_FX.boss;
-  const trail = (handR && (isBossModel || sp === 'heavy')) ? createWeaponTrail(holder, handR, {
-    baseLocal: new THREE.Vector3(0, isUnarmedBoss ? 0.02 : (isBossModel ? 0.55 : 0.30), 0),
-    tipLocal: new THREE.Vector3(0, isUnarmedBoss ? 0.28 : (isBossModel ? 1.65 : 1.20), 0),
-    color: isBossModel ? wfx.col : 0xe8d5b8,
-    tailColor: isBossModel ? wfx.tail : 0x7c5840,
-    glintColor: isBossModel ? wfx.glint : 0xffc864,
-    glintScale: isUnarmedBoss ? 0.72 : (isBossModel ? 1.45 : 1.05)
-  }) : null;
+  let trail = null;
+  if (weaponFx && weaponFx.primaryTrail) {
+    const pt = weaponFx.primaryTrail;
+    trail = createWeaponTrail(holder, pt.anchor, {
+      baseLocal: pt.baseLocal,
+      tipLocal: pt.tipLocal,
+      color: pt.col,
+      tailColor: pt.tail,
+      glintColor: pt.glint,
+      glintScale: pt.scale
+    });
+  } else if (handR && (isBossModel || sp === 'heavy')) {
+    trail = createWeaponTrail(holder, handR, {
+      baseLocal: new THREE.Vector3(0, isUnarmedBoss ? 0.02 : (isBossModel ? 0.55 : 0.30), 0),
+      tipLocal: new THREE.Vector3(0, isUnarmedBoss ? 0.28 : (isBossModel ? 1.65 : 1.20), 0),
+      color: isBossModel ? wfx.col : 0xe8d5b8,
+      tailColor: isBossModel ? wfx.tail : 0x7c5840,
+      glintColor: isBossModel ? wfx.glint : 0xffc864,
+      glintScale: isUnarmedBoss ? 0.72 : (isBossModel ? 1.45 : 1.05)
+    });
+  }
+
+  const allWeaponMeshes = bodyMeshes.filter(function (m) { return /weapon/i.test(m.name); });
+  if (weaponFx && weaponFx.weaponMeshes) {
+    for (let wi = 0; wi < weaponFx.weaponMeshes.length; wi++) allWeaponMeshes.push(weaponFx.weaponMeshes[wi]);
+  }
 
   return {
     species: sp,
     root: holder,
     trail: trail,
+    weaponFx: weaponFx,
     impactFired: false,
     atkElapsed: 0,
     phase: 1,
     phaseT: 0,
-    weaponMeshes: bodyMeshes.filter(function (m) { return /weapon/i.test(m.name); }), body: body, outline: outline, bodyMeshes: bodyMeshes, outlineMeshes: outlineMeshes,
+    weaponMeshes: allWeaponMeshes, body: body, outline: outline, bodyMeshes: bodyMeshes, outlineMeshes: outlineMeshes,
     mixer: mixer, actions: actions, rig: rig, cur: 'idle', lockT: 0, prevBurst: null, atkAlt: 0,
-    mats: bodyMeshes.concat(outlineMeshes).map(function (m) { return m.material; }),
+    mats: bodyMeshes.concat(outlineMeshes).concat(weaponFx ? weaponFx.weaponMeshes : []).map(function (m) { return m.material; }),
     tris: Math.round(tris), ktx2: false,
     bbox: [+bInfo.sizeX.toFixed(3), +bInfo.sizeY.toFixed(3), +bInfo.sizeZ.toFixed(3)], fitScale: +k.toFixed(3)
   };
@@ -284,13 +313,18 @@ function playOnly(G, name, fade, from, timeScale) {
   to.fadeIn(fade);
   to.play();
   if (from) to.time = from;
+  else if (name === 'walk' && G.cur === 'idle') {
+    const wdur = to.getClip().duration || 0.9;
+    to.time = (G._walkSeed != null ? G._walkSeed : (G._walkSeed = Math.random())) * wdur;
+  }
   G.cur = name;
   return true;
 }
 
 function once(G, name, from, timeScale, maxLock) {
   const ts = timeScale || 1;
-  if (!playOnly(G, name, name === 'hit' || name === 'attack' ? 0.05 : 0.14, from, ts)) return;
+  const fade = name === 'hit' ? 0.08 : (name === 'attack' || name === 'slam' ? 0.11 : 0.18);
+  if (!playOnly(G, name, fade, from, ts)) return;
   const dur = (G.actions[name].getClip().duration - (from || 0)) / ts - 0.08;
   G.lockT = Math.max(0.14, maxLock != null ? Math.min(maxLock, dur) : dur);
 }
@@ -331,7 +365,7 @@ export function tickBossGlb(G, H, dt) {
   G.lockT = (G.lockT || 0) - dt;
   if (G.cur !== 'death' && G.lockT <= 0) {
     const want = (H.base === 'walk' || H.burst === 'charge') ? 'walk' : 'idle';
-    if (want !== G.cur) playOnly(G, want, 0.16);
+    if (want !== G.cur) playOnly(G, want, (G.cur === 'attack' || G.cur === 'slam' || G.cur === 'hit') ? 0.22 : 0.28);
   }
   if (G.actions.walk && H.actions.walk) G.actions.walk.setEffectiveTimeScale(H.actions.walk.getEffectiveTimeScale());
   G.mixer.update(dt);
@@ -359,6 +393,7 @@ export function tickBossGlb(G, H, dt) {
       }
     });
   }
+  if (G.weaponFx) tickWeaponFx3D(G.weaponFx, dt);
   if (G.trail) {
     const swinging = G.lockT > 0.04 && (G.cur === 'attack' || G.cur === 'slam');
     updateWeaponTrail(G.trail, dt, swinging);
@@ -427,6 +462,17 @@ export function disposeMonsterGlb(G) {
     G.mixer.stopAllAction();
     G.mixer.uncacheRoot(G.root);
   }
+  if (G.weaponMeshes) {
+    for (let i = 0; i < G.weaponMeshes.length; i++) {
+      const m = G.weaponMeshes[i];
+      if (m) {
+        m.onBeforeRender = null;
+        if (m.material && m.material.dispose) m.material.dispose();
+      }
+    }
+    G.weaponMeshes.length = 0;
+  }
+  G.weaponFx = null;
   if (G.bodyMeshes) {
     for (let i = 0; i < G.bodyMeshes.length; i++) {
       const m = G.bodyMeshes[i];
